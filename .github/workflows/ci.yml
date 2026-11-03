@@ -57,6 +57,14 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - name: Only version branches go into master
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            version/*) echo "ok: $HEAD_REF" ;;
+            *) echo "::error::master only takes pull requests from version/X.Y.Z branches (this is $HEAD_REF)"; exit 1 ;;
+          esac
       - run: npm ci
       - name: Version above the latest release, CHANGELOG section present
         run: npx tsx scripts/release.ts check "$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
