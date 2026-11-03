@@ -33,19 +33,20 @@ const HOVER_CLASS = 'ficsmap-marker-hover';
 /**
  * The world map (spec §10, §11): the tiled in-game map in CRS.Simple with all collectibles drawn on
  * one canvas. The features' `mapLayers` render inside the map (they can use react-leaflet's
- * `useMap()`), `mapControls` stack under the zoom buttons, and the active map mode's `Banner` runs
+ * `useMap()`), `mapControls` stack under the zoom buttons, `mapOverlays` place themselves over it, and the active map mode's `Banner` runs
  * across the top. The viewport and filters are remembered per world.
  *
- * Controls and the banner are portalled into an overlay next to the Leaflet container: they keep the
+ * Controls, overlays and the banner are portalled into an overlay next to the Leaflet container: they keep the
  * map context (useMap) but their DOM events never reach Leaflet, so a click there is not a map
  * click, and React's own event handling works as anywhere else.
  */
 export function MapView({ ctx }: { ctx: WorldCtx }) {
   const { t } = useTranslation();
   const features = useFeatures();
-  const { layers, controls, modes } = useMemo(() => ({
+  const { layers, controls, overlays, modes } = useMemo(() => ({
     layers: collect(features, 'mapLayers'),
     controls: collect(features, 'mapControls'),
+    overlays: collect(features, 'mapOverlays'),
     modes: collect(features, 'mapModes'),
   }), [features]);
   const interactionMode = useUiStore(s => s.interactionMode);
@@ -94,6 +95,7 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
                 {controls.map(c => <c.Component key={c.id} ctx={ctx} />)}
               </div>
             )}
+            {overlays.map(o => <o.Component key={o.id} ctx={ctx} />)}
           </>,
           overlay,
         )}

@@ -1,4 +1,5 @@
 import { COLLECTIBLE_TYPES } from '../../shared/collectibleTypes.js';
+import type { Locale } from '../../shared/i18n.js';
 import type { CollectibleTypeId } from '../../shared/types.js';
 import type { CollectedVisibility } from './store.js';
 
@@ -30,6 +31,14 @@ function write(key: string, value: string): void {
     localStorage.setItem(key, value);
   } catch {
     // Not remembering is fine.
+  }
+}
+
+function remove(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Not forgetting is fine too.
   }
 }
 
@@ -72,6 +81,18 @@ export function setLastWorld(id: string): void {
   write(LAST_WORLD_KEY, id);
 }
 
+const LOCALE_KEY = 'ficsmap:locale';
+
+/** The language picked in the header (per device), or null to follow the browser. */
+export function loadLocale(): Locale | null {
+  const raw = read(LOCALE_KEY);
+  return raw === 'en' || raw === 'de' ? raw : null;
+}
+
+export function saveLocale(locale: Locale): void {
+  write(LOCALE_KEY, locale);
+}
+
 const SIDEBAR_WIDTH_KEY = 'ficsmap:sidebarWidth';
 
 /** The sidebar width the user dragged to (per device), or null for "fit the content". */
@@ -82,11 +103,37 @@ export function loadSidebarWidth(): number | null {
 }
 
 export function saveSidebarWidth(width: number | null): void {
-  if (width === null) {
-    try {
-      localStorage.removeItem(SIDEBAR_WIDTH_KEY);
-    } catch {
-      // Not remembering is fine.
-    }
-  } else write(SIDEBAR_WIDTH_KEY, String(Math.round(width)));
+  if (width === null) remove(SIDEBAR_WIDTH_KEY);
+  else write(SIDEBAR_WIDTH_KEY, String(Math.round(width)));
+}
+
+const podTicksKey = (worldId: string, routeId: string) => `ficsmap:podTicks:${worldId}:${routeId}`;
+
+/** The items ticked in a saved route's "Bring with you" list (per device), by English name. */
+export function loadPodTicks(worldId: string, routeId: string): Set<string> {
+  const raw = read(podTicksKey(worldId, routeId));
+  if (raw === null) return new Set();
+  try {
+    const data: unknown = JSON.parse(raw);
+    return new Set(Array.isArray(data) ? data.filter((x): x is string => typeof x === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function savePodTicks(worldId: string, routeId: string, ticks: ReadonlySet<string>): void {
+  if (ticks.size === 0) remove(podTicksKey(worldId, routeId));
+  else write(podTicksKey(worldId, routeId), JSON.stringify([...ticks]));
+}
+
+const POD_CHECKLIST_COLLAPSED_KEY = 'ficsmap:podChecklistCollapsed';
+
+/** Whether the "Bring with you" overlay was collapsed by hand (per device). */
+export function loadPodChecklistCollapsed(): boolean {
+  return read(POD_CHECKLIST_COLLAPSED_KEY) === '1';
+}
+
+export function savePodChecklistCollapsed(collapsed: boolean): void {
+  if (collapsed) write(POD_CHECKLIST_COLLAPSED_KEY, '1');
+  else remove(POD_CHECKLIST_COLLAPSED_KEY);
 }

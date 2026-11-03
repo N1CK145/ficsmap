@@ -20,8 +20,7 @@ import { useDatasetQuery } from '../map/useDataset.js';
 import { isCollected, useMarks, useSetMark, type MarksCache } from '../marks/useMarks.js';
 import { useMe, useWorld } from '../worlds/queries.js';
 import { goToStop, useNextStop } from './NextStopButton.js';
-import { podNeeds } from './podNeeds.js';
-import { PodNeedsList } from './PodNeedsList.js';
+import { PodChecklist } from './PodChecklist.js';
 import { nearestUncollected, optimizeDraft, replan, routeStats, type DraftAction, type RouteDraft } from './draft.js';
 import { canEditRoute, deleteRoute, saveRoute, useRouteDraft, useRoutesQuery, isDirty, type DraftEnv } from './useRoutes.js';
 
@@ -269,7 +268,8 @@ function EditorBody({ worldId, me, world, index, marks, draft, route }: BodyProp
         </p>
       )}
 
-      <PodNeedsList needs={podNeeds(stops, isDone, locale)} />
+      {/* On desktop the list floats over the map instead (PodChecklistOverlay). */}
+      {mobile && <PodChecklist worldId={worldId} />}
 
       <div className="flex flex-wrap gap-2">
         {editing && (
