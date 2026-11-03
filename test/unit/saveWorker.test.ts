@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
-import { handleParse, handleRequest, readSaveHeader, type SaveWorkerOut } from '../../src/web/save.worker.js';
+import { handleParse, handleRequest, readSaveHeader, safeDatasetUrl, type SaveWorkerOut } from '../../src/web/save.worker.js';
 
 const tiny = indexDataset({
   version: 't', build: 1, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true,
@@ -27,9 +27,10 @@ describe('handleRequest', () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const posted: SaveWorkerOut[] = [];
     await handleRequest(
-      { type: 'parse', buffer: new Uint8Array([1, 2, 3]).buffer, datasetUrl: 'http://x/d.json' },
+      { type: 'parse', buffer: new Uint8Array([1, 2, 3]).buffer, datasetUrl: 'http://x/data/v/collectibles.min.json' },
       () => Promise.reject(new Error('offline')),
       m => posted.push(m),
+      'http://x/',
     );
     expect(posted).toEqual([expect.objectContaining({ type: 'error', code: 'dataset_unavailable' })]);
     err.mockRestore();
@@ -37,7 +38,7 @@ describe('handleRequest', () => {
 
   it('parses with the loaded index and posts progress and the answer', async () => {
     const posted: SaveWorkerOut[] = [];
-    await handleRequest({ type: 'parse', buffer: new Uint8Array([1, 2, 3]).buffer, datasetUrl: 'u' }, async () => tiny, m => posted.push(m));
+    await handleRequest({ type: 'parse', buffer: new Uint8Array([1, 2, 3]).buffer, datasetUrl: '/data/v/collectibles.min.json' }, async () => tiny, m => posted.push(m), 'http://x/');
     expect(posted.map(m => m.type)).toEqual(['progress', 'error']);
     expect(posted.at(-1)).toMatchObject({ code: 'not_a_save' });
   });
@@ -76,4 +77,32 @@ describe('real save', () => {
     expect(err).toHaveBeenCalled();
     err.mockRestore();
   }, 30_000);
+});
+
+describe('safeDatasetUrl', () => {
+  const base = 'https://ficsmap.test/w/123';
+  it('accepts only same-origin /data/<version>/collectibles.min.json', () => {
+    expect(safeDatasetUrl('https://ficsmap.test/data/1.2.4.1/collectibles.min.json', base)).toBe('https://ficsmap.test/data/1.2.4.1/collectibles.min.json');
+    expect(safeDatasetUrl('/data/test/collectibles.min.json', base)).toBe('https://ficsmap.test/data/test/collectibles.min.json');
+  });
+
+  it('rejects other hosts, other paths and anything that is not a URL', () => {
+    expect(safeDatasetUrl('https://evil.test/data/1.2.4.1/collectibles.min.json', base)).toBeNull();
+    expect(safeDatasetUrl('https://ficsmap.test/api/me', base)).toBeNull();
+    expect(safeDatasetUrl('https://ficsmap.test/data/../api/collectibles.min.json', base)).toBeNull();
+    expect(safeDatasetUrl('javascript:alert(1)', base)).toBeNull();
+    expect(safeDatasetUrl(42 as unknown as string, base)).toBeNull();
+  });
+});
+
+describe('handleRequest with an unsafe dataset url', () => {
+  it('reports dataset_unavailable without fetching', async () => {
+    const loadIndex = vi.fn();
+    const out: SaveWorkerOut[] = [];
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await handleRequest({ type: 'parse', buffer: new ArrayBuffer(1), datasetUrl: 'https://evil.test/x.json' }, loadIndex, m => out.push(m), 'https://ficsmap.test/');
+    err.mockRestore();
+    expect(loadIndex).not.toHaveBeenCalled();
+    expect(out).toEqual([expect.objectContaining({ type: 'error', code: 'dataset_unavailable' })]);
+  });
 });
