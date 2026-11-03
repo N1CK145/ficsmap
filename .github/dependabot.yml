@@ -1,0 +1,53 @@
+# Dependabot (https://docs.github.com/code-security/dependabot/working-with-dependabot/dependabot-options-reference)
+#
+# ficsmap's flow: master only takes version/X.Y.Z branches (CI rejects anything else), so a
+# Dependabot pull request into master is a heads-up, not something to merge. Bring the update into
+# the current version branch on a feature branch (e.g. feature/deps-<name>) and close the
+# Dependabot PR as done in that version. Updates are grouped to keep it to a few PRs a week.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    commit-message:
+      prefix: build(deps)
+      prefix-development: build(deps-dev)
+    groups:
+      # One PR for all minor and patch updates, one per major update.
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # The app runs on Node 24 (.nvmrc, Dockerfile); its types must match that major.
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    labels: [dependencies]
+    commit-message:
+      prefix: ci(deps)
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    labels: [dependencies]
+    commit-message:
+      prefix: build(docker)
+    ignore:
+      # node:24-bookworm-slim: stay on the Node 24 line.
+      - dependency-name: node
+        update-types: [version-update:semver-major]
