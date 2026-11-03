@@ -68,13 +68,33 @@ export async function handleParse(
   }
 }
 
-/** One parse request: load the dataset index (dataset_unavailable if that fails), then handleParse. */
+const DATASET_PATH = /^\/data\/[A-Za-z0-9._-]+\/collectibles\.min\.json$/;
+
+/**
+ * The dataset url if it is this app's own dataset file (same origin as `base`, /data/<version>/
+ * collectibles.min.json), else null. The url comes in a message, so the worker never fetches anything else.
+ */
+export function safeDatasetUrl(url: unknown, base: string): string | null {
+  if (typeof url !== 'string') return null;
+  let u: URL;
+  try {
+    u = new URL(url, base);
+  } catch {
+    return null;
+  }
+  if (u.origin !== new URL(base).origin || !DATASET_PATH.test(u.pathname) || u.pathname.includes('..')) return null;
+  return `${u.origin}${u.pathname}`;
+}
+
+/** One parse request: load the dataset index (dataset_unavailable if that fails or the url is not ours), then handleParse. */
 export async function handleRequest(
-  msg: SaveWorkerIn, loadIndex: (url: string) => Promise<DatasetIndex>, post: (m: SaveWorkerOut) => void,
+  msg: SaveWorkerIn, loadIndex: (url: string) => Promise<DatasetIndex>, post: (m: SaveWorkerOut) => void, base: string,
 ): Promise<void> {
   let index: DatasetIndex;
   try {
-    index = await loadIndex(msg.datasetUrl);
+    const url = safeDatasetUrl(msg.datasetUrl, base);
+    if (url === null) throw new Error(`Refusing to load a dataset from ${String(msg.datasetUrl)}`);
+    index = await loadIndex(url);
   } catch (err) {
     console.error('Loading the dataset failed', err);
     post({ type: 'error', code: 'dataset_unavailable', message: 'The map data could not be loaded.' });
@@ -108,7 +128,12 @@ function loadIndex(url: string): Promise<DatasetIndex> {
 
 if ('WorkerGlobalScope' in globalThis) {
   const scope = globalThis as unknown as WorkerScope;
-  scope.onmessage = ({ data }) => {
-    if (data.type === 'parse') void handleRequest(data, loadIndex, m => scope.postMessage(m));
+  const self = globalThis as unknown as { location: { href: string; origin: string } };
+  scope.onmessage = e => {
+    // Messages to a dedicated worker come from the page that created it (origin "" or our own).
+    if (e.origin !== '' && e.origin !== self.location.origin) return;
+    const data = e.data as Partial<SaveWorkerIn> | null;
+    if (data?.type !== 'parse' || !(data.buffer instanceof ArrayBuffer)) return;
+    void handleRequest(data as SaveWorkerIn, loadIndex, m => scope.postMessage(m), self.location.href);
   };
 }

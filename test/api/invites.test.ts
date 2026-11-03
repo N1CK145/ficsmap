@@ -25,7 +25,7 @@ async function loginWithInvite(app: Awaited<ReturnType<typeof makeTestApp>>['app
 
 describe('GET /invite/:token', () => {
   it('renders the landing page without a session and writes nothing (twice)', async () => {
-    const { app, deps, world, token } = await setup();
+    const { app, deps, token } = await setup();
     const t = await token();
     const before = [n(deps.db, 'invite_uses'), n(deps.db, 'users'), n(deps.db, 'world_members'), n(deps.db, 'sessions')];
     for (let i = 0; i < 2; i++) {

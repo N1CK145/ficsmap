@@ -15,7 +15,8 @@ describe('fonts', () => {
   it('Barlow Condensed is self-hosted (no Google Fonts request) in weights 500/600/700', () => {
     const html = readFileSync(resolve(process.cwd(), 'src/web/index.html'), 'utf8');
     const main = readFileSync(resolve(process.cwd(), 'src/web/main.tsx'), 'utf8');
-    expect(html).not.toMatch(/fonts\.(googleapis|gstatic)\.com/);
+    expect(html).not.toContain('fonts.googleapis.com');
+    expect(html).not.toContain('fonts.gstatic.com');
     for (const w of [500, 600, 700]) expect(main).toContain(`import '@fontsource/barlow-condensed/${w}.css';`);
   });
 });

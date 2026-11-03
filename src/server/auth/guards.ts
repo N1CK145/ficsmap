@@ -1,4 +1,4 @@
-import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
+import type { FastifyInstance, FastifyRequest, preHandlerHookHandler } from 'fastify';
 import type { Db } from '../db/db.js';
 import type { UserRow } from '../domain/users.js';
 import { HttpError } from '../errors.js';
@@ -30,7 +30,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /** Needs the db, so it is built per app. Non-members and unknown worlds both get 404. */
 export function makeWorldGuards(db: Db): { requireMember: preHandlerHookHandler; requireOwner: preHandlerHookHandler } {
-  const requireMember: preHandlerHookHandler = async req => {
+  /** Loads the world into req.world/req.role, or throws 401/404. */
+  const loadMembership = (req: FastifyRequest): void => {
     if (!req.user) throw new HttpError(401, 'unauthorized', 'Login required');
     const id = (req.params as { id?: string }).id;
     if (!id || !UUID_RE.test(id)) throw new HttpError(404, 'not_found', 'Not found');
@@ -40,8 +41,9 @@ export function makeWorldGuards(db: Db): { requireMember: preHandlerHookHandler;
     req.world = world;
     req.role = role;
   };
-  const requireOwner: preHandlerHookHandler = async function (req, reply) {
-    await requireMember.call(this, req, reply, () => undefined);
+  const requireMember: preHandlerHookHandler = async req => loadMembership(req);
+  const requireOwner: preHandlerHookHandler = async req => {
+    loadMembership(req);
     if (req.role !== 'owner') throw new HttpError(403, 'forbidden', 'Owner only');
   };
   return { requireMember, requireOwner };
