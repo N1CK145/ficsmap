@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
-import { ToastProvider, useToast } from '../../src/web/components/Toast.js';
+import { ToastProvider } from '../../src/web/components/Toast.js';
 import { marksFeature } from '../../src/web/features/marks/index.js';
 import { DangerZone } from '../../src/web/features/sharing/DangerZone.js';
 import { stubFetch } from './fetchStub.js';
@@ -18,7 +18,6 @@ const navigate = vi.fn();
 const show = vi.fn();
 let currentCtx: WorldCtx;
 function Zone() {
-  const toast = useToast();
   const queryClient = useQueryClient();
   const ctx = { worldId: W, world: WORLD, me: { id: 1 } as MeDto, toast: { show }, navigate, queryClient } as unknown as WorldCtx;
   currentCtx = ctx;
