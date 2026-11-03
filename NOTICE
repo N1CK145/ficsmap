@@ -19,7 +19,9 @@ This repository contains no game assets. It does not contain the map tiles,
 icons, collectible positions or any other data taken from the game. The map
 dataset the app needs is generated locally by each user from their own,
 legally obtained copy of the game. The published Docker images contain no game
-data either.
+data either. The only exception are the screenshots in docs/screenshots/: they
+show the app with parts of the game map and the game's icons, (c) Coffee Stain
+Studios, and are included for illustration only.
 
 
 Third-party code and tools

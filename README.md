@@ -8,16 +8,15 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 
 ## Screenshots
 
-<!--
-Screenshots to add (docs/screenshots/):
-1. Map with sidebar and the item panel open on a drop pod (zoom 3 or higher).
-2. Quick Check mode.
-3. Save import with the conflict banner.
-4. Route planner.
-5. Mobile layout.
--->
+**The map.** Every Power Slug, Somersloop, Mercer Sphere and drop pod with the game's icons; collected ones are dimmed. A selected drop pod shows what it takes to open (here 90 MW of power, marked by the bolt on its icon), the items lying around its crash site, the threats and notes.
 
-Screenshots will follow.
+![ficsmap map view: game icons for all collectibles, a selected drop pod with its power requirement, crash-site items, threats and notes](docs/screenshots/map.webp)
+
+**The route planner.** A route through the open collectibles of an area: numbered stops on the map and in the list, distances, progress, and everything the route's drop pods need to be opened, summed up.
+
+![ficsmap route planner: a 21-stop route through the Rocky Desert with numbered stops, distances and the items and power its drop pods need](docs/screenshots/route-planner.webp)
+
+<sub>Screenshots from a demo world. Map and icons © Coffee Stain Studios.</sub>
 
 ## Features
 
@@ -257,7 +256,7 @@ The app shows "ficsmap vX.Y.Z" with a link to the GitHub release. `GET /api/vers
 
 The source code is licensed under the [MIT License](LICENSE). The licence covers the source code only.
 
-ficsmap is an unofficial fan project and is not affiliated with or endorsed by Coffee Stain Studios. Satisfactory, its map, icons and all game assets are © Coffee Stain Studios. This repository and the Docker images contain no game assets; the map dataset is generated locally from your own game installation.
+ficsmap is an unofficial fan project and is not affiliated with or endorsed by Coffee Stain Studios. Satisfactory, its map, icons and all game assets are © Coffee Stain Studios. This repository and the Docker images contain no game assets (apart from the screenshots in `docs/screenshots/`, which show parts of the game map and icons); the map dataset is generated locally from your own game installation.
 
 Third-party code is used under its own licence, among others SatisfactoryTools/AssetsExtractor (MIT), @etothepii/satisfactory-file-parser (MIT) and Leaflet (BSD-2-Clause). See [NOTICE](NOTICE) for details.
 
