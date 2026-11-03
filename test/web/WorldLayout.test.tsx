@@ -130,9 +130,14 @@ describe('WorldLayout', () => {
     expect(await screen.findByRole('complementary', { name: 'Sidebar' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Panels' })).not.toBeInTheDocument();
 
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+
     act(() => media.set(MOBILE, true));
     expect(screen.queryByRole('complementary', { name: 'Sidebar' })).not.toBeInTheDocument();
     const sheet = screen.getByRole('region', { name: 'Panels' });
+    // The footer stays visible on mobile: the sheet sits on top of it.
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+    expect(sheet).toHaveStyle({ bottom: '28px' });
     expect(within(sheet).getByRole('button', { name: 'Panel size: small' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('region', { name: 'Map' })).toBeInTheDocument();
 

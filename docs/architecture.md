@@ -69,6 +69,7 @@ Features are modules that plug into extension points. `src/web/app/feature.ts` d
 - `routes`: extra pages
 - `sidebarPanels`: panels in the sidebar (and the mobile bottom sheet)
 - `mapLayers`, `mapControls`: components inside the Leaflet map
+- `mapOverlays`: free-standing boxes over the map that position themselves (e.g. the route's "Bring with you" list)
 - `mapModes`: exclusive click modes (inspect, Quick Check, route editing)
 - `itemDetailSections`, `itemActions`: content and buttons in the item panel
 - `headerItems`, `settingsSections`
