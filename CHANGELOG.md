@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Screenshots of the map and the route planner in the README.
 
+### Changed
+
+- Test runner vitest 3.2 → 5.1 (security update of a development dependency; replaces Dependabot PRs #1–#3).
+
 ## [0.1.0] - 2026-11-03
 
 First public release.
