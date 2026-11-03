@@ -1,0 +1,4 @@
+{"dropPods":{
+"BP_DropPod1":{"costType":"Item","item":"Desc_Rotor_C","amount":3,"power":0},
+"BP_DropPod2_1":{"costType":"Power","item":null,"amount":0,"power":30}},
+"shrines":[{"name":"BP_MercerShrine_C_UAID_S","attachedTo":"BP_WAT2_C_UAID_A","location":[80000,80000,300]}]}

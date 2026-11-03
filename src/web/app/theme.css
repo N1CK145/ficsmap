@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/* The only place colours are defined (spec §4.5, §10.12). Tailwind's default palette is
+   switched off so components can only use these tokens. `static` keeps every token as a CSS
+   variable even when no utility uses it yet (canvas markers and Leaflet read them at runtime). */
+@theme static {
+  --color-*: initial;
+
+  --color-bg: #15171A;
+  --color-panel: #1E2125;
+  --color-line: #2E3238;
+  --color-fg: #E8E6E3;
+  --color-muted: #9BA1A8;
+  --color-accent: #F28C28;
+  --color-conflict: #F2555A;
+  /* Drop-pod badges on the map: opened with power (bolt), needs nothing (dot). */
+  --color-power: #FFD23F;
+  --color-free: #3DDC84;
+
+  /* Collectible types (registry colorToken). Shape is the primary cue, colour the second. */
+  --color-slug-blue: #4DA3FF;
+  --color-slug-yellow: #F5D547;
+  --color-slug-purple: #B084F5;
+  --color-sloop: #2EC4B6;
+  --color-mercer: #F062C0;
+  --color-hdd: #C8CDD3;
+
+  --font-display: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
+
+  /* One radius for everything: bare `rounded` (Tailwind v4 reads the unsuffixed --radius key). */
+  --radius-*: initial;
+  --radius: 4px;
+}
+
+/* Visible keyboard focus for every interactive primitive. */
+@utility focus-ring {
+  &:focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-bg;
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-bg text-fg antialiased;
+  }
+}

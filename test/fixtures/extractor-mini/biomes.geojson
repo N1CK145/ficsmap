@@ -1,0 +1,9 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "id": "west", "name": "West Plains", "group": null },
+      "geometry": { "type": "Polygon", "coordinates": [[[0,0],[500,0],[500,1000],[0,1000],[0,0]]] } },
+    { "type": "Feature", "properties": { "id": "east", "name": "East Dunes", "group": null },
+      "geometry": { "type": "Polygon", "coordinates": [[[500,0],[1000,0],[1000,1000],[500,1000],[500,0]]] } }
+  ]
+}

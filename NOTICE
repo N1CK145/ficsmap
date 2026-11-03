@@ -1,0 +1,52 @@
+ficsmap
+Copyright (c) 2026 Nicklas Gehlen
+
+The source code in this repository is licensed under the MIT License (see
+LICENSE). The MIT License covers the source code only. It does not cover any
+game content.
+
+
+Unofficial fan project
+----------------------
+
+ficsmap is an unofficial fan project. It is not affiliated with, endorsed by,
+sponsored by or approved by Coffee Stain Studios.
+
+Satisfactory, its name, its map, its icons and all other game assets are
+(c) Coffee Stain Studios. All rights to them remain with Coffee Stain Studios.
+
+This repository contains no game assets. It does not contain the map tiles,
+icons, collectible positions or any other data taken from the game. The map
+dataset the app needs is generated locally by each user from their own,
+legally obtained copy of the game. The published Docker images contain no game
+data either.
+
+
+Third-party code and tools
+--------------------------
+
+- SatisfactoryTools/AssetsExtractor (MIT License)
+  https://github.com/SatisfactoryTools/AssetsExtractor
+  Used, with a small local patch (data-src/extractor/world-extractor-extras.patch),
+  to extract the map and collectible data from a local game installation.
+  It is not part of this repository or the Docker image.
+
+- @etothepii/satisfactory-file-parser (MIT License)
+  https://github.com/etothepii4/satisfactory-file-parser
+  Parses Satisfactory save files in the browser.
+
+- Leaflet (BSD-2-Clause License)
+  https://github.com/Leaflet/Leaflet
+  Interactive map.
+
+- react-leaflet and @react-leaflet/core (Hippocratic License 2.1)
+  https://github.com/PaulLeCam/react-leaflet
+  React bindings for Leaflet.
+
+- Barlow Condensed font via @fontsource/barlow-condensed (SIL Open Font
+  License 1.1)
+  https://github.com/fontsource/font-files
+
+All other npm dependencies are used under their own licences. See each
+package's licence file in node_modules/ after `npm ci`, or the "license"
+field in package-lock.json.

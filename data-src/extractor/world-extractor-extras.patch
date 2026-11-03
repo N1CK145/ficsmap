@@ -1,0 +1,148 @@
+diff --git a/world-extractor-net/Program.cs b/world-extractor-net/Program.cs
+index 5af71fd..19946c3 100644
+--- a/world-extractor-net/Program.cs
++++ b/world-extractor-net/Program.cs
+@@ -41,6 +41,7 @@ string installDir = opts.Require("install-dir");
+ string outPath = opts.Require("out");
+ string? collectiblesPath = opts.Get("collectibles-out");
+ string? mapDir = opts.Get("map-out");
++string? extrasPath = opts.Get("extras-out");
+ 
+ string paksDir = Path.Combine(installDir, "FactoryGame", "Content", "Paks");
+ string usmapPath = Path.Combine(installDir, "CommunityResources", "FactoryGame.usmap");
+@@ -71,6 +72,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
+ UObject? scannableGenerator = null;
+ UObject? minimapCapture = null;
+ int skipped = 0;
++var extraPods = new SortedDictionary<string, DropPodExtra>(StringComparer.Ordinal);
++var extraShrines = new List<ShrineExtra>();
+ 
+ foreach (var actorIndex in level.Actors)
+ {
+@@ -99,6 +102,9 @@ foreach (var actorIndex in level.Actors)
+             satellites.Add((actor.Get<FPackageIndex>("mCore").Name, ResourceClass(actor),
+                 new GeyserNode(actor.Name, Location(actor), Purity(actor))));
+             break;
++        case "BP_DropPod_C" or "BP_MercerShrine_C" when extrasPath is not null:
++            CollectExtra(actor, extraPods, extraShrines);
++            break;
+         case "BP_WorldScannableDataGenerator_C":
+             scannableGenerator = actor;
+             break;
+@@ -146,6 +152,23 @@ if (collectiblesPath is not null)
+         $"{collectibles.DropPods.Count} drop pods, {collectibles.CreatureSpawners.Count} creature spawners -> {collectiblesPath}");
+ }
+ 
++if (extrasPath is not null)
++{
++    // Most drop pods and all mercer shrines live in the world-partition streaming cells, not in the persistent level.
++    foreach (var cell in provider.Files.Keys.Where(k => k.StartsWith(PickupContents.CellsDir, StringComparison.OrdinalIgnoreCase) && k.EndsWith(".umap")))
++    {
++        IEnumerable<UObject> exports;
++        try { exports = provider.LoadPackage(cell).GetExports().ToList(); }
++        catch { continue; }
++        foreach (var export in exports)
++            if (export.ExportType is "BP_DropPod_C" or "BP_MercerShrine_C")
++                CollectExtra(export, extraPods, extraShrines);
++    }
++    File.WriteAllText(extrasPath, JsonSerializer.Serialize(
++        new Extras(extraPods, extraShrines.OrderBy(s => s.Name, StringComparer.Ordinal).ToList()), Json.Options));
++    Console.WriteLine($"Extras: {extraPods.Count} drop pods, {extraShrines.Count} mercer shrines -> {extrasPath}");
++}
++
+ if (mapDir is not null)
+ {
+     if (minimapCapture is null) throw new Exception("BP_MinimapCaptureActor_C not found in the level.");
+@@ -163,6 +186,31 @@ static float[] Location(UObject actor)
+     return [loc.X, loc.Y, loc.Z];
+ }
+ 
++static void CollectExtra(UObject actor, SortedDictionary<string, DropPodExtra> pods, List<ShrineExtra> shrines)
++{
++    if (actor.ExportType == "BP_MercerShrine_C")
++    {
++        // Shrines are attached to the Mercer Sphere's mesh, so their own RelativeLocation is only an offset.
++        var root = actor.Get<FPackageIndex>("RootComponent").Load()!;
++        var parent = root.GetOrDefault<FPackageIndex>("AttachParent");
++        string? sphere = parent is { IsNull: false } ? parent.ResolvedObject?.Outer?.Name.Text : null;
++        var parentLoc = parent is { IsNull: false } ? parent.Load()?.GetOrDefault<FVector>("RelativeLocation") ?? FVector.ZeroVector : FVector.ZeroVector;
++        var offset = root.GetOrDefault<FVector>("RelativeLocation");
++        shrines.Add(new ShrineExtra(actor.Name, sphere,
++            [MathF.Round(parentLoc.X + offset.X, 1), MathF.Round(parentLoc.Y + offset.Y, 1), MathF.Round(parentLoc.Z + offset.Z, 1)]));
++        return;
++    }
++    // mUnlockCost is only serialised when it differs from the default; pods without it get costType null.
++    var cost = actor.GetOrDefault<FStructFallback>("mUnlockCost");
++    var itemCost = cost?.GetOrDefault<FStructFallback>("ItemCost");
++    var itemClass = itemCost?.GetOrDefault<FPackageIndex>("ItemClass");
++    pods[actor.Name] = new DropPodExtra(
++        cost?.GetOrDefault<FName>("CostType").ToString().Split("::").Last(),
++        itemClass is { IsNull: false } ? itemClass.Name : null,
++        itemCost?.GetOrDefault<int>("Amount") ?? 0,
++        cost?.GetOrDefault<float>("PowerConsumption") ?? 0);
++}
++
+ static string ResourceClass(UObject actor) => actor.Get<FPackageIndex>("mResourceClass").Name;
+ 
+ static string Purity(UObject actor) => actor.GetOrDefault<FName>("mPurity", new FName("RP_Normal")).ToString();
+@@ -428,7 +476,7 @@ record PickupContent(string? Item, int Amount);
+ /** What each loose item pickup holds, from the world partition cells that contain the pickups. */
+ static class PickupContents
+ {
+-    private const string CellsDir = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persistent_Level/_Generated_/";
++    public const string CellsDir = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persistent_Level/_Generated_/";
+     private static readonly string[] DescriptorRoots =
+         ["FactoryGame/Content/FactoryGame/Resource/", "FactoryGame/Content/FactoryGame/Equipment/"];
+     private static readonly string[] DescriptorPrefixes = ["Desc_", "BP_EquipmentDescriptor", "BP_ItemDescriptor"];
+@@ -534,8 +582,29 @@ static class MapIcons
+             }
+             catch (Exception e) { Console.Error.WriteLine($"WARN: creature descriptor {file}: {e.Message}"); }
+         }
++        // Item icons for the collectible pickups (power slugs, Somersloop, Mercer Sphere), keyed by descriptor class.
++        foreach (var file in provider.Files.Keys.Where(k => k.EndsWith(".uasset") && CollectibleDescriptors.Contains(Path.GetFileNameWithoutExtension(k))))
++        {
++            try
++            {
++                var cdo = provider.LoadPackage(file).GetExports().FirstOrDefault(e => e.Name.StartsWith("Default__"));
++                var texture = cdo?.GetOrDefault<FPackageIndex>("mPersistentBigIcon")?.Load<UTexture2D>()
++                              ?? cdo?.GetOrDefault<FPackageIndex>("mSmallIcon")?.Load<UTexture2D>();
++                if (texture is not null) icons[Path.GetFileNameWithoutExtension(file) + "_C"] = texture;
++                else Console.Error.WriteLine($"WARN: collectible descriptor {file} has no icon");
++            }
++            catch (Exception e) { Console.Error.WriteLine($"WARN: collectible descriptor {file}: {e.Message}"); }
++        }
++        foreach (var d in CollectibleDescriptors.Where(d => !icons.ContainsKey(d + "_C")))
++            Console.Error.WriteLine($"WARN: collectible icon {d} not found");
+         return icons;
+     }
++
++    /** Item descriptors of the tracked pickups whose icons the map markers use. */
++    private static readonly HashSet<string> CollectibleDescriptors = new(StringComparer.Ordinal)
++    {
++        "Desc_Crystal", "Desc_Crystal_mk2", "Desc_Crystal_mk3", "Desc_WAT1", "Desc_WAT2",
++    };
+ }
+ 
+ // ---- output model (matches Konsl/satisfactory-world-generator default-world.json) ----
+@@ -599,6 +668,21 @@ record MapInfo(
+     [property: JsonPropertyName("world")] MapBounds World,
+     [property: JsonPropertyName("icons")] Dictionary<string, string> Icons);
+ 
++record DropPodExtra(
++    [property: JsonPropertyName("costType")] string? CostType,
++    [property: JsonPropertyName("item")] string? Item,
++    [property: JsonPropertyName("amount")] int Amount,
++    [property: JsonPropertyName("power")] float Power);
++
++record ShrineExtra(
++    [property: JsonPropertyName("name")] string Name,
++    [property: JsonPropertyName("attachedTo")] string? AttachedTo,
++    [property: JsonPropertyName("location")] float[] Location);
++
++record Extras(
++    [property: JsonPropertyName("dropPods")] SortedDictionary<string, DropPodExtra> DropPods,
++    [property: JsonPropertyName("shrines")] List<ShrineExtra> Shrines);
++
+ static class Json
+ {
+     public static readonly JsonSerializerOptions Options = new()

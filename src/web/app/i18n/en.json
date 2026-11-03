@@ -1,0 +1,366 @@
+{
+  "app": {
+    "name": "ficsmap"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "loading": "Loading…",
+    "retry": "Retry"
+  },
+  "types": {
+    "slug_blue": "Blue Power Slug",
+    "slug_yellow": "Yellow Power Slug",
+    "slug_purple": "Purple Power Slug",
+    "somersloop": "Somersloop",
+    "mercer_sphere": "Mercer Sphere",
+    "hard_drive": "Hard Drive"
+  },
+  "login": {
+    "inviteOnly": "Invite-only: you need an invite link from someone who owns a world, or run your own ficsmap.",
+    "tagline": "Track your Satisfactory collectibles together with your friends.",
+    "signIn": "Sign in with Discord",
+    "error": {
+      "invite_only": "ficsmap is invite-only. Ask a friend for an invite link.",
+      "cancelled": "Sign-in was cancelled. You can try again at any time.",
+      "expired": "The sign-in took too long. Please try again.",
+      "invite_invalid": "This invite link isn't valid. Ask the owner for a new link.",
+      "failed": "Sign-in didn't work. Please try again."
+    }
+  },
+  "error": {
+    "title": "Something went wrong",
+    "reload": "Reload page"
+  },
+  "account": {
+    "menu": "Account",
+    "signedInAs": "Signed in as {email} via Discord",
+    "signOut": "Sign out"
+  },
+  "worlds": {
+    "title": "Your worlds",
+    "new": "+ New world",
+    "empty": "No worlds yet. Create one, or ask a friend for an invite link.",
+    "loadFailed": "Couldn't load your worlds.",
+    "role": {
+      "owner": "Owner",
+      "member": "Member"
+    },
+    "progressLabel": "Progress of {name}",
+    "progress": "{done, number} / {total, number}",
+    "percent": "{share, number, percent}",
+    "members": "{count, plural, one {# member} other {# members}}",
+    "noImport": "No import yet",
+    "lastImport": "Last import {when}",
+    "create": {
+      "title": "New world",
+      "tab": {
+        "empty": "Start empty",
+        "save": "From save file"
+      },
+      "name": "Name",
+      "submit": "Create",
+      "failed": "Couldn't create the world. Please try again.",
+      "comingSoon": "Coming soon"
+    }
+  },
+  "world": {
+    "notFound": "World not found",
+    "loadFailed": "Couldn't load this world.",
+    "goToWorlds": "Go to my worlds",
+    "deleted": "This world was deleted",
+    "removed": "You were removed from this world.",
+    "joined": "You joined {world} · invited by {owner}",
+    "already": "You're already in this world",
+    "sidebar": "Sidebar",
+    "map": "Map",
+    "hideSidebar": "Hide sidebar",
+    "showSidebar": "Show sidebar",
+    "resizeSidebar": "Resize sidebar",
+    "resizeSidebarHint": "Drag or use the arrow keys; double-click to fit the content"
+  },
+  "live": {
+    "live": "Live",
+    "connecting": "Connecting…",
+    "offline": "Offline"
+  },
+  "biomes": {
+    "title": "Biomes",
+    "scope": "Scope: {name}",
+    "clearScope": "Clear scope"
+  },
+  "marks": {
+    "saveFailed": "Couldn't save. Check your connection.",
+    "undo": "Undo",
+    "undone": "Undone"
+  },
+  "progress": {
+    "title": "Progress",
+    "count": "{done, number}/{total, number}",
+    "inBiome": "{done, number}/{total, number} in {biome}",
+    "hint": "Click to show or hide · Alt-click or long press to show only this type",
+    "visibility": "Collected",
+    "show": "Show",
+    "dim": "Dim",
+    "hide": "Hide",
+    "types": {
+      "slug_blue": "Blue Power Slugs",
+      "slug_yellow": "Yellow Power Slugs",
+      "slug_purple": "Purple Power Slugs",
+      "somersloop": "Somersloops",
+      "mercer_sphere": "Mercer Spheres",
+      "hard_drive": "Hard Drives"
+    }
+  },
+  "map": {
+    "attribution": "Map © Coffee Stain Studios",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
+  },
+  "item": {
+    "panel": "Item details",
+    "check": "Check",
+    "uncheck": "Uncheck",
+    "keepChecked": "Keep checked",
+    "conflict": "Save says this is still there.",
+    "lastChanged": "Last changed by {name} · {when}",
+    "someone": "someone",
+    "toOpen": {
+      "title": "To open",
+      "varies": "Requirements vary per world",
+      "noData": "No requirement data for this pod",
+      "nothing": "Nothing needed",
+      "items": "{amount, number}× {item}",
+      "power": "{power, number} MW"
+    },
+    "crashSite": {
+      "title": "Crash site",
+      "items": "Items lying around",
+      "threats": "Threats",
+      "notes": "Notes",
+      "none": "None",
+      "amount": "{amount, number}×",
+      "threat": "{count, number}× {name}"
+    },
+    "powerSlug": {
+      "title": "Power Slug",
+      "yields": "{count, plural, one {Yields # power shard} other {Yields # power shards}}"
+    },
+    "nearby": {
+      "title": "Nearby · {radius, number} m",
+      "empty": "Nothing else within {radius, number} m",
+      "distance": "{distance, number} m",
+      "below": "{dz, number} m below",
+      "above": "{dz, number} m above"
+    },
+    "status": {
+      "collected": "Collected",
+      "uncollected": "Not collected",
+      "conflict": "Conflict"
+    },
+    "coords": "X {x} · Y {y} · Z {z}",
+    "copyId": "Copy ID",
+    "copied": "Copied"
+  },
+  "quickCheck": {
+    "control": "Quick Check",
+    "banner": "QUICK CHECK ON · Click a marker to check it · Q to stop",
+    "zoomIn": "Zoom in to quick-check",
+    "checked": "{type} checked",
+    "unchecked": "{type} unchecked",
+    "zoomInShort": "Zoom in first"
+  },
+  "import": {
+    "privacy": "Your save is read in your browser. Only the list of collected items, plus the save's name, date and game build, is sent to the server.",
+    "button": "Import",
+    "title": "Import save",
+    "chooseFolder": "Choose save folder",
+    "changeFolder": "Change folder",
+    "grantAccess": "Grant access",
+    "needsPermission": "Allow ficsmap to read your save folder again.",
+    "folderFailed": "Couldn't read the save folder.",
+    "noSaves": "No .sav files in this folder.",
+    "savesLabel": "Saves, newest first",
+    "orFile": "Or pick the file yourself:",
+    "fileLabel": "Choose a save file",
+    "folderHint": "Your saves are in a subfolder of",
+    "copyPath": "Copy path",
+    "pathCopied": "Path copied — paste it into the file dialog",
+    "stage": {
+      "reading": "Reading file…",
+      "parsing": "Parsing save…",
+      "extracting": "Finding collectibles…"
+    },
+    "progressLabel": "Save parsing progress",
+    "percent": "{percent, number} %",
+    "notASave": "This file couldn't be read as a Satisfactory save",
+    "failedHint": "It may be incomplete or from a game version ficsmap can't read.",
+    "datasetUnavailable": "Couldn't load the map data. Check your connection and try again.",
+    "chooseAnother": "Choose another file",
+    "meta": "{session} · {date} · build {build}",
+    "recognised": "{count, plural, one {# item recognised} other {# items recognised}}",
+    "noMatch": "This save matches none of the items on this map.",
+    "confirmNoMatch": "This save matches none of the items on this map. {count, plural, one {Importing it marks the # checked item as a conflict.} other {Importing it marks all # checked items as conflicts.}}",
+    "counts": "+{willCheck, number} will be checked · {conflicts, plural, one {# conflict} other {# conflicts}}",
+    "buildNewer": "This save is from a newer game build ({save}) than the map data ({data}). Some items may be missing.",
+    "mobileHint": "Large saves parse faster on desktop.",
+    "submit": "Import",
+    "importAnyway": "Import anyway",
+    "failed": "The import didn't work. Please try again.",
+    "rateLimited": "Too many imports for this world. Try again in an hour.",
+    "banner": "Import done · +{added, number} · {conflicts, plural, =0 {no conflicts} one {# conflict (!)} other {# conflicts (!)}}",
+    "review": "Review conflicts",
+    "dismiss": "Dismiss",
+    "createImportFailed": "World created, but the import failed. You can import again from the map."
+  },
+  "conflicts": {
+    "title": "Conflicts",
+    "summary": "⚠ {count, plural, one {# conflict} other {# conflicts}}",
+    "review": "Review",
+    "trustCurrent": "Trust current data",
+    "trustSave": "Trust the save",
+    "onlyShow": "Show only conflicts",
+    "step": "Conflict {current, number} of {total, number}",
+    "prev": "‹ Prev",
+    "next": "Next ›",
+    "done": "Done",
+    "keepTitle": "{count, plural, one {Keep this item checked? The save says it's still in the world. Your check stays and the warning goes away.} other {Keep all # items checked? The save says they're still in the world. Your checks stay and the warnings go away.}}",
+    "keepConfirm": "Keep checked",
+    "uncheckTitle": "{count, plural, one {Uncheck this item? It'll count as not collected again, as in the save. You can undo this right after.} other {Uncheck all # items? They'll count as not collected again, as in the save. You can undo this right after.}}",
+    "uncheckConfirm": "{count, plural, one {Uncheck # item} other {Uncheck # items}}",
+    "toastUnchecked": "{count, plural, one {# item unchecked} other {# items unchecked}}",
+    "toastKept": "{count, plural, one {# item kept checked} other {# items kept checked}}",
+    "allResolved": "All conflicts resolved"
+  },
+  "routes": {
+    "podNeeds": {
+      "title": "To open the pods",
+      "amount": "{amount, number}×",
+      "power": "Power: {count, plural, one {# pod} other {# pods}}, up to {mw, number} MW",
+      "free": "{count, plural, one {# pod needs nothing} other {# pods need nothing}}",
+      "unknown": "{count, plural, one {# pod without requirement data} other {# pods without requirement data}}"
+    },
+    "title": "Routes",
+    "new": "+ New route",
+    "empty": "No routes yet.",
+    "listLabel": "Saved routes",
+    "summary": "{count, plural, one {# stop} other {# stops}} · {name}",
+    "defaultName": "Route {n, number}",
+    "heading": "Route",
+    "name": "Route name",
+    "capacity": "{count, number}/{max, number}",
+    "start": "Start:",
+    "pickStart": "Click a marker to set the start",
+    "change": "Change",
+    "fillNearest": "+ Nearest uncollected (fill to {max, number})",
+    "allInBiome": "+ All uncollected in {biome}",
+    "stops": "Stops",
+    "drag": "Drag to reorder, or Alt+↑/↓",
+    "remove": "Remove stop",
+    "done": "Done",
+    "doneBy": "({name})",
+    "noDistance": "—",
+    "total": "Total {total} · {left} left · {done, number}/{count, number} done",
+    "optimize": "Optimize order",
+    "next": "Next stop ›",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "‹ All routes",
+    "orderChanged": "Order changed",
+    "optimizeAgain": "Optimize again",
+    "doneByOthers": "{count, plural, one {# stop done by others} other {# stops done by others}}",
+    "replan": "Re-plan",
+    "hint": "Straight-line distances, terrain not included",
+    "dismiss": "Dismiss",
+    "full": "Route is full ({max, number}). Remove a stop to add another.",
+    "partial": "Added {added, number} of {requested, number} (route limit {max, number}). Nearest first.",
+    "dropped": "{count, plural, one {# stop is no longer on the map and was removed} other {# stops are no longer on the map and were removed}}",
+    "saved": "Route saved",
+    "deleted": "Route deleted",
+    "forbidden": "Only the creator or the owner can change this route",
+    "saveFailed": "Couldn't save the route. Please try again.",
+    "deleteFailed": "Couldn't delete the route. Please try again.",
+    "deleteTitle": "Delete the route “{name}”?",
+    "discard": "Discard unsaved route changes?",
+    "discardConfirm": "Discard",
+    "addToRoute": "+ Add to route",
+    "moveUp": "Move up",
+    "moveDown": "Move down"
+  },
+  "settings": {
+    "title": "Settings",
+    "open": "Settings",
+    "backToMap": "← Map",
+    "name": {
+      "title": "Name",
+      "label": "World name",
+      "save": "Save",
+      "saved": "Name saved",
+      "failed": "Couldn't save the name. Please try again."
+    },
+    "members": {
+      "title": "Members",
+      "owner": "Owner",
+      "joinedVia": "joined via invite · {date}",
+      "remove": "Remove",
+      "removeNamed": "Remove {name}",
+      "removeConfirm": "Remove {name}? Their checks stay.",
+      "removed": "{name} removed",
+      "leave": "Leave world",
+      "leaveConfirm": "Leave {world}? You'll need a new invite to come back.",
+      "leaveAction": "Leave",
+      "left": "You left {world}",
+      "failed": "Couldn't update the members. Please try again."
+    },
+    "invite": {
+      "title": "Invite",
+      "linkLabel": "Invite link",
+      "copy": "Copy link",
+      "copied": "Copied ✓ · This link is for one person",
+      "valid": "Valid until {date} · works once",
+      "loadFailed": "Couldn't create an invite link.",
+      "revoke": "Revoke all open links",
+      "revokeConfirm": "Links you've sent stop working. People who already joined stay.",
+      "revokeAction": "Revoke links",
+      "revoked": "Open links revoked",
+      "revokeFailed": "Couldn't revoke the links. Please try again."
+    },
+    "import": {
+      "title": "Import save",
+      "hint": "Check what you've collected by reading a save file.",
+      "open": "Import a save…"
+    },
+    "danger": {
+      "title": "Danger zone",
+      "hint": "Deleting the world removes its checks, routes and members for good.",
+      "confirmLabel": "Type the world name to confirm",
+      "delete": "Delete world",
+      "deleted": "World deleted",
+      "failed": "Couldn't delete the world. Please try again."
+    }
+  },
+  "list": {
+    "view": "View",
+    "map": "Map",
+    "list": "List",
+    "caption": "Collectibles",
+    "type": "Type",
+    "item": "Item",
+    "biome": "Biome",
+    "status": "Status",
+    "changedBy": "Last changed by",
+    "showOnMap": "Show on map",
+    "empty": "No items match the current filters.",
+    "none": "—"
+  },
+  "mobile": {
+    "sheet": {
+      "label": "Panels",
+      "handle": "Panel size: {size}",
+      "peek": "small",
+      "half": "half",
+      "full": "full"
+    }
+  }
+}

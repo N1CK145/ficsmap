@@ -1,0 +1,14 @@
+services:
+  ficsmap:
+    # FICSMAP_VERSION in .env pins a version (e.g. 0.1.0) for a rollback; unset means the newest release.
+    image: ghcr.io/n1ck145/ficsmap:${FICSMAP_VERSION:-latest}
+    env_file: .env
+    volumes:
+      - ./state:/data # database, backups, ficsmap-version.json (owned by uid 1000)
+      - ./dataset:/app/data:ro # map dataset: <game-version>/collectibles.min.json, tiles/, icons/ ...
+    ports:
+      - '${FICSMAP_PORT:-3000}:3000'
+    restart: unless-stopped
+    labels:
+      # Optional automatic updates with Watchtower (label-enabled mode).
+      - com.centurylinklabs.watchtower.enable=true

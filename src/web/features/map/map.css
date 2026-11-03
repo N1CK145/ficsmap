@@ -1,0 +1,131 @@
+/* Leaflet restyled with the theme tokens (spec §10.12). Loaded after leaflet.css by MapView. */
+
+.ficsmap-map.leaflet-container {
+  background: var(--color-bg);
+  font-family: inherit;
+}
+
+/* A marker under the mouse; Leaflet's grab cursors win while the map is dragged. */
+body:not(.leaflet-dragging) .ficsmap-map.ficsmap-marker-hover {
+  cursor: var(--ficsmap-marker-cursor, pointer);
+}
+
+/* Slightly darker tiles, so the markers stand out (spec §10.1). */
+.ficsmap-tiles {
+  filter: brightness(0.8);
+}
+
+.ficsmap-map .leaflet-bar {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+
+.ficsmap-map .leaflet-bar a {
+  width: 32px;
+  height: 32px;
+  line-height: 30px;
+  background: var(--color-panel);
+  color: var(--color-fg);
+  border-bottom-color: var(--color-line);
+  font-family: var(--font-display);
+}
+
+.ficsmap-map .leaflet-bar a:first-child {
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
+}
+
+.ficsmap-map .leaflet-bar a:last-child {
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+
+.ficsmap-map .leaflet-bar a:hover {
+  background: var(--color-line);
+  color: var(--color-fg);
+}
+
+.ficsmap-map .leaflet-bar a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.ficsmap-map .leaflet-bar a.leaflet-disabled {
+  background: var(--color-panel);
+  color: var(--color-muted);
+  opacity: 0.5;
+}
+
+.ficsmap-map .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--color-bg) 80%, transparent);
+  color: var(--color-muted);
+  border-top-left-radius: var(--radius);
+}
+
+.ficsmap-map .leaflet-control-attribution a {
+  color: var(--color-fg);
+}
+
+/* The features' map controls sit under the zoom buttons (10 px margin + 67 px bar + gap). */
+.ficsmap-map-controls {
+  top: 86px;
+}
+
+/* A mode banner (at least h-10, taller when its text wraps) runs across the top; the top controls
+   move below it. MapView's BannerBar measures it into --ficsmap-banner-h. */
+.ficsmap-banner-on .leaflet-top {
+  top: var(--ficsmap-banner-h, 2.5rem);
+}
+
+.ficsmap-banner-on .ficsmap-map-controls {
+  top: calc(86px + var(--ficsmap-banner-h, 2.5rem));
+}
+
+/* The item panel (itemPanel feature) floats over the right of the map, next to this root: it starts
+   below a mode banner, and the right-hand controls move to its left (8 px margin + 340 px). */
+.ficsmap-map-root.ficsmap-banner-on ~ .ficsmap-item-panel {
+  top: calc(var(--ficsmap-banner-h, 2.5rem) + 0.5rem);
+  max-height: calc(100% - var(--ficsmap-banner-h, 2.5rem) - 1rem);
+}
+
+.ficsmap-map-root:has(~ .ficsmap-item-panel) .leaflet-right {
+  right: 348px;
+}
+
+.ficsmap-map-root:has(~ .ficsmap-item-panel) .ficsmap-map-controls {
+  right: calc(348px + 10px);
+}
+
+/* Biome labels (biomes feature): faint, centred on the biome, never in the way of the mouse. */
+.ficsmap-biome-label {
+  pointer-events: none;
+  overflow: visible;
+}
+
+.ficsmap-biome-label__text {
+  display: block;
+  width: max-content;
+  transform: translate(-50%, -50%);
+  color: var(--color-muted);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 0 3px var(--color-bg);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* The invisible biome hit areas must not replace the map's grab, marker and mode cursors
+   (.leaflet-interactive sets pointer; this selector is more specific). */
+.ficsmap-map .leaflet-interactive.ficsmap-biome-hit {
+  cursor: inherit;
+}
+
+/* Mobile (spec §10.11): the bottom sheet's 96 px peek (PEEK_PX) covers the bottom of the map. */
+@media (max-width: 899px) {
+  .ficsmap-map .leaflet-bottom {
+    bottom: 96px;
+  }
+}

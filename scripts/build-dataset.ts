@@ -1,0 +1,269 @@
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { parseArgs } from 'node:util';
+import { COLLECTIBLE_TYPES, classify, typeById } from '../src/shared/collectibleTypes.js';
+import { assignBiome, loadEditorBiomes, type BiomeShape } from '../src/shared/biomes.js';
+import { UNITS_PER_METER, type Calibration } from '../src/shared/geo.js';
+import type { CollectibleTypeId, WorldBounds } from '../src/shared/types.js';
+import type { CrashSites, Dataset, DatasetItemTuple, ItemExtra, PodRequirement } from '../src/shared/dataset.js';
+
+export class BuildError extends Error {
+  constructor(public problems: string[]) {
+    super(`Dataset build failed:\n- ${problems.join('\n- ')}`);
+    this.name = 'BuildError';
+  }
+}
+
+export interface BuildInput {
+  collectibles: unknown;
+  extras: unknown;
+  map: unknown;
+  biomesGeojson: unknown;
+  calibration: Calibration;
+  /** descriptor class (Desc_X_C) -> English display name; used for both locales */
+  itemNames: Record<string, string>;
+  snapUnits: number;
+  build: number;
+  /** data-src/crash-sites/crash-sites.json (Steam guide + game pickups), optional. */
+  crashSites?: unknown;
+}
+
+interface RawEntry { name: string; class: string; location: [number, number, number] }
+interface RawPod { costType: string | null; item: string | null; amount: number; power: number }
+interface RawShrine { name: string; attachedTo: string }
+interface RawCrashSite {
+  requirement?: { type: string };
+  items?: { item: string; amount: number; pickup?: string; where?: string; inGame?: boolean }[];
+  threats?: { name: string; count: number | null }[];
+  notes?: string[];
+}
+const crashSitePods = (raw: unknown): Record<string, RawCrashSite> => (raw as { pods?: Record<string, RawCrashSite> } | undefined)?.pods ?? {};
+interface RawMap { id: string; gameVersion?: string; world: WorldBounds }
+
+const DEFAULT_BUILD = 513885;
+
+function podRequirement(raw: RawPod, itemNames: Record<string, string>, problems: string[]): PodRequirement | undefined {
+  const hasItem = !!raw.item && raw.amount > 0;
+  const hasPower = raw.power > 0;
+  let useItem: boolean;
+  let usePower: boolean;
+  if (raw.costType === 'Item') { useItem = hasItem; usePower = false; }
+  else if (raw.costType === 'Power') { useItem = false; usePower = hasPower; }
+  else if (raw.costType === 'None') { useItem = hasItem; usePower = hasPower; }
+  else return undefined; // no mUnlockCost: requirement unknown
+  if (!useItem && !usePower) return undefined;
+  let item: PodRequirement['item'] = null;
+  if (useItem) {
+    const en = itemNames[raw.item!];
+    if (en === undefined) problems.push(`Pod item ${raw.item} has no entry in item-names.json`);
+    item = { en: en ?? raw.item!, de: en ?? raw.item! };
+  }
+  return { item, amount: useItem ? raw.amount : 0, power: usePower ? raw.power : 0 };
+}
+
+export function buildDataset(input: BuildInput): Dataset {
+  const problems: string[] = [];
+  const coll = input.collectibles as { pickups: RawEntry[]; dropPods: RawEntry[] };
+  const extras = input.extras as { dropPods: Record<string, RawPod>; shrines: RawShrine[] };
+  const map = input.map as RawMap;
+  const biomes: BiomeShape[] = loadEditorBiomes(input.biomesGeojson, input.calibration);
+  const order = new Map(COLLECTIBLE_TYPES.map((t, i) => [t.id, i]));
+
+  interface Work { name: string; type: CollectibleTypeId; x: number; y: number; z: number; biome: number; extra?: ItemExtra }
+  const work: Work[] = [];
+  const seen = new Set<string>();
+  for (const source of ['pickups', 'dropPods'] as const) {
+    for (const e of coll[source]) {
+      const type = classify(source, e.class);
+      if (!type) continue;
+      if (seen.has(e.name)) { problems.push(`Duplicate item name ${e.name}`); continue; }
+      seen.add(e.name);
+      const [x, y, z] = e.location;
+      const biome = assignBiome(x, y, biomes, input.snapUnits);
+      if (biome < 0) {
+        problems.push(`Item ${e.name} (${type}, x=${x}, y=${y}) is outside every biome beyond the snap distance`);
+      }
+      const w: Work = { name: e.name, type, x, y, z, biome };
+      const t = typeById(type);
+      if (t.powerShards !== undefined) w.extra = { shards: t.powerShards };
+      if (t.details === 'dropPod') {
+        const raw = extras.dropPods[e.name];
+        let pod = raw && podRequirement(raw, input.itemNames, problems);
+        // The game data has no cost for some pods; where the crash-site guide says none is needed, trust it.
+        if (!pod && crashSitePods(input.crashSites)[e.name]?.requirement?.type === 'none') pod = { item: null, amount: 0, power: 0 };
+        if (pod) w.extra = { pod };
+      }
+      work.push(w);
+    }
+  }
+
+  for (const t of COLLECTIBLE_TYPES) {
+    if (!work.some(w => w.type === t.id)) problems.push(`Type ${t.id} has 0 items`);
+  }
+
+  // Shrine -> sphere aliases (exact, via attachedTo)
+  const aliases: Record<string, string> = {};
+  const shrineCount = new Map<string, string[]>();
+  const spheres = new Set(work.filter(w => w.type === 'mercer_sphere').map(w => w.name));
+  for (const s of extras.shrines) {
+    if (!spheres.has(s.attachedTo)) {
+      problems.push(`Shrine ${s.name} is attached to ${s.attachedTo}, which is not a Mercer Sphere item`);
+      continue;
+    }
+    shrineCount.set(s.attachedTo, [...(shrineCount.get(s.attachedTo) ?? []), s.name]);
+    aliases[s.name] = s.attachedTo;
+  }
+  for (const [sphere, shrines] of shrineCount) {
+    if (shrines.length > 1) problems.push(`Sphere ${sphere} has ${shrines.length} shrines: ${shrines.join(', ')}`);
+  }
+  if (extras.shrines.length > 0) {
+    for (const sphere of spheres) {
+      if (!shrineCount.has(sphere)) problems.push(`Sphere ${sphere} has no shrine`);
+    }
+  }
+
+  if (problems.length > 0) throw new BuildError(problems);
+
+  // seq per biome: (type order, x, y), numbered from 1
+  const items: DatasetItemTuple[] = [];
+  for (let b = 0; b < biomes.length; b++) {
+    const inBiome = work
+      .filter(w => w.biome === b)
+      .sort((a, c) => order.get(a.type)! - order.get(c.type)! || a.x - c.x || a.y - c.y);
+    inBiome.forEach((w, i) => {
+      const tuple: DatasetItemTuple = [w.name, w.type, w.x, w.y, w.z, b, i + 1];
+      if (w.extra) tuple.push(w.extra);
+      items.push(tuple);
+    });
+  }
+
+  return {
+    version: map.gameVersion ?? (coll as { gameVersion?: string }).gameVersion ?? '',
+    build: input.build,
+    bounds: map.world,
+    mapId: map.id,
+    podRequirementsKnown: Object.keys(extras.dropPods).length > 0,
+    biomes: biomes.map(b => ({ id: b.id, name: { en: b.name, de: b.name } })),
+    items,
+    aliases,
+  };
+}
+
+/**
+ * Per pod of the dataset: the items lying around its crash site (only pickups that exist in the game),
+ * threats and notes, from data-src/crash-sites/crash-sites.json. Served as `crash-sites.json`.
+ */
+export function buildCrashSites(raw: unknown, ds: Dataset): CrashSites {
+  const pods = new Set(ds.items.filter(i => i[1] === 'hard_drive').map(i => i[0]));
+  const out: CrashSites = {};
+  for (const [name, site] of Object.entries(crashSitePods(raw))) {
+    if (!pods.has(name)) continue;
+    out[name] = {
+      items: (site.items ?? []).filter(i => i.pickup !== undefined && i.inGame !== false)
+        .map(i => (i.where ? { item: i.item, amount: i.amount, where: i.where } : { item: i.item, amount: i.amount })),
+      threats: (site.threats ?? []).map(t => ({ name: t.name, count: t.count })),
+      notes: site.notes ?? [],
+    };
+  }
+  return out;
+}
+
+/** GeoJSON in world coordinates: one feature per biome; all rings under even-odd fill. */
+export function biomesToGeojson(biomes: BiomeShape[]) {
+  return {
+    type: 'FeatureCollection',
+    features: biomes.map((b, idx) => ({
+      type: 'Feature',
+      properties: { idx, id: b.id, name: b.name },
+      geometry: { type: 'Polygon', coordinates: b.rings.map(r => [...r, r[0]!]) },
+    })),
+  };
+}
+
+const readJson = (p: string): unknown => JSON.parse(readFileSync(p, 'utf8'));
+
+export interface LoadOptions {
+  biomes?: string;
+  calibration?: string;
+  itemNames?: string;
+  crashSites?: string;
+  snapMeters?: number;
+  build?: number;
+}
+
+/** Reads collectibles.json, extras.json, map/map.json from `dir`; biomes, calibration and item names from options (default: inside `dir`). */
+export function loadExtractorDir(dir: string, opts: LoadOptions = {}): BuildInput {
+  const itemNamesPath = opts.itemNames ?? join(dir, 'item-names.json');
+  const rawNames = existsSync(itemNamesPath) ? (readJson(itemNamesPath) as Record<string, unknown>) : {};
+  const itemNames: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rawNames)) if (!k.startsWith('_') && typeof v === 'string') itemNames[k] = v;
+  return {
+    collectibles: readJson(join(dir, 'collectibles.json')),
+    extras: readJson(join(dir, 'extras.json')),
+    map: readJson(join(dir, 'map', 'map.json')),
+    biomesGeojson: readJson(opts.biomes ?? join(dir, 'biomes.geojson')),
+    calibration: readJson(opts.calibration ?? join(dir, 'calibration.json')) as Calibration,
+    itemNames,
+    snapUnits: (opts.snapMeters ?? 100) * UNITS_PER_METER,
+    build: opts.build ?? DEFAULT_BUILD,
+    ...(opts.crashSites && existsSync(opts.crashSites) ? { crashSites: readJson(opts.crashSites) } : {}),
+  };
+}
+
+function main(): void {
+  const { values: v } = parseArgs({
+    options: {
+      extractor: { type: 'string' },
+      out: { type: 'string' },
+      // Folder with the maintainer data: biomes/ and crash-sites/ (not in the public repo).
+      'data-src': { type: 'string', default: 'data-src' },
+      'snap-m': { type: 'string', default: '100' },
+      biomes: { type: 'string' },
+      calibration: { type: 'string' },
+      'item-names': { type: 'string' },
+      'crash-sites': { type: 'string' },
+      build: { type: 'string', default: String(DEFAULT_BUILD) },
+    },
+  });
+  if (!v.extractor || !v.out) {
+    throw new Error('usage: npm run dataset -- --extractor <dir> --out <dir> [--data-src <dir>] [--snap-m 100] [--build N]');
+  }
+  const src = resolve(v['data-src']!);
+  const firstExisting = (...paths: string[]) => paths.find(p => existsSync(p)) ?? paths[0]!;
+  const input = loadExtractorDir(resolve(v.extractor), {
+    biomes: resolve(v.biomes ?? join(src, 'biomes', 'biomes.editor.geojson')),
+    calibration: resolve(v.calibration ?? join(src, 'biomes', 'calibration.json')),
+    // item-names.json ships with the repo; a data folder may carry its own copy.
+    itemNames: resolve(v['item-names'] ?? firstExisting(join(src, 'extractor', 'item-names.json'), 'data-src/extractor/item-names.json')),
+    crashSites: resolve(v['crash-sites'] ?? join(src, 'crash-sites', 'crash-sites.json')),
+    snapMeters: Number(v['snap-m']), build: Number(v.build),
+  });
+  let ds: Dataset;
+  try { ds = buildDataset(input); } catch (e) {
+    if (e instanceof BuildError) { console.error(e.message); process.exit(1); }
+    throw e;
+  }
+  const out = resolve(v.out);
+  mkdirSync(out, { recursive: true });
+  writeFileSync(join(out, 'collectibles.min.json'), JSON.stringify(ds));
+  if (input.crashSites !== undefined) writeFileSync(join(out, 'crash-sites.json'), JSON.stringify(buildCrashSites(input.crashSites, ds)));
+  const shapes = loadEditorBiomes(input.biomesGeojson, input.calibration);
+  writeFileSync(join(out, 'biomes.geojson'), JSON.stringify(biomesToGeojson(shapes)));
+  const mapDir = join(resolve(v.extractor), 'map');
+  cpSync(join(mapDir, 'map.json'), join(out, 'map.json'));
+  cpSync(join(mapDir, 'tiles'), join(out, 'tiles'), { recursive: true });
+  if (existsSync(join(mapDir, 'icons'))) cpSync(join(mapDir, 'icons'), join(out, 'icons'), { recursive: true });
+
+  const perType = new Map<string, number>();
+  const perBiome = new Map<number, number>();
+  for (const it of ds.items) {
+    perType.set(it[1], (perType.get(it[1]) ?? 0) + 1);
+    perBiome.set(it[5], (perBiome.get(it[5]) ?? 0) + 1);
+  }
+  console.log(`Dataset ${ds.version} (build ${ds.build}): ${ds.items.length} items, ${Object.keys(ds.aliases).length} aliases`);
+  for (const t of COLLECTIBLE_TYPES) console.log(`  ${t.id}: ${perType.get(t.id) ?? 0}`);
+  ds.biomes.forEach((b, i) => console.log(`  biome ${b.name.en}: ${perBiome.get(i) ?? 0}`));
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

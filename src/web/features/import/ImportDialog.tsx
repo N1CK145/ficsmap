@@ -1,0 +1,189 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { create } from 'zustand';
+import type { ImportRequest, ImportResultDto } from '../../../shared/api.js';
+import type { DatasetIndex } from '../../../shared/dataset.js';
+import type { ExtractResult } from '../../../shared/extract.js';
+import { api, ApiClientError } from '../../app/api.js';
+import type { WorldCtx } from '../../app/feature.js';
+import { queryKeys } from '../../app/queryKeys.js';
+import { Button } from '../../components/Button.js';
+import { Dialog } from '../../components/Dialog.js';
+import { useMarks, type MarksCache } from '../marks/useMarks.js';
+import { useImportBanner } from './ImportBanner.js';
+import { computePreview, countByType, type ImportPreview } from './preview.js';
+import { formatSaveDate, SaveSource } from './SaveSource.js';
+import { datasetUrlFor, useSaveParser } from './useSaveParser.js';
+
+/** Opens the import dialog from anywhere (header [Import], settings "Import save"). */
+export const useImportDialog = create<{ open: boolean; show(): void; hide(): void }>()(set => ({
+  open: false,
+  show: () => set({ open: true }),
+  hide: () => set({ open: false }),
+}));
+
+/** The marks of a world without any: the preview of a world created from the save. */
+export const EMPTY_MARKS: MarksCache = { rev: 0, baseRev: 0, marks: new Map(), revs: new Map(), pending: new Map() };
+
+/** Server limits on the import body (src/server/http/import.ts). */
+const MAX_NAME = 255;
+
+/** The import body, clamped to what the server accepts. */
+export function importRequest(fileName: string, r: ExtractResult): ImportRequest {
+  const t = Math.trunc(r.meta.saveTime);
+  return {
+    fileName: fileName.slice(0, MAX_NAME),
+    sessionName: r.meta.sessionName.slice(0, MAX_NAME),
+    saveTime: Number.isFinite(t) && t > 0 ? t : 0,
+    build: r.meta.build,
+    collected: r.collected,
+  };
+}
+
+/** Header [Import] (owner only): opens the dialog the world layout hosts (ImportDialogHost). */
+export function ImportButton({ ctx }: { ctx: WorldCtx }) {
+  const { t } = useTranslation();
+  const show = useImportDialog(s => s.show);
+  if (!ctx.world.isOwner) return null;
+  return <Button size="sm" onClick={show}>{t('import.button')}</Button>;
+}
+
+/** The import dialog bound to `useImportDialog`; owner only. Mounted once by the world layout. */
+export function ImportDialogHost({ ctx }: { ctx: WorldCtx }) {
+  const open = useImportDialog(s => s.open);
+  const hide = useImportDialog(s => s.hide);
+  if (!ctx.world.isOwner) return null;
+  return <ImportDialog ctx={ctx} open={open} onClose={hide} />;
+}
+
+/** Spec §7: pick, parse, preview, import into the current world. */
+export function ImportDialog({ ctx, open, onClose }: { ctx: WorldCtx; open: boolean; onClose(): void }) {
+  const { t } = useTranslation();
+  return (
+    <Dialog open={open} onClose={onClose} title={t('import.title')}>
+      <ImportFlow ctx={ctx} onClose={onClose} />
+    </Dialog>
+  );
+}
+
+/** What went wrong, for the error box: HTTP status and the server's message, or the network error. */
+function failureDetail(err: unknown): string {
+  if (err instanceof ApiClientError) return err.status === 0 ? err.message : `HTTP ${err.status} · ${err.code}: ${err.message}`;
+  return err instanceof Error ? err.message : String(err);
+}
+
+function ImportFlow({ ctx, onClose }: { ctx: WorldCtx; onClose(): void }) {
+  const { t } = useTranslation();
+  const parser = useSaveParser(datasetUrlFor(ctx.me.datasetVersion));
+  const marks = useMarks(ctx.worldId);
+  const [fileName, setFileName] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<{ message: string; detail: string } | null>(null);
+  const result = parser.state.status === 'done' ? parser.state.result : undefined;
+
+  function pick(file: File) {
+    setFileName(file.name);
+    setConfirming(false);
+    setFailed(null);
+    parser.start(file);
+  }
+
+  function again() {
+    setConfirming(false);
+    setFailed(null);
+    parser.cancel();
+  }
+
+  async function submit(r: ExtractResult) {
+    setBusy(true);
+    setFailed(null);
+    try {
+      const out = await api<ImportResultDto>('POST', `/api/worlds/${encodeURIComponent(ctx.worldId)}/import`, importRequest(fileName, r));
+      void ctx.queryClient.invalidateQueries({ queryKey: queryKeys.marks(ctx.worldId) });
+      void ctx.queryClient.invalidateQueries({ queryKey: queryKeys.world(ctx.worldId) });
+      void ctx.queryClient.invalidateQueries({ queryKey: queryKeys.worlds() });
+      useImportBanner.getState().show(ctx.worldId, { added: out.newlyChecked, conflicts: out.conflicts });
+      onClose();
+    } catch (err) {
+      const rateLimited = err instanceof ApiClientError && err.code === 'rate_limited';
+      setFailed({ message: t(rateLimited ? 'import.rateLimited' : 'import.failed'), detail: failureDetail(err) });
+      setBusy(false);
+    }
+  }
+
+  if (!result) return <SaveSource parser={parser} onPick={pick} />;
+  const preview = computePreview(result, marks ?? EMPTY_MARKS, ctx.index);
+  return (
+    <div className="flex flex-col gap-3">
+      <SaveSummary result={result} index={ctx.index} preview={preview} confirming={confirming} />
+      {failed && (
+        <div role="alert" className="rounded border border-conflict px-3 py-2 text-sm">
+          <p className="font-medium">{failed.message}</p>
+          {failed.detail && <p className="mt-1 font-mono text-xs break-words text-muted">{failed.detail}</p>}
+        </div>
+      )}
+      <div className="flex justify-end gap-2">
+        {confirming ? (
+          <>
+            <Button onClick={() => setConfirming(false)}>{t('common.cancel')}</Button>
+            <Button variant="danger" disabled={busy} onClick={() => void submit(result)}>{t('import.importAnyway')}</Button>
+          </>
+        ) : (
+          <>
+            <Button onClick={again}>{t('import.chooseAnother')}</Button>
+            <Button
+              variant="primary"
+              disabled={busy}
+              onClick={() => (preview.needsSecondConfirm ? setConfirming(true) : void submit(result))}
+            >
+              {t('import.submit')}
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The preview (spec §7 step 4): "<session> · <date> · build N", what was recognised per type, and with
+ * `counts` (import into an existing world) "+N will be checked · M conflicts". Warnings: newer build,
+ * nothing recognised, and while `confirming` the second confirmation's text (Review Focus 1).
+ */
+export function SaveSummary({ result, index, preview, counts = true, confirming = false }: {
+  result: ExtractResult; index: DatasetIndex; preview: ImportPreview; counts?: boolean; confirming?: boolean;
+}) {
+  const { t, i18n } = useTranslation();
+  const { meta } = result;
+  const byType = countByType(result.collected, index);
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="font-medium">{t('import.meta', { session: meta.sessionName, date: formatSaveDate(meta.saveTime, i18n.language), build: String(meta.build) })}</p>
+      <div className="flex flex-col gap-1">
+        <p className="text-sm">{t('import.recognised', { count: result.recognised })}</p>
+        {byType.length > 0 && (
+          <dl className="grid grid-cols-[1fr_auto] gap-x-4 text-sm text-muted">
+            {byType.map(([type, n]) => (
+              <div key={type} className="contents">
+                <dt>{t(`progress.types.${type}`)}</dt>
+                <dd className="text-right font-display tabular-nums">{n}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </div>
+      {counts && <p className="font-display text-lg font-semibold">{t('import.counts', { willCheck: preview.willCheck, conflicts: preview.conflicts })}</p>}
+      {preview.buildNewer && (
+        <p role="note" className="rounded border border-line bg-bg px-3 py-2 text-sm">
+          {t('import.buildNewer', { save: String(meta.build), data: String(index.ds.build) })}
+        </p>
+      )}
+      {result.recognised === 0 && (
+        <p role="alert" className="rounded border border-conflict px-3 py-2 text-sm">
+          {confirming ? t('import.confirmNoMatch', { count: preview.conflicts }) : t('import.noMatch')}
+        </p>
+      )}
+    </div>
+  );
+}

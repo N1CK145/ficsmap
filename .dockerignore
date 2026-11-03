@@ -1,0 +1,16 @@
+node_modules
+dist
+.git
+.superpowers
+data-src
+test
+docs
+coverage
+*.sav
+.env*
+!.env.example
+data-local
+# never bake a dataset (game assets) into the image
+data
+state
+.tmpdata

@@ -1,0 +1,366 @@
+{
+  "app": {
+    "name": "ficsmap"
+  },
+  "common": {
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "loading": "Wird geladen…",
+    "retry": "Erneut versuchen"
+  },
+  "types": {
+    "slug_blue": "Blaue Power-Schnecke",
+    "slug_yellow": "Gelbe Power-Schnecke",
+    "slug_purple": "Violette Power-Schnecke",
+    "somersloop": "Somersloop",
+    "mercer_sphere": "Mercer-Sphäre",
+    "hard_drive": "Festplatte"
+  },
+  "login": {
+    "inviteOnly": "Nur mit Einladung: Du brauchst einen Einladungslink von jemandem mit einer eigenen Welt, oder du betreibst dein eigenes ficsmap.",
+    "tagline": "Erfasse deine Satisfactory-Sammelobjekte gemeinsam mit deinen Freunden.",
+    "signIn": "Mit Discord anmelden",
+    "error": {
+      "invite_only": "ficsmap ist nur mit Einladung nutzbar. Bitte einen Freund um einen Einladungslink.",
+      "cancelled": "Die Anmeldung wurde abgebrochen. Du kannst es jederzeit erneut versuchen.",
+      "expired": "Die Anmeldung hat zu lange gedauert. Bitte versuche es erneut.",
+      "invite_invalid": "Dieser Einladungslink ist ungültig. Bitte den Besitzer um einen neuen Link.",
+      "failed": "Die Anmeldung hat nicht geklappt. Bitte versuche es erneut."
+    }
+  },
+  "error": {
+    "title": "Etwas ist schiefgelaufen",
+    "reload": "Seite neu laden"
+  },
+  "account": {
+    "menu": "Konto",
+    "signedInAs": "Angemeldet als {email} über Discord",
+    "signOut": "Abmelden"
+  },
+  "worlds": {
+    "title": "Deine Welten",
+    "new": "+ Neue Welt",
+    "empty": "Noch keine Welten. Lege eine an oder bitte einen Freund um einen Einladungslink.",
+    "loadFailed": "Deine Welten konnten nicht geladen werden.",
+    "role": {
+      "owner": "Besitzer",
+      "member": "Mitglied"
+    },
+    "progressLabel": "Fortschritt von {name}",
+    "progress": "{done, number} / {total, number}",
+    "percent": "{share, number, percent}",
+    "members": "{count, plural, one {# Mitglied} other {# Mitglieder}}",
+    "noImport": "Noch kein Import",
+    "lastImport": "Letzter Import {when}",
+    "create": {
+      "title": "Neue Welt",
+      "tab": {
+        "empty": "Leer starten",
+        "save": "Aus Spielstand"
+      },
+      "name": "Name",
+      "submit": "Erstellen",
+      "failed": "Die Welt konnte nicht erstellt werden. Bitte versuche es erneut.",
+      "comingSoon": "Demnächst verfügbar"
+    }
+  },
+  "world": {
+    "notFound": "Welt nicht gefunden",
+    "loadFailed": "Diese Welt konnte nicht geladen werden.",
+    "goToWorlds": "Zu meinen Welten",
+    "deleted": "Diese Welt wurde gelöscht",
+    "removed": "Du wurdest aus dieser Welt entfernt.",
+    "joined": "Du bist {world} beigetreten · eingeladen von {owner}",
+    "already": "Du bist bereits in dieser Welt",
+    "sidebar": "Seitenleiste",
+    "map": "Karte",
+    "hideSidebar": "Seitenleiste ausblenden",
+    "showSidebar": "Seitenleiste einblenden",
+    "resizeSidebar": "Seitenleiste in der Breite ändern",
+    "resizeSidebarHint": "Ziehen oder Pfeiltasten; Doppelklick passt die Breite an den Inhalt an"
+  },
+  "live": {
+    "live": "Live",
+    "connecting": "Verbinde…",
+    "offline": "Offline"
+  },
+  "biomes": {
+    "title": "Biome",
+    "scope": "Bereich: {name}",
+    "clearScope": "Bereich aufheben"
+  },
+  "marks": {
+    "saveFailed": "Speichern fehlgeschlagen. Prüfe deine Verbindung.",
+    "undo": "Rückgängig",
+    "undone": "Rückgängig gemacht"
+  },
+  "progress": {
+    "title": "Fortschritt",
+    "count": "{done, number}/{total, number}",
+    "inBiome": "{done, number}/{total, number} in {biome}",
+    "hint": "Klicken zum Ein- oder Ausblenden · Alt-Klick oder lange drücken, um nur diesen Typ zu zeigen",
+    "visibility": "Gesammelte",
+    "show": "Zeigen",
+    "dim": "Abblenden",
+    "hide": "Ausblenden",
+    "types": {
+      "slug_blue": "Blaue Power-Schnecken",
+      "slug_yellow": "Gelbe Power-Schnecken",
+      "slug_purple": "Violette Power-Schnecken",
+      "somersloop": "Somersloops",
+      "mercer_sphere": "Mercer-Sphären",
+      "hard_drive": "Festplatten"
+    }
+  },
+  "map": {
+    "attribution": "Karte © Coffee Stain Studios",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern"
+  },
+  "item": {
+    "panel": "Objektdetails",
+    "check": "Abhaken",
+    "uncheck": "Haken entfernen",
+    "keepChecked": "Abgehakt lassen",
+    "conflict": "Laut Spielstand ist das noch da.",
+    "lastChanged": "Zuletzt geändert von {name} · {when}",
+    "someone": "jemandem",
+    "toOpen": {
+      "title": "Zum Öffnen",
+      "varies": "Die Anforderungen sind je Welt verschieden",
+      "noData": "Für diese Kapsel gibt es keine Anforderungsdaten",
+      "nothing": "Nichts nötig",
+      "items": "{amount, number}× {item}",
+      "power": "{power, number} MW"
+    },
+    "crashSite": {
+      "title": "Absturzort",
+      "items": "Items am Absturzort",
+      "threats": "Gefahren",
+      "notes": "Hinweise",
+      "none": "Keine",
+      "amount": "{amount, number}×",
+      "threat": "{count, number}× {name}"
+    },
+    "powerSlug": {
+      "title": "Power-Schnecke",
+      "yields": "{count, plural, one {Ergibt # Power-Splitter} other {Ergibt # Power-Splitter}}"
+    },
+    "nearby": {
+      "title": "In der Nähe · {radius, number} m",
+      "empty": "Sonst nichts im Umkreis von {radius, number} m",
+      "distance": "{distance, number} m",
+      "below": "{dz, number} m tiefer",
+      "above": "{dz, number} m höher"
+    },
+    "status": {
+      "collected": "Gesammelt",
+      "uncollected": "Nicht gesammelt",
+      "conflict": "Konflikt"
+    },
+    "coords": "X {x} · Y {y} · Z {z}",
+    "copyId": "ID kopieren",
+    "copied": "Kopiert"
+  },
+  "quickCheck": {
+    "control": "Schnell abhaken",
+    "banner": "SCHNELL ABHAKEN AN · Klicke auf eine Markierung, um sie abzuhaken · Q zum Beenden",
+    "zoomIn": "Vergrößere die Karte zum schnellen Abhaken",
+    "checked": "{type} abgehakt",
+    "unchecked": "Haken bei {type} entfernt",
+    "zoomInShort": "Erst vergrößern"
+  },
+  "import": {
+    "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur die Liste der gesammelten Objekte, dazu Name, Datum und Build des Spielstands.",
+    "button": "Importieren",
+    "title": "Spielstand importieren",
+    "chooseFolder": "Spielstand-Ordner wählen",
+    "changeFolder": "Ordner wechseln",
+    "grantAccess": "Zugriff erlauben",
+    "needsPermission": "Erlaube ficsmap wieder, deinen Spielstand-Ordner zu lesen.",
+    "folderFailed": "Der Spielstand-Ordner ließ sich nicht lesen.",
+    "noSaves": "Keine .sav-Dateien in diesem Ordner.",
+    "savesLabel": "Spielstände, neueste zuerst",
+    "orFile": "Oder wähle die Datei selbst:",
+    "fileLabel": "Spielstand-Datei wählen",
+    "folderHint": "Deine Spielstände liegen in einem Unterordner von",
+    "copyPath": "Pfad kopieren",
+    "pathCopied": "Pfad kopiert – füge ihn im Dateidialog ein",
+    "stage": {
+      "reading": "Datei wird gelesen…",
+      "parsing": "Spielstand wird ausgewertet…",
+      "extracting": "Sammelobjekte werden gesucht…"
+    },
+    "progressLabel": "Fortschritt beim Auswerten",
+    "percent": "{percent, number} %",
+    "notASave": "Diese Datei ließ sich nicht als Satisfactory-Spielstand lesen",
+    "failedHint": "Vielleicht ist sie unvollständig oder von einer Spielversion, die ficsmap nicht lesen kann.",
+    "datasetUnavailable": "Die Kartendaten ließen sich nicht laden. Prüfe deine Verbindung und versuche es noch einmal.",
+    "chooseAnother": "Andere Datei wählen",
+    "meta": "{session} · {date} · Build {build}",
+    "recognised": "{count, plural, one {# Objekt erkannt} other {# Objekte erkannt}}",
+    "noMatch": "Dieser Spielstand passt zu keinem Objekt auf dieser Karte.",
+    "confirmNoMatch": "Dieser Spielstand passt zu keinem Objekt auf dieser Karte. {count, plural, one {Beim Import wird das abgehakte Objekt zum Konflikt.} other {Beim Import werden alle # abgehakten Objekte zu Konflikten.}}",
+    "counts": "+{willCheck, number} werden abgehakt · {conflicts, plural, one {# Konflikt} other {# Konflikte}}",
+    "buildNewer": "Dieser Spielstand stammt von einem neueren Spiel-Build ({save}) als die Kartendaten ({data}). Einige Objekte fehlen vielleicht.",
+    "mobileHint": "Große Spielstände werden am Desktop schneller ausgewertet.",
+    "submit": "Importieren",
+    "importAnyway": "Trotzdem importieren",
+    "failed": "Der Import hat nicht geklappt. Bitte versuche es noch einmal.",
+    "rateLimited": "Zu viele Importe für diese Welt. Versuche es in einer Stunde noch einmal.",
+    "banner": "Import fertig · +{added, number} · {conflicts, plural, =0 {keine Konflikte} one {# Konflikt (!)} other {# Konflikte (!)}}",
+    "review": "Konflikte prüfen",
+    "dismiss": "Ausblenden",
+    "createImportFailed": "Welt erstellt, aber der Import ist fehlgeschlagen. Du kannst ihn auf der Karte noch einmal starten."
+  },
+  "conflicts": {
+    "title": "Konflikte",
+    "summary": "⚠ {count, plural, one {# Konflikt} other {# Konflikte}}",
+    "review": "Prüfen",
+    "trustCurrent": "Dem aktuellen Stand vertrauen",
+    "trustSave": "Dem Spielstand vertrauen",
+    "onlyShow": "Nur Konflikte anzeigen",
+    "step": "Konflikt {current, number} von {total, number}",
+    "prev": "‹ Zurück",
+    "next": "Weiter ›",
+    "done": "Fertig",
+    "keepTitle": "{count, plural, one {Diesen Eintrag abgehakt lassen? Laut Spielstand liegt er noch in der Welt. Das Häkchen bleibt, die Warnung verschwindet.} other {Alle # abgehakt lassen? Laut Spielstand liegen sie noch in der Welt. Die Häkchen bleiben, die Warnungen verschwinden.}}",
+    "keepConfirm": "Abgehakt lassen",
+    "uncheckTitle": "{count, plural, one {Dieses Häkchen entfernen? Es gilt wieder als nicht gesammelt, wie im Spielstand. Du kannst das direkt danach rückgängig machen.} other {Alle # Häkchen entfernen? Sie gelten wieder als nicht gesammelt, wie im Spielstand. Du kannst das direkt danach rückgängig machen.}}",
+    "uncheckConfirm": "{count, plural, one {# Häkchen entfernen} other {# Häkchen entfernen}}",
+    "toastUnchecked": "{count, plural, one {# Häkchen entfernt} other {# Häkchen entfernt}}",
+    "toastKept": "{count, plural, one {# Eintrag abgehakt gelassen} other {# Einträge abgehakt gelassen}}",
+    "allResolved": "Alle Konflikte gelöst"
+  },
+  "routes": {
+    "podNeeds": {
+      "title": "Zum Öffnen der Pods",
+      "amount": "{amount, number}×",
+      "power": "Strom: {count, plural, one {# Pod} other {# Pods}}, bis {mw, number} MW",
+      "free": "{count, plural, one {# Pod ohne Voraussetzung} other {# Pods ohne Voraussetzung}}",
+      "unknown": "{count, plural, one {# Pod ohne Anforderungsdaten} other {# Pods ohne Anforderungsdaten}}"
+    },
+    "title": "Routen",
+    "new": "+ Neue Route",
+    "empty": "Noch keine Routen.",
+    "listLabel": "Gespeicherte Routen",
+    "summary": "{count, plural, one {# Stopp} other {# Stopps}} · {name}",
+    "defaultName": "Route {n, number}",
+    "heading": "Route",
+    "name": "Name der Route",
+    "capacity": "{count, number}/{max, number}",
+    "start": "Start:",
+    "pickStart": "Klicke einen Marker an, um den Start zu setzen",
+    "change": "Ändern",
+    "fillNearest": "+ Nächste nicht gesammelte (bis {max, number} auffüllen)",
+    "allInBiome": "+ Alle nicht gesammelten in {biome}",
+    "stops": "Stopps",
+    "drag": "Ziehen zum Umsortieren, oder Alt+↑/↓",
+    "remove": "Stopp entfernen",
+    "done": "Erledigt",
+    "doneBy": "({name})",
+    "noDistance": "—",
+    "total": "Gesamt {total} · {left} übrig · {done, number}/{count, number} erledigt",
+    "optimize": "Reihenfolge optimieren",
+    "next": "Nächster Stopp ›",
+    "save": "Speichern",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "back": "‹ Alle Routen",
+    "orderChanged": "Reihenfolge geändert",
+    "optimizeAgain": "Neu optimieren",
+    "doneByOthers": "{count, plural, one {# Stopp von anderen erledigt} other {# Stopps von anderen erledigt}}",
+    "replan": "Neu planen",
+    "hint": "Luftlinie, Gelände nicht berücksichtigt",
+    "dismiss": "Ausblenden",
+    "full": "Die Route ist voll ({max, number}). Entferne einen Stopp, um einen neuen hinzuzufügen.",
+    "partial": "{added, number} von {requested, number} hinzugefügt (Routenlimit {max, number}). Die nächsten zuerst.",
+    "dropped": "{count, plural, one {# Stopp ist nicht mehr auf der Karte und wurde entfernt} other {# Stopps sind nicht mehr auf der Karte und wurden entfernt}}",
+    "saved": "Route gespeichert",
+    "deleted": "Route gelöscht",
+    "forbidden": "Nur wer die Route erstellt hat oder die Welt besitzt, kann sie ändern",
+    "saveFailed": "Die Route konnte nicht gespeichert werden. Bitte versuche es noch einmal.",
+    "deleteFailed": "Die Route konnte nicht gelöscht werden. Bitte versuche es noch einmal.",
+    "deleteTitle": "Die Route „{name}“ löschen?",
+    "discard": "Ungespeicherte Änderungen an der Route verwerfen?",
+    "discardConfirm": "Verwerfen",
+    "addToRoute": "+ Zur Route hinzufügen",
+    "moveUp": "Nach oben",
+    "moveDown": "Nach unten"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "open": "Einstellungen",
+    "backToMap": "← Karte",
+    "name": {
+      "title": "Name",
+      "label": "Name der Welt",
+      "save": "Speichern",
+      "saved": "Name gespeichert",
+      "failed": "Der Name konnte nicht gespeichert werden. Bitte versuche es erneut."
+    },
+    "members": {
+      "title": "Mitglieder",
+      "owner": "Besitzer",
+      "joinedVia": "per Einladung beigetreten · {date}",
+      "remove": "Entfernen",
+      "removeNamed": "{name} entfernen",
+      "removeConfirm": "{name} entfernen? Die Häkchen bleiben.",
+      "removed": "{name} entfernt",
+      "leave": "Welt verlassen",
+      "leaveConfirm": "{world} verlassen? Für eine Rückkehr brauchst du eine neue Einladung.",
+      "leaveAction": "Verlassen",
+      "left": "Du hast {world} verlassen",
+      "failed": "Die Mitglieder konnten nicht geändert werden. Bitte versuche es erneut."
+    },
+    "invite": {
+      "title": "Einladen",
+      "linkLabel": "Einladungslink",
+      "copy": "Link kopieren",
+      "copied": "Kopiert ✓ · Dieser Link gilt für eine Person",
+      "valid": "Gültig bis {date} · nur einmal nutzbar",
+      "loadFailed": "Es konnte kein Einladungslink erstellt werden.",
+      "revoke": "Alle offenen Links widerrufen",
+      "revokeConfirm": "Links, die du verschickt hast, funktionieren nicht mehr. Wer schon beigetreten ist, bleibt.",
+      "revokeAction": "Links widerrufen",
+      "revoked": "Offene Links widerrufen",
+      "revokeFailed": "Die Links konnten nicht widerrufen werden. Bitte versuche es erneut."
+    },
+    "import": {
+      "title": "Spielstand importieren",
+      "hint": "Hake Gesammeltes ab, indem du einen Spielstand einliest.",
+      "open": "Spielstand importieren…"
+    },
+    "danger": {
+      "title": "Gefahrenzone",
+      "hint": "Beim Löschen der Welt gehen Häkchen, Routen und Mitglieder endgültig verloren.",
+      "confirmLabel": "Zur Bestätigung den Namen der Welt eingeben",
+      "delete": "Welt löschen",
+      "deleted": "Welt gelöscht",
+      "failed": "Die Welt konnte nicht gelöscht werden. Bitte versuche es erneut."
+    }
+  },
+  "list": {
+    "view": "Ansicht",
+    "map": "Karte",
+    "list": "Liste",
+    "caption": "Sammelobjekte",
+    "type": "Typ",
+    "item": "Objekt",
+    "biome": "Biom",
+    "status": "Status",
+    "changedBy": "Zuletzt geändert von",
+    "showOnMap": "Auf der Karte zeigen",
+    "empty": "Keine Objekte passen zu den aktuellen Filtern.",
+    "none": "—"
+  },
+  "mobile": {
+    "sheet": {
+      "label": "Panels",
+      "handle": "Panelgröße: {size}",
+      "peek": "klein",
+      "half": "halb",
+      "full": "voll"
+    }
+  }
+}

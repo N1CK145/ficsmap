@@ -1,0 +1,12 @@
+{"gameVersion":"1.0.0.0","pickups":[
+{"name":"BP_BerryBush1","class":"BP_BerryBush_C","location":[1000,1000,0]},
+{"name":"BP_Crystal_C_2","class":"BP_Crystal_C","location":[20000,30000,100]},
+{"name":"BP_Crystal_C_1","class":"BP_Crystal_C","location":[10000,30000,100]},
+{"name":"BP_Crystal_mk2_C_1","class":"BP_Crystal_mk2_C","location":[60000,10000,100]},
+{"name":"BP_Crystal_mk3_C_1","class":"BP_Crystal_mk3_C","location":[70000,10000,100]},
+{"name":"BP_WAT1_C_1","class":"BP_WAT1_C","location":[30000,60000,200]},
+{"name":"BP_WAT2_C_UAID_A","class":"BP_WAT2_C","location":[80000,80000,300]}
+],"dropPods":[
+{"name":"BP_DropPod1","class":"BP_DropPod_C","location":[15000,15000,50]},
+{"name":"BP_DropPod2_1","class":"BP_DropPod_C","location":[90000,20000,50]}
+],"creatureSpawners":[]}
