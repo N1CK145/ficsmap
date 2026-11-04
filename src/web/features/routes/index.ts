@@ -3,6 +3,7 @@ import type { Item } from '../../../shared/dataset.js';
 import type { FeatureModule, WorldCtx } from '../../app/feature.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { AddToRouteAction } from './AddToRouteAction.js';
+import { PodChecklistOverlay } from './PodChecklistOverlay.js';
 import { RouteLayer } from './RouteLayer.js';
 import { RoutesHost, RoutesPanel } from './RoutesPanel.js';
 import { defaultRouteName, useRouteDraft, type DraftEnv } from './useRoutes.js';
@@ -21,13 +22,17 @@ function onRouteClick(item: Item, ctx: WorldCtx): void {
   s.apply({ type: 'click', actor: item.name }, env);
 }
 
-/** The route planner (spec §10.6): sidebar panel, `route` map mode, the route on the map, [+ Add to route], live updates. */
+/**
+ * The route planner (spec §10.6): sidebar panel, `route` map mode, the route on the map, the pods'
+ * "Bring with you" list over the map, [+ Add to route], live updates.
+ */
 export const routesFeature: FeatureModule = {
   id: 'routes',
   sidebarPanels: [{ id: 'routes', order: 30, titleKey: 'routes.title', Component: RoutesPanel }],
   mapModes: [{ id: 'route', onMarkerClick: onRouteClick }],
   // After the selection pan (order 100), so a [Next stop ›] flight is not cut short by it.
   mapLayers: [{ id: 'route', order: 110, Component: RouteLayer }],
+  mapOverlays: [{ id: 'pod-checklist', order: 10, Component: PodChecklistOverlay }],
   itemActions: [{ id: 'add-to-route', order: 20, Component: AddToRouteAction }],
   headerItems: [{ id: 'routes-host', order: 100, Component: RoutesHost }],
   sseHandlers: {

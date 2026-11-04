@@ -24,6 +24,7 @@ export interface SidebarPanel {
 export interface MapLayer { id: string; order: number; Component: FC<{ ctx: WorldCtx }> }
 export interface MapMode { id: InteractionMode; onMarkerClick(item: Item, ctx: WorldCtx): void; cursor?: string; Banner?: FC }
 export interface MapControl { id: string; order: number; Component: FC<{ ctx: WorldCtx }> }
+export interface MapOverlay { id: string; order: number; Component: FC<{ ctx: WorldCtx }> }
 export interface ItemDetailSection { id: string; order: number; applies(item: Item): boolean; Component: FC<{ item: Item; ctx: WorldCtx }> }
 export interface ItemAction { id: string; order: number; Component: FC<{ item: Item; ctx: WorldCtx }> }
 export interface HeaderItem { id: string; order: number; Component: FC<{ ctx: WorldCtx }> }
@@ -40,6 +41,8 @@ export interface FeatureModule {
   mapModes?: MapMode[];
   /** Stacked top right under the zoom buttons, inside the map; clicks on them do not reach the map. */
   mapControls?: MapControl[];
+  /** Free-standing boxes over the map (each positions itself, absolutely), under the item panel; clicks on them do not reach the map. */
+  mapOverlays?: MapOverlay[];
   itemDetailSections?: ItemDetailSection[];
   itemActions?: ItemAction[];
   headerItems?: HeaderItem[];

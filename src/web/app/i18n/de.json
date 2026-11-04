@@ -2,6 +2,12 @@
   "app": {
     "name": "ficsmap"
   },
+  "language": {
+    "label": "Sprache"
+  },
+  "footer": {
+    "source": "Quellcode auf GitHub"
+  },
   "common": {
     "cancel": "Abbrechen",
     "close": "Schließen",
@@ -234,8 +240,15 @@
   },
   "routes": {
     "podNeeds": {
-      "title": "Zum Öffnen der Pods",
+      "title": "Mitnehmen",
+      "open": "{count, number} offen",
       "amount": "{amount, number}×",
+      "fromStops": "+{amount, number} bei {count, plural, one {Stopp} other {Stopps}} {stops}",
+      "found": "Liegt unterwegs",
+      "atStops": "{count, plural, one {Stopp} other {Stopps}} {stops}",
+      "allFound": "Nichts mitzunehmen: alles liegt unterwegs.",
+      "collapse": "Liste einklappen",
+      "expand": "Liste ausklappen",
       "power": "Strom: {count, plural, one {# Pod} other {# Pods}}, bis {mw, number} MW",
       "free": "{count, plural, one {# Pod ohne Voraussetzung} other {# Pods ohne Voraussetzung}}",
       "unknown": "{count, plural, one {# Pod ohne Anforderungsdaten} other {# Pods ohne Anforderungsdaten}}"
