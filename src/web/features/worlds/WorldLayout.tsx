@@ -9,6 +9,7 @@ import { loadView, setLastWorld } from '../../app/persist.js';
 import { useUiStore } from '../../app/store.js';
 import { useIsMobile } from '../../app/useMediaQuery.js';
 import { Button, buttonClass } from '../../components/Button.js';
+import { Footer } from '../../components/Footer.js';
 import { Header } from '../../components/Header.js';
 import { IconButton } from '../../components/IconButton.js';
 import { Panel } from '../../components/Panel.js';
@@ -115,7 +116,12 @@ export function WorldLayout() {
 }
 
 function Screen({ children }: { children: ReactNode }) {
-  return <main className="flex min-h-dvh flex-col items-center justify-center gap-4 p-4 text-center">{children}</main>;
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <main className="flex flex-1 flex-col items-center justify-center gap-4 p-4 text-center">{children}</main>
+      <Footer />
+    </div>
+  );
 }
 
 function WorldShell({ ctx }: { ctx: WorldCtx }) {
@@ -156,6 +162,8 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
           {view === 'map' && !mobile && <ItemPanel ctx={ctx} />}
         </section>
       </div>
+      {/* Always visible; on mobile the sheets sit on top of it (FOOTER_PX). */}
+      <Footer className="border-t border-line bg-panel" />
       {!inSettings && mobile && <MobileSheets ctx={ctx} panels={shown.filter(p => !p.desktopOnly)} />}
       <ImportDialogHost ctx={ctx} />
     </div>

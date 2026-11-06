@@ -73,6 +73,7 @@ function setup(opts: { isOwner?: boolean; route?: RouteDto; marks?: MarksCache }
   client.setQueryData(queryKeys.dataset('test'), index);
   client.setQueryData(queryKeys.marks(W), opts.marks ?? marks());
   client.setQueryData(queryKeys.routes(W), [r]);
+  client.setQueryData(queryKeys.crashSites('test'), {});
   const ctx: WorldCtx = { worldId: W, world: w, me: ME, index, queryClient: client, navigate: () => {}, toast: { show: () => {} } };
   return { client, ctx, route: r };
 }
@@ -107,12 +108,11 @@ describe('RouteEditor', () => {
     expect(screen.getByText(/North sloops/)).toBeInTheDocument();
   });
 
-  it('lists what the open pods of the route need, without checked ones', () => {
-    const { client, route: r } = setup({ marks: marks([['A1', 1], ['A2', 1]]) });
+  it('leaves the pods\' "Bring with you" list to the map overlay', () => {
+    const { client, route: r } = setup();
     useRouteDraft.getState().load(r);
     renderEditor(client);
-    // The fixture pods have no requirement data: 7 stops, 2 checked.
-    expect(screen.getByRole('region', { name: 'To open the pods' })).toHaveTextContent('5 pods without requirement data');
+    expect(screen.queryByRole('region', { name: 'Bring with you' })).not.toBeInTheDocument();
   });
 
   it('hides Edit, Save and Delete from a member who did not create the route', () => {
@@ -218,6 +218,14 @@ describe('RouteEditor on mobile', () => {
     stubMatchMedia({ [MOBILE]: true });
   });
   afterEach(() => vi.unstubAllGlobals());
+
+  it('lists what the open pods of the route need, without checked ones', () => {
+    const { client, route: r } = setup({ marks: marks([['A1', 1], ['A2', 1]]) });
+    useRouteDraft.getState().load(r);
+    renderEditor(client);
+    // The fixture pods have no requirement data: 7 stops, 2 checked.
+    expect(screen.getByRole('region', { name: 'Bring with you' })).toHaveTextContent('5 pods without requirement data');
+  });
 
   it('reorders with ▲/▼ buttons per row instead of dragging', async () => {
     const { client, route: r } = setup();

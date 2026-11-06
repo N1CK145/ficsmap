@@ -1,4 +1,7 @@
-import { lastWorld, loadView, saveView, setLastWorld, type PersistedView } from '../../src/web/app/persist.js';
+import {
+  lastWorld, loadLocale, loadPodChecklistCollapsed, loadPodTicks, loadView, saveLocale, savePodChecklistCollapsed, savePodTicks, saveView,
+  setLastWorld, type PersistedView,
+} from '../../src/web/app/persist.js';
 
 const view: PersistedView = {
   center: [-1200, 3400], zoom: 3, typeFilter: ['somersloop', 'hard_drive'], visibility: 'hide', biomeScope: 2,
@@ -33,11 +36,47 @@ describe('persist', () => {
     expect(lastWorld()).toBe('w9');
   });
 
+  it('remembers the picked language and ignores unknown values', () => {
+    expect(loadLocale()).toBeNull();
+    saveLocale('de');
+    expect(loadLocale()).toBe('de');
+    localStorage.setItem('ficsmap:locale', 'fr');
+    expect(loadLocale()).toBeNull();
+  });
+
+  it('remembers the pod checklist ticks per world and route, keeping only strings', () => {
+    expect(loadPodTicks('w1', 'r1')).toEqual(new Set());
+    savePodTicks('w1', 'r1', new Set(['Rotor', 'Motor']));
+    expect(loadPodTicks('w1', 'r1')).toEqual(new Set(['Rotor', 'Motor']));
+    expect(loadPodTicks('w1', 'r2')).toEqual(new Set());
+    expect(loadPodTicks('w2', 'r1')).toEqual(new Set());
+    localStorage.setItem('ficsmap:podTicks:w1:r1', JSON.stringify(['Rotor', 3, null]));
+    expect(loadPodTicks('w1', 'r1')).toEqual(new Set(['Rotor']));
+    localStorage.setItem('ficsmap:podTicks:w1:r1', '{not json');
+    expect(loadPodTicks('w1', 'r1')).toEqual(new Set());
+  });
+
+  it('forgets the ticks of a route once none are left', () => {
+    savePodTicks('w1', 'r1', new Set(['Rotor']));
+    savePodTicks('w1', 'r1', new Set());
+    expect(localStorage.getItem('ficsmap:podTicks:w1:r1')).toBeNull();
+  });
+
+  it('remembers whether the pod checklist was collapsed by hand', () => {
+    expect(loadPodChecklistCollapsed()).toBe(false);
+    savePodChecklistCollapsed(true);
+    expect(loadPodChecklistCollapsed()).toBe(true);
+    savePodChecklistCollapsed(false);
+    expect(loadPodChecklistCollapsed()).toBe(false);
+  });
+
   it('never throws when storage is unavailable', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
     expect(() => saveView('w1', view)).not.toThrow();
     expect(() => setLastWorld('w1')).not.toThrow();
+    expect(() => savePodTicks('w1', 'r1', new Set(['Rotor']))).not.toThrow();
+    expect(loadPodTicks('w1', 'r1')).toEqual(new Set());
     expect(loadView('w1')).toBeNull();
     expect(lastWorld()).toBeNull();
   });

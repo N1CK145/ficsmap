@@ -5,6 +5,7 @@ import type { WorldSummaryDto } from '../../../shared/api.js';
 import { formatRelative } from '../../app/format.js';
 import { lastWorld } from '../../app/persist.js';
 import { Button } from '../../components/Button.js';
+import { Footer } from '../../components/Footer.js';
 import { Header } from '../../components/Header.js';
 import { AccountMenu } from './AccountMenu.js';
 import { CreateWorldDialog } from './CreateWorldDialog.js';
@@ -47,6 +48,7 @@ export function WorldListPage() {
           </ul>
         )}
       </main>
+      <Footer className="mt-auto" />
       <CreateWorldDialog open={creating} onClose={() => setCreating(false)} />
     </div>
   );
