@@ -89,6 +89,24 @@
     "scope": "Scope: {name}",
     "clearScope": "Clear scope"
   },
+  "caves": {
+    "control": "Caves",
+    "hint": "Show caves and their entrances (from the game data)",
+    "item": {
+      "title": "Cave",
+      "inCave": "Lies in a cave.",
+      "nearestEntrance": "Nearest cave entrance: {distance, number} m (straight line)"
+    }
+  },
+  "coords": {
+    "hint": "Position under the mouse in metres. Z is the highest surface there: terrain, rocks, structures and big trees, without bushes and small plants."
+  },
+  "heights": {
+    "control": "Heights",
+    "hint": "Show the height map as a colour scale (highest surface, from the game data)",
+    "legend": "Height (highest point)",
+    "metres": "{value} m"
+  },
   "marks": {
     "saveFailed": "Couldn't save. Check your connection.",
     "undo": "Undo",

@@ -6,7 +6,7 @@ import type { WorldCtx } from '../../app/feature.js';
 import { useUiStore } from '../../app/store.js';
 import { useIsMobile } from '../../app/useMediaQuery.js';
 import { prefersReducedMotion } from '../map/motion.js';
-import { biomeName, labelPoint, maskRings, ringBounds, ringsOf, useBiomeHover, useBiomeShapes, type LatLngRing } from './useBiomes.js';
+import { biomeName, labelPoints, maskRings, ringBounds, ringsOf, useBiomeHover, useBiomeShapes, type LatLngRing } from './useBiomes.js';
 
 /** Labels show only while zoomed far out (spec §10.4). */
 const LABEL_MAX_ZOOM = 2;
@@ -34,6 +34,7 @@ export function BiomeLayer({ ctx }: { ctx: WorldCtx }) {
   const { i18n } = useTranslation();
   const shapes = useBiomeShapes(ctx.me.datasetVersion);
   const scope = useUiStore(s => s.biomeScope);
+  const setScope = useUiStore(s => s.setBiomeScope);
   const hovered = useBiomeHover(s => s.hovered);
   const setHovered = useBiomeHover(s => s.setHovered);
   const colors = useMemo(readColors, []);
@@ -45,6 +46,11 @@ export function BiomeLayer({ ctx }: { ctx: WorldCtx }) {
     return () => { map.off('zoomend', onZoom); };
   }, [map]);
   useEffect(() => () => setHovered(null), [setHovered]);
+  // A scope remembered from an older dataset may name a biome this one does not have (the biomes changed):
+  // drop it, or every marker would count as outside the scope.
+  useEffect(() => {
+    if (scope !== null && !ctx.index.ds.biomes[scope]) setScope(null);
+  }, [scope, ctx.index, setScope]);
 
   const biomes = useMemo(() => shapes?.features.map(f => ({ idx: f.properties.idx, rings: ringsOf(f) })) ?? [], [shapes]);
 
@@ -86,7 +92,7 @@ export function BiomeLayer({ ctx }: { ctx: WorldCtx }) {
           eventHandlers={{ mouseover: () => setHovered(b.idx), mouseout: () => setHovered(null) }}
         />
       ))}
-      {zoom <= LABEL_MAX_ZOOM && biomes.map(b => <BiomeLabel key={b.idx} rings={b.rings} name={biomeName(ctx.index.ds, b.idx, i18n.language)} />)}
+      {zoom <= LABEL_MAX_ZOOM && biomes.map(b => <BiomeLabels key={b.idx} rings={b.rings} name={biomeName(ctx.index.ds, b.idx, i18n.language)} />)}
     </>
   );
 }
@@ -101,8 +107,13 @@ export function hitOptions(scoped: boolean, hover: boolean, c: Colors): L.PathOp
   return { className: HIT_CLASS, stroke: false, fill: true, fillColor: c.fg, fillOpacity: 0 };
 }
 
-function BiomeLabel({ rings, name }: { rings: LatLngRing[]; name: string | undefined }) {
-  const position = useMemo(() => labelPoint(rings), [rings]);
+/** The biome's name on each of its larger parts. */
+function BiomeLabels({ rings, name }: { rings: LatLngRing[]; name: string | undefined }) {
+  const positions = useMemo(() => labelPoints(rings), [rings]);
+  return <>{positions.map(p => <BiomeLabel key={`${p[0]},${p[1]}`} position={p} name={name} />)}</>;
+}
+
+function BiomeLabel({ position, name }: { position: [number, number]; name: string | undefined }) {
   const icon = useMemo(() => {
     const el = document.createElement('span');
     el.className = 'ficsmap-biome-label__text';

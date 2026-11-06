@@ -10,7 +10,7 @@ import { useUiStore } from '../../src/web/app/store.js';
 import { HIT_CLASS, hitOptions } from '../../src/web/features/biomes/BiomeLayer.js';
 import { BiomesPanel } from '../../src/web/features/biomes/BiomesPanel.js';
 import { ScopeChip } from '../../src/web/features/biomes/ScopeChip.js';
-import { labelPoint, maskRings, ringBounds, sortBiomeRows, useBiomeHover } from '../../src/web/features/biomes/useBiomes.js';
+import { labelPoint, labelPoints, maskRings, ringBounds, sortBiomeRows, useBiomeHover } from '../../src/web/features/biomes/useBiomes.js';
 import type { MarksCache } from '../../src/web/features/marks/useMarks.js';
 
 const WORLD = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
@@ -147,3 +147,19 @@ describe('BiomesPanel', () => {
     expect(useBiomeHover.getState().hovered).toBeNull();
   });
 });
+
+describe('labelPoints', () => {
+  const square = (lat: number, lng: number, size: number): [number, number][] => [[lat, lng], [lat, lng + size], [lat - size, lng + size], [lat - size, lng]];
+  it('names every larger part once, not holes and not small pieces', () => {
+    const big = square(-10, 10, 30), hole = square(-15, 15, 15), other = square(-100, 100, 20), small = square(-200, 200, 5);
+    const points = labelPoints([big, hole, other, small]);
+    expect(points).toHaveLength(2);
+    expect(points[0]).toEqual(labelPoint([big]));
+    expect(points[1]).toEqual(labelPoint([other]));
+  });
+
+  it('always names the largest part, however small', () => {
+    expect(labelPoints([square(-1, 1, 2)])).toHaveLength(1);
+  });
+});
+

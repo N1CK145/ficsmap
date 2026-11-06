@@ -20,7 +20,7 @@ One npm package, one process, one container. The server serves the API, the buil
 src/shared/     types and pure logic used by server and web
 src/server/     Fastify server
 src/web/        React SPA (Vite root)
-scripts/        build-dataset.ts (dataset build), inspect-save.ts (dump a save for checks)
+scripts/        build-dataset.ts (dataset build), cave-geometry.ts (cave sampling for it), heightmap.ts (height map tiles for it), map-areas.ts (biomes from the game's map areas), trace.ts (outline tracing), inspect-save.ts (dump a save for checks)
 data-src/       extraction tooling and notes (extractor/README.md, the AssetsExtractor patch, item names)
 test/           unit/, api/, web/, fixtures/
 data/           local datasets, data/<game-version>/ (git-ignored)
@@ -33,7 +33,9 @@ data/           local datasets, data/<game-version>/ (git-ignored)
 - `extract.ts`: turns a parsed save into the list of collected actor names.
 - `route.ts`: route length and the optimiser (nearest neighbour, then 2-opt and Or-opt). `MAX_ROUTE_STOPS = 30`.
 - `geo.ts`: world to map coordinates (100 world units = 1 m), point-in-polygon.
-- `biomes.ts`: loads biome polygons and assigns items to biomes.
+- `biomes.ts`: loads the hand-drawn biome polygons (fallback) and assigns items to them. The game's map areas (`scripts/map-areas.ts`) are the primary source: biomes, outlines (traced with `scripts/trace.ts`) and item assignment from the area raster.
+- `caves.ts`: the extractor's cave volumes and the `caves.geojson` format (the sampling itself is in `scripts/cave-geometry.ts`).
+- `heightmap.ts`: the height map tile format (`height/meta.json`, delta-coded int16 tiles in gzip) and the cell lookup.
 - `api.ts`, `sse.ts`: DTOs and the SSE event union, shared by server and client.
 - `i18n.ts`: locale detection, used by the SPA and the server-rendered invite page.
 
@@ -74,7 +76,7 @@ Features are modules that plug into extension points. `src/web/app/feature.ts` d
 - `headerItems`, `settingsSections`
 - `sseHandlers`: reactions to server events
 
-All features are listed once in `src/web/features/index.ts`. `collect()` flattens one extension point over all features and sorts by `order`. The current features are `worlds`, `marks`, `live`, `map`, `progress`, `biomes`, `itemPanel`, `quickCheck`, `routes`, `import`, `conflicts`, `sharing` and `listView`. `features/mobile` is not a feature module; it holds the bottom sheet the world layout uses on small screens. A new feature should add a module here rather than edit core screens.
+All features are listed once in `src/web/features/index.ts`. `collect()` flattens one extension point over all features and sorts by `order`. The current features are `worlds`, `marks`, `live`, `map`, `progress`, `biomes`, `caves`, `coords`, `itemPanel`, `quickCheck`, `routes`, `import`, `conflicts`, `sharing` and `listView`. `features/mobile` is not a feature module; it holds the bottom sheet the world layout uses on small screens. A new feature should add a module here rather than edit core screens.
 
 ## Backend
 
@@ -131,12 +133,12 @@ All features are listed once in `src/web/features/index.ts`. `collect()` flatten
 
 ## Dataset
 
-The dataset is static and versioned by game version: `<DATASET_DIR>/<game-version>/` with `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/{z}/{x}/{y}.webp` and `icons/`. It is not in the repository and not in the Docker image; it is mounted at run time. The server loads `collectibles.min.json` at start and serves the directory under `/data/`.
+The dataset is static and versioned by game version: `<DATASET_DIR>/<game-version>/` with `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/{z}/{x}/{y}.webp`, `icons/` and optionally `caves.geojson` and `height/` (`meta.json` plus 500 m tiles `<ti>_<tj>.bin.gz`, fetched by the browser on hover and unpacked with `DecompressionStream`; tile URLs carry the content hash from `meta.json` because non-JSON files are served as immutable). It is not in the repository and not in the Docker image; it is mounted at run time. The server loads `collectibles.min.json` at start and serves the directory under `/data/`.
 
 `npm run dataset` (`scripts/build-dataset.ts`) builds it from:
 
-- the output of SatisfactoryTools/AssetsExtractor `world-extractor-net` with the patch in `data-src/extractor/` (collectibles, drop-pod requirements, Mercer shrines, tiles, icons; see `data-src/extractor/README.md`),
-- a `--data-src` folder with biome polygons, their calibration and crash-site data.
+- the output of SatisfactoryTools/AssetsExtractor `world-extractor-net` with the patch in `data-src/extractor/` (collectibles, drop-pod requirements, Mercer shrines, cave volumes and the 3D geometry around each cave, the height grid, the map area raster, tiles, icons; see `data-src/extractor/README.md`),
+- a `--data-src` folder with crash-site data and the hand-drawn biome polygons with their calibration (used only when the extractor output has no `map-areas/`).
 
 The build filters to the registry types, assigns each item a biome and a number within it, adds drop-pod requirements and shrine aliases, and fails on missing types, duplicate names or items without a biome. Each world records the dataset version it was created with.
 

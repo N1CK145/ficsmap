@@ -1,16 +1,53 @@
 diff --git a/world-extractor-net/Program.cs b/world-extractor-net/Program.cs
-index 5af71fd..19946c3 100644
+index 5af71fd..2a5affb 100644
 --- a/world-extractor-net/Program.cs
 +++ b/world-extractor-net/Program.cs
-@@ -41,6 +41,7 @@ string installDir = opts.Require("install-dir");
+@@ -7,6 +7,7 @@ using CUE4Parse.Encryption.Aes;
+ using CUE4Parse.FileProvider;
+ using CUE4Parse.MappingsProvider.Usmap;
+ using CUE4Parse.UE4.Assets.Exports;
++using CUE4Parse.UE4.Assets.Exports.Component.StaticMesh;
+ using CUE4Parse.UE4.Assets.Exports.Texture;
+ using CUE4Parse.UE4.Assets.Objects;
+ using CUE4Parse.UE4.Objects.Core.Math;
+@@ -30,10 +31,15 @@ using SkiaSharp;
+ //   --map-out           a directory with the in-game map as a 256px WebP tile pyramid
+ //                       (tiles/{z}/{x}/{y}.webp) plus map.json (content id, zoom range and the world
+ //                       rectangle the image covers, read from the level's minimap capture actor).
++//   --caves-out         caves.json: the cave volumes (2D hulls + Z range), see CaveData.
++//   --cave-geometry-out a directory with the 3D geometry around every cave (GLB per cave), see CaveGeometry.
++//   --heightmap-out     a directory with height grids of the whole map (highest surface per cell), see Heightmap.
++//   --map-areas-out     a directory with the game's map area raster (which area every spot belongs to), see MapAreas.
+ //
+ // Usage:
+ //   WorldExtractor --install-dir <game install> --out <default-world.json>
+-//                  [--collectibles-out <collectibles.json>] [--map-out <dir>]
++//                  [--collectibles-out <collectibles.json>] [--map-out <dir>] [--caves-out <caves.json>]
++//                  [--cave-geometry-out <dir>] [--heightmap-out <dir>] [--map-areas-out <dir>]
+ //                  [--engine-candidates GAME_UE5_6,GAME_UE5_5] [--game-version 1.2.3.1]
+ 
+ var opts = Args.Parse(args);
+@@ -41,6 +47,11 @@ string installDir = opts.Require("install-dir");
  string outPath = opts.Require("out");
  string? collectiblesPath = opts.Get("collectibles-out");
  string? mapDir = opts.Get("map-out");
 +string? extrasPath = opts.Get("extras-out");
++string? cavesPath = opts.Get("caves-out");
++string? caveGeometryDir = opts.Get("cave-geometry-out");
++string? heightmapDir = opts.Get("heightmap-out");
++string? mapAreasDir = opts.Get("map-areas-out");
  
  string paksDir = Path.Combine(installDir, "FactoryGame", "Content", "Paks");
  string usmapPath = Path.Combine(installDir, "CommunityResources", "FactoryGame.usmap");
-@@ -71,6 +72,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
+@@ -62,7 +73,6 @@ const string levelPath = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persis
+ 
+ var (provider, level, engine) = OpenLevel(paksDir, usmapPath, candidates);
+ Console.WriteLine($"Engine: {engine} | mounted files: {provider.Files.Count} | game version: {gameVersion}");
+-
+ var resourceNodes = new List<ResourceNode>();
+ var geysers = new List<GeyserNode>();
+ var cores = new List<FrackingCore>();
+@@ -71,6 +81,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
  UObject? scannableGenerator = null;
  UObject? minimapCapture = null;
  int skipped = 0;
@@ -19,7 +56,7 @@ index 5af71fd..19946c3 100644
  
  foreach (var actorIndex in level.Actors)
  {
-@@ -99,6 +102,9 @@ foreach (var actorIndex in level.Actors)
+@@ -99,6 +111,9 @@ foreach (var actorIndex in level.Actors)
              satellites.Add((actor.Get<FPackageIndex>("mCore").Name, ResourceClass(actor),
                  new GeyserNode(actor.Name, Location(actor), Purity(actor))));
              break;
@@ -29,7 +66,7 @@ index 5af71fd..19946c3 100644
          case "BP_WorldScannableDataGenerator_C":
              scannableGenerator = actor;
              break;
-@@ -146,6 +152,23 @@ if (collectiblesPath is not null)
+@@ -146,6 +161,50 @@ if (collectiblesPath is not null)
          $"{collectibles.DropPods.Count} drop pods, {collectibles.CreatureSpawners.Count} creature spawners -> {collectiblesPath}");
  }
  
@@ -50,10 +87,37 @@ index 5af71fd..19946c3 100644
 +    Console.WriteLine($"Extras: {extraPods.Count} drop pods, {extraShrines.Count} mercer shrines -> {extrasPath}");
 +}
 +
++Caves? caveVolumes = cavesPath is not null || caveGeometryDir is not null ? CaveData.Read(provider) : null;
++if (cavesPath is not null)
++{
++    File.WriteAllText(cavesPath, JsonSerializer.Serialize(caveVolumes, Json.Options));
++    Console.WriteLine($"Caves: {caveVolumes!.Volumes.Count} cave volumes -> {cavesPath}");
++}
++
++if (caveGeometryDir is not null)
++{
++    var index = CaveGeometry.Write(provider, caveVolumes!, caveGeometryDir);
++    Console.WriteLine($"Cave geometry: {index.Caves.Count} caves, {index.Caves.Sum(c => c.Instances)} mesh instances, " +
++        $"{index.Caves.Sum(c => c.Triangles)} triangles -> {caveGeometryDir}");
++}
++
++if (mapAreasDir is not null)
++{
++    var areas = MapAreas.Write(provider, mapAreasDir);
++    Console.WriteLine($"Map areas: {areas.Width}x{areas.Height} px, {areas.Areas.Count} palette entries -> {mapAreasDir}");
++}
++
++if (heightmapDir is not null)
++{
++    if (minimapCapture is null) throw new Exception("BP_MinimapCaptureActor_C not found in the level.");
++    var hm = Heightmap.Write(provider, MapTiler.CaptureBounds(minimapCapture), heightmapDir);
++    Console.WriteLine($"Heightmap: {hm.Width}x{hm.Height} cells of {hm.Cell} cm -> {heightmapDir}");
++}
++
  if (mapDir is not null)
  {
      if (minimapCapture is null) throw new Exception("BP_MinimapCaptureActor_C not found in the level.");
-@@ -163,6 +186,31 @@ static float[] Location(UObject actor)
+@@ -163,6 +222,31 @@ static float[] Location(UObject actor)
      return [loc.X, loc.Y, loc.Z];
  }
  
@@ -85,7 +149,16 @@ index 5af71fd..19946c3 100644
  static string ResourceClass(UObject actor) => actor.Get<FPackageIndex>("mResourceClass").Name;
  
  static string Purity(UObject actor) => actor.GetOrDefault<FName>("mPurity", new FName("RP_Normal")).ToString();
-@@ -428,7 +476,7 @@ record PickupContent(string? Item, int Amount);
+@@ -372,7 +456,7 @@ static class MapTiler
+     }
+ 
+     /** A top-down orthographic capture: the image is OrthoWidth world units wide and as tall, centred on the capture. */
+-    private static MapBounds CaptureBounds(UObject captureActor)
++    public static MapBounds CaptureBounds(UObject captureActor)
+     {
+         var root = captureActor.Get<FPackageIndex>("RootComponent").Load()!;
+         var capture = captureActor.Get<FPackageIndex>("CaptureComponent2D").Load()!;
+@@ -428,7 +512,7 @@ record PickupContent(string? Item, int Amount);
  /** What each loose item pickup holds, from the world partition cells that contain the pickups. */
  static class PickupContents
  {
@@ -94,7 +167,7 @@ index 5af71fd..19946c3 100644
      private static readonly string[] DescriptorRoots =
          ["FactoryGame/Content/FactoryGame/Resource/", "FactoryGame/Content/FactoryGame/Equipment/"];
      private static readonly string[] DescriptorPrefixes = ["Desc_", "BP_EquipmentDescriptor", "BP_ItemDescriptor"];
-@@ -534,8 +582,29 @@ static class MapIcons
+@@ -534,8 +618,29 @@ static class MapIcons
              }
              catch (Exception e) { Console.Error.WriteLine($"WARN: creature descriptor {file}: {e.Message}"); }
          }
@@ -124,7 +197,7 @@ index 5af71fd..19946c3 100644
  }
  
  // ---- output model (matches Konsl/satisfactory-world-generator default-world.json) ----
-@@ -599,6 +668,21 @@ record MapInfo(
+@@ -599,6 +704,1001 @@ record MapInfo(
      [property: JsonPropertyName("world")] MapBounds World,
      [property: JsonPropertyName("icons")] Dictionary<string, string> Icons);
  
@@ -142,6 +215,986 @@ index 5af71fd..19946c3 100644
 +record Extras(
 +    [property: JsonPropertyName("dropPods")] SortedDictionary<string, DropPodExtra> DropPods,
 +    [property: JsonPropertyName("shrines")] List<ShrineExtra> Shrines);
++
++// ---- caves ----
++
++// The game's cave volumes: FGAmbientVolume actors whose ambient-settings class has "Cave" in its name
++// (AS_CaveLarge_C, AmbientSettings_Caves_*_C, CaveWaterfall_Rework_Thin_C, ...; not AmbientSettings_CaveWind_C)
++// and FGAtmosphereVolume actors with "cave" in the actor name (Atmosphere_SwampCave, ...): the zones in which the
++// game switches to cave sound and fog. Rough hand-placed boxes; they tell where caves are and at what height,
++// not their shape (that comes from CaveGeometry). Each convex collision element of the brush is written as its
++// 2D convex hull in world X/Y plus its world Z range.
++static class CaveData
++{
++    public static Caves Read(IFileProvider provider)
++    {
++        var volumes = new List<CaveVolume>();
++        foreach (var file in provider.Files.Keys
++                     .Where(k => k.StartsWith(PickupContents.CellsDir, StringComparison.OrdinalIgnoreCase) && k.EndsWith(".umap"))
++                     .Prepend("FactoryGame/Content/FactoryGame/Map/GameLevel01/Persistent_Level.umap"))
++        {
++            List<UObject> exports;
++            try { exports = provider.LoadPackage(file).GetExports().ToList(); }
++            catch { continue; }
++            foreach (var e in exports)
++            {
++                if (e.ExportType is not ("FGAmbientVolume" or "FGAtmosphereVolume") || !IsCave(e)) continue;
++                var elements = Elements(e);
++                if (elements.Count > 0) volumes.Add(new CaveVolume(e.Name, Source(e), elements));
++            }
++        }
++        return new Caves(volumes.OrderBy(v => v.Name, StringComparer.Ordinal).ToList());
++    }
++
++    private static bool IsCave(UObject e)
++    {
++        if (e.ExportType == "FGAtmosphereVolume") return e.Name.Contains("cave", StringComparison.OrdinalIgnoreCase);
++        var settings = e.GetOrDefault<FPackageIndex>("mAmbientSettings")?.Name ?? "";
++        return settings.Contains("Cave", StringComparison.Ordinal) && !settings.Contains("CaveWind", StringComparison.Ordinal);
++    }
++
++    private static string Source(UObject e) =>
++        e.ExportType == "FGAmbientVolume" ? $"FGAmbientVolume:{e.GetOrDefault<FPackageIndex>("mAmbientSettings")?.Name}" : e.ExportType;
++
++    private static List<CaveElement> Elements(UObject volume)
++    {
++        var result = new List<CaveElement>();
++        var brush = volume.GetOrDefault<FPackageIndex>("BrushComponent")?.Load();
++        var body = brush?.GetOrDefault<FPackageIndex>("BrushBodySetup")?.Load();
++        if (brush is null || body is null) return result;
++        var loc = brush.GetOrDefault<FVector>("RelativeLocation");
++        var rot = brush.GetOrDefault<FRotator>("RelativeRotation");
++        var scale = brush.GetOrDefault<FVector>("RelativeScale3D", new FVector(1, 1, 1));
++        var agg = body.GetOrDefault<FStructFallback>("AggGeom");
++        if (agg is null) return result;
++        foreach (var elem in agg.GetOrDefault<FStructFallback[]>("ConvexElems", []))
++        {
++            var verts = elem.GetOrDefault<FVector[]>("VertexData", []);
++            bool hasTransform = elem.TryGetValue(out FTransform t, "Transform");
++            if (verts.Length < 3) continue;
++            var world = verts.Select(v =>
++            {
++                var p = hasTransform ? t.TransformPosition(v) : v;
++                return Rotate(new FVector(p.X * scale.X, p.Y * scale.Y, p.Z * scale.Z), rot) + loc;
++            }).ToList();
++            var hull = Hull(world.Select(w => (X: (double)w.X, Y: (double)w.Y)).ToList());
++            if (hull.Count < 3) continue;
++            result.Add(new CaveElement(
++                hull.Select(h => new[] { Math.Round(h.X, 1), Math.Round(h.Y, 1) }).ToList(),
++                Math.Round(world.Min(w => w.Z), 1), Math.Round(world.Max(w => w.Z), 1)));
++        }
++        return result;
++    }
++
++    // FRotationMatrix(rot).TransformVector(v), written out so it does not depend on the library's helpers.
++    private static FVector Rotate(FVector v, FRotator r)
++    {
++        double p = r.Pitch * Math.PI / 180, y = r.Yaw * Math.PI / 180, ro = r.Roll * Math.PI / 180;
++        double sp = Math.Sin(p), cp = Math.Cos(p), sy = Math.Sin(y), cy = Math.Cos(y), sr = Math.Sin(ro), cr = Math.Cos(ro);
++        double[] ax = [cp * cy, cp * sy, sp];
++        double[] ay = [sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, -sr * cp];
++        double[] az = [-(cr * sp * cy + sr * sy), cy * sr - cr * sp * sy, cr * cp];
++        return new FVector(
++            (float)(v.X * ax[0] + v.Y * ay[0] + v.Z * az[0]),
++            (float)(v.X * ax[1] + v.Y * ay[1] + v.Z * az[1]),
++            (float)(v.X * ax[2] + v.Y * ay[2] + v.Z * az[2]));
++    }
++
++    // Andrew's monotone chain, counter-clockwise, no repeated first point.
++    private static List<(double X, double Y)> Hull(List<(double X, double Y)> pts)
++    {
++        pts = pts.Distinct().OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
++        if (pts.Count < 3) return pts;
++        static double Cross((double X, double Y) o, (double X, double Y) a, (double X, double Y) b) =>
++            (a.X - o.X) * (b.Y - o.Y) - (a.Y - o.Y) * (b.X - o.X);
++        var hull = new List<(double X, double Y)>();
++        foreach (var pass in new[] { pts, Enumerable.Reverse(pts).ToList() })
++        {
++            int start = hull.Count;
++            foreach (var p in pass)
++            {
++                while (hull.Count >= start + 2 && Cross(hull[^2], hull[^1], p) <= 0) hull.RemoveAt(hull.Count - 1);
++                hull.Add(p);
++            }
++            hull.RemoveAt(hull.Count - 1);
++        }
++        return hull;
++    }
++
++}
++
++record Caves([property: JsonPropertyName("volumes")] List<CaveVolume> Volumes);
++
++record CaveVolume(
++    [property: JsonPropertyName("name")] string Name,
++    [property: JsonPropertyName("source")] string Source,
++    [property: JsonPropertyName("elements")] List<CaveElement> Elements);
++
++record CaveElement(
++    [property: JsonPropertyName("hull")] List<double[]> Hull,
++    [property: JsonPropertyName("zMin")] double ZMin,
++    [property: JsonPropertyName("zMax")] double ZMax);
++
++// ---- cave geometry (3D) ----
++
++// Everything solid around each cave, for sampling the real cave shape and for 3D previews:
++//   <dir>/index.json      the caves: id, world bounding box (cm), the cave volumes they consist of, file, counts
++//   <dir>/<id>.glb        glTF 2.0 binary: every static or spline mesh component whose world bounds touch the cave's box
++//                         (one glTF mesh per static mesh, one node per placed instance), plus the landscape inside
++//                         the box as a 1 m grid mesh without its holes (node "landscape").
++// A cave is a group of cave volumes (CaveData) whose boxes overlap or are within 10 m of each other.
++// Coordinates: glTF metres, right-handed, Y up: glTF (x, y, z) = UE (X, Z, Y) / 100. Node extras carry the UE
++// actor and mesh names. Foliage instances (small rocks, plants) are not included.
++static class CaveGeometry
++{
++    const double Gap = 1000, MarginXY = 3000, MarginBelow = 3000, MarginAbove = 6000;
++
++    public static CaveGeometryIndex Write(IFileProvider provider, Caves caves, string dir)
++    {
++        Directory.CreateDirectory(dir);
++        var groups = Group(caves.Volumes);
++        var boxes = groups.Select(g => Expand(g.Box)).ToList();
++
++        // placed meshes touching a cave box
++        var hits = groups.Select(_ => new List<Placed>()).ToList();
++        // Bounds of every mesh seen; render geometry only for meshes that touch a cave box.
++        var meshCache = new Dictionary<string, MeshRef?>(StringComparer.OrdinalIgnoreCase);
++        var landscape = new LandscapeHeights();
++        foreach (var file in provider.Files.Keys
++                     .Where(k => k.StartsWith(PickupContents.CellsDir, StringComparison.OrdinalIgnoreCase) && k.EndsWith(".umap"))
++                     .Prepend("FactoryGame/Content/FactoryGame/Map/GameLevel01/Persistent_Level.umap"))
++        {
++            List<UObject> exports;
++            try { exports = provider.LoadPackage(file).GetExports().ToList(); }
++            catch { continue; }
++            Xf.ClearCache();
++            foreach (var e in exports)
++            {
++                if (e.ExportType == "Landscape") landscape.SetTransform(e);
++                if (e.ExportType == "LandscapeComponent") landscape.Add(e);
++                if (e.ExportType is not ("StaticMeshComponent" or "SplineMeshComponent")) continue;
++                var owner = e.Outer?.Name.Text ?? "";
++                if (owner.StartsWith("WPHLOD", StringComparison.Ordinal) || Skipped(owner)) continue;
++                var meshRef = e.GetOrDefault<FPackageIndex>("StaticMesh");
++                if (meshRef is null || meshRef.IsNull) meshRef = e.Template?.Load()?.GetOrDefault<FPackageIndex>("StaticMesh");
++                if (meshRef is null || meshRef.IsNull || SkippedMesh(meshRef.Name)) continue;
++                var path = meshRef.ResolvedObject?.GetPathName() ?? meshRef.Name;
++                if (!meshCache.TryGetValue(path, out var mref)) meshCache[path] = mref = MeshRef.Load(meshRef);
++                if (mref is null) continue;
++                Xf t;
++                try { t = Xf.World(e); }
++                catch (Exception x) { Console.Error.WriteLine($"WARN: transform of {owner}.{e.Name} ({x.Message})"); continue; }
++                bool spline = e.ExportType == "SplineMeshComponent";
++                // Spline meshes bend away from their bounds; test them with a generous box around the spline ends.
++                var wb = spline ? SplineMesh.RoughBounds(e, t, mref) : t.Bounds(mref.Min, mref.Max);
++                var touched = Enumerable.Range(0, boxes.Count).Where(i => wb is { } b && Intersects(b, boxes[i])).ToList();
++                if (touched.Count == 0) continue;
++                var mesh = mref.Data;
++                if (mesh is null) continue;
++                Placed placed;
++                if (spline)
++                {
++                    var baked = SplineMesh.Deform(e, mesh, t);
++                    if (baked is null) continue;
++                    placed = new Placed(owner, path, mesh, t, baked);
++                }
++                else placed = new Placed(owner, path, mesh, t, null);
++                var pb = placed.Bounds();
++                if (Math.Max(pb.MaxX - pb.MinX, Math.Max(pb.MaxY - pb.MinY, pb.MaxZ - pb.MinZ)) > MaxExtent) continue;
++                foreach (var i in touched) if (Intersects(pb, boxes[i])) hits[i].Add(placed);
++            }
++        }
++
++        var index = new CaveGeometryIndex([]);
++        for (int i = 0; i < groups.Count; i++)
++        {
++            var id = $"cave-{i + 1:D3}";
++            var terrain = landscape.Grid(boxes[i]);
++            var tris = Glb.Write(Path.Combine(dir, id + ".glb"), hits[i], terrain);
++            var b = boxes[i];
++            index.Caves.Add(new CaveGeometryEntry(id, $"{id}.glb",
++                [Math.Round(b.MinX), Math.Round(b.MinY), Math.Round(b.MinZ)], [Math.Round(b.MaxX), Math.Round(b.MaxY), Math.Round(b.MaxZ)],
++                groups[i].Volumes.Select(v => v.Name).ToList(), hits[i].Count, tris));
++        }
++        File.WriteAllText(Path.Combine(dir, "index.json"), JsonSerializer.Serialize(index, Json.Options));
++        return index;
++    }
++
++    public record struct Box3(double MinX, double MinY, double MinZ, double MaxX, double MaxY, double MaxZ)
++    {
++        public Box3 Union(Box3 o) => new(Math.Min(MinX, o.MinX), Math.Min(MinY, o.MinY), Math.Min(MinZ, o.MinZ), Math.Max(MaxX, o.MaxX), Math.Max(MaxY, o.MaxY), Math.Max(MaxZ, o.MaxZ));
++    }
++    record Group3(Box3 Box, List<CaveVolume> Volumes);
++    /// A placed mesh; `Baked` holds world vertices (UE cm) for meshes deformed along a spline.
++    public record Placed(string Actor, string MeshPath, MeshData Mesh, Xf Transform, float[]? Baked)
++    {
++        public Box3 Bounds()
++        {
++            if (Baked is null) return Transform.Bounds(Mesh.Min, Mesh.Max);
++            var b = new Box3(double.MaxValue, double.MaxValue, double.MaxValue, double.MinValue, double.MinValue, double.MinValue);
++            for (int i = 0; i < Baked.Length; i += 3) b = b.Union(new Box3(Baked[i], Baked[i + 1], Baked[i + 2], Baked[i], Baked[i + 1], Baked[i + 2]));
++            return b;
++        }
++    }
++
++    // Surfaces that are not solid: water, fog and river planes, and pickups/plants that only add noise.
++    static readonly string[] SkippedOwners = ["BP_Water", "BP_LakeWater", "BP_TranslucentWater", "BP_WaterPlane", "BP_River", "BP_VolumeGas", "BP_VolumeFog",
++        "BP_CaveFogPlane", "BP_Crystal", "BP_WAT", "BP_BerryBush", "BP_NutBush", "BP_Shroom", "BP_MercerShrine", "BP_SomerSloopShrine", "BP_GasPillar", "BPW_Ocean",
++        "SkySphere", "BP_Sky", "BP_Planet", "BP_Manta", "Char_"];
++    /// Anything larger than this (sky sphere, planets) is scenery, not cave.
++    internal const double MaxExtent = 500000;
++    internal static bool Skipped(string owner) => SkippedOwners.Any(p => owner.StartsWith(p, StringComparison.Ordinal));
++    internal static bool SkippedMesh(string mesh) => mesh.Contains("Water", StringComparison.OrdinalIgnoreCase) || mesh.Contains("Fog", StringComparison.OrdinalIgnoreCase)
++        || mesh.Contains("OceanPlane", StringComparison.OrdinalIgnoreCase) || mesh.Contains("RiverPlane", StringComparison.OrdinalIgnoreCase);
++
++    static Box3 Expand(Box3 b) => new(b.MinX - MarginXY, b.MinY - MarginXY, b.MinZ - MarginBelow, b.MaxX + MarginXY, b.MaxY + MarginXY, b.MaxZ + MarginAbove);
++    static bool Intersects(Box3 a, Box3 b) => a.MinX <= b.MaxX && a.MaxX >= b.MinX && a.MinY <= b.MaxY && a.MaxY >= b.MinY && a.MinZ <= b.MaxZ && a.MaxZ >= b.MinZ;
++
++    static Box3 BoxOf(CaveVolume v)
++    {
++        var pts = v.Elements.SelectMany(e => e.Hull).ToList();
++        return new(pts.Min(p => p[0]), pts.Min(p => p[1]), v.Elements.Min(e => e.ZMin), pts.Max(p => p[0]), pts.Max(p => p[1]), v.Elements.Max(e => e.ZMax));
++    }
++
++    static List<Group3> Group(List<CaveVolume> volumes)
++    {
++        // Elements far larger than the rest of their volume are broken brushes (see caves.ts); leave them out of the box.
++        var clean = volumes.Select(v =>
++        {
++            if (v.Elements.Count < 3) return v;
++            var size = v.Elements.Select(e => new[] { e.Hull.Max(p => p[0]) - e.Hull.Min(p => p[0]), e.Hull.Max(p => p[1]) - e.Hull.Min(p => p[1]), e.ZMax - e.ZMin }.Max()).ToList();
++            var median = size.OrderBy(x => x).ElementAt(size.Count / 2);
++            return v with { Elements = v.Elements.Where((_, i) => size[i] <= 5 * median).ToList() };
++        }).ToList();
++        var boxes = clean.Select(BoxOf).ToList();
++        var parent = Enumerable.Range(0, boxes.Count).ToArray();
++        int Find(int i) => parent[i] == i ? i : parent[i] = Find(parent[i]);
++        for (int i = 0; i < boxes.Count; i++)
++            for (int j = i + 1; j < boxes.Count; j++)
++            {
++                var a = boxes[i]; var b = boxes[j];
++                if (a.MinX - Gap <= b.MaxX && a.MaxX + Gap >= b.MinX && a.MinY - Gap <= b.MaxY && a.MaxY + Gap >= b.MinY && a.MinZ - Gap <= b.MaxZ && a.MaxZ + Gap >= b.MinZ)
++                    parent[Find(i)] = Find(j);
++            }
++        return Enumerable.Range(0, boxes.Count).GroupBy(Find)
++            .Select(g => new Group3(g.Select(i => boxes[i]).Aggregate((x, y) => x.Union(y)), g.Select(i => clean[i]).ToList()))
++            .OrderBy(g => g.Box.MinX).ThenBy(g => g.Box.MinY).ToList();
++    }
++
++    /// Affine transform UE local -> UE world (cm): world = L . local + T, L row-major 3x3 (rotation and scale).
++    public sealed record Xf(double[] L, double[] T)
++    {
++        static readonly Dictionary<UObject, Xf> cache = new(ReferenceEqualityComparer.Instance);
++        /// Components only attach within their own package; the cache is cleared per package to free memory.
++        public static void ClearCache() => cache.Clear();
++
++        /// The component's relative transform (FRotationMatrix rows = rotated axes; scale applied first).
++        public static Xf Relative(UObject c)
++        {
++            var l = c.GetOrDefault<FVector>("RelativeLocation");
++            var r = c.GetOrDefault<FRotator>("RelativeRotation");
++            var s = c.GetOrDefault<FVector>("RelativeScale3D", new FVector(1, 1, 1));
++            var rot = RotMatrix(r);
++            double[] sc = [s.X, s.Y, s.Z];
++            var m = new double[9];
++            for (int row = 0; row < 3; row++)
++                for (int col = 0; col < 3; col++)
++                    m[row * 3 + col] = rot[col * 3 + row] * sc[col];
++            return new Xf(m, [l.X, l.Y, l.Z]);
++        }
++
++        /// World transform: the relative transforms up the AttachParent chain.
++        public static Xf World(UObject c, int depth = 0)
++        {
++            if (cache.TryGetValue(c, out var hit)) return hit;
++            if (depth > 32) throw new Exception("attachment chain too deep");
++            var rel = Relative(c);
++            var parentRef = c.GetOrDefault<FPackageIndex>("AttachParent");
++            var parent = parentRef is null || parentRef.IsNull ? null : parentRef.Load();
++            var world = parent is null ? rel : World(parent, depth + 1).Then(rel);
++            cache[c] = world;
++            return world;
++        }
++
++        /// this . child (apply child first).
++        public Xf Then(Xf child)
++        {
++            var m = new double[9];
++            for (int r = 0; r < 3; r++)
++                for (int c = 0; c < 3; c++)
++                    m[r * 3 + c] = L[r * 3] * child.L[c] + L[r * 3 + 1] * child.L[3 + c] + L[r * 3 + 2] * child.L[6 + c];
++            var t = Apply(child.T[0], child.T[1], child.T[2]);
++            return new Xf(m, t);
++        }
++
++        public double[] Apply(double x, double y, double z) =>
++            [L[0] * x + L[1] * y + L[2] * z + T[0], L[3] * x + L[4] * y + L[5] * z + T[1], L[6] * x + L[7] * y + L[8] * z + T[2]];
++
++        public Box3 Bounds(float[] min, float[] max)
++        {
++            var b = new Box3(double.MaxValue, double.MaxValue, double.MaxValue, double.MinValue, double.MinValue, double.MinValue);
++            foreach (var x in new[] { min[0], max[0] })
++                foreach (var y in new[] { min[1], max[1] })
++                    foreach (var z in new[] { min[2], max[2] })
++                    {
++                        var p = Apply(x, y, z);
++                        b = b.Union(new Box3(p[0], p[1], p[2], p[0], p[1], p[2]));
++                    }
++            return b;
++        }
++
++        static double[] RotMatrix(FRotator r)
++        {
++            double p = r.Pitch * Math.PI / 180, y = r.Yaw * Math.PI / 180, ro = r.Roll * Math.PI / 180;
++            double sp = Math.Sin(p), cp = Math.Cos(p), sy = Math.Sin(y), cy = Math.Cos(y), sr = Math.Sin(ro), cr = Math.Cos(ro);
++            return [cp * cy, cp * sy, sp, sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, -sr * cp, -(cr * sp * cy + sr * sy), cy * sr - cr * sp * sy, cr * cp];
++        }
++    }
++
++    /// USplineMeshComponent deformation (forward axis X, as the cave floor blueprint uses): each vertex is moved
++    /// to the cubic Hermite spline at its position along the mesh's X extent, its Y/Z become offsets in the
++    /// spline's cross-section frame (up = Z), with roll and scale interpolated linearly.
++    internal static class SplineMesh
++    {
++        public static float[]? Deform(UObject c, MeshData mesh, Xf world)
++        {
++            var p = c.GetOrDefault<FStructFallback>("SplineParams");
++            if (p is null) return null;
++            var tmpl = c.Template?.Load();
++            var forward = c.GetOrDefault("ForwardAxis", tmpl?.GetOrDefault<FName>("ForwardAxis") ?? default).ToString();
++            if (forward is not ("" or "None" or "ESplineMeshAxis::X")) { Console.Error.WriteLine($"WARN: spline mesh {c.Name} forward axis {forward} not supported"); return null; }
++            var p0 = V(p.GetOrDefault<FVector>("StartPos")); var t0 = V(p.GetOrDefault<FVector>("StartTangent"));
++            var p1 = V(p.GetOrDefault<FVector>("EndPos")); var t1 = V(p.GetOrDefault<FVector>("EndTangent"));
++            var s0 = p.GetOrDefault("StartScale", new FVector2D(1, 1)); var s1 = p.GetOrDefault("EndScale", new FVector2D(1, 1));
++            var o0 = p.GetOrDefault("StartOffset", new FVector2D(0, 0)); var o1 = p.GetOrDefault("EndOffset", new FVector2D(0, 0));
++            double r0 = p.GetOrDefault<float>("StartRoll"), r1 = p.GetOrDefault<float>("EndRoll");
++            double[] upDir = [0, 0, 1];
++            double minX = mesh.Min[0], len = mesh.Max[0] - mesh.Min[0];
++            if (len <= 0) return null;
++            var outPos = new float[mesh.Positions.Length];
++            for (int i = 0; i < mesh.Positions.Length; i += 3)
++            {
++                double a = (mesh.Positions[i] - minX) / len;
++                double a2 = a * a, a3 = a2 * a;
++                double h00 = 2 * a3 - 3 * a2 + 1, h10 = a3 - 2 * a2 + a, h01 = -2 * a3 + 3 * a2, h11 = a3 - a2;
++                double d00 = 6 * a2 - 6 * a, d10 = 3 * a2 - 4 * a + 1, d01 = -6 * a2 + 6 * a, d11 = 3 * a2 - 2 * a;
++                var pos = new double[3]; var dir = new double[3];
++                for (int k = 0; k < 3; k++)
++                {
++                    pos[k] = h00 * p0[k] + h10 * t0[k] + h01 * p1[k] + h11 * t1[k];
++                    dir[k] = d00 * p0[k] + d10 * t0[k] + d01 * p1[k] + d11 * t1[k];
++                }
++                Normalize(dir);
++                var bx = Cross(upDir, dir); Normalize(bx);
++                var by = Cross(dir, bx); Normalize(by);
++                double roll = r0 + (r1 - r0) * a, ca = Math.Cos(roll), sa = Math.Sin(roll);
++                double sx = s0.X + (s1.X - s0.X) * a, sy = s0.Y + (s1.Y - s0.Y) * a;
++                double ox = o0.X + (o1.X - o0.X) * a, oy = o0.Y + (o1.Y - o0.Y) * a;
++                double ly = mesh.Positions[i + 1], lz = mesh.Positions[i + 2];
++                for (int k = 0; k < 3; k++)
++                {
++                    double xv = ca * bx[k] - sa * by[k], yv = ca * by[k] + sa * bx[k];
++                    pos[k] += xv * (ox + ly * sx) + yv * (oy + lz * sy);
++                }
++                var w = world.Apply(pos[0], pos[1], pos[2]);
++                outPos[i] = (float)w[0]; outPos[i + 1] = (float)w[1]; outPos[i + 2] = (float)w[2];
++            }
++            return outPos;
++        }
++
++        /// Box around both spline ends, grown by the mesh's largest extent times the largest scale.
++        public static Box3? RoughBounds(UObject c, Xf world, MeshRef mesh)
++        {
++            var p = c.GetOrDefault<FStructFallback>("SplineParams");
++            if (p is null) return null;
++            var a = p.GetOrDefault<FVector>("StartPos"); var b = p.GetOrDefault<FVector>("EndPos");
++            var s0 = p.GetOrDefault("StartScale", new FVector2D(1, 1)); var s1 = p.GetOrDefault("EndScale", new FVector2D(1, 1));
++            double grow = Math.Max(Math.Max(Math.Abs(mesh.Min[1]), Math.Abs(mesh.Max[1])), Math.Max(Math.Abs(mesh.Min[2]), Math.Abs(mesh.Max[2])))
++                * Math.Max(Math.Max(s0.X, s0.Y), Math.Max(s1.X, s1.Y)) + (b - a).Size() * 0.5;
++            var pa = world.Apply(a.X, a.Y, a.Z); var pb = world.Apply(b.X, b.Y, b.Z);
++            double sc = Math.Sqrt(world.L[0] * world.L[0] + world.L[3] * world.L[3] + world.L[6] * world.L[6]);
++            grow *= Math.Max(sc, 1e-6);
++            return new Box3(Math.Min(pa[0], pb[0]) - grow, Math.Min(pa[1], pb[1]) - grow, Math.Min(pa[2], pb[2]) - grow,
++                Math.Max(pa[0], pb[0]) + grow, Math.Max(pa[1], pb[1]) + grow, Math.Max(pa[2], pb[2]) + grow);
++        }
++
++        static double[] V(FVector v) => [v.X, v.Y, v.Z];
++        static double[] Cross(double[] a, double[] b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
++        static void Normalize(double[] v) { var n = Math.Sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]); if (n > 0) for (int k = 0; k < 3; k++) v[k] /= n; }
++    }
++
++    /// A static mesh's local bounds (cheap, from the render data) and, on first use, its geometry.
++    public sealed class MeshRef
++    {
++        public required float[] Min, Max;
++        public required FPackageIndex Reference;
++        MeshData? data; bool loaded;
++        public MeshData? Data { get { if (!loaded) { data = MeshData.Load(Reference); loaded = true; } return data; } }
++
++        public static MeshRef? Load(FPackageIndex reference)
++        {
++            try
++            {
++                var sm = reference.Load<CUE4Parse.UE4.Assets.Exports.StaticMesh.UStaticMesh>();
++                var bounds = sm?.RenderData?.Bounds;
++                if (bounds is null) return null;
++                var o = bounds.Origin; var x = bounds.BoxExtent;
++                return new MeshRef { Reference = reference, Min = [o.X - x.X, o.Y - x.Y, o.Z - x.Z], Max = [o.X + x.X, o.Y + x.Y, o.Z + x.Z] };
++            }
++            catch { return null; }
++        }
++    }
++
++    /// One static mesh's render geometry (UE local cm), from the first LOD.
++    public sealed class MeshData
++    {
++        public required string Name;
++        public required float[] Positions; // x, y, z per vertex
++        public required uint[] Indices;
++        public required float[] Min, Max;
++
++        public static MeshData? Load(FPackageIndex reference)
++        {
++            try
++            {
++                var sm = reference.Load<CUE4Parse.UE4.Assets.Exports.StaticMesh.UStaticMesh>();
++                if (sm is null || !CUE4Parse_Conversion.Meshes.MeshConverter.TryConvert(sm, out var converted) || converted.LODs.Count == 0) return null;
++                var lod = converted.LODs[0];
++                if (lod.Verts is null || lod.Indices is null) return null;
++                var pos = new float[lod.Verts.Length * 3];
++                for (int i = 0; i < lod.Verts.Length; i++)
++                {
++                    var v = lod.Verts[i].Position;
++                    pos[i * 3] = v.X; pos[i * 3 + 1] = v.Y; pos[i * 3 + 2] = v.Z;
++                }
++                uint[] idx = lod.Indices.Value.ToArray();
++                float[] min = [float.MaxValue, float.MaxValue, float.MaxValue], max = [float.MinValue, float.MinValue, float.MinValue];
++                for (int i = 0; i < pos.Length; i++) { min[i % 3] = Math.Min(min[i % 3], pos[i]); max[i % 3] = Math.Max(max[i % 3], pos[i]); }
++                return new MeshData { Name = sm.Name, Positions = pos, Indices = idx, Min = min, Max = max };
++            }
++            catch (Exception e)
++            {
++                Console.Error.WriteLine($"WARN: mesh {reference.Name} not converted ({e.Message})");
++                return null;
++            }
++        }
++    }
++
++    /// Landscape heights per vertex (cm), and holes, from the heightmap and visibility weightmap textures.
++    internal sealed class LandscapeHeights
++    {
++        readonly Dictionary<(int, int), (float Z, bool Hole)> verts = new();
++        readonly List<UObject> pending = new();
++        double ox, oy, oz, quad = 100, zScale = 100;
++        bool hasTransform;
++
++        public void SetTransform(UObject landscape)
++        {
++            var root = landscape.GetOrDefault<FPackageIndex>("RootComponent")?.Load();
++            var loc = root?.GetOrDefault<FVector>("RelativeLocation") ?? FVector.ZeroVector;
++            var scale = root?.GetOrDefault<FVector>("RelativeScale3D", new FVector(1, 1, 1)) ?? new FVector(1, 1, 1);
++            var offset = landscape.GetOrDefault<FIntPoint>("LandscapeSectionOffset");
++            quad = scale.X; zScale = scale.Z;
++            ox = loc.X - offset.X * scale.X; oy = loc.Y - offset.Y * scale.Y; oz = loc.Z;
++            hasTransform = true;
++        }
++
++        // Components are decoded lazily: only the ones a cave box needs.
++        public void Add(UObject component) => pending.Add(component);
++
++        void Decode(UObject c) => Decode(c, (i, j, z, hole) => verts[(i, j)] = (z, hole));
++
++        /// Every landscape vertex not in a hole, in world cm, decoding one component at a time (nothing kept).
++        public void ForEachVertex(Action<double, double, float> sink)
++        {
++            if (!hasTransform) return;
++            foreach (var c in pending)
++            {
++                try { Decode(c, (i, j, z, hole) => { if (!hole) sink(ox + i * quad, oy + j * quad, z); }); }
++                catch (Exception x) { Console.Error.WriteLine($"WARN: landscape component {c.Name} ({x.Message})"); }
++            }
++        }
++
++        void Decode(UObject c, Action<int, int, float, bool> sink)
++        {
++            int bx = c.GetOrDefault<int>("SectionBaseX"), by = c.GetOrDefault<int>("SectionBaseY");
++            int q = c.GetOrDefault<int>("ComponentSizeQuads", 127);
++            var hTex = c.GetOrDefault<FPackageIndex>("HeightmapTexture")?.Load<UTexture2D>();
++            if (hTex is null) return;
++            using var hb = (hTex.Decode() ?? throw new Exception($"heightmap of {c.Name}")).ToSkBitmap();
++            var hs = c.GetOrDefault<FVector4>("HeightmapScaleBias");
++            int hox = (int)Math.Round(hs.Z * hb.Width), hoy = (int)Math.Round(hs.W * hb.Height);
++            var holes = new HashSet<(int, int)>();
++            foreach (var alloc in c.GetOrDefault<FStructFallback[]>("WeightmapLayerAllocations", []))
++            {
++                if (alloc.GetOrDefault<FPackageIndex>("LayerInfo")?.Name != "LandscapeVisibilityLayerInfo") continue;
++                var tex = c.GetOrDefault<FPackageIndex[]>("WeightmapTextures", [])[alloc.GetOrDefault<byte>("WeightmapTextureIndex")].Load<UTexture2D>();
++                if (tex is null) continue;
++                using var wb = (tex.Decode() ?? throw new Exception($"weightmap of {c.Name}")).ToSkBitmap();
++                var ws = c.GetOrDefault<FVector4>("WeightmapScaleBias");
++                int wox = (int)Math.Round(ws.Z * wb.Width), woy = (int)Math.Round(ws.W * wb.Height);
++                int ch = alloc.GetOrDefault<byte>("WeightmapTextureChannel");
++                for (int j = 0; j <= q; j++)
++                    for (int i = 0; i <= q; i++)
++                    {
++                        var px = wb.GetPixel(Math.Min(wox + i, wb.Width - 1), Math.Min(woy + j, wb.Height - 1));
++                        if ((ch switch { 0 => px.Red, 1 => px.Green, 2 => px.Blue, _ => px.Alpha }) > 127) holes.Add((i, j));
++                    }
++            }
++            for (int j = 0; j <= q; j++)
++                for (int i = 0; i <= q; i++)
++                {
++                    var px = hb.GetPixel(Math.Min(hox + i, hb.Width - 1), Math.Min(hoy + j, hb.Height - 1));
++                    int h = px.Red << 8 | px.Green;
++                    // LANDSCAPE_ZSCALE = 1/128; height 32768 = 0
++                    float z = (float)(oz + (h - 32768) / 128.0 * zScale);
++                    sink(bx + i, by + j, z, holes.Contains((i, j)));
++                }
++        }
++
++        public (double Ox, double Oy, double Quad, int I0, int J0, int W, int H, float[] Z, bool[] Hole)? Grid(Box3 b)
++        {
++            if (!hasTransform) return null;
++            int i0 = (int)Math.Floor((b.MinX - ox) / quad), i1 = (int)Math.Ceiling((b.MaxX - ox) / quad);
++            int j0 = (int)Math.Floor((b.MinY - oy) / quad), j1 = (int)Math.Ceiling((b.MaxY - oy) / quad);
++            foreach (var c in pending.ToList())
++            {
++                int bx = c.GetOrDefault<int>("SectionBaseX"), by = c.GetOrDefault<int>("SectionBaseY"), q = c.GetOrDefault<int>("ComponentSizeQuads", 127);
++                if (bx > i1 || bx + q < i0 || by > j1 || by + q < j0) continue;
++                Decode(c);
++                pending.Remove(c);
++            }
++            int w = i1 - i0 + 1, h = j1 - j0 + 1;
++            var z = new float[w * h]; var hole = new bool[w * h];
++            for (int j = 0; j < h; j++)
++                for (int i = 0; i < w; i++)
++                {
++                    if (verts.TryGetValue((i0 + i, j0 + j), out var v)) { z[j * w + i] = v.Z; hole[j * w + i] = v.Hole; }
++                    else { z[j * w + i] = float.NaN; hole[j * w + i] = true; }
++                }
++            return (ox, oy, quad, i0, j0, w, h, z, hole);
++        }
++    }
++
++    /// Minimal glTF 2.0 binary writer: positions + indices, one mesh per static mesh, one node per instance.
++    static class Glb
++    {
++        public static long Write(string path, List<Placed> placed, (double Ox, double Oy, double Quad, int I0, int J0, int W, int H, float[] Z, bool[] Hole)? terrain)
++        {
++            var bin = new MemoryStream();
++            var bufferViews = new List<object>(); var accessors = new List<object>(); var meshes = new List<object>(); var nodes = new List<object>();
++            var meshIndex = new Dictionary<string, int>();
++            long triangles = 0;
++
++            int AddPrimitive(float[] gltfPositions, uint[] indices)
++            {
++                Align(bin);
++                long posOffset = bin.Length;
++                foreach (var f in gltfPositions) bin.Write(BitConverter.GetBytes(f));
++                long idxOffset = bin.Length;
++                foreach (var i in indices) bin.Write(BitConverter.GetBytes(i));
++                float[] min = [float.MaxValue, float.MaxValue, float.MaxValue], max = [float.MinValue, float.MinValue, float.MinValue];
++                for (int i = 0; i < gltfPositions.Length; i++) { min[i % 3] = Math.Min(min[i % 3], gltfPositions[i]); max[i % 3] = Math.Max(max[i % 3], gltfPositions[i]); }
++                bufferViews.Add(new Dictionary<string, object> { ["buffer"] = 0, ["byteOffset"] = posOffset, ["byteLength"] = gltfPositions.Length * 4, ["target"] = 34962 });
++                accessors.Add(new Dictionary<string, object> { ["bufferView"] = bufferViews.Count - 1, ["componentType"] = 5126, ["count"] = gltfPositions.Length / 3, ["type"] = "VEC3", ["min"] = min, ["max"] = max });
++                int posAcc = accessors.Count - 1;
++                bufferViews.Add(new Dictionary<string, object> { ["buffer"] = 0, ["byteOffset"] = idxOffset, ["byteLength"] = indices.Length * 4, ["target"] = 34963 });
++                accessors.Add(new Dictionary<string, object> { ["bufferView"] = bufferViews.Count - 1, ["componentType"] = 5125, ["count"] = indices.Length, ["type"] = "SCALAR" });
++                return posAcc;
++            }
++
++            foreach (var p in placed)
++            {
++                if (p.Baked is { } baked)
++                {
++                    var bpos = new float[baked.Length];
++                    for (int i = 0; i < bpos.Length; i += 3) { bpos[i] = baked[i] / 100f; bpos[i + 1] = baked[i + 2] / 100f; bpos[i + 2] = baked[i + 1] / 100f; }
++                    int bacc = AddPrimitive(bpos, p.Mesh.Indices);
++                    meshes.Add(new Dictionary<string, object> { ["name"] = p.Mesh.Name, ["primitives"] = new[] { new Dictionary<string, object> { ["attributes"] = new Dictionary<string, int> { ["POSITION"] = bacc }, ["indices"] = bacc + 1 } } });
++                    nodes.Add(new Dictionary<string, object> { ["name"] = p.Actor, ["mesh"] = meshes.Count - 1, ["extras"] = new { actor = p.Actor, mesh = p.MeshPath, spline = true } });
++                    triangles += p.Mesh.Indices.Length / 3;
++                    continue;
++                }
++                if (!meshIndex.TryGetValue(p.MeshPath, out var mi))
++                {
++                    var m = p.Mesh;
++                    var pos = new float[m.Positions.Length];
++                    for (int i = 0; i < pos.Length; i += 3) { pos[i] = m.Positions[i] / 100f; pos[i + 1] = m.Positions[i + 2] / 100f; pos[i + 2] = m.Positions[i + 1] / 100f; }
++                    // UE's front faces are clockwise in its left-handed frame; the axis swap mirrors that into
++                    // glTF's counter-clockwise, so the index order stays as it is.
++                    var idx = m.Indices;
++                    int acc = AddPrimitive(pos, idx);
++                    meshes.Add(new Dictionary<string, object> { ["name"] = m.Name, ["primitives"] = new[] { new Dictionary<string, object> { ["attributes"] = new Dictionary<string, int> { ["POSITION"] = acc }, ["indices"] = acc + 1 } } });
++                    meshIndex[p.MeshPath] = mi = meshes.Count - 1;
++                }
++                triangles += p.Mesh.Indices.Length / 3;
++                nodes.Add(new Dictionary<string, object> { ["name"] = p.Actor, ["mesh"] = mi, ["matrix"] = GltfMatrix(p.Transform), ["extras"] = new { actor = p.Actor, mesh = p.MeshPath } });
++            }
++
++            if (terrain is { } t)
++            {
++                var pos = new List<float>(); var idx = new List<uint>(); var vid = new int[t.W * t.H];
++                for (int k = 0; k < vid.Length; k++)
++                {
++                    vid[k] = -1;
++                    if (float.IsNaN(t.Z[k])) continue;
++                    int i = k % t.W, j = k / t.W;
++                    double x = t.Ox + (t.I0 + i) * t.Quad, y = t.Oy + (t.J0 + j) * t.Quad;
++                    vid[k] = pos.Count / 3;
++                    pos.Add((float)(x / 100)); pos.Add(t.Z[k] / 100f); pos.Add((float)(y / 100));
++                }
++                for (int j = 0; j + 1 < t.H; j++)
++                    for (int i = 0; i + 1 < t.W; i++)
++                    {
++                        int a = j * t.W + i, b = a + 1, c = a + t.W, d = c + 1;
++                        // a quad is a hole if its first vertex is (UE's convention)
++                        if (t.Hole[a] || vid[a] < 0 || vid[b] < 0 || vid[c] < 0 || vid[d] < 0) continue;
++                        // counter-clockwise seen from above (glTF +Y): normals point up
++                        idx.AddRange([(uint)vid[a], (uint)vid[d], (uint)vid[b], (uint)vid[a], (uint)vid[c], (uint)vid[d]]);
++                    }
++                if (idx.Count > 0)
++                {
++                    int acc = AddPrimitive(pos.ToArray(), idx.ToArray());
++                    meshes.Add(new Dictionary<string, object> { ["name"] = "landscape", ["primitives"] = new[] { new Dictionary<string, object> { ["attributes"] = new Dictionary<string, int> { ["POSITION"] = acc }, ["indices"] = acc + 1 } } });
++                    nodes.Add(new Dictionary<string, object> { ["name"] = "landscape", ["mesh"] = meshes.Count - 1 });
++                    triangles += idx.Count / 3;
++                }
++            }
++
++            Align(bin);
++            var gltf = new Dictionary<string, object>
++            {
++                ["asset"] = new { version = "2.0", generator = "ficsmap world-extractor (CaveGeometry)" },
++                ["scene"] = 0,
++                ["scenes"] = new[] { new { nodes = Enumerable.Range(0, nodes.Count).ToArray() } },
++                ["nodes"] = nodes, ["meshes"] = meshes, ["accessors"] = accessors, ["bufferViews"] = bufferViews,
++                ["buffers"] = new[] { new { byteLength = bin.Length } },
++            };
++            var json = System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(gltf));
++            int jsonPad = (4 - json.Length % 4) % 4;
++            using var f = File.Create(path);
++            using var w = new BinaryWriter(f);
++            w.Write(0x46546C67u); w.Write(2u); w.Write((uint)(12 + 8 + json.Length + jsonPad + 8 + bin.Length));
++            w.Write((uint)(json.Length + jsonPad)); w.Write(0x4E4F534Au); w.Write(json); for (int i = 0; i < jsonPad; i++) w.Write((byte)0x20);
++            w.Write((uint)bin.Length); w.Write(0x004E4942u); w.Write(bin.ToArray());
++            return triangles;
++        }
++
++        static void Align(MemoryStream s) { while (s.Length % 4 != 0) s.WriteByte(0); }
++
++        // glTF column-major 4x4 of P . M . P^-1: P swaps UE Y and Z and turns cm into m. Mesh vertices are
++        // already in glTF axes and metres, so the linear part is the swapped L and the translation is P . T.
++        static double[] GltfMatrix(Xf t)
++        {
++            int[] perm = [0, 2, 1]; // glTF axis k = UE axis perm[k]
++            var m = new double[16];
++            for (int c = 0; c < 3; c++)
++                for (int r = 0; r < 3; r++)
++                    m[c * 4 + r] = t.L[perm[r] * 3 + perm[c]];
++            m[12] = t.T[0] / 100; m[13] = t.T[2] / 100; m[14] = t.T[1] / 100; m[15] = 1;
++            return m;
++        }
++    }
++}
++
++record CaveGeometryIndex([property: JsonPropertyName("caves")] List<CaveGeometryEntry> Caves);
++
++record CaveGeometryEntry(
++    [property: JsonPropertyName("id")] string Id,
++    [property: JsonPropertyName("file")] string File,
++    [property: JsonPropertyName("min")] double[] Min,
++    [property: JsonPropertyName("max")] double[] Max,
++    [property: JsonPropertyName("volumes")] List<string> Volumes,
++    [property: JsonPropertyName("instances")] int Instances,
++    [property: JsonPropertyName("triangles")] long Triangles);
++
++// Height grids of the whole map (the minimap capture's square), written by --heightmap-out:
++//   top.f32        highest solid surface per cell: landscape (without holes), static meshes, spline meshes and
++//                  instanced meshes except foliage (cm, float32 LE, row-major from minX/minY, NaN = nothing);
++//   landscape.f32  the UE landscape alone;
++//   foliage.f32    the highest foliage instance (trees, bushes, small rocks), for comparison;
++//   height-data.f32 the game's own top-down height texture (HeightData_Test, normalised 0..1, no scale), as cooked;
++//   heightmap.json the grid (cell size, origin, size) and counts.
++// A cell takes the maximum of every triangle sampled at its centre and of every vertex inside it, so small or
++// steep triangles are not lost.
++static class Heightmap
++{
++    const double Cell = 200;
++
++    public record Info(
++        [property: JsonPropertyName("cell")] double Cell,
++        [property: JsonPropertyName("minX")] double MinX,
++        [property: JsonPropertyName("minY")] double MinY,
++        [property: JsonPropertyName("width")] int Width,
++        [property: JsonPropertyName("height")] int Height,
++        [property: JsonPropertyName("counts")] SortedDictionary<string, long> Counts,
++        [property: JsonPropertyName("heightData")] object? HeightData);
++
++    sealed class Grid(double minX, double minY, int w, int h)
++    {
++        public readonly float[] Z = Enumerable.Repeat(float.NaN, w * h).ToArray();
++
++        public void Point(double x, double y, double z)
++        {
++            int i = (int)Math.Floor((x - minX) / Cell), j = (int)Math.Floor((y - minY) / Cell);
++            if (i < 0 || j < 0 || i >= w || j >= h) return;
++            int k = j * w + i;
++            if (!(Z[k] >= z)) Z[k] = (float)z;
++        }
++
++        public void Triangle(double ax, double ay, double az, double bx, double by, double bz, double cx, double cy, double cz)
++        {
++            Point(ax, ay, az); Point(bx, by, bz); Point(cx, cy, cz);
++            double det = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
++            if (Math.Abs(det) < 1e-6) return;
++            int i0 = Math.Max(0, (int)Math.Ceiling((Math.Min(ax, Math.Min(bx, cx)) - minX) / Cell - 0.5));
++            int i1 = Math.Min(w - 1, (int)Math.Floor((Math.Max(ax, Math.Max(bx, cx)) - minX) / Cell - 0.5));
++            int j0 = Math.Max(0, (int)Math.Ceiling((Math.Min(ay, Math.Min(by, cy)) - minY) / Cell - 0.5));
++            int j1 = Math.Min(h - 1, (int)Math.Floor((Math.Max(ay, Math.Max(by, cy)) - minY) / Cell - 0.5));
++            for (int j = j0; j <= j1; j++)
++            {
++                double py = minY + (j + 0.5) * Cell;
++                for (int i = i0; i <= i1; i++)
++                {
++                    double px = minX + (i + 0.5) * Cell;
++                    double l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / det;
++                    double l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / det;
++                    double l3 = 1 - l1 - l2;
++                    if (l1 < 0 || l2 < 0 || l3 < 0) continue;
++                    double z = l1 * az + l2 * bz + l3 * cz;
++                    int k = j * w + i;
++                    if (!(Z[k] >= z)) Z[k] = (float)z;
++                }
++            }
++        }
++
++        public void Mesh(CaveGeometry.MeshData mesh, CaveGeometry.Xf t)
++        {
++            var p = mesh.Positions;
++            var wv = new double[p.Length];
++            for (int v = 0; v < p.Length; v += 3)
++            {
++                var q = t.Apply(p[v], p[v + 1], p[v + 2]);
++                wv[v] = q[0]; wv[v + 1] = q[1]; wv[v + 2] = q[2];
++            }
++            Baked(wv, mesh.Indices);
++        }
++
++        public void Baked(IReadOnlyList<double> wv, uint[] idx)
++        {
++            for (int k = 0; k + 2 < idx.Length; k += 3)
++            {
++                long a = idx[k] * 3L, b = idx[k + 1] * 3L, c = idx[k + 2] * 3L;
++                Triangle(wv[(int)a], wv[(int)a + 1], wv[(int)a + 2], wv[(int)b], wv[(int)b + 1], wv[(int)b + 2], wv[(int)c], wv[(int)c + 1], wv[(int)c + 2]);
++            }
++        }
++
++        public void Save(string path)
++        {
++            var bytes = new byte[Z.Length * 4];
++            Buffer.BlockCopy(Z, 0, bytes, 0, bytes.Length);
++            File.WriteAllBytes(path, bytes);
++        }
++    }
++
++    public static Info Write(IFileProvider provider, MapBounds bounds, string dir)
++    {
++        Directory.CreateDirectory(dir);
++        int w = (int)Math.Ceiling((bounds.MaxX - bounds.MinX) / Cell), h = (int)Math.Ceiling((bounds.MaxY - bounds.MinY) / Cell);
++        var top = new Grid(bounds.MinX, bounds.MinY, w, h);
++        var ground = new Grid(bounds.MinX, bounds.MinY, w, h);
++        var foliage = new Grid(bounds.MinX, bounds.MinY, w, h);
++        var counts = new SortedDictionary<string, long>(StringComparer.Ordinal);
++        void Count(string key, long n = 1) => counts[key] = counts.GetValueOrDefault(key) + n;
++
++        var meshCache = new Dictionary<string, CaveGeometry.MeshData?>(StringComparer.OrdinalIgnoreCase);
++        CaveGeometry.MeshData? MeshOf(FPackageIndex r)
++        {
++            var path = r.ResolvedObject?.GetPathName() ?? r.Name;
++            if (!meshCache.TryGetValue(path, out var m)) meshCache[path] = m = CaveGeometry.MeshData.Load(r);
++            return m;
++        }
++
++        var landscape = new CaveGeometry.LandscapeHeights();
++        foreach (var file in provider.Files.Keys
++                     .Where(k => k.StartsWith(PickupContents.CellsDir, StringComparison.OrdinalIgnoreCase) && k.EndsWith(".umap"))
++                     .Prepend("FactoryGame/Content/FactoryGame/Map/GameLevel01/Persistent_Level.umap"))
++        {
++            List<UObject> exports;
++            try { exports = provider.LoadPackage(file).GetExports().ToList(); }
++            catch { continue; }
++            CaveGeometry.Xf.ClearCache();
++            foreach (var e in exports)
++            {
++                if (e.ExportType == "Landscape") landscape.SetTransform(e);
++                if (e.ExportType == "LandscapeComponent") landscape.Add(e);
++                bool ism = e is UInstancedStaticMeshComponent;
++                if (!ism && e.ExportType is not ("StaticMeshComponent" or "SplineMeshComponent")) continue;
++                var owner = e.Outer?.Name.Text ?? "";
++                if (owner.StartsWith("WPHLOD", StringComparison.Ordinal) || CaveGeometry.Skipped(owner)) { Count("skipped owner"); continue; }
++                if (!e.GetOrDefault("bVisible", true) || e.GetOrDefault("bHiddenInGame", false)) { Count("skipped hidden"); continue; }
++                var meshRef = e.GetOrDefault<FPackageIndex>("StaticMesh");
++                if (meshRef is null || meshRef.IsNull) meshRef = e.Template?.Load()?.GetOrDefault<FPackageIndex>("StaticMesh");
++                if (meshRef is null || meshRef.IsNull || CaveGeometry.SkippedMesh(meshRef.Name)) { Count("skipped mesh"); continue; }
++                var mesh = MeshOf(meshRef);
++                if (mesh is null) continue;
++                if (Math.Max(mesh.Max[0] - mesh.Min[0], Math.Max(mesh.Max[1] - mesh.Min[1], mesh.Max[2] - mesh.Min[2])) > CaveGeometry.MaxExtent) { Count("skipped huge"); continue; }
++                CaveGeometry.Xf t;
++                try { t = CaveGeometry.Xf.World(e); }
++                catch (Exception x) { Console.Error.WriteLine($"WARN: transform of {owner}.{e.Name} ({x.Message})"); continue; }
++                if (ism)
++                {
++                    bool isFoliage = e.ExportType.Contains("Foliage", StringComparison.Ordinal) || owner.StartsWith("InstancedFoliageActor", StringComparison.Ordinal);
++                    var grid = isFoliage ? foliage : top;
++                    var instances = ((UInstancedStaticMeshComponent)e).PerInstanceSMData ?? [];
++                    foreach (var inst in instances) grid.Mesh(mesh, t.Then(InstanceXf(inst.TransformData)));
++                    Count($"{e.ExportType} instances", instances.Length);
++                    continue;
++                }
++                if (e.ExportType == "SplineMeshComponent")
++                {
++                    var baked = CaveGeometry.SplineMesh.Deform(e, mesh, t);
++                    if (baked is null) continue;
++                    top.Baked(Array.ConvertAll(baked, v => (double)v), mesh.Indices);
++                    Count("SplineMeshComponent");
++                    continue;
++                }
++                var wb = t.Bounds(mesh.Min, mesh.Max);
++                if (Math.Max(wb.MaxX - wb.MinX, Math.Max(wb.MaxY - wb.MinY, wb.MaxZ - wb.MinZ)) > CaveGeometry.MaxExtent) { Count("skipped huge"); continue; }
++                top.Mesh(mesh, t);
++                Count("StaticMeshComponent");
++            }
++        }
++        landscape.ForEachVertex((x, y, z) => { ground.Point(x, y, z); top.Point(x, y, z); Count("landscape vertices"); });
++        // Landscape quads are 1 m; with 2 m cells every cell has vertices, so points are enough.
++
++        top.Save(Path.Combine(dir, "top.f32"));
++        ground.Save(Path.Combine(dir, "landscape.f32"));
++        foliage.Save(Path.Combine(dir, "foliage.f32"));
++        object? heightData = null;
++        try { heightData = HeightDataTexture(provider, Path.Combine(dir, "height-data.f32")); }
++        catch (Exception x) { Console.Error.WriteLine($"WARN: HeightData_Test not exported ({x.Message})"); }
++        var info = new Info(Cell, bounds.MinX, bounds.MinY, w, h, counts, heightData);
++        File.WriteAllText(Path.Combine(dir, "heightmap.json"), JsonSerializer.Serialize(info, Json.Options));
++        foreach (var (k, v) in counts) Console.WriteLine($"  {k}: {v}");
++        return info;
++    }
++
++    static CaveGeometry.Xf InstanceXf(FTransform tr)
++    {
++        var m = tr.ToMatrixWithScale();
++        // FMatrix rows are the transformed axes (row vectors); Xf.L is column-vector form, so transpose.
++        return new CaveGeometry.Xf(
++            [m.M00, m.M10, m.M20, m.M01, m.M11, m.M21, m.M02, m.M12, m.M22],
++            [m.M30, m.M31, m.M32]);
++    }
++
++    /// The game's top-down height texture next to the map slices: half floats 0..1, row 0 = north edge (min Y).
++    static object HeightDataTexture(IFileProvider provider, string path)
++    {
++        var tex = provider.LoadPackageObject<UTexture2D>("FactoryGame/Content/FactoryGame/Interface/UI/Assets/MapTest/HeightData_Test.HeightData_Test");
++        var mip = tex.GetFirstMip() ?? throw new Exception("no mip");
++        var data = mip.BulkData?.Data ?? throw new Exception("no bulk data");
++        int n = mip.SizeX * mip.SizeY;
++        string format = tex.Format.ToString();
++        var f = new float[n];
++        if (format == "PF_R16F") for (int k = 0; k < n; k++) f[k] = (float)BitConverter.ToHalf(data, k * 2);
++        else if (format == "PF_G16") for (int k = 0; k < n; k++) f[k] = BitConverter.ToUInt16(data, k * 2) / 65535f;
++        else throw new Exception($"format {format}");
++        var bytes = new byte[n * 4];
++        Buffer.BlockCopy(f, 0, bytes, 0, bytes.Length);
++        File.WriteAllBytes(path, bytes);
++        return new { format, width = mip.SizeX, height = mip.SizeY };
++    }
++}
++
++// The game's map areas (the regions whose name the game shows), from the FGMapAreaTexture asset
++// MapareatexturePersistentLevel that the level's minimap capture actor references (mMapAreaTexture): a byte raster
++// (mAreaData, mDataWidth wide, row-major) of palette indices, and per index its colour and area class
++// (mColorPalette, mColorToArea with the area's pixel bounds). The class names do not always say the area's name
++// (Area_Savanna_* is shown as Rocky Desert, Area_RedJungle_2 as Jungle Spires): the name is the class default's
++// mDisplayName, a string table entry, resolved here in English and German from the game's AllStringTables.
++// Written by --map-areas-out as areas.u8 (the raster as is) and areas.json. The raster's world extent is not in
++// the asset; it is the minimap capture's square (checked against the map image, see README).
++static class MapAreas
++{
++    const string Asset = "FactoryGame/Content/FactoryGame/Interface/UI/Minimap/MapAreaPersistenLevel/MapareatexturePersistentLevel.MapareatexturePersistentLevel";
++
++    public record Area(
++        [property: JsonPropertyName("index")] int Index,
++        [property: JsonPropertyName("color")] string Color,
++        [property: JsonPropertyName("class")] string Class,
++        [property: JsonPropertyName("nameKey")] string? NameKey,
++        [property: JsonPropertyName("name")] string? Name,
++        [property: JsonPropertyName("nameDe")] string? NameDe,
++        [property: JsonPropertyName("bounds")] int[] Bounds);
++
++    public record Info(
++        [property: JsonPropertyName("width")] int Width,
++        [property: JsonPropertyName("height")] int Height,
++        [property: JsonPropertyName("areas")] List<Area> Areas);
++
++    public static Info Write(IFileProvider provider, string dir)
++    {
++        Directory.CreateDirectory(dir);
++        var tex = provider.LoadPackageObject(Asset);
++        var data = tex.GetOrDefault<byte[]>("mAreaData") ?? throw new Exception("mAreaData missing");
++        int width = tex.GetOrDefault<int>("mDataWidth");
++        if (width <= 0 || data.Length % width != 0) throw new Exception($"mAreaData {data.Length} bytes, width {width}");
++        var palette = tex.GetOrDefault<FColor[]>("mColorPalette", []);
++        var pairs = tex.GetOrDefault<FStructFallback[]>("mColorToArea", []);
++        var en = StringTable(provider, "en-US");
++        var de = StringTable(provider, "de");
++        var areas = new List<Area>();
++        for (int i = 0; i < pairs.Length; i++)
++        {
++            var pair = pairs[i];
++            var areaRef = pair.GetOrDefault<FPackageIndex>("MapArea");
++            var cls = areaRef?.Name ?? "";
++            var color = i < palette.Length ? palette[i].Hex : "";
++            var (table, key) = DisplayNameKey(areaRef);
++            string? nameEn = null, nameDe = null;
++            if (table is not null && key is not null)
++            {
++                nameEn = en.GetValueOrDefault((table, key));
++                nameDe = de.GetValueOrDefault((table, key));
++            }
++            areas.Add(new Area(i, color, cls, key, nameEn, nameDe, [pair.GetOrDefault<int>("MinX"), pair.GetOrDefault<int>("MinY"), pair.GetOrDefault<int>("MaxX"), pair.GetOrDefault<int>("MaxY")]));
++        }
++        File.WriteAllBytes(Path.Combine(dir, "areas.u8"), data);
++        foreach (var a in areas.Where(a => a.Class is not ("" or "None") && a.Name is null)) Console.Error.WriteLine($"WARN: map area {a.Class} has no display name");
++        var info = new Info(width, data.Length / width, areas);
++        File.WriteAllText(Path.Combine(dir, "areas.json"), JsonSerializer.Serialize(info, Json.Options));
++        return info;
++    }
++
++    /// The string table entry (table id, key) of an area class's mDisplayName, from its class default object.
++    static (string?, string?) DisplayNameKey(FPackageIndex? areaRef)
++    {
++        if (areaRef is null || areaRef.IsNull) return (null, null);
++        try
++        {
++            var cls = areaRef.Load<CUE4Parse.UE4.Objects.Engine.UBlueprintGeneratedClass>();
++            var cdo = cls?.ClassDefaultObject.Load();
++            var text = cdo?.GetOrDefault<CUE4Parse.UE4.Objects.Core.i18N.FText>("mDisplayName");
++            if (text?.TextHistory is CUE4Parse.UE4.Objects.Core.i18N.FTextHistory.StringTableEntry st) return (st.TableId.Text, st.Key);
++        }
++        catch (Exception x) { Console.Error.WriteLine($"WARN: display name of {areaRef.Name} ({x.Message})"); }
++        return (null, null);
++    }
++
++    /// The game's string tables in one culture: (table id, key) -> text.
++    static Dictionary<(string, string), string> StringTable(IFileProvider provider, string culture)
++    {
++        var path = $"FactoryGame/Content/Localization/AllStringTables/{culture}/AllStringTables.locres";
++        var result = new Dictionary<(string, string), string>();
++        if (!provider.Files.TryGetValue(path, out var file)) { Console.Error.WriteLine($"WARN: {path} not found"); return result; }
++        var loc = new CUE4Parse.UE4.Localization.FTextLocalizationResource(new CUE4Parse.UE4.Readers.FByteArchive(path, file.Read()));
++        foreach (var (ns, keys) in loc.Entries)
++            foreach (var (key, val) in keys) result[(ns.Str, key.Str)] = val.LocalizedString;
++        return result;
++    }
++}
 +
  static class Json
  {

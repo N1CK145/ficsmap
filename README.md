@@ -27,8 +27,11 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 - **Save import.** Read a save file to mark everything you have already collected. The save is parsed in your browser.
 - **Conflict review.** If the save says an item is still in the world but it is ticked off in ficsmap, it is flagged. Resolve conflicts one by one or in bulk, with undo.
 - **Quick Check.** Tick off markers with a single click while you play.
-- **Filters and progress.** Show, dim or hide collected items per type. Limit the view to one biome and see progress per biome.
+- **Filters and progress.** Show, dim or hide collected items per type. Limit the view to one biome and see progress per biome. The biomes are the game's own map areas.
+- **Height layer.** A switchable colour scale of the terrain height over the map.
 - **Item panel.** Drop-pod requirements (item or power) and crash-site information: items lying around, threats and notes.
+- **Caves.** A switchable layer with the floor plans of the caves and their entrances, sampled from the game's 3D geometry, and a note in the item panel when an item lies in a cave (with the distance to the nearest entrance).
+- **Coordinates and height.** Hovering the map shows the position under the mouse in metres, with the height of the highest surface there, read from the game's terrain and rock geometry.
 - **Route planner.** Up to 30 stops, optimise the order, jump to the next stop, and see a combined list of what the route's drop pods need.
 - **List view** as an alternative to the map.
 - **Mobile layout** with a bottom sheet.
@@ -144,7 +147,7 @@ Set `TRUST_PROXY` to the IP address the proxy connects from.
 
 The map dataset is **not** part of this repository or the Docker image, because it consists of Coffee Stain Studios' game assets. You build it yourself from your own game installation and mount it into the container (`./dataset:/app/data:ro`). The app uses the one version directory it finds there; if there is more than one, set `DATASET_VERSION` in `.env`.
 
-A dataset directory `<game-version>/` contains `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/` and `icons/`.
+A dataset directory `<game-version>/` contains `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/` and `icons/`, optionally `caves.geojson` (cave outlines and entrances; a dataset built without caves offers no cave layer) and `height/` (height map tiles; without it the coordinates show no height).
 
 To build one:
 
@@ -156,10 +159,10 @@ To build one:
    npm run dataset -- --extractor <extractor-output-dir> --data-src <dir> --out data/1.2.4.1
    ```
 
-   `--data-src` points to a folder with `biomes/biomes.editor.geojson`, `biomes/calibration.json` and `crash-sites/crash-sites.json`.
+   `--data-src` points to a folder with `biomes/biomes.editor.geojson`, `biomes/calibration.json` and `crash-sites/crash-sites.json`. If the extractor output contains `caves.json` and `cave-geometry/` (or you pass `--caves <file> --cave-geometry <dir>`), the build samples the caves, writes `caves.geojson` and marks items that lie in a cave. If it contains `heightmap/` (or you pass `--heightmap <dir>`), the build writes the height map tiles to `height/`. If it contains `map-areas/` (or you pass `--map-areas <dir>`), the biomes come from the game's map areas and the editor polygons in `--data-src` are not used.
 3. Copy `data/1.2.4.1/` into the `dataset/` directory next to your `docker-compose.yml`.
 
-**Current limitation:** the biome outlines and the crash-site data are maintainer data and are not published. With the extractor output alone you get the tiles, icons and collectible positions, but the biome and crash-site layers need sources of your own in the formats above.
+**Current limitation:** the crash-site data are maintainer data and are not published. With the extractor output (including `map-areas/`) you get the tiles, icons, collectible positions and biomes, but the crash-site layer needs a source of your own in the format above. `--data-src` still has to provide the biome editor files, even though they are unused when `map-areas/` exists.
 
 ### Updates
 
@@ -246,7 +249,7 @@ The app shows "ficsmap vX.Y.Z" with a link to the GitHub release. `GET /api/vers
 
 - Accounts are invite-only. There is no open sign-up.
 - Self-hosting needs your own Discord application.
-- The map dataset is not included and has to be built from your own game install. Biome outlines and crash-site data are not published yet.
+- The map dataset is not included and has to be built from your own game install. Crash-site data are not published yet.
 - The data is from game version 1.2.4.1.
 - Route distances are straight lines; terrain is not taken into account.
 - Berries, nuts and mushrooms are not tracked.

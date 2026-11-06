@@ -87,6 +87,37 @@ export function labelPoint(rings: LatLngRing[]): [lat: number, lng: number] {
   return [lat / (6 * area), lng / (6 * area)];
 }
 
+/** Parts smaller than this (image units², about 0.13 km²) get no label of their own. */
+const MIN_LABEL_AREA = 150;
+
+function inRing(lat: number, lng: number, ring: LatLngRing): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [ai, oi] = ring[i]!, [aj, oj] = ring[j]!;
+    if (ai > lat !== aj > lat && lng < ((oj - oi) * (lat - ai)) / (aj - ai) + oi) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Where a biome's labels go: one per part (outer ring) of at least MIN_LABEL_AREA, at its centroid, and at least
+ * one for the largest part, so a biome in several pieces is named on each. A ring inside an odd number of the
+ * biome's other rings is a hole (even-odd fill) and gets none.
+ */
+export function labelPoints(rings: LatLngRing[]): [lat: number, lng: number][] {
+  const largest = labelPoint(rings);
+  const out: [number, number][] = [];
+  const parts = rings.filter(r => r.length > 0 && Math.abs(ringArea(r)) >= MIN_LABEL_AREA);
+  for (const r of parts) {
+    const [lat, lng] = r[0]!;
+    const depth = rings.reduce((n, o) => n + (o !== r && inRing(lat, lng, o) ? 1 : 0), 0);
+    if (depth % 2 === 1) continue;
+    out.push(labelPoint([r]));
+  }
+  if (!out.some(p => p[0] === largest[0] && p[1] === largest[1])) out.unshift(largest);
+  return out;
+}
+
 /** `[[south, west], [north, east]]` around all rings. */
 export function ringBounds(rings: LatLngRing[]): [[number, number], [number, number]] {
   let south = Infinity, west = Infinity, north = -Infinity, east = -Infinity;

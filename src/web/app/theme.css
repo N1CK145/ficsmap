@@ -25,6 +25,9 @@
   --color-mercer: #F062C0;
   --color-hdd: #C8CDD3;
 
+  /* Cave layer: areas (drawn translucent) and the ring around entrances. */
+  --color-cave: #E8DD55;
+
   --font-display: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
 
   /* One radius for everything: bare `rounded` (Tailwind v4 reads the unsuffixed --radius key). */

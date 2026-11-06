@@ -4,6 +4,10 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { COLLECTIBLE_TYPES, classify, typeById } from '../src/shared/collectibleTypes.js';
 import { assignBiome, loadEditorBiomes, type BiomeShape } from '../src/shared/biomes.js';
+import { cavesToGeojson, type RawCaves } from '../src/shared/caves.js';
+import { sampleCaves } from './cave-geometry.js';
+import { readHeightGrid, writeHeightTiles } from './heightmap.js';
+import { AREA_SNAP, biomesFromAreas, readMapAreas, SEA_LEVEL } from './map-areas.js';
 import { UNITS_PER_METER, type Calibration } from '../src/shared/geo.js';
 import type { CollectibleTypeId, WorldBounds } from '../src/shared/types.js';
 import type { CrashSites, Dataset, DatasetItemTuple, ItemExtra, PodRequirement } from '../src/shared/dataset.js';
@@ -27,6 +31,10 @@ export interface BuildInput {
   build: number;
   /** data-src/crash-sites/crash-sites.json (Steam guide + game pickups), optional. */
   crashSites?: unknown;
+  /** Names of the items that lie in a cave (from sampleCaves), optional. They get `extra.cave`. */
+  itemsInCaves?: ReadonlySet<string>;
+  /** Biomes from the game's map areas (biomesFromAreas), optional; replace the editor polygons when given. */
+  biomeAreas?: { biomes: BiomeShape[]; assign: (x: number, y: number) => number };
 }
 
 interface RawEntry { name: string; class: string; location: [number, number, number] }
@@ -67,7 +75,8 @@ export function buildDataset(input: BuildInput): Dataset {
   const coll = input.collectibles as { pickups: RawEntry[]; dropPods: RawEntry[] };
   const extras = input.extras as { dropPods: Record<string, RawPod>; shrines: RawShrine[] };
   const map = input.map as RawMap;
-  const biomes: BiomeShape[] = loadEditorBiomes(input.biomesGeojson, input.calibration);
+  const biomes: BiomeShape[] = input.biomeAreas?.biomes ?? loadEditorBiomes(input.biomesGeojson, input.calibration);
+  const biomeAt = input.biomeAreas?.assign ?? ((x: number, y: number) => assignBiome(x, y, biomes, input.snapUnits));
   const order = new Map(COLLECTIBLE_TYPES.map((t, i) => [t.id, i]));
 
   interface Work { name: string; type: CollectibleTypeId; x: number; y: number; z: number; biome: number; extra?: ItemExtra }
@@ -80,7 +89,7 @@ export function buildDataset(input: BuildInput): Dataset {
       if (seen.has(e.name)) { problems.push(`Duplicate item name ${e.name}`); continue; }
       seen.add(e.name);
       const [x, y, z] = e.location;
-      const biome = assignBiome(x, y, biomes, input.snapUnits);
+      const biome = biomeAt(x, y);
       if (biome < 0) {
         problems.push(`Item ${e.name} (${type}, x=${x}, y=${y}) is outside every biome beyond the snap distance`);
       }
@@ -94,6 +103,7 @@ export function buildDataset(input: BuildInput): Dataset {
         if (!pod && crashSitePods(input.crashSites)[e.name]?.requirement?.type === 'none') pod = { item: null, amount: 0, power: 0 };
         if (pod) w.extra = { pod };
       }
+      if (input.itemsInCaves?.has(e.name)) w.extra = { ...w.extra, cave: true };
       work.push(w);
     }
   }
@@ -144,7 +154,7 @@ export function buildDataset(input: BuildInput): Dataset {
     bounds: map.world,
     mapId: map.id,
     podRequirementsKnown: Object.keys(extras.dropPods).length > 0,
-    biomes: biomes.map(b => ({ id: b.id, name: { en: b.name, de: b.name } })),
+    biomes: biomes.map(b => ({ id: b.id, name: { en: b.name, de: b.nameDe ?? b.name } })),
     items,
     aliases,
   };
@@ -195,6 +205,7 @@ export interface LoadOptions {
 /** Reads collectibles.json, extras.json, map/map.json from `dir`; biomes, calibration and item names from options (default: inside `dir`). */
 export function loadExtractorDir(dir: string, opts: LoadOptions = {}): BuildInput {
   const itemNamesPath = opts.itemNames ?? join(dir, 'item-names.json');
+
   const rawNames = existsSync(itemNamesPath) ? (readJson(itemNamesPath) as Record<string, unknown>) : {};
   const itemNames: Record<string, string> = {};
   for (const [k, v] of Object.entries(rawNames)) if (!k.startsWith('_') && typeof v === 'string') itemNames[k] = v;
@@ -223,11 +234,20 @@ function main(): void {
       calibration: { type: 'string' },
       'item-names': { type: 'string' },
       'crash-sites': { type: 'string' },
+      // caves.json and the cave geometry dir from the extractor (`--caves-out`, `--cave-geometry-out`);
+      // default: inside --extractor. Without both there is no cave layer.
+      caves: { type: 'string' },
+      'cave-geometry': { type: 'string' },
+      // The extractor's height grid (`--heightmap-out`); default: inside --extractor. Without it there are no heights.
+      heightmap: { type: 'string' },
+      // The game's map areas (`--map-areas-out`); default: inside --extractor. When present they are the biomes,
+      // instead of the editor polygons in --data-src.
+      'map-areas': { type: 'string' },
       build: { type: 'string', default: String(DEFAULT_BUILD) },
     },
   });
   if (!v.extractor || !v.out) {
-    throw new Error('usage: npm run dataset -- --extractor <dir> --out <dir> [--data-src <dir>] [--snap-m 100] [--build N]');
+    throw new Error('usage: npm run dataset -- --extractor <dir> --out <dir> [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--snap-m 100] [--build N]');
   }
   const src = resolve(v['data-src']!);
   const firstExisting = (...paths: string[]) => paths.find(p => existsSync(p)) ?? paths[0]!;
@@ -239,6 +259,33 @@ function main(): void {
     crashSites: resolve(v['crash-sites'] ?? join(src, 'crash-sites', 'crash-sites.json')),
     snapMeters: Number(v['snap-m']), build: Number(v.build),
   });
+  const mapAreas = readMapAreas(resolve(v['map-areas'] ?? join(resolve(v.extractor), 'map-areas')));
+  const heightGrid = readHeightGrid(resolve(v.heightmap ?? join(resolve(v.extractor), 'heightmap')));
+  let biomeSummary = 'editor polygons (--data-src)';
+  if (mapAreas) {
+    // Land the game names no area joins the nearest biome; land is told from the height grid.
+    const isLand = heightGrid ? (x: number, y: number) => {
+      const { meta, top } = heightGrid;
+      const i = Math.floor((x - meta.minX) / meta.cell), j = Math.floor((y - meta.minY) / meta.cell);
+      return i >= 0 && j >= 0 && i < meta.width && j < meta.height && top[j * meta.width + i]! > SEA_LEVEL;
+    } : undefined;
+    const world = (input.map as { world: WorldBounds }).world;
+    const areas = biomesFromAreas(mapAreas, world, AREA_SNAP, isLand);
+    input.biomeAreas = areas;
+    const pxArea = ((world.maxX - world.minX) / mapAreas.width / 100) ** 2;
+    biomeSummary = `game map areas, ${areas.biomes.length} biomes, ${areas.biomes.reduce((n, b) => n + b.rings.reduce((m, r) => m + r.length, 0), 0)} outline points, `
+      + (isLand ? `${(areas.filled * pxArea / 1e6).toFixed(2)} km² of land without an area joined to the nearest biome` : 'no height grid, land without an area stays without a biome');
+  }
+  const cavesPath = resolve(v.caves ?? join(resolve(v.extractor), 'caves.json'));
+  const geometryDir = resolve(v['cave-geometry'] ?? join(resolve(v.extractor), 'cave-geometry'));
+  let caveLayer: ReturnType<typeof sampleCaves> | undefined;
+  if (existsSync(cavesPath) && existsSync(join(geometryDir, 'index.json'))) {
+    console.log('Sampling caves ...');
+    const coll = input.collectibles as { pickups: RawEntry[]; dropPods: RawEntry[] };
+    const points = [...coll.pickups, ...coll.dropPods].map(e => ({ name: e.name, x: e.location[0], y: e.location[1], z: e.location[2] }));
+    caveLayer = sampleCaves(geometryDir, readJson(cavesPath) as RawCaves, points, line => console.log(line));
+    input.itemsInCaves = caveLayer.itemsInCaves;
+  }
   let ds: Dataset;
   try { ds = buildDataset(input); } catch (e) {
     if (e instanceof BuildError) { console.error(e.message); process.exit(1); }
@@ -248,8 +295,19 @@ function main(): void {
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, 'collectibles.min.json'), JSON.stringify(ds));
   if (input.crashSites !== undefined) writeFileSync(join(out, 'crash-sites.json'), JSON.stringify(buildCrashSites(input.crashSites, ds)));
-  const shapes = loadEditorBiomes(input.biomesGeojson, input.calibration);
+  const shapes = input.biomeAreas?.biomes ?? loadEditorBiomes(input.biomesGeojson, input.calibration);
   writeFileSync(join(out, 'biomes.geojson'), JSON.stringify(biomesToGeojson(shapes)));
+  let caveSummary = 'no caves.json / cave geometry, no cave layer';
+  if (caveLayer) {
+    writeFileSync(join(out, 'caves.geojson'), JSON.stringify(cavesToGeojson(caveLayer.caves)));
+    const entrances = caveLayer.caves.reduce((sum, c) => sum + c.entrances.length, 0);
+    caveSummary = `${caveLayer.caves.length} caves, ${entrances} entrances, ${ds.items.filter(i => i[7]?.cave).length} items in caves`;
+  }
+  let heightSummary = 'no height grid';
+  if (heightGrid) {
+    const { meta, bytes } = writeHeightTiles(heightGrid, join(out, 'height'));
+    heightSummary = `${meta.width}x${meta.height} cells of ${meta.cell / 100} m, ${(bytes / 1e6).toFixed(1)} MB in tiles of ${meta.tile} cells`;
+  }
   const mapDir = join(resolve(v.extractor), 'map');
   cpSync(join(mapDir, 'map.json'), join(out, 'map.json'));
   cpSync(join(mapDir, 'tiles'), join(out, 'tiles'), { recursive: true });
@@ -264,6 +322,9 @@ function main(): void {
   console.log(`Dataset ${ds.version} (build ${ds.build}): ${ds.items.length} items, ${Object.keys(ds.aliases).length} aliases`);
   for (const t of COLLECTIBLE_TYPES) console.log(`  ${t.id}: ${perType.get(t.id) ?? 0}`);
   ds.biomes.forEach((b, i) => console.log(`  biome ${b.name.en}: ${perBiome.get(i) ?? 0}`));
+  console.log(`  biomes: ${biomeSummary}`);
+  console.log(`  caves: ${caveSummary}`);
+  console.log(`  heights: ${heightSummary}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

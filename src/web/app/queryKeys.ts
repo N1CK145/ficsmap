@@ -9,4 +9,6 @@ export const queryKeys = {
   dataset: (version: string) => ['dataset', version] as const,
   biomes: (version: string) => ['biomes', version] as const,
   crashSites: (version: string) => ['crash-sites', version] as const,
+  caves: (version: string) => ['caves', version] as const,
+  heightmap: (version: string) => ['heightmap', version] as const,
 };

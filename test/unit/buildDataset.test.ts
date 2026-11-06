@@ -151,3 +151,36 @@ describe('crash-site data', () => {
     });
   });
 });
+
+describe('caves', () => {
+  it('marks the items the cave sampling found inside a cave with extra.cave', () => {
+    const input = base();
+    input.itemsInCaves = new Set(['BP_Crystal_C_1', 'BP_DropPod1']);
+    const d = buildDataset(input);
+    expect(d.items.find(x => x[0] === 'BP_Crystal_C_1')![7]).toEqual({ shards: 1, cave: true });
+    expect(d.items.find(x => x[0] === 'BP_Crystal_C_2')![7]).toEqual({ shards: 1 });
+    expect(d.items.find(x => x[0] === 'BP_DropPod1')![7]).toEqual({ pod: { item: { en: 'Rotor', de: 'Rotor' }, amount: 3, power: 0 }, cave: true });
+  });
+
+  it('adds nothing without cave data', () => {
+    expect(buildDataset(base()).items.some(x => x[7]?.cave)).toBe(false);
+  });
+
+  it('takes the biomes from the game map areas when given, instead of the editor polygons', () => {
+    const input = base();
+    input.biomeAreas = {
+      biomes: [{ id: 'swamp', name: 'Swamp', rings: [] }, { id: 'savanna', name: 'Savanna', rings: [] }],
+      assign: x => (x < 0 ? 0 : 1),
+    };
+    const d = buildDataset(input);
+    expect(d.biomes.map(b => b.id)).toEqual(['swamp', 'savanna']);
+    for (const it of d.items) expect(it[5]).toBe(it[2] < 0 ? 0 : 1);
+  });
+
+  it('reports items the map areas cannot place', () => {
+    const input = base();
+    input.biomeAreas = { biomes: [{ id: 'swamp', name: 'Swamp', rings: [] }], assign: () => -1 };
+    expect(() => buildDataset(input)).toThrow(BuildError);
+  });
+});
+

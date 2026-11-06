@@ -1,7 +1,8 @@
 import type { CollectibleTypeId, LocalizedName, WorldBounds } from './types.js';
 
 export interface PodRequirement { item: LocalizedName | null; amount: number; power: number }
-export interface ItemExtra { pod?: PodRequirement; shards?: number }
+/** `cave`: the item lies inside a cave (dataset built with caves.json). */
+export interface ItemExtra { pod?: PodRequirement; shards?: number; cave?: true }
 /** What lies around a drop pod's crash site (`/data/<v>/crash-sites.json`); names and notes are English. */
 export interface CrashSite {
   items: { item: string; amount: number; where?: string }[];

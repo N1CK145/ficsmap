@@ -89,6 +89,24 @@
     "scope": "Bereich: {name}",
     "clearScope": "Bereich aufheben"
   },
+  "caves": {
+    "control": "Höhlen",
+    "hint": "Höhlen und ihre Eingänge zeigen (aus den Spieldaten)",
+    "item": {
+      "title": "Höhle",
+      "inCave": "Liegt in einer Höhle.",
+      "nearestEntrance": "Nächster Höhleneingang: {distance, number} m (Luftlinie)"
+    }
+  },
+  "coords": {
+    "hint": "Position unter dem Mauszeiger in Metern. Z ist die höchste Oberfläche dort: Gelände, Felsen, Bauten und große Bäume, ohne Büsche und kleine Pflanzen."
+  },
+  "heights": {
+    "control": "Höhen",
+    "hint": "Höhenkarte als Farbskala zeigen (höchste Oberfläche, aus den Spieldaten)",
+    "legend": "Höhe (höchster Punkt)",
+    "metres": "{value} m"
+  },
   "marks": {
     "saveFailed": "Speichern fehlgeschlagen. Prüfe deine Verbindung.",
     "undo": "Rückgängig",

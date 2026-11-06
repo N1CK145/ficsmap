@@ -1,5 +1,7 @@
 import type { FeatureModule } from '../app/feature.js';
 import { biomesFeature } from './biomes/index.js';
+import { cavesFeature } from './caves/index.js';
+import { coordsFeature } from './coords/index.js';
 import { conflictsFeature } from './conflicts/index.js';
 import { importFeature } from './import/index.js';
 import { itemPanelFeature } from './itemPanel/index.js';
@@ -14,4 +16,4 @@ import { sharingFeature } from './sharing/index.js';
 import { worldsFeature } from './worlds/index.js';
 
 /** Every feature, in one list (spec §4.2). Order here is the order of routes and SSE handlers. */
-export const FEATURES: FeatureModule[] = [worldsFeature, marksFeature, liveFeature, mapFeature, progressFeature, biomesFeature, itemPanelFeature, quickCheckFeature, routesFeature, importFeature, conflictsFeature, sharingFeature, listViewFeature];
+export const FEATURES: FeatureModule[] = [worldsFeature, marksFeature, liveFeature, mapFeature, progressFeature, biomesFeature, cavesFeature, coordsFeature, itemPanelFeature, quickCheckFeature, routesFeature, importFeature, conflictsFeature, sharingFeature, listViewFeature];
