@@ -13,4 +13,5 @@ export const queryKeys = {
   heightmap: (version: string) => ['heightmap', version] as const,
   resourceNodes: (version: string) => ['resource-nodes', version] as const,
   nodeOverrides: (worldId: string) => ['node-overrides', worldId] as const,
+  transport: (version: string) => ['transport', version] as const,
 };

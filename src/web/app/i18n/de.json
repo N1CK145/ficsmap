@@ -511,6 +511,88 @@
       "full": "voll"
     }
   },
+  "vehicleCalc": {
+    "open": "Fahrzeuge",
+    "openHint": "Fahrzeug-Rechner: wie viele Fahrzeuge eine Strecke braucht oder wie viel sie transportieren",
+    "title": "Fahrzeug-Rechner",
+    "unavailable": "Dieser Kartendatensatz hat keine Fahrzeugdaten. Sie kommen hinzu, wenn der Datensatz mit den Docs-Dateien des Spiels gebaut wird.",
+    "failed": "Die Fahrzeugdaten konnten nicht geladen werden.",
+    "route": "Streckenlänge (einfach)",
+    "vehicle": "Fahrzeug",
+    "item": "Gegenstand (optional)",
+    "itemPlaceholder": "Beliebiger Gegenstand",
+    "itemHint": "Ohne Gegenstand wird in Stapeln pro Minute gerechnet.",
+    "itemUnknown": "Kein Gegenstand mit diesem Namen. Wähle einen aus der Liste.",
+    "itemClear": "Gegenstand entfernen",
+    "cannotCarry": "{vehicle} kann {item} nicht transportieren.",
+    "speed": "Durchschnittsgeschwindigkeit",
+    "speedDefault": {
+      "pathLimit": "Standardwert aus den Spieldaten: das Limit des Autopiloten auf gerader Strecke ({speed, number} km/h). Der echte Schnitt ist niedriger (Kurven, Steigungen, Beschleunigung), trag deinen ein.",
+      "traction": "Standardwert aus den Spieldaten: die Geschwindigkeit, bei der die Zugkraft des Motors auf null fällt ({speed, number} km/h); das Limit des Autopiloten auf gerader Strecke ({limit, number} km/h) erreicht das Fahrzeug nicht. Der echte Schnitt ist niedriger (Kurven, Steigungen, Beschleunigung), trag deinen ein.",
+      "droneFuel": "Standardwert aus den Spieldaten: die Reisegeschwindigkeit der Drohne mit {fuel} ({speed, number} km/h). Abheben und Landen stecken in der Standzeit."
+    },
+    "speedMissing": "Nicht in den Spieldaten. Trag die Durchschnittsgeschwindigkeit ein, die du im Spiel siehst.",
+    "stop": "Lade- und Entladezeit pro Umlauf",
+    "stopSource": {
+      "truckStation": "Standardwert aus den Spieldaten: ein Lade-/Entladezyklus einer Lkw-Station an jedem Ende ({seconds, number} s), egal wie viel das Fahrzeug geladen hat. Das Einfahren in die Station ist nicht enthalten.",
+      "fluidTruckStation": "Standardwert aus den Spieldaten: ein Lade-/Entladezyklus einer Tanklaster-Station an jedem Ende ({seconds, number} s). Dass ein Zyklus die ganze Ladung bewegt, ist wie bei der Lkw-Station angenommen (nicht getestet). Das Einfahren in die Station ist nicht enthalten.",
+      "freightPlatform": "Standardwert aus den Spieldaten: Lade- und Entladezeit einer Frachtplattform ({seconds, number} s). Bremsen und Andocken sind nicht enthalten.",
+      "dronePort": "Standardwert aus den Spieldaten: Andocken und Abheben der Drohne an beiden Drohnenlandeplätzen ({seconds, number} s)."
+    },
+    "stopMissing": "Nicht in den Spieldaten. Trag ein, wie lange das Fahrzeug pro Umlauf insgesamt steht.",
+    "fuel": "Treibstoff",
+    "fuelHint": {
+      "autopilot": "Selbstfahrende Fahrzeuge verbrauchen {perMetre, number} MJ pro gefahrenem Meter, hin und zurück (Spieldaten: Energie pro cm, als MJ gelesen). Dieser Treibstoff hat {energy, number} MJ pro Stück. Schlepper und Explorer verbrauchen bergauf mehr, das ist nicht berücksichtigt; das Ergebnis ist also geschätzt.",
+      "dronePort": "Ein Umlauf kostet {trip, number} MJ für Abheben und Landen plus {perMetre, number} MJ pro geflogenem Meter, hin und zurück (Spieldaten des Drohnenlandeplatzes, in MJ laut Spielertests). Dieser Treibstoff hat {energy, number} MJ pro Stück."
+    },
+    "goal": "Berechnen",
+    "goalVehicles": "Nötige Fahrzeuge",
+    "goalRate": "Durchsatz",
+    "target": "Gewünschter Durchsatz",
+    "count": "Anzahl Fahrzeuge",
+    "countFreightCars": "Anzahl Güterwagen",
+    "freightCarNote": "Gezählt werden Güterwagen. Wagen im selben Zug teilen sich einen Umlauf; Lokomotiven zählen nicht mit.",
+    "unit": {
+      "m": "m",
+      "kmh": "km/h",
+      "s": "s",
+      "items": "Stück/min",
+      "stacks": "Stapel/min",
+      "m3": "m³/min"
+    },
+    "rate": {
+      "items": "{items, number} Stück/min ({stacks, number} Stapel/min)",
+      "stacks": "{value, number} Stapel/min",
+      "m3": "{value, number} m³/min"
+    },
+    "amount": {
+      "items": "{value, number} Stück",
+      "stacks": "{value, plural, one {# Stapel} other {# Stapel}}",
+      "m3": "{value, number} m³"
+    },
+    "result": {
+      "title": "Ergebnis",
+      "incomplete": "Gib Streckenlänge, Geschwindigkeit, Standzeit und Ziel ein, um ein Ergebnis zu sehen.",
+      "needed": {
+        "vehicles": "Nötige Fahrzeuge",
+        "freightCars": "Nötige Güterwagen"
+      },
+      "countValue": "{count, number}",
+      "utilisation": "Auslastung",
+      "percent": "{share, number, percent}",
+      "capacity": "Sie schaffen bis zu",
+      "throughput": "Durchsatz",
+      "perOne": {
+        "vehicles": "Pro Fahrzeug",
+        "freightCars": "Pro Güterwagen"
+      },
+      "perTrip": "Ladung pro Fahrt",
+      "roundTrip": "Umlauf",
+      "seconds": "{value, number} s",
+      "fuel": "Treibstoff (geschätzt)",
+      "fuelValue": "{value, number} {fuel}/min ({perOne, number} pro Fahrzeug, {perTrip, number} pro Umlauf)"
+    }
+  },
   "search": {
     "label": "Suche",
     "open": "Suche",

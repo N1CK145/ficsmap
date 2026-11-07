@@ -20,7 +20,7 @@ One npm package, one process, one container. The server serves the API, the buil
 src/shared/     types and pure logic used by server and web
 src/server/     Fastify server
 src/web/        React SPA (Vite root)
-scripts/        build-dataset.ts (dataset build, including resource-nodes.json), cave-geometry.ts (cave sampling for it), heightmap.ts (height map tiles for it), map-areas.ts (biomes from the game's map areas), trace.ts (outline tracing), inspect-save.ts (dump a save for checks)
+scripts/        build-dataset.ts (dataset build, including resource-nodes.json), cave-geometry.ts (cave sampling for it), heightmap.ts (height map tiles for it), map-areas.ts (biomes from the game's map areas), game-docs.ts and transport.ts (vehicle and item data from the game's Docs files), trace.ts (outline tracing), inspect-save.ts (dump a save for checks)
 data-src/       extraction tooling and notes (extractor/README.md, the AssetsExtractor patch, item names)
 test/           unit/, api/, web/, fixtures/
 data/           local datasets, data/<game-version>/ (git-ignored)
@@ -37,6 +37,7 @@ data/           local datasets, data/<game-version>/ (git-ignored)
 - `caves.ts`: the extractor's cave volumes and the `caves.geojson` format (the sampling itself is in `scripts/cave-geometry.ts`).
 - `resourceNodes.ts`: the `resource-nodes.json` format, the purity mapping (the game spells `RP_Inpure`), the layer's filter (resource, purity, occupied/free) and counts, reading node overrides, randomisation settings and the extractors on nodes (building, clock speed, Power Shards) from a parsed save, applying a world's overrides to the default nodes, and the extractor summary.
 - `heightmap.ts`: the height map tile format (`height/meta.json`, delta-coded int16 tiles in gzip) and the cell lookup.
+- `transport.ts`: the vehicle calculator: the `transport.json` format and the pure maths (round trip, vehicles for a target rate, rate for a number of vehicles, fuel per minute).
 - `api.ts`, `sse.ts`: DTOs and the SSE event union, shared by server and client.
 - `i18n.ts`: locale detection, used by the SPA and the server-rendered invite page.
 
@@ -81,7 +82,7 @@ Features are modules that plug into extension points. `src/web/app/feature.ts` d
 - `settingsSections`
 - `sseHandlers`: reactions to server events
 
-All features are listed once in `src/web/features/index.ts`. `collect()` flattens one extension point over all features and sorts by `order`. The current features are `worlds`, `marks`, `live`, `map`, `progress`, `biomes`, `caves`, `coords`, `resourceNodes`, `itemPanel`, `quickCheck`, `routes`, `import`, `conflicts`, `sharing`, `listView` and `search`.
+All features are listed once in `src/web/features/index.ts`. `collect()` flattens one extension point over all features and sorts by `order`. The current features are `worlds`, `marks`, `live`, `map`, `progress`, `biomes`, `caves`, `coords`, `resourceNodes`, `itemPanel`, `quickCheck`, `routes`, `import`, `conflicts`, `sharing`, `listView`, `search` and `vehicleCalc`. The vehicle calculator (`vehicleCalc`) keeps its own open state and form in `useVehicleCalc`; anything else can open it with `useVehicleCalc.getState().show(routeMeters?)`.
 
 **Top bar.** `components/Header.tsx` has three parts: the app name, the world name and the `start` header items on the left; the `center` items (the search) in the middle; the tool navigation, the language switch and the account menu on the right. Both sides share the free width equally, so the search stays centred as long as the right side fits into its half. On mobile (below 900 px) the search is a button next to the Tools menu and opens over the bar. The settings page shows neither search nor tools.
 
@@ -159,7 +160,7 @@ While a query is typed, the union of the matches' `actors` goes into the store's
 
 ## Dataset
 
-The dataset is static and versioned by game version: `<DATASET_DIR>/<game-version>/` with `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/{z}/{x}/{y}.webp`, `icons/` and optionally `caves.geojson` and `height/` (`meta.json` plus 500 m tiles `<ti>_<tj>.bin.gz`, fetched by the browser on hover and unpacked with `DecompressionStream`; tile URLs carry the content hash from `meta.json` because non-JSON files are served as immutable) and `resource-nodes.json` (`{version, resources: [{id, name}], nodes: [name, kind, resource, purity, x, y, z, core?]}`; kind `node`, `geyser`, `core` or `satellite`, purity `impure`/`normal`/`pure`, null for cores; geysers have the pseudo resource `Geyser`; loaded only by the browser). It is not in the repository and not in the Docker image; it is mounted at run time. The server loads `collectibles.min.json` at start and serves the directory under `/data/`.
+The dataset is static and versioned by game version: `<DATASET_DIR>/<game-version>/` with `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/{z}/{x}/{y}.webp`, `icons/` and optionally `caves.geojson`, `transport.json` (vehicle calculator) and `height/` (`meta.json` plus 500 m tiles `<ti>_<tj>.bin.gz`, fetched by the browser on hover and unpacked with `DecompressionStream`; tile URLs carry the content hash from `meta.json` because non-JSON files are served as immutable) and `resource-nodes.json` (`{version, resources: [{id, name}], nodes: [name, kind, resource, purity, x, y, z, core?]}`; kind `node`, `geyser`, `core` or `satellite`, purity `impure`/`normal`/`pure`, null for cores; geysers have the pseudo resource `Geyser`; loaded only by the browser). It is not in the repository and not in the Docker image; it is mounted at run time. The server loads `collectibles.min.json` at start and serves the directory under `/data/`.
 
 `npm run dataset` (`scripts/build-dataset.ts`) builds it from:
 
