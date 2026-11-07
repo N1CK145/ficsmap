@@ -32,6 +32,8 @@ Then build the dataset with the game's build number (`Changelist` in `<game inst
 npm run dataset -- --extractor data-src/extractor/1.2.5.0 --data-src <maintainer data-src> --build 517554 --out data/1.2.5.0
 ```
 
+This builds every part and fails, listing what is missing, if an input is not there: copy the game's `CommunityResources/Docs` (`en-US.json`, `de.json`) to `1.2.5.0/docs/` (or pass `--docs`). `--only caves,recipes` (parts: `collectibles`, `crash-sites`, `biomes`, `caves`, `heights`, `map`, `nodes`, `transport`, `recipes`, `machines`) rebuilds just those parts in place.
+
 The cave geometry export needs about 10 GB of memory; cap the .NET heap so a run cannot take the machine down: `DOTNET_GCHeapHardLimit=0x280000000` (10 GiB). An uncapped run reached 24 GB once and was killed. A full run takes about 3 minutes.
 
 - Printed: `Collectibles: 7653 pickups (703 with a known item), 118 drop pods, 2277 creature spawners`, `Map: 968e47122e1f868c (8192px, zoom 0-5, 30 icons)`, `Extras: 118 drop pods, 298 mercer shrines`. Runs in about 25 s. The `usmap` warning is harmless.

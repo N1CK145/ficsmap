@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildCrashSites, buildDataset, BuildError, buildResourceNodes, loadExtractorDir, type BuildInput } from '../../scripts/build-dataset.js';
+import { buildCrashSites, buildDataset, BuildError, buildResourceNodes, DATASET_PARTS, loadExtractorDir, missingParts, selectParts, type BuildInput } from '../../scripts/build-dataset.js';
 
 const dir = fileURLToPath(new URL('../fixtures/extractor-mini', import.meta.url));
 const base = (): BuildInput => structuredClone(loadExtractorDir(dir));
@@ -263,5 +263,25 @@ describe('resource nodes', () => {
     const w = world(); w.frackingCores[0]!.satellites = [];
     failsNodes(w, /BP_FrackingCore1 has no satellites/);
     failsNodes({}, /no resource nodes/);
+  });
+});
+
+describe('dataset parts', () => {
+  const all = Object.keys(DATASET_PARTS);
+  it('builds every part without --only', () => {
+    expect([...selectParts(undefined)]).toEqual(all);
+    expect([...selectParts([])]).toEqual(all);
+  });
+  it('builds only the parts named in --only, repeated or comma-separated', () => {
+    expect([...selectParts(['caves,recipes'])]).toEqual(['caves', 'recipes']);
+    expect([...selectParts(['caves', ' recipes ', 'caves'])]).toEqual(['caves', 'recipes']);
+  });
+  it('rejects an unknown part', () => {
+    expect(() => selectParts(['caves,cake'])).toThrow(/unknown part cake/);
+  });
+  it('names the selected parts whose input is missing', () => {
+    const inputs = Object.fromEntries(all.map(p => [p, { ok: p !== 'recipes' && p !== 'nodes', what: `${p} input` }])) as Parameters<typeof missingParts>[1];
+    expect(missingParts(selectParts(undefined), inputs)).toEqual(['nodes: nodes input', 'recipes: recipes input']);
+    expect(missingParts(selectParts(['caves']), inputs)).toEqual([]);
   });
 });
