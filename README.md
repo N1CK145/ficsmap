@@ -33,6 +33,7 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 - **Caves.** A switchable layer with the floor plans of the caves and their entrances, sampled from the game's 3D geometry, and a note in the item panel when an item lies in a cave (with the distance to the nearest entrance).
 - **Coordinates and height.** Hovering the map shows the position under the mouse in metres, with the height of the highest surface there, read from the game's terrain and rock geometry.
 - **Route planner.** Up to 30 stops, optimise the order, jump to the next stop, and see a combined list of what the route's drop pods need.
+- **Production planner.** Enter the items you need per minute and get the whole production chain down to miners, water and oil extractors and resource wells: per step the building, the recipe (alternates selectable), the number of buildings and the rates in and out, plus totals of raw resources, buildings, power and surplus. By-products are used for other steps. Miner level, node purity and clock speed (per step, up to 250 % with Power Shards) are adjustable. Recipes, buildings and rates come from the game's own data; values are for the default game mode.
 - **List view** as an alternative to the map.
 - **Mobile layout** with a bottom sheet.
 - **English and German** user interface, picked from the browser language.
@@ -147,7 +148,7 @@ Set `TRUST_PROXY` to the IP address the proxy connects from.
 
 The map dataset is **not** part of this repository or the Docker image, because it consists of Coffee Stain Studios' game assets. You build it yourself from your own game installation and mount it into the container (`./dataset:/app/data:ro`). The app uses the one version directory it finds there; if there is more than one, set `DATASET_VERSION` in `.env`.
 
-A dataset directory `<game-version>/` contains `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/` and `icons/`, optionally `caves.geojson` (cave outlines and entrances; a dataset built without caves offers no cave layer) and `height/` (height map tiles; without it the coordinates show no height).
+A dataset directory `<game-version>/` contains `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/` and `icons/`, optionally `caves.geojson` (cave outlines and entrances; a dataset built without caves offers no cave layer), `height/` (height map tiles; without it the coordinates show no height) and `recipes.json` (recipes, buildings and extractors for the production planner; without it the planner says that the dataset has no recipe data).
 
 To build one:
 
@@ -159,7 +160,7 @@ To build one:
    npm run dataset -- --extractor <extractor-output-dir> --data-src <dir> --out data/1.2.4.1
    ```
 
-   `--data-src` points to a folder with `biomes/biomes.editor.geojson`, `biomes/calibration.json` and `crash-sites/crash-sites.json`. If the extractor output contains `caves.json` and `cave-geometry/` (or you pass `--caves <file> --cave-geometry <dir>`), the build samples the caves, writes `caves.geojson` and marks items that lie in a cave. If it contains `heightmap/` (or you pass `--heightmap <dir>`), the build writes the height map tiles to `height/`. If it contains `map-areas/` (or you pass `--map-areas <dir>`), the biomes come from the game's map areas and the editor polygons in `--data-src` are not used.
+   `--data-src` points to a folder with `biomes/biomes.editor.geojson`, `biomes/calibration.json` and `crash-sites/crash-sites.json`. If the extractor output contains `caves.json` and `cave-geometry/` (or you pass `--caves <file> --cave-geometry <dir>`), the build samples the caves, writes `caves.geojson` and marks items that lie in a cave. If it contains `heightmap/` (or you pass `--heightmap <dir>`), the build writes the height map tiles to `height/`. If it contains `map-areas/` (or you pass `--map-areas <dir>`), the biomes come from the game's map areas and the editor polygons in `--data-src` are not used. With `--docs <install>/CommunityResources/Docs` the build also writes `recipes.json` from the game's `en-US.json` and `de.json`; `npm run recipes -- --docs <dir> --out data/<game-version>` (re)writes only that file into an existing dataset.
 3. Copy `data/1.2.4.1/` into the `dataset/` directory next to your `docker-compose.yml`.
 
 **Current limitation:** the crash-site data are maintainer data and are not published. With the extractor output (including `map-areas/`) you get the tiles, icons, collectible positions and biomes, but the crash-site layer needs a source of your own in the format above. `--data-src` still has to provide the biome editor files, even though they are unused when `map-areas/` exists.

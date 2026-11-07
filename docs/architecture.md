@@ -20,7 +20,7 @@ One npm package, one process, one container. The server serves the API, the buil
 src/shared/     types and pure logic used by server and web
 src/server/     Fastify server
 src/web/        React SPA (Vite root)
-scripts/        build-dataset.ts (dataset build), cave-geometry.ts (cave sampling for it), heightmap.ts (height map tiles for it), map-areas.ts (biomes from the game's map areas), trace.ts (outline tracing), inspect-save.ts (dump a save for checks)
+scripts/        build-dataset.ts (dataset build), cave-geometry.ts (cave sampling for it), heightmap.ts (height map tiles for it), map-areas.ts (biomes from the game's map areas), recipes.ts (recipes.json from the game's Docs), trace.ts (outline tracing), inspect-save.ts (dump a save for checks)
 data-src/       extraction tooling and notes (extractor/README.md, the AssetsExtractor patch, item names)
 test/           unit/, api/, web/, fixtures/
 data/           local datasets, data/<game-version>/ (git-ignored)
@@ -36,6 +36,8 @@ data/           local datasets, data/<game-version>/ (git-ignored)
 - `biomes.ts`: loads the hand-drawn biome polygons (fallback) and assigns items to them. The game's map areas (`scripts/map-areas.ts`) are the primary source: biomes, outlines (traced with `scripts/trace.ts`) and item assignment from the area raster.
 - `caves.ts`: the extractor's cave volumes and the `caves.geojson` format (the sampling itself is in `scripts/cave-geometry.ts`).
 - `heightmap.ts`: the height map tile format (`height/meta.json`, delta-coded int16 tiles in gzip) and the cell lookup.
+- `recipes.ts`: the `recipes.json` format (items, production recipes with alternates, production buildings, extractors, the resource well pressurizer, clock speed values) and `indexRecipes()` (producers per item with the default first, consumers, extractors per resource, `recipeTerms()` for a search). Reusable beyond the planner.
+- `planner.ts`: the production planner's core, pure: targets and choices in, steps (building, recipe, counts, rates, power) and totals out. One balance per item, solved as a linear system, so loops in the recipe graph need no recursion; loops that cannot work are reported. By-products enter the balance of their item; a step they oversupply gets no buildings and its balance becomes "at least the demand" (repeated until none is left; two steps running the same recipe are not coupled). Clock speed per step (`clockLimits`: minimum and +50 % per Power Shard from the data, up to 3 shards, so 1 %–250 %) and node purity per step; a resource well step runs at its pressurizer's clock speed (the shards and the pressurizer's power, per well, are reported apart from the totals' power); a picked recipe whose ingredient's default recipe would need the picked item back makes that ingredient "supplied from outside" (`auto: 'loop'`). Default per item: extract a resource (solids with the miner setting), else the first of `rankProducers` (main product before by-product, standard before alternate, unpacking last), else "supplied from outside".
 - `api.ts`, `sse.ts`: DTOs and the SSE event union, shared by server and client.
 - `i18n.ts`: locale detection, used by the SPA and the server-rendered invite page.
 
@@ -77,7 +79,7 @@ Features are modules that plug into extension points. `src/web/app/feature.ts` d
 - `headerItems`, `settingsSections`
 - `sseHandlers`: reactions to server events
 
-All features are listed once in `src/web/features/index.ts`. `collect()` flattens one extension point over all features and sorts by `order`. The current features are `worlds`, `marks`, `live`, `map`, `progress`, `biomes`, `caves`, `coords`, `itemPanel`, `quickCheck`, `routes`, `import`, `conflicts`, `sharing` and `listView`. `features/mobile` is not a feature module; it holds the bottom sheet the world layout uses on small screens. A new feature should add a module here rather than edit core screens.
+All features are listed once in `src/web/features/index.ts`. `collect()` flattens one extension point over all features and sorts by `order`. The current features are `worlds`, `marks`, `live`, `map`, `progress`, `biomes`, `caves`, `coords`, `itemPanel`, `quickCheck`, `routes`, `import`, `conflicts`, `sharing`, `listView` and `planner` (production planner: a header button and a wide dialog, both `headerItems`; its open state is a `{ visible, toggle }` store, the shape a tool switch needs). `features/mobile` is not a feature module; it holds the bottom sheet the world layout uses on small screens. A new feature should add a module here rather than edit core screens.
 
 ## Backend
 
@@ -134,12 +136,13 @@ All features are listed once in `src/web/features/index.ts`. `collect()` flatten
 
 ## Dataset
 
-The dataset is static and versioned by game version: `<DATASET_DIR>/<game-version>/` with `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/{z}/{x}/{y}.webp`, `icons/` and optionally `caves.geojson` and `height/` (`meta.json` plus 500 m tiles `<ti>_<tj>.bin.gz`, fetched by the browser on hover and unpacked with `DecompressionStream`; tile URLs carry the content hash from `meta.json` because non-JSON files are served as immutable). It is not in the repository and not in the Docker image; it is mounted at run time. The server loads `collectibles.min.json` at start and serves the directory under `/data/`.
+The dataset is static and versioned by game version: `<DATASET_DIR>/<game-version>/` with `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/{z}/{x}/{y}.webp`, `icons/` and optionally `caves.geojson`, `recipes.json` (production planner, fetched when the planner opens) and `height/` (`meta.json` plus 500 m tiles `<ti>_<tj>.bin.gz`, fetched by the browser on hover and unpacked with `DecompressionStream`; tile URLs carry the content hash from `meta.json` because non-JSON files are served as immutable). It is not in the repository and not in the Docker image; it is mounted at run time. The server loads `collectibles.min.json` at start and serves the directory under `/data/`.
 
 `npm run dataset` (`scripts/build-dataset.ts`) builds it from:
 
 - the output of SatisfactoryTools/AssetsExtractor `world-extractor-net` with the patch in `data-src/extractor/` (collectibles, drop-pod requirements, Mercer shrines, cave volumes and the 3D geometry around each cave, the height grid, the map area raster, tiles, icons; see `data-src/extractor/README.md`),
-- a `--data-src` folder with crash-site data and the hand-drawn biome polygons with their calibration (used only when the extractor output has no `map-areas/`).
+- a `--data-src` folder with crash-site data and the hand-drawn biome polygons with their calibration (used only when the extractor output has no `map-areas/`),
+- optionally `--docs`, the game's `CommunityResources/Docs` folder, for `recipes.json` (`scripts/recipes.ts`; see `data-src/extractor/README.md`, "Recipes and buildings").
 
 The build filters to the registry types, assigns each item a biome and a number within it, adds drop-pod requirements and shrine aliases, and fails on missing types, duplicate names or items without a biome. Each world records the dataset version it was created with.
 

@@ -13,6 +13,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json",
     "dataset": "tsx scripts/build-dataset.ts",
+    "recipes": "tsx scripts/recipes.ts",
     "inspect-save": "tsx scripts/inspect-save.ts"
   },
   "dependencies": {
