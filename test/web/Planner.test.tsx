@@ -37,6 +37,12 @@ function setup(recipes: 'present' | 'missing' = 'present', worldVersion = WORLD.
 
 const stepOf = (name: string) => screen.getByRole('heading', { level: 4, name: new RegExp(`^${name}`) }).closest('li')!;
 
+/** Picks an item into the first row of an already open planner. */
+async function openAndPickAgain(query: string) {
+  await userEvent.type(screen.getByRole('combobox', { name: 'Item 1' }), query);
+  await userEvent.keyboard('{Enter}');
+}
+
 async function openAndPick(query: string) {
   await userEvent.click(screen.getByRole('button', { name: 'Planner' }));
   const box = await screen.findByRole('combobox', { name: 'Item 1' });
@@ -48,7 +54,8 @@ describe('production planner', () => {
   beforeEach(() => {
     initI18n(['en']);
     localStorage.clear();
-    usePlanner.setState({ visible: false, targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' } });
+    // The step tests below use the list view; the diagram has its own tests.
+    usePlanner.setState({ visible: false, targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'list' });
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -268,6 +275,147 @@ describe('production planner', () => {
     expect(box).toHaveAttribute('aria-expanded', 'false');
     expect(usePlanner.getState().visible).toBe(true);
     await waitFor(() => expect(usePlanner.getState().targets[0]!.item).toBeNull());
+  });
+});
+
+describe('production planner diagram', () => {
+  beforeEach(() => {
+    initI18n(['en']);
+    localStorage.clear();
+    usePlanner.setState({ visible: false, targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'diagram' });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const diagram = (name = 'Production chain') => screen.getByRole('group', { name });
+  /** A node's button: its accessible name starts with the item. */
+  const node = (item: string, name?: string) => within(diagram(name)).getByRole('button', { name: new RegExp(`^${item}[ ;]`) });
+  const edges = () => [...diagram().querySelectorAll('path[data-edge]')].map(p => `${p.getAttribute('data-from')}>${p.getAttribute('data-to')}:${p.getAttribute('data-edge')}`);
+
+  it('shows the plan as a diagram from left to right, with rates on the edges and the totals below', async () => {
+    setup();
+    await openAndPick('plate');
+    expect(screen.getByRole('radio', { name: 'Diagram' })).toHaveAttribute('aria-checked', 'true');
+    const [plate, ingot, ore] = [node('plate'), node('ingot'), node('ore')];
+    expect(parseFloat(plate.style.left)).toBeLessThan(parseFloat(ingot.style.left));
+    expect(parseFloat(ingot.style.left)).toBeLessThan(parseFloat(ore.style.left));
+    expect(plate).toHaveAccessibleName('plate (wanted: 60/min); 3 × Constructor; 60/min; R_Plate; In: 90/min ingot');
+    expect(within(plate).getByText('3 × Constructor')).toBeInTheDocument();
+    expect(within(ore).getByText('2 × Miner Mk.1')).toHaveAttribute('title', 'exact 1.5');
+    expect(within(ore).getByText('Normal ×1')).toBeInTheDocument();
+    expect(edges()).toEqual(['ingot>plate:input', 'ore>ingot:input']);
+    expect(within(diagram()).getAllByText('90/min', { selector: 'span[aria-hidden]' })).toHaveLength(2);
+    expect(screen.getByRole('list', { name: 'Legend' })).toHaveTextContent('By-product of another step');
+    expect(screen.queryByRole('heading', { level: 4, name: /^plate/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Totals' })).toBeInTheDocument();
+  });
+
+  it('selects a node to edit its step, with the mouse or the keyboard', async () => {
+    setup();
+    await openAndPick('plate');
+    await userEvent.click(node('plate'));
+    expect(node('plate')).toHaveAttribute('aria-expanded', 'true');
+    const editor = screen.getByRole('region', { name: 'Edit plate' });
+    expect(node('plate')).toHaveAttribute('aria-controls', editor.id);
+    await userEvent.selectOptions(within(editor).getByLabelText('Made by'), 'R_PlateAlt (Assembler)');
+    expect(within(node('plate')).getByText('4 × Assembler')).toBeInTheDocument();
+    expect(within(node('plate')).getByText('Alternate')).toBeInTheDocument();
+    expect(node('plate')).toHaveAccessibleName(/; R_PlateAlt \(alternate recipe\);/);
+    expect(edges()).toContain('water>plate:input');
+
+    // One tab stop; the arrow keys move to the nearest node of the next column.
+    node('plate').focus();
+    await userEvent.keyboard('{ArrowRight}');
+    expect(node('ingot')).toHaveFocus();
+    expect(node('ingot')).toHaveAttribute('tabindex', '0');
+    expect(node('plate')).toHaveAttribute('tabindex', '-1');
+    await userEvent.keyboard('{Enter}');
+    expect(screen.queryByRole('region', { name: 'Edit plate' })).not.toBeInTheDocument();
+    const ingotEditor = screen.getByRole('region', { name: 'Edit ingot' });
+    await userEvent.type(within(ingotEditor).getByLabelText('Clock speed (%)'), '200');
+    expect(within(node('ingot')).getByText('200 %')).toBeInTheDocument();
+    expect(within(node('ingot')).getByText('2 Power Shards')).toHaveAttribute('title', '2 Power Shards per building');
+
+    await userEvent.click(within(ingotEditor).getByRole('button', { name: 'Stop editing ingot' }));
+    expect(screen.queryByRole('region', { name: 'Edit ingot' })).not.toBeInTheDocument();
+    expect(node('ingot')).toHaveFocus();
+    // Clicking the selected node again closes its editor too.
+    await userEvent.click(node('ore'));
+    await userEvent.click(node('ore'));
+    expect(screen.queryByRole('region', { name: 'Edit ore' })).not.toBeInTheDocument();
+  });
+
+  it('switches between diagram and list and remembers the view', async () => {
+    setup();
+    await openAndPick('plate');
+    await userEvent.click(screen.getByRole('radio', { name: 'List' }));
+    expect(screen.queryByRole('group', { name: 'Production chain' })).not.toBeInTheDocument();
+    expect(within(stepOf('plate')).getByText('3 × Constructor')).toBeInTheDocument();
+    expect(usePlanner.getState().view).toBe('list');
+    expect(loadPlanner()?.view).toBe('list');
+    // Starting over keeps the view.
+    await userEvent.click(screen.getByRole('button', { name: 'Start over' }));
+    expect(usePlanner.getState().view).toBe('list');
+
+    await openAndPickAgain('plate');
+    await userEvent.click(screen.getByRole('radio', { name: 'Diagram' }));
+    expect(node('plate')).toBeInTheDocument();
+    expect(loadPlanner()?.view).toBe('diagram');
+  });
+
+  it('draws by-products, loops and items supplied from outside', async () => {
+    usePlanner.setState({ choices: { fuel: { kind: 'recipe', recipe: 'R_ResFuel' } } });
+    setup();
+    await openAndPick('plastic');
+    await userEvent.click(screen.getByRole('button', { name: '+ Add item' }));
+    await userEvent.type(screen.getByRole('combobox', { name: 'Item 2' }), 'fuel');
+    await userEvent.keyboard('{Enter}');
+    const rate = screen.getByRole('textbox', { name: 'Per minute of fuel' });
+    await userEvent.clear(rate);
+    await userEvent.type(rate, '4');
+    expect(edges()).toContain('plastic>residue:byproduct');
+    expect(within(node('residue')).getByText('From by-products')).toBeInTheDocument();
+    expect(within(node('residue')).getByText('30 m³/min')).toBeInTheDocument();
+  });
+
+  it('dashes the edges of a loop and marks its steps', async () => {
+    usePlanner.setState({ choices: { rubber: { kind: 'recipe', recipe: 'R_RecRubber' }, plastic: { kind: 'recipe', recipe: 'R_RecPlastic' } } });
+    setup();
+    await openAndPick('rubber');
+    expect(edges().filter(e => e.endsWith(':loop')).sort()).toEqual(['plastic>rubber:loop', 'rubber>plastic:loop']);
+    expect(within(node('rubber')).getByText('Loop')).toHaveAttribute('title', 'Part of a loop: these steps feed each other.');
+    expect(node('plastic').style.left).toBe(node('rubber').style.left);
+  });
+
+  it('marks an item supplied from outside', async () => {
+    usePlanner.setState({ choices: { fuel: { kind: 'recipe', recipe: 'R_Unpack' } } });
+    setup();
+    await openAndPick('fuel');
+    const pfuel = node('pfuel');
+    expect(within(pfuel).getByText('Supplied from outside')).toBeInTheDocument();
+    expect(within(pfuel).getByText('Automatically, avoids a loop')).toBeInTheDocument();
+    expect(pfuel.className).toContain('border-dashed');
+  });
+
+  it('shows the diagram in German', async () => {
+    initI18n(['de']);
+    setup();
+    await userEvent.click(screen.getByRole('button', { name: 'Planer' }));
+    await userEvent.type(await screen.findByRole('combobox', { name: 'Gegenstand 1' }), 'plate-de');
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByRole('radiogroup', { name: 'Ansicht' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Diagramm' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Liste' })).toBeInTheDocument();
+    const plate = node('plate-de', 'Produktionskette');
+    expect(plate).toHaveAccessibleName('plate-de (gewünscht: 60/min); 3 × Konstruktor; 60/min; R_Plate; Ein: 90/min ingot-de');
+    expect(screen.getByText(/^Gewünschte Gegenstände links/)).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Legende' })).toHaveTextContent('Nebenprodukt eines anderen Schritts');
+    await userEvent.click(plate);
+    const editor = screen.getByRole('region', { name: 'plate-de bearbeiten' });
+    expect(within(editor).getByLabelText('Hergestellt mit')).toBeInTheDocument();
+    await userEvent.type(within(editor).getByLabelText('Taktrate (%)'), '150');
+    expect(within(node('plate-de', 'Produktionskette')).getByText('1 Energiefragment')).toHaveAttribute('title', '1 Energiefragment je Gebäude');
+    expect(node('plate-de', 'Produktionskette')).toHaveAccessibleName(/; Taktrate 150 %; 1 Energiefragment je Gebäude;/);
+    expect(within(editor).getByRole('button', { name: 'Bearbeitung von plate-de schließen' })).toBeInTheDocument();
   });
 });
 

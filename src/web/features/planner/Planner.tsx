@@ -1,13 +1,15 @@
-import { useId, useMemo } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { choiceKey, choiceOptions, clockLimits, defaultChoice, MAX_SHARDS, parseChoiceKey, plan, PURITY_FACTOR, type Choice, type ClockLimits, type Flow, type PlanResult, type PlanStep, type Purity, type StepSettings } from '../../../shared/planner.js';
 import { miners as minersOf, type RecipeIndex } from '../../../shared/recipes.js';
 import { Button } from '../../components/Button.js';
 import { IconButton } from '../../components/IconButton.js';
 import { SegmentedControl } from '../../components/SegmentedControl.js';
+import { prefersReducedMotion } from '../map/motion.js';
 import { formatNumber, formatRate, itemName, langOf, type Lang } from './format.js';
 import { ItemPicker } from './ItemPicker.js';
-import { parseNumber, usePlanner } from './usePlanner.js';
+import { PlanDiagram } from './PlanDiagram.js';
+import { parseNumber, usePlanner, type PlannerView } from './usePlanner.js';
 import { useRecipes } from './useRecipes.js';
 
 /** The planner for a dataset version: loads its recipe data, then shows the form and the plan. */
@@ -56,16 +58,74 @@ function PlannerBody({ index, lang }: { index: RecipeIndex; lang: Lang }) {
       {result && !result.ok && <PlanError result={result} index={index} lang={lang} limits={limits} />}
       {result?.ok && (
         <>
-          <section aria-labelledby="planner-steps">
-            <h3 id="planner-steps" className="mb-2 font-display text-lg font-semibold">{t('planner.steps')}</h3>
-            <ol className="flex flex-col gap-2">
-              {result.steps.map(st => <StepRow key={st.item} step={st} index={index} lang={lang} minerId={minerId} defaultClock={settings.clock} />)}
-            </ol>
-          </section>
+          <Steps steps={result.steps} index={index} lang={lang} minerId={minerId} defaultClock={settings.clock} />
           <Totals result={result} index={index} lang={lang} />
         </>
       )}
     </div>
+  );
+}
+
+/** The plan's steps, as a diagram (a node opens its editor below) or as a list. */
+function Steps({ steps, index, lang, minerId, defaultClock }: { steps: PlanStep[]; index: RecipeIndex; lang: Lang; minerId: string; defaultClock: string }) {
+  const { t } = useTranslation();
+  const view = usePlanner(s => s.view);
+  const setView = usePlanner(s => s.setView);
+  const [selected, setSelected] = useState<string | null>(null);
+  const editorId = useId();
+  const nodePrefix = useId();
+  const nodeId = (item: string) => `${nodePrefix}${item}`;
+  const step = steps.find(st => st.item === selected);
+  const views: { value: PlannerView; label: string }[] = [
+    { value: 'diagram', label: t('planner.viewOption.diagram') },
+    { value: 'list', label: t('planner.viewOption.list') },
+  ];
+  function closeEditor() {
+    if (step) document.getElementById(nodeId(step.item))?.focus();
+    setSelected(null);
+  }
+  return (
+    <section aria-labelledby="planner-steps">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 id="planner-steps" className="font-display text-lg font-semibold">{t('planner.steps')}</h3>
+        <SegmentedControl label={t('planner.view')} options={views} value={view} onChange={setView} />
+      </div>
+      {view === 'diagram' ? (
+        <>
+          <PlanDiagram
+            steps={steps} index={index} lang={lang} selected={step ? step.item : null}
+            onSelect={item => setSelected(item === selected ? null : item)} editorId={editorId} nodeId={nodeId}
+          />
+          {step && (
+            <StepEditor id={editorId} item={step.item} name={itemName(index, step.item, lang)} onClose={closeEditor}>
+              {action => <StepRow as="div" step={step} index={index} lang={lang} minerId={minerId} defaultClock={defaultClock} action={action} />}
+            </StepEditor>
+          )}
+        </>
+      ) : (
+        <ol className="flex flex-col gap-2">
+          {steps.map(st => <StepRow key={st.item} step={st} index={index} lang={lang} minerId={minerId} defaultClock={defaultClock} />)}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+/** The selected node's step editor under the diagram; scrolled into view when another step is selected. */
+function StepEditor({ id, item, name, onClose, children }: { id: string; item: string; name: string; onClose(): void; children(action: ReactNode): ReactNode }) {
+  const { t } = useTranslation();
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView?.({ block: 'nearest', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  }, [item]);
+  return (
+    <section ref={ref} id={id} aria-label={t('planner.diagram.editor', { item: name })} className="mt-3">
+      {children(
+        <IconButton aria-label={t('planner.diagram.close', { item: name })} size="sm" onClick={onClose}>
+          <span aria-hidden="true">×</span>
+        </IconButton>,
+      )}
+    </section>
   );
 }
 
@@ -182,7 +242,15 @@ function flows(index: RecipeIndex, list: readonly Flow[], lang: Lang, t: ReturnT
   return list.map(f => `${formatRate(index, f.item, f.rate, lang, t)} ${itemName(index, f.item, lang)}`).join(', ');
 }
 
-function StepRow({ step, index, lang, minerId, defaultClock }: { step: PlanStep; index: RecipeIndex; lang: Lang; minerId: string; defaultClock: string }) {
+interface StepRowProps {
+  step: PlanStep; index: RecipeIndex; lang: Lang; minerId: string; defaultClock: string;
+  /** `li` in the list, `div` in the diagram's editor. */
+  as?: 'li' | 'div';
+  /** Next to the rate (the editor's close button). */
+  action?: ReactNode;
+}
+
+function StepRow({ step, index, lang, minerId, defaultClock, as: Tag = 'li', action }: StepRowProps) {
   const { t } = useTranslation();
   const setChoice = usePlanner(s => s.setChoice);
   const setStep = usePlanner(s => s.setStep);
@@ -208,13 +276,16 @@ function StepRow({ step, index, lang, minerId, defaultClock }: { step: PlanStep;
   }
 
   return (
-    <li className="rounded border border-line bg-bg p-3">
+    <Tag className="rounded border border-line bg-bg p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h4 className="font-semibold">
           {name}
           {step.cycle && <span title={t('planner.cycleHint')} className="ml-2 rounded border border-accent px-1.5 text-xs font-medium text-accent">{t('planner.cycle')}</span>}
         </h4>
-        <span className="tabular-nums">{formatRate(index, step.item, step.rate, lang, t)}</span>
+        <span className="flex items-center gap-2">
+          <span className="tabular-nums">{formatRate(index, step.item, step.rate, lang, t)}</span>
+          {action}
+        </span>
       </div>
       {step.targetRate > 0 && step.targetRate < step.rate - 1e-9 && (
         <p className="text-sm text-muted">{t('planner.forYou', { value: formatRate(index, step.item, step.targetRate, lang, t) })}</p>
@@ -280,7 +351,7 @@ function StepRow({ step, index, lang, minerId, defaultClock }: { step: PlanStep;
         )}
       {step.inputs.length > 0 && <p className="text-sm"><span className="text-muted">{t('planner.inputs')}:</span> {flows(index, step.inputs, lang, t)}</p>}
       {step.byproducts.length > 0 && <p className="text-sm"><span className="text-muted">{t('planner.byproducts')}:</span> {flows(index, step.byproducts, lang, t)}</p>}
-    </li>
+    </Tag>
   );
 }
 
