@@ -7,7 +7,8 @@ import type { MachineData } from '../../src/shared/machines.js';
 import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { machineWikiFeature, machineWikiTool } from '../../src/web/features/machineWiki/index.js';
-import { MachineWikiHeaderItem } from '../../src/web/features/machineWiki/MachineWikiDialog.js';
+import { MachineWikiHost } from '../../src/web/features/machineWiki/MachineWikiDialog.js';
+import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
 import { useMachineWiki } from '../../src/web/features/machineWiki/useMachineWiki.js';
 import { stubFetch } from './fetchStub.js';
 
@@ -82,7 +83,7 @@ function setup(data: 'present' | 'missing') {
   const { calls } = stubFetch(data === 'present' ? { 'GET /data/test/machines.json': { body: DATA } } : {});
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ctx: WorldCtx = { worldId: W, world: WORLD, me: ME, index: indexDataset(DS), queryClient: client, navigate: () => {}, toast: { show: () => {} } };
-  render(<QueryClientProvider client={client}><MachineWikiHeaderItem ctx={ctx} /></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><ToolButton tool={machineWikiTool} ctx={ctx} /><MachineWikiHost ctx={ctx} /></QueryClientProvider>);
   return { calls };
 }
 
@@ -100,9 +101,10 @@ describe('machine wiki', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('is a header item of its own feature and has a tool definition for the tools navigation', () => {
-    expect(machineWikiFeature.headerItems?.map(h => h.id)).toEqual(['machine-wiki']);
-    expect(machineWikiTool).toMatchObject({ id: 'machine-wiki', labelKey: 'machineWiki.open', hintKey: 'machineWiki.openHint' });
+  it('is a tool that opens a dialog, and the dialog is a header item', () => {
+    expect(machineWikiFeature.tools).toEqual([machineWikiTool]);
+    expect(machineWikiFeature.headerItems?.map(h => h.id)).toEqual(['machine-wiki-dialog']);
+    expect(machineWikiTool).toMatchObject({ id: 'machine-wiki', labelKey: 'machineWiki.open', hintKey: 'machineWiki.openHint', action: true });
   });
 
   it('loads the data only when opened and lists the entries grouped by category', async () => {

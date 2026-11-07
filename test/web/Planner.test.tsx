@@ -8,7 +8,9 @@ import { collect, type WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { FEATURES } from '../../src/web/features/index.js';
 import { matchItems } from '../../src/web/features/planner/ItemPicker.js';
-import { PlannerButton, PlannerDialog } from '../../src/web/features/planner/PlannerHost.js';
+import { PlannerDialog } from '../../src/web/features/planner/PlannerHost.js';
+import { plannerTool } from '../../src/web/features/planner/index.js';
+import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
 import { loadPlanner, usePlanner } from '../../src/web/features/planner/usePlanner.js';
 import { RECIPE_DATA } from '../fixtures/recipeData.js';
 import { stubFetch } from './fetchStub.js';
@@ -26,7 +28,7 @@ function setup(recipes: 'present' | 'missing' = 'present') {
   const ctx: WorldCtx = { worldId: W, world: WORLD, me: ME, index, queryClient: client, navigate: () => {}, toast: { show: () => {} } };
   render(
     <QueryClientProvider client={client}>
-      <PlannerButton ctx={ctx} />
+      <ToolButton tool={plannerTool} ctx={ctx} />
       <PlannerDialog ctx={ctx} />
     </QueryClientProvider>,
   );
@@ -50,17 +52,18 @@ describe('production planner', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('is registered as header items: the button and the dialog', () => {
-    expect(collect(FEATURES, 'headerItems').filter(h => h.id.startsWith('planner')).map(h => h.id)).toEqual(['planner-button', 'planner-dialog']);
+  it('is a tool that opens a dialog, and the dialog is a header item', () => {
+    expect(collect(FEATURES, 'tools').filter(tl => tl.id === 'planner')).toEqual([plannerTool]);
+    expect(plannerTool.action).toBe(true);
+    expect(collect(FEATURES, 'headerItems').filter(h => h.id.startsWith('planner')).map(h => h.id)).toEqual(['planner-dialog']);
   });
 
-  it('opens and closes from the header button and loads the recipes only when opened', async () => {
+  it('opens from its tool, closes, and loads the recipes only when opened', async () => {
     const { calls } = setup();
     const button = screen.getByRole('button', { name: 'Planner' });
-    expect(button).toHaveAttribute('aria-pressed', 'false');
     expect(calls).toEqual([]);
     await userEvent.click(button);
-    expect(button).toHaveAttribute('aria-pressed', 'true');
+    expect(usePlanner.getState().visible).toBe(true);
     expect(await screen.findByRole('heading', { name: 'Production planner' })).toBeInTheDocument();
     await screen.findByRole('combobox', { name: 'Item 1' });
     expect(calls.map(c => c.path)).toEqual(['/data/test/recipes.json']);

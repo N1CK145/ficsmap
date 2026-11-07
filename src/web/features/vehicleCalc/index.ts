@@ -1,16 +1,27 @@
-import type { FeatureModule } from '../../app/feature.js';
-import { VehicleCalcHeaderItem } from './VehicleCalcDialog.js';
+import type { FeatureModule, Tool } from '../../app/feature.js';
+import { useVehicleCalc } from './useVehicleCalc.js';
+import { VehicleCalcHost } from './VehicleCalcDialog.js';
 
 export { VehicleCalcDialog } from './VehicleCalcDialog.js';
 export { useVehicleCalc } from './useVehicleCalc.js';
 
+/** "Vehicles" in the tool navigation: opens the calculator. */
+export const vehicleCalcTool: Tool = {
+  id: 'vehicle-calc', order: 50, labelKey: 'vehicleCalc.open', hintKey: 'vehicleCalc.openHint', action: true,
+  useTool: () => {
+    const show = useVehicleCalc(s => s.show);
+    return { available: true, run: () => show() };
+  },
+};
+
 /**
  * Vehicle calculator: vehicles needed for a throughput on a route, or the throughput of a number of
  * vehicles, from the dataset's `transport.json`. Self-contained: its own open state (`useVehicleCalc`)
- * and dialog; for now opened from a header button. A tools menu can open it with
- * `useVehicleCalc.getState().show(routeMeters?)` and render `<VehicleCalcDialog version=... />`.
+ * and dialog (a header item, so it renders in the top layer), opened from the tool navigation; anything
+ * else can open it with `useVehicleCalc.getState().show(routeMeters?)`.
  */
 export const vehicleCalcFeature: FeatureModule = {
   id: 'vehicleCalc',
-  headerItems: [{ id: 'vehicle-calc', order: 35, Component: VehicleCalcHeaderItem }],
+  tools: [vehicleCalcTool],
+  headerItems: [{ id: 'vehicle-calc-dialog', order: 1000, Component: VehicleCalcHost }],
 };

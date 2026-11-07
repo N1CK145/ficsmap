@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
 import type { WorldCtx } from '../../app/feature.js';
-import { Button } from '../../components/Button.js';
 import { Dialog } from '../../components/Dialog.js';
 import { useTransportData, useVehicleCalc } from './useVehicleCalc.js';
 import { VehicleCalculator } from './VehicleCalculator.js';
@@ -23,14 +22,7 @@ export function VehicleCalcDialog({ version }: { version: string }) {
   );
 }
 
-/** Header button that opens the calculator, plus the dialog itself (it renders in the top layer). */
-export function VehicleCalcHeaderItem({ ctx }: { ctx: WorldCtx }) {
-  const { t } = useTranslation();
-  const show = useVehicleCalc(s => s.show);
-  return (
-    <>
-      <Button size="sm" title={t('vehicleCalc.openHint')} onClick={() => show()}>{t('vehicleCalc.open')}</Button>
-      <VehicleCalcDialog version={ctx.me.datasetVersion} />
-    </>
-  );
+/** The dialog for the world's dataset version, as a header item (it renders in the top layer). */
+export function VehicleCalcHost({ ctx }: { ctx: WorldCtx }) {
+  return <VehicleCalcDialog version={ctx.me.datasetVersion} />;
 }

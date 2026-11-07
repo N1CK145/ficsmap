@@ -1,23 +1,23 @@
-import type { FeatureModule } from '../../app/feature.js';
-import { PlannerButton, PlannerDialog } from './PlannerHost.js';
+import type { FeatureModule, Tool } from '../../app/feature.js';
+import { PlannerDialog } from './PlannerHost.js';
 import { usePlanner } from './usePlanner.js';
 
-/**
- * The tool description for the header's tool navigation (feature/search): once that extension point
- * exists, replace the `planner-button` header item with `tools: [toggleTool(PLANNER_TOOL)]`.
- */
-export const PLANNER_TOOL = { id: 'planner', order: 60, labelKey: 'planner.button', hintKey: 'planner.hint', useToggle: usePlanner } as const;
+/** "Planner" in the tool navigation: opens the planner. */
+export const plannerTool: Tool = {
+  id: 'planner', order: 40, labelKey: 'planner.button', hintKey: 'planner.hint', action: true,
+  useTool: () => {
+    const open = usePlanner(s => s.open);
+    return { available: true, run: open };
+  },
+};
 
 /**
  * Production planner: the chain from target items and rates down to miners and pumps, with machines,
- * recipes (alternates selectable), by-products and power. Needs `recipes.json` in the dataset.
- * For now a header button (`headerItems`) opens it; the dialog is a header item of its own so it
- * stays when the button moves into the tool navigation.
+ * recipes (alternates selectable), by-products and power. Needs `recipes.json` in the dataset. Opened from
+ * the tool navigation; the dialog is a header item so it renders in the top layer.
  */
 export const plannerFeature: FeatureModule = {
   id: 'planner',
-  headerItems: [
-    { id: 'planner-button', order: 60, Component: PlannerButton },
-    { id: 'planner-dialog', order: 1000, Component: PlannerDialog },
-  ],
+  tools: [plannerTool],
+  headerItems: [{ id: 'planner-dialog', order: 1000, Component: PlannerDialog }],
 };

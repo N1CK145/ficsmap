@@ -68,6 +68,27 @@ describe('ToolsNav', () => {
     expect(within(nav).getByRole('button', { name: 'Retry' })).not.toHaveAttribute('aria-pressed');
   });
 
+  it('lists tools that open something of their own (action) in a Tools menu next to the switches on wide screens', async () => {
+    stubMatchMedia({ [WIDE_QUERY]: true });
+    const dialogTool: Tool = { id: 'planner', order: 50, labelKey: 'common.close', action: true, useTool: () => ({ available: true, run: () => ran.push('planner') }) };
+    const ctx: WorldCtx = {
+      worldId: W, world: {} as WorldDto, me: ME, index: indexDataset({ version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true, biomes: [], items: [], aliases: {} }),
+      queryClient: new QueryClient(), navigate: () => {}, toast: { show: () => {} },
+    };
+    render(
+      <QueryClientProvider client={ctx.queryClient}>
+        <FeaturesProvider features={[nodesFeature, { id: 'planner', tools: [dialogTool] }]}><ToolsNav ctx={ctx} mobile={false} /></FeaturesProvider>
+      </QueryClientProvider>,
+    );
+    const nav = screen.getByRole('navigation', { name: 'Tools' });
+    expect(within(nav).queryByRole('button', { name: 'Close' })).toBeNull();
+    const menuButton = within(nav).getByRole('button', { name: 'Tools' });
+    expect(within(nav).getAllByRole('button').map(b => b.textContent)).toEqual(['Caves', 'Tools']);
+    await userEvent.click(menuButton);
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Close' }));
+    expect(ran).toEqual(['planner']);
+  });
+
   it('hides a tool that is not available', () => {
     stubMatchMedia({ [WIDE_QUERY]: true });
     nodesAvailable = false;

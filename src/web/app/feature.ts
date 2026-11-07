@@ -57,6 +57,11 @@ export interface Tool {
   icon?: ReactNode;
   /** `aria-keyshortcuts`, e.g. "Q"; the feature handles the key itself. */
   shortcut?: string;
+  /**
+   * Opens something of its own (a dialog such as the planner) instead of switching the map. On wide screens
+   * such tools are listed in the Tools menu next to the map switches' buttons, so the top bar stays short.
+   */
+  action?: boolean;
   /** A hook, called by the tool's own button component on every render. */
   useTool(ctx: WorldCtx): ToolState;
 }

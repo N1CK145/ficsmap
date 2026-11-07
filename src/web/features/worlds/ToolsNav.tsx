@@ -25,8 +25,9 @@ function ToolsIcon() {
 
 /**
  * The tool navigation in the top bar: every feature's `tools` (map layers such as Caves and Heights,
- * Quick Check, ...). Wide screens get a button per tool, filled while a switch is on; narrower ones
- * and phones get one "Tools" menu with the same entries.
+ * Quick Check, ...). Wide screens get a button per map switch, filled while it is on, and one "Tools" menu
+ * for the tools that open something of their own (`action`: planner, vehicle calculator, machine wiki);
+ * narrower screens and phones get one "Tools" menu with every entry.
  */
 export function ToolsNav({ ctx, mobile }: { ctx: WorldCtx; mobile: boolean }) {
   const { t } = useTranslation();
@@ -35,9 +36,11 @@ export function ToolsNav({ ctx, mobile }: { ctx: WorldCtx; mobile: boolean }) {
   const wide = useMediaQuery(WIDE_QUERY);
   if (tools.length === 0) return null;
   if (mobile || !wide) return <ToolsMenu ctx={ctx} tools={tools} iconOnly={mobile} />;
+  const actions = tools.filter(tool => tool.action);
   return (
     <nav aria-label={t('tools.label')} className="flex shrink-0 items-center gap-1.5">
-      {tools.map(tool => <ToolButton key={tool.id} tool={tool} ctx={ctx} />)}
+      {tools.filter(tool => !tool.action).map(tool => <ToolButton key={tool.id} tool={tool} ctx={ctx} />)}
+      {actions.length > 0 && <ToolsMenu ctx={ctx} tools={actions} iconOnly={false} />}
     </nav>
   );
 }

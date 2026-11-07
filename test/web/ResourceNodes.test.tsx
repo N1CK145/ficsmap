@@ -15,7 +15,7 @@ import {
 } from '../../src/web/features/resourceNodes/drawNode.js';
 import { resourceNodesFeature } from '../../src/web/features/resourceNodes/index.js';
 import { NodeCanvasLayer } from '../../src/web/features/resourceNodes/NodeCanvasLayer.js';
-import { ResourceNodeControl } from '../../src/web/features/resourceNodes/ResourceNodeControl.js';
+import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
 import { extractorTag, ResourceNodeLayer } from '../../src/web/features/resourceNodes/ResourceNodeLayer.js';
 import { ResourceNodesPanel } from '../../src/web/features/resourceNodes/ResourceNodesPanel.js';
 import { sortResources } from '../../src/web/features/resourceNodes/resourceStyle.js';
@@ -69,10 +69,11 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe('ResourceNodeControl', () => {
+describe('resource node switch in the tool navigation', () => {
+  const tool = resourceNodesFeature.tools![0]!;
   it('toggles the layer and remembers it per device', async () => {
     const { ctx, wrap } = setup();
-    wrap(<ResourceNodeControl ctx={ctx} />);
+    wrap(<ToolButton tool={tool} ctx={ctx} />);
     const button = await screen.findByRole('button', { name: 'Resources' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
     await userEvent.click(button);
@@ -82,7 +83,7 @@ describe('ResourceNodeControl', () => {
 
   it('is not shown for a dataset without resource nodes', async () => {
     const { ctx, wrap, calls } = setup({ file: false });
-    const { container } = wrap(<ResourceNodeControl ctx={ctx} />);
+    const { container } = wrap(<ToolButton tool={tool} ctx={ctx} />);
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(container).toBeEmptyDOMElement();
   });

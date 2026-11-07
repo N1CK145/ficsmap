@@ -6,9 +6,10 @@ import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
 import type { TransportData } from '../../src/shared/transport.js';
 import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
-import { vehicleCalcFeature } from '../../src/web/features/vehicleCalc/index.js';
+import { vehicleCalcFeature, vehicleCalcTool } from '../../src/web/features/vehicleCalc/index.js';
 import { EMPTY_FORM, useVehicleCalc } from '../../src/web/features/vehicleCalc/useVehicleCalc.js';
-import { VehicleCalcHeaderItem } from '../../src/web/features/vehicleCalc/VehicleCalcDialog.js';
+import { VehicleCalcHost } from '../../src/web/features/vehicleCalc/VehicleCalcDialog.js';
+import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
 import { findItem } from '../../src/web/features/vehicleCalc/VehicleCalculator.js';
 import { stubFetch } from './fetchStub.js';
 
@@ -49,7 +50,7 @@ function setup(data: 'present' | 'missing') {
   const { calls } = stubFetch(data === 'present' ? { 'GET /data/test/transport.json': { body: DATA } } : {});
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ctx: WorldCtx = { worldId: W, world: WORLD, me: ME, index: indexDataset(DS), queryClient: client, navigate: () => {}, toast: { show: () => {} } };
-  render(<QueryClientProvider client={client}><VehicleCalcHeaderItem ctx={ctx} /></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><ToolButton tool={vehicleCalcTool} ctx={ctx} /><VehicleCalcHost ctx={ctx} /></QueryClientProvider>);
   return { calls };
 }
 
@@ -69,8 +70,10 @@ describe('vehicle calculator', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('is a header item of its own feature', () => {
-    expect(vehicleCalcFeature.headerItems?.map(h => h.id)).toEqual(['vehicle-calc']);
+  it('is a tool that opens a dialog, and the dialog is a header item', () => {
+    expect(vehicleCalcFeature.tools).toEqual([vehicleCalcTool]);
+    expect(vehicleCalcTool.action).toBe(true);
+    expect(vehicleCalcFeature.headerItems?.map(h => h.id)).toEqual(['vehicle-calc-dialog']);
   });
 
   it('loads the vehicle data only when opened, and computes the trucks needed in stacks without an item', async () => {

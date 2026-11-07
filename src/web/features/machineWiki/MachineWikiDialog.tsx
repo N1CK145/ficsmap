@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
 import type { WorldCtx } from '../../app/feature.js';
-import { Button } from '../../components/Button.js';
 import { Dialog } from '../../components/Dialog.js';
 import { MachineWiki } from './MachineWiki.js';
 import { useMachineData, useMachineWiki } from './useMachineWiki.js';
@@ -20,14 +19,7 @@ export function MachineWikiDialog({ version }: { version: string }) {
   );
 }
 
-/** Header button that opens the wiki, plus the dialog itself (it renders in the top layer). */
-export function MachineWikiHeaderItem({ ctx }: { ctx: WorldCtx }) {
-  const { t } = useTranslation();
-  const show = useMachineWiki(s => s.show);
-  return (
-    <>
-      <Button size="sm" title={t('machineWiki.openHint')} onClick={() => show()}>{t('machineWiki.open')}</Button>
-      <MachineWikiDialog version={ctx.me.datasetVersion} />
-    </>
-  );
+/** The dialog for the world's dataset version, as a header item (it renders in the top layer). */
+export function MachineWikiHost({ ctx }: { ctx: WorldCtx }) {
+  return <MachineWikiDialog version={ctx.me.datasetVersion} />;
 }
