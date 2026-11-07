@@ -74,4 +74,82 @@ describe('import api', () => {
     for (let i = 0; i < 6; i++) expect((await post(member, body([]))).statusCode).toBe(403);
     expect((await post(owner, body([]))).statusCode).toBe(200);
   });
+
+  describe('resource nodes', () => {
+    const nodes = {
+      overrides: [['BP_ResourceNode1', 'Desc_Coal_C', null], ['BP_ResourceNode2', null, 'pure']],
+      settings: { randomization: 'NRM_BasicReach', purity: null, seed: 42 },
+    };
+    const get = (t: Awaited<ReturnType<typeof setup>>, cookie: string, id = t.world.id) =>
+      t.app.inject({ url: `/api/worlds/${id}/resource-nodes`, headers: { cookie } });
+
+    it('a world without an import has none', async () => {
+      const t = await setup();
+      expect((await get(t, t.member)).json()).toEqual({ overrides: [], settings: null, extractors: [] });
+    });
+
+    it('the import stores them, members read them, and the next import with node data replaces them', async () => {
+      const t = await setup();
+      expect((await t.post(t.owner, { ...body([]), resourceNodes: nodes })).statusCode).toBe(200);
+      expect((await get(t, t.member)).json()).toEqual({ ...nodes, extractors: [] });
+      // An older client sends no node data: the world keeps what it has.
+      expect((await t.post(t.owner, body([]))).statusCode).toBe(200);
+      expect((await get(t, t.member)).json()).toEqual({ ...nodes, extractors: [] });
+      // A save without overrides describes a world with default nodes.
+      expect((await t.post(t.owner, { ...body([]), resourceNodes: { overrides: [], settings: null } })).statusCode).toBe(200);
+      expect((await get(t, t.owner)).json()).toEqual({ overrides: [], settings: null, extractors: [] });
+    });
+
+    it('stores the extractors, replaces them on the next import that sends them, and keeps them otherwise', async () => {
+      const t = await setup();
+      // In the order the server returns them: by node, then as sent.
+      const extractors = [
+        ['BP_FrackingSatellite3', 'well', 1, 0],
+        ['BP_ResourceNode1', 'miner2', 2.25, 3], ['BP_ResourceNode1', 'portable', null, null], ['BP_ResourceNode1', 'portable', null, null],
+        ['BP_ResourceNodeGeyser2', 'geothermal', null, null],
+      ];
+      expect((await t.post(t.owner, { ...body([]), resourceNodes: { ...nodes, extractors } })).statusCode).toBe(200);
+      expect((await get(t, t.member)).json()).toEqual({ ...nodes, extractors });
+      // Node data without extractors (an older client): the extractors stay.
+      expect((await t.post(t.owner, { ...body([]), resourceNodes: nodes })).statusCode).toBe(200);
+      expect((await get(t, t.member)).json().extractors).toEqual(extractors);
+      // A newer save with fewer extractors replaces the set.
+      expect((await t.post(t.owner, { ...body([]), resourceNodes: { ...nodes, extractors: [['BP_ResourceNode1', 'miner3', 1.5, 1]] } })).statusCode).toBe(200);
+      expect((await get(t, t.member)).json().extractors).toEqual([['BP_ResourceNode1', 'miner3', 1.5, 1]]);
+      expect((await t.post(t.owner, { ...body([]), resourceNodes: { ...nodes, extractors: [] } })).statusCode).toBe(200);
+      expect((await get(t, t.member)).json().extractors).toEqual([]);
+    });
+
+    it('non-members get 404', async () => {
+      const t = await setup();
+      const stranger = await (async () => { t.createUser('stranger'); return t.login('stranger'); })();
+      expect((await get(t, stranger)).statusCode).toBe(404);
+    });
+
+    it('rejects bad node data with 400', async () => {
+      const t = await setup();
+      for (const bad of [
+        { overrides: [['N1', null, 'shiny']], settings: null },
+        { overrides: [['bad name!', 'Desc_Coal_C', null]], settings: null },
+        { overrides: [], settings: { randomization: '<script>', purity: null, seed: null } },
+        { overrides: Array.from({ length: 2001 }, (_, i) => [`N${i}`, null, 'pure']), settings: null },
+      ]) {
+        const res = await t.post(t.owner, { ...body([]), resourceNodes: bad });
+        expect(res.statusCode, JSON.stringify(bad).slice(0, 80)).toBe(400);
+      }
+    });
+
+    // Split in two: the import route allows six requests per hour.
+    it.each([
+      [[['N1', 'drill', 1, 0]], [['N1', 'miner1', 2.6, 0]], [['N1', 'miner1', -1, 0]], [['N1', 'miner1', 1, 4]]],
+      [[['N1', 'miner1', 1, 1.5]], [['bad name!', 'miner1', 1, 0]], [['N1', 'miner1', 1, 0, 'raw save data']],
+        Array.from({ length: 2001 }, (_, i) => [`N${i}`, 'portable', null, null])],
+    ])('rejects bad extractors with 400 (%#)', async (...cases) => {
+      const t = await setup();
+      for (const extractors of cases) {
+        const res = await t.post(t.owner, { ...body([]), resourceNodes: { overrides: [], settings: null, extractors } });
+        expect(res.statusCode, JSON.stringify(extractors).slice(0, 80)).toBe(400);
+      }
+    });
+  });
 });

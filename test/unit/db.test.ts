@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { openDb } from '../../src/server/db/db.js';
-import { MIGRATIONS } from '../../src/server/db/migrations.js';
+import { migrate, MIGRATIONS } from '../../src/server/db/migrations.js';
 
 describe('openDb', () => {
   it('migrates to the latest user_version', () => {
@@ -35,5 +35,25 @@ describe('openDb', () => {
     const ins = db.prepare("INSERT INTO worlds(id, name, owner_id, dataset_version, created_at) VALUES (?, 'w', 1, 'v', 0)");
     expect(() => ins.run('x'.repeat(35))).toThrow(/CHECK/);
     expect(() => ins.run('x'.repeat(36))).not.toThrow();
+  });
+
+  it('migration 3 adds the resource node extractors to a database at version 2 and drops them with their world', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ficsmap-db-'));
+    const raw = new Database(join(dir, 'app.db'));
+    raw.pragma('foreign_keys = ON');
+    for (let i = 0; i < 2; i++) raw.exec(MIGRATIONS[i]!);
+    raw.pragma('user_version = 2');
+    raw.prepare("INSERT INTO users(id, display_name, created_at, last_login_at) VALUES (1,'a',0,0)").run();
+    const id = 'w'.repeat(36);
+    raw.prepare("INSERT INTO worlds(id, name, owner_id, dataset_version, created_at) VALUES (?, 'w', 1, 'v', 0)").run(id);
+    migrate(raw);
+    expect(raw.pragma('user_version', { simple: true })).toBe(MIGRATIONS.length);
+    const ins = raw.prepare('INSERT INTO resource_node_extractors(world_id, node, seq, kind, clock, shards) VALUES (?, ?, ?, ?, ?, ?)');
+    ins.run(id, 'BP_ResourceNode1', 0, 'miner2', 2.25, 3);
+    ins.run(id, 'BP_ResourceNode1', 1, 'portable', null, null);
+    expect(() => ins.run(id, 'BP_ResourceNode1', 1, 'portable', null, null)).toThrow(/UNIQUE/);
+    raw.prepare('DELETE FROM worlds WHERE id = ?').run(id);
+    expect(raw.prepare('SELECT count(*) AS n FROM resource_node_extractors').get()).toEqual({ n: 0 });
+    raw.close();
   });
 });

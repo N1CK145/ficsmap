@@ -1,0 +1,11 @@
+{"gameVersion":"1.0.0.0",
+"resourceNodes":[
+{"name":"BP_ResourceNode1","location":[10000.4,20000.6,100],"resource":"Desc_OreIron_C","purity":"RP_Inpure"},
+{"name":"BP_ResourceNode2","location":[30000,20000,100],"resource":"Desc_OreIron_C","purity":"RP_Pure"},
+{"name":"BP_ResourceNode3","location":[60000,70000,100],"resource":"Desc_Coal_C","purity":"RP_Normal"}
+],
+"geysers":[{"name":"BP_ResourceNodeGeyser_C_UAID_1","location":[50000,50000,-10],"purity":"RP_Normal"}],
+"frackingCores":[{"name":"BP_FrackingCore1","location":[80000,20000,500],"resource":"Desc_Water_C","satellites":[
+{"name":"BP_FrackingSatellite1","location":[80500,20000,500],"purity":"RP_Pure"},
+{"name":"BP_FrackingSatellite2","location":[79500,20000,500],"purity":"RP_Inpure"}
+]}]}

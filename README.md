@@ -41,7 +41,7 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 
 - You sign in with Discord. ficsmap reads your Discord ID, name and avatar. The Discord access token is used once and never stored.
 - Accounts are invite-only. A new account is created only for a Discord ID listed in `OWNER_DISCORD_IDS` or for someone who opens a valid invite link.
-- **Your save file never leaves your browser.** It is parsed locally in a Web Worker. Only the list of collected item names (for example `BP_Crystal_mk29`) is sent to the server, together with the file name and the session name, save time and game build from the save header.
+- **Your save file never leaves your browser.** It is parsed locally in a Web Worker. Only the list of collected item names (for example `BP_Crystal_mk29`) is sent to the server, together with the file name and the session name, save time and game build from the save header, and for resource nodes: the resource or purity the save sets per node (randomised worlds), the node randomisation settings, and which extractor stands on which node (building type, node name, clock speed, number of Power Shards).
 - Ticks, routes and members are stored in a SQLite database on the server you run.
 
 ## Self-hosting
@@ -147,7 +147,7 @@ Set `TRUST_PROXY` to the IP address the proxy connects from.
 
 The map dataset is **not** part of this repository or the Docker image, because it consists of Coffee Stain Studios' game assets. You build it yourself from your own game installation and mount it into the container (`./dataset:/app/data:ro`). The app uses the one version directory it finds there; if there is more than one, set `DATASET_VERSION` in `.env`.
 
-A dataset directory `<game-version>/` contains `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/` and `icons/`, optionally `caves.geojson` (cave outlines and entrances; a dataset built without caves offers no cave layer) and `height/` (height map tiles; without it the coordinates show no height).
+A dataset directory `<game-version>/` contains `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/` and `icons/`, optionally `caves.geojson` (cave outlines and entrances; a dataset built without caves offers no cave layer) `height/` (height map tiles; without it the coordinates show no height) and `resource-nodes.json` (resource nodes, geysers and resource wells; without it there is no resource node layer).
 
 To build one:
 
@@ -159,7 +159,7 @@ To build one:
    npm run dataset -- --extractor <extractor-output-dir> --data-src <dir> --out data/1.2.4.1
    ```
 
-   `--data-src` points to a folder with `biomes/biomes.editor.geojson`, `biomes/calibration.json` and `crash-sites/crash-sites.json`. If the extractor output contains `caves.json` and `cave-geometry/` (or you pass `--caves <file> --cave-geometry <dir>`), the build samples the caves, writes `caves.geojson` and marks items that lie in a cave. If it contains `heightmap/` (or you pass `--heightmap <dir>`), the build writes the height map tiles to `height/`. If it contains `map-areas/` (or you pass `--map-areas <dir>`), the biomes come from the game's map areas and the editor polygons in `--data-src` are not used.
+   `--data-src` points to a folder with `biomes/biomes.editor.geojson`, `biomes/calibration.json` and `crash-sites/crash-sites.json`. If the extractor output contains `caves.json` and `cave-geometry/` (or you pass `--caves <file> --cave-geometry <dir>`), the build samples the caves, writes `caves.geojson` and marks items that lie in a cave. If it contains `heightmap/` (or you pass `--heightmap <dir>`), the build writes the height map tiles to `height/`. If it contains `default-world.json` (the extractor's `--out` file, or `--default-world <file>`), the build writes `resource-nodes.json`. If it contains `map-areas/` (or you pass `--map-areas <dir>`), the biomes come from the game's map areas and the editor polygons in `--data-src` are not used.
 3. Copy `data/1.2.4.1/` into the `dataset/` directory next to your `docker-compose.yml`.
 
 **Current limitation:** the crash-site data are maintainer data and are not published. With the extractor output (including `map-areas/`) you get the tiles, icons, collectible positions and biomes, but the crash-site layer needs a source of your own in the format above. `--data-src` still has to provide the biome editor files, even though they are unused when `map-areas/` exists.

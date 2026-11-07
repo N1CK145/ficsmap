@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
-import { buildCrashSites, buildDataset, BuildError, loadExtractorDir, type BuildInput } from '../../scripts/build-dataset.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { buildCrashSites, buildDataset, BuildError, buildResourceNodes, loadExtractorDir, type BuildInput } from '../../scripts/build-dataset.js';
 
 const dir = fileURLToPath(new URL('../fixtures/extractor-mini', import.meta.url));
 const base = (): BuildInput => structuredClone(loadExtractorDir(dir));
@@ -184,3 +186,61 @@ describe('caves', () => {
   });
 });
 
+
+describe('resource nodes', () => {
+  const world = () => JSON.parse(readFileSync(join(dir, 'default-world.json'), 'utf8')) as {
+    resourceNodes: { name: string; location: number[]; resource: string; purity: string }[];
+    frackingCores: { satellites: unknown[] }[];
+  };
+  const names = () => base().itemNames;
+  const build = (raw: unknown, itemNames = names()) => buildResourceNodes(raw, itemNames, 'fallback');
+  function failsNodes(raw: unknown, re: RegExp, itemNames = names()) {
+    try { build(raw, itemNames); } catch (e) {
+      expect(e).toBeInstanceOf(BuildError);
+      expect((e as BuildError).problems.join('\n')).toMatch(re);
+      return;
+    }
+    throw new Error('expected BuildError');
+  }
+
+  it('writes nodes, geysers, cores and satellites with purity and rounded positions', () => {
+    const f = build(world());
+    expect(f.version).toBe('1.0.0.0');
+    expect(f.resources).toEqual([
+      { id: 'Desc_Coal_C', name: 'Coal' }, { id: 'Desc_OreIron_C', name: 'Iron Ore' }, { id: 'Desc_Water_C', name: 'Water' }, { id: 'Geyser', name: 'Geyser' },
+    ]);
+    expect(f.nodes).toEqual([
+      ['BP_ResourceNode1', 'node', 'Desc_OreIron_C', 'impure', 10000, 20001, 100],
+      ['BP_ResourceNode2', 'node', 'Desc_OreIron_C', 'pure', 30000, 20000, 100],
+      ['BP_ResourceNode3', 'node', 'Desc_Coal_C', 'normal', 60000, 70000, 100],
+      ['BP_ResourceNodeGeyser_C_UAID_1', 'geyser', 'Geyser', 'normal', 50000, 50000, -10],
+      ['BP_FrackingCore1', 'core', 'Desc_Water_C', null, 80000, 20000, 500],
+      ['BP_FrackingSatellite1', 'satellite', 'Desc_Water_C', 'pure', 80500, 20000, 500, 'BP_FrackingCore1'],
+      ['BP_FrackingSatellite2', 'satellite', 'Desc_Water_C', 'impure', 79500, 20000, 500, 'BP_FrackingCore1'],
+    ]);
+  });
+  it('takes the dataset version when the file has none', () => {
+    const w = world() as { gameVersion?: string };
+    delete w.gameVersion;
+    expect(build(w).version).toBe('fallback');
+  });
+  it('fails on an unknown purity', () => {
+    const w = world(); w.resourceNodes[0]!.purity = 'RP_Shiny';
+    failsNodes(w, /BP_ResourceNode1 has an unknown purity "RP_Shiny"/);
+  });
+  it('fails on a resource without a display name', () => {
+    failsNodes(world(), /Resource Desc_Coal_C .*item-names\.json/, { Desc_OreIron_C: 'Iron Ore', Desc_Water_C: 'Water' });
+  });
+  it('fails on duplicate names and bad locations', () => {
+    const w = world();
+    w.resourceNodes.push({ ...w.resourceNodes[0]! });
+    w.resourceNodes[1]!.location = [1, 2];
+    failsNodes(w, /Duplicate resource node name BP_ResourceNode1/);
+    failsNodes(w, /BP_ResourceNode2 has no valid location/);
+  });
+  it('fails on a well without satellites and on an empty file', () => {
+    const w = world(); w.frackingCores[0]!.satellites = [];
+    failsNodes(w, /BP_FrackingCore1 has no satellites/);
+    failsNodes({}, /no resource nodes/);
+  });
+});

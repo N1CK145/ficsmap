@@ -28,6 +28,25 @@
   /* Cave layer: areas (drawn translucent) and the ring around entrances. */
   --color-cave: #E8DD55;
 
+  /* Resource node layer, per resource (features/resourceNodes/resourceStyle.ts). Colour is the second cue:
+     every node also has its short label and 1-3 purity pips. Dark fills get a light ring and label. */
+  --color-res-iron: #A9B6C6;
+  --color-res-copper: #E0905C;
+  --color-res-limestone: #E6D7B4;
+  --color-res-coal: #4A4A55;
+  --color-res-caterium: #E8B931;
+  --color-res-quartz: #F2A7C8;
+  --color-res-sulfur: #C9DB3E;
+  --color-res-bauxite: #A9472F;
+  --color-res-uranium: #6BE05A;
+  --color-res-sam: #9A5CF0;
+  --color-res-oil: #2A2430;
+  --color-res-water: #3FA9F5;
+  --color-res-nitrogen: #B5EEF5;
+  --color-res-geyser: #F2683C;
+  /* Power Shards in an extractor (diamonds next to its tag on the resource node layer). */
+  --color-shard: #7FD4FF;
+
   --font-display: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
 
   /* One radius for everything: bare `rounded` (Tailwind v4 reads the unsuffixed --radius key). */

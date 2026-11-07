@@ -113,6 +113,123 @@
     "legend": "Höhe (höchster Punkt)",
     "metres": "{value} m"
   },
+  "resourceNodes": {
+    "title": "Rohstoffvorkommen",
+    "control": "Ressourcen",
+    "hint": "Rohstoffvorkommen, Geysire und Rohstoffquellen zeigen (aus den Spieldaten und dem letzten Spielstand-Import)",
+    "show": "Auf der Karte zeigen",
+    "on": "An",
+    "off": "Aus",
+    "none": "Dieser Kartendatensatz enthält keine Rohstoffvorkommen.",
+    "resource": "Ressource",
+    "resourceHint": "Klicken zum Ein- oder Ausblenden · Alt-Klick, um nur diese Ressource zu zeigen",
+    "all": "Alle",
+    "noneShown": "Keine",
+    "purityLabel": "Reinheit",
+    "count": "{count, number}",
+    "purity": {
+      "impure": "Unrein",
+      "normal": "Normal",
+      "pure": "Rein"
+    },
+    "kinds": {
+      "node": "Rohstoffvorkommen",
+      "geyser": "Geysir",
+      "core": "Rohstoffquelle (Mitte)",
+      "satellite": "Unterknoten einer Rohstoffquelle"
+    },
+    "fromSave": "Aus dem Spielstand-Import. Standardkarte: {resource}, {purity}",
+    "changedNote": "{count, plural, one {# Vorkommen weicht} other {# Vorkommen weichen}} von der Standardkarte ab (aus dem letzten Spielstand-Import, mit orangem Punkt markiert).",
+    "randomizedNote": "Diese Welt wurde mit zufälligen Rohstoffvorkommen gestartet ({mode}), aber der Spielstand enthält keine Vorkommensdaten, die ficsmap lesen kann. Die Karte zeigt die Standardvorkommen.",
+    "importChanged": "{count, plural, one {# Rohstoffvorkommen weicht} other {# Rohstoffvorkommen weichen}} von der Standardkarte ab.",
+    "importRandomized": "Zufällige Rohstoffvorkommen ({mode}): Der Spielstand enthält keine Vorkommensdaten, die ficsmap lesen kann, die Karte behält die Standardvorkommen.",
+    "nodeSettings": {
+      "entry": "{name}: „{value}“",
+      "randomization": "Zufällige Rohstoffvorkommen",
+      "purity": "Reinheit von Rohstoffvorkommen",
+      "randomizationValues": {
+        "NRM_None": "Standard",
+        "NRM_Strict": "Zufällig",
+        "NRM_BasicReach": "Reich: Grundressourcen",
+        "NRM_AdvancedRich": "Reich: Fortgeschrittene Ressourcen",
+        "NRM_FossilFuelRich": "Reich: Fossile Brennstoffe"
+      },
+      "purityValues": {
+        "NPS_NoChange": "Standard",
+        "NPS_AllPure": "Alle rein",
+        "NPS_AllNormal": "Durchschnittlich",
+        "NPS_AllImpure": "Alle unrein",
+        "NPS_AllRandom": "Zufällig",
+        "NPS_Increase": "Hauptsächlich rein",
+        "NPS_Decrease": "Hauptsächlich unrein"
+      }
+    },
+    "extractorsTitle": "Extraktoren (letzter Spielstand-Import)",
+    "occupancyLabel": "Extraktor auf dem Vorkommen",
+    "occupancy": {
+      "all": "Alle",
+      "occupied": "Belegt",
+      "free": "Frei"
+    },
+    "extractorKinds": {
+      "miner1": "Miner Mk.1",
+      "miner2": "Miner Mk.2",
+      "miner3": "Miner Mk.3",
+      "oil": "Ölpumpe",
+      "pressurizer": "Quellenkompressor",
+      "well": "Quellenextraktor",
+      "geothermal": "Geothermie-Generator",
+      "portable": "Mobiler Miner"
+    },
+    "extractorShort": {
+      "miner1": "Mk.1",
+      "miner2": "Mk.2",
+      "miner3": "Mk.3",
+      "oil": "Öl",
+      "pressurizer": "Komp",
+      "well": "Quel",
+      "geothermal": "Geo",
+      "portable": "Mob"
+    },
+    "clock": "Taktrate {value}",
+    "shards": "{count, plural, =0 {Keine Energiefragmente} one {# Energiefragment} other {# Energiefragmente}}",
+    "times": "{name} × {count, number}",
+    "summaryNodes": "{count, plural, one {# Vorkommen} other {# Vorkommen}} mit Extraktor",
+    "summaryShards": "Energiefragmente im Einsatz: {count, number}",
+    "importExtractors": "{count, plural, one {# Extraktor} other {# Extraktoren}} auf Rohstoffvorkommen, mit {shards, plural, one {# Energiefragment} other {# Energiefragmenten}}.",
+    "resources": {
+      "Desc_OreIron_C": "Eisenerz",
+      "Desc_OreCopper_C": "Kupfererz",
+      "Desc_Stone_C": "Kalkstein",
+      "Desc_Coal_C": "Kohle",
+      "Desc_OreGold_C": "Caterium-Erz",
+      "Desc_RawQuartz_C": "Rohquarz",
+      "Desc_Sulfur_C": "Schwefel",
+      "Desc_OreBauxite_C": "Bauxit",
+      "Desc_OreUranium_C": "Uran",
+      "Desc_SAM_C": "SAM",
+      "Desc_LiquidOil_C": "Rohöl",
+      "Desc_Water_C": "Wasser",
+      "Desc_NitrogenGas_C": "Stickstoffgas",
+      "Geyser": "Geysir"
+    },
+    "short": {
+      "Desc_OreIron_C": "Fe",
+      "Desc_OreCopper_C": "Cu",
+      "Desc_Stone_C": "Ka",
+      "Desc_Coal_C": "C",
+      "Desc_OreGold_C": "Ca",
+      "Desc_RawQuartz_C": "Qz",
+      "Desc_Sulfur_C": "S",
+      "Desc_OreBauxite_C": "Bx",
+      "Desc_OreUranium_C": "U",
+      "Desc_SAM_C": "SAM",
+      "Desc_LiquidOil_C": "Öl",
+      "Desc_Water_C": "H₂O",
+      "Desc_NitrogenGas_C": "N₂",
+      "Geyser": "Gy"
+    }
+  },
   "marks": {
     "saveFailed": "Speichern fehlgeschlagen. Prüfe deine Verbindung.",
     "undo": "Rückgängig",
@@ -195,7 +312,7 @@
     "zoomInShort": "Erst vergrößern"
   },
   "import": {
-    "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur die Liste der gesammelten Objekte, dazu Name, Datum und Build des Spielstands.",
+    "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur: die Liste der gesammelten Objekte; Name, Datum und Build des Spielstands; und zu den Rohstoffvorkommen die Ressource oder Reinheit, die dein Spielstand festlegt, sowie welcher Extraktor auf welchem Vorkommen steht (Gebäude, Taktrate, Energiefragmente).",
     "button": "Importieren",
     "title": "Spielstand importieren",
     "chooseFolder": "Spielstand-Ordner wählen",

@@ -49,6 +49,23 @@ CREATE TABLE routes(id TEXT PRIMARY KEY CHECK(length(id) = 36),
       created_at INT NOT NULL, updated_at INT NOT NULL);
 CREATE INDEX routes_world ON routes(world_id);
 `,
+  // 2: resource nodes as the world's last save import reports them (overrides of the default map) and its
+  // node randomisation settings (JSON, NodeSettings).
+  `
+CREATE TABLE resource_node_overrides(world_id TEXT NOT NULL REFERENCES worlds ON DELETE CASCADE,
+      node TEXT NOT NULL, resource TEXT,
+      purity TEXT CHECK(purity IS NULL OR purity IN ('impure','normal','pure')),
+      PRIMARY KEY(world_id, node)) WITHOUT ROWID;
+ALTER TABLE worlds ADD COLUMN node_settings TEXT;
+`,
+  // 3: the extractors standing on resource nodes as the world's last save import reports them: building kind
+  // (ExtractorKind), clock speed (1 = 100 %) and Power Shards, null where the building has none. `seq` numbers
+  // the extractors of one node (several portable miners can share a node). Validated by the import route.
+  `
+CREATE TABLE resource_node_extractors(world_id TEXT NOT NULL REFERENCES worlds ON DELETE CASCADE,
+      node TEXT NOT NULL, seq INT NOT NULL, kind TEXT NOT NULL, clock REAL, shards INT,
+      PRIMARY KEY(world_id, node, seq)) WITHOUT ROWID;
+`,
 ];
 
 export function migrate(db: Db): void {

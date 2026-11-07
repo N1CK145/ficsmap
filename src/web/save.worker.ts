@@ -1,6 +1,7 @@
 import { Parser, SatisfactorySaveHeader, SaveReader } from '@etothepii/satisfactory-file-parser';
 import { indexDataset, type Dataset, type DatasetIndex } from '../shared/dataset.js';
 import { extractCollected, type ExtractResult, type SaveLike } from '../shared/extract.js';
+import { extractResourceNodes, type SaveNodesLike } from '../shared/resourceNodes.js';
 
 /**
  * Save parsing off the main thread (spec §7 steps 2–3): the parser and the extraction run here, and
@@ -37,7 +38,7 @@ export function readSaveHeader(buffer: ArrayBuffer): { sessionName: string; buil
 }
 
 /**
- * Parses a save and extracts its collected items. Stages: reading 0 → parsing 10–90 (the parser's
+ * Parses a save and extracts its collected items and resource node data. Stages: reading 0 → parsing 10–90 (the parser's
  * own progress over the save body) → extracting 95. Percent never goes down. A file whose header
  * cannot be read is `not_a_save`; any later failure (a truncated or damaged save) is `failed`.
  */
@@ -61,7 +62,9 @@ export async function handleParse(
       onProgressCallback: progress => report('parsing', PARSE_FROM + Math.min(1, Math.max(0, progress)) * (PARSE_TO - PARSE_FROM)),
     });
     report('extracting', EXTRACT_AT);
-    return { type: 'done', result: extractCollected(save as unknown as SaveLike, index) };
+    const result = extractCollected(save as unknown as SaveLike, index);
+    result.resourceNodes = extractResourceNodes(save as unknown as SaveNodesLike);
+    return { type: 'done', result };
   } catch (err) {
     console.error('Save parsing failed', err);
     return { type: 'error', code: 'failed', message: 'The save could not be parsed.' };

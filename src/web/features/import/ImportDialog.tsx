@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { create } from 'zustand';
 import type { ImportRequest, ImportResultDto } from '../../../shared/api.js';
 import type { DatasetIndex } from '../../../shared/dataset.js';
 import type { ExtractResult } from '../../../shared/extract.js';
+import { isRandomized } from '../../../shared/resourceNodes.js';
 import { api, ApiClientError } from '../../app/api.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { Button } from '../../components/Button.js';
 import { Dialog } from '../../components/Dialog.js';
 import { useMarks, type MarksCache } from '../marks/useMarks.js';
+import { useNodeSettingsText } from '../resourceNodes/nodeSettings.js';
 import { useImportBanner } from './ImportBanner.js';
 import { computePreview, countByType, type ImportPreview } from './preview.js';
 import { formatSaveDate, SaveSource } from './SaveSource.js';
@@ -27,6 +29,8 @@ export const EMPTY_MARKS: MarksCache = { rev: 0, baseRev: 0, marks: new Map(), r
 
 /** Server limits on the import body (src/server/http/import.ts). */
 const MAX_NAME = 255;
+const MAX_NODE_OVERRIDES = 2000;
+const MAX_EXTRACTORS = 2000;
 
 /** The import body, clamped to what the server accepts. */
 export function importRequest(fileName: string, r: ExtractResult): ImportRequest {
@@ -37,6 +41,15 @@ export function importRequest(fileName: string, r: ExtractResult): ImportRequest
     saveTime: Number.isFinite(t) && t > 0 ? t : 0,
     build: r.meta.build,
     collected: r.collected,
+    ...(r.resourceNodes
+      ? {
+        resourceNodes: {
+          overrides: r.resourceNodes.overrides.slice(0, MAX_NODE_OVERRIDES),
+          settings: r.resourceNodes.settings,
+          extractors: (r.resourceNodes.extractors ?? []).slice(0, MAX_EXTRACTORS),
+        },
+      }
+      : {}),
   };
 }
 
@@ -173,6 +186,7 @@ export function SaveSummary({ result, index, preview, counts = true, confirming 
           </dl>
         )}
       </div>
+      <NodeSummary result={result} />
       {counts && <p className="font-display text-lg font-semibold">{t('import.counts', { willCheck: preview.willCheck, conflicts: preview.conflicts })}</p>}
       {preview.buildNewer && (
         <p role="note" className="rounded border border-line bg-bg px-3 py-2 text-sm">
@@ -186,4 +200,26 @@ export function SaveSummary({ result, index, preview, counts = true, confirming 
       )}
     </div>
   );
+}
+
+/**
+ * What the save says about resource nodes (shown on the map after the import): nodes that differ from the default
+ * map, and the extractors standing on nodes.
+ */
+function NodeSummary({ result }: { result: ExtractResult }) {
+  const { t } = useTranslation();
+  const settingsText = useNodeSettingsText();
+  const nodes = result.resourceNodes;
+  if (!nodes) return null;
+  const extractors = nodes.extractors ?? [];
+  const shards = extractors.reduce((sum, e) => sum + (e[3] ?? 0), 0);
+  const placed = extractors.length > 0 && (
+    <p className="text-sm">{t('resourceNodes.importExtractors', { count: extractors.length, shards })}</p>
+  );
+  let differs: ReactNode = null;
+  if (nodes.overrides.length > 0) differs = <p className="text-sm">{t('resourceNodes.importChanged', { count: nodes.overrides.length })}</p>;
+  else if (isRandomized(nodes.settings)) {
+    differs = <p role="note" className="rounded border border-line bg-bg px-3 py-2 text-sm">{t('resourceNodes.importRandomized', { mode: settingsText(nodes.settings) })}</p>;
+  }
+  return <>{differs}{placed}</>;
 }

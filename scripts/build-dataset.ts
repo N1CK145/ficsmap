@@ -11,6 +11,7 @@ import { AREA_SNAP, biomesFromAreas, readMapAreas, SEA_LEVEL } from './map-areas
 import { UNITS_PER_METER, type Calibration } from '../src/shared/geo.js';
 import type { CollectibleTypeId, WorldBounds } from '../src/shared/types.js';
 import type { CrashSites, Dataset, DatasetItemTuple, ItemExtra, PodRequirement } from '../src/shared/dataset.js';
+import { GEYSER_RESOURCE, purityFromGame, type NodeKind, type Purity, type ResourceNodesFile, type ResourceNodeTuple } from '../src/shared/resourceNodes.js';
 
 export class BuildError extends Error {
   constructor(public problems: string[]) {
@@ -179,6 +180,65 @@ export function buildCrashSites(raw: unknown, ds: Dataset): CrashSites {
   return out;
 }
 
+interface RawNodeEntry { name?: unknown; location?: unknown; resource?: unknown; purity?: unknown }
+interface RawDefaultWorld {
+  gameVersion?: string;
+  resourceNodes?: RawNodeEntry[];
+  geysers?: RawNodeEntry[];
+  frackingCores?: (RawNodeEntry & { satellites?: RawNodeEntry[] })[];
+}
+
+/**
+ * `resource-nodes.json` from the extractor's `default-world.json`: every resource node, geyser, fracking
+ * core and satellite with resource, purity and position. Satellites take their core's resource; geysers get
+ * the pseudo resource `Geyser`. Fails on unknown purities, resources without a name in item-names.json,
+ * duplicate names and bad positions.
+ */
+export function buildResourceNodes(raw: unknown, itemNames: Record<string, string>, version: string): ResourceNodesFile {
+  const w = raw as RawDefaultWorld;
+  const problems: string[] = [];
+  const nodes: ResourceNodeTuple[] = [];
+  const seen = new Set<string>();
+  const used = new Set<string>();
+  const add = (e: RawNodeEntry, kind: NodeKind, resource: unknown, core?: string) => {
+    const name = typeof e.name === 'string' ? e.name : '';
+    if (!/^[A-Za-z0-9_]{1,128}$/.test(name)) { problems.push(`Resource node with a bad name: ${JSON.stringify(e.name)}`); return; }
+    if (seen.has(name)) { problems.push(`Duplicate resource node name ${name}`); return; }
+    seen.add(name);
+    const loc = e.location;
+    if (!Array.isArray(loc) || loc.length !== 3 || !loc.every(v => typeof v === 'number' && Number.isFinite(v))) {
+      problems.push(`Resource node ${name} has no valid location`);
+      return;
+    }
+    if (typeof resource !== 'string' || !/^[A-Za-z0-9_]{1,64}$/.test(resource)) { problems.push(`Resource node ${name} has no resource`); return; }
+    let purity: Purity | null = null;
+    if (kind !== 'core') {
+      purity = purityFromGame(e.purity);
+      if (purity === null) { problems.push(`Resource node ${name} has an unknown purity ${JSON.stringify(e.purity)}`); return; }
+    }
+    used.add(resource);
+    const [x, y, z] = (loc as number[]).map(Math.round) as [number, number, number];
+    const t: ResourceNodeTuple = [name, kind, resource, purity, x, y, z];
+    if (core !== undefined) t.push(core);
+    nodes.push(t);
+  };
+  for (const e of w.resourceNodes ?? []) add(e, 'node', e.resource);
+  for (const e of w.geysers ?? []) add(e, 'geyser', GEYSER_RESOURCE);
+  for (const c of w.frackingCores ?? []) {
+    const before = nodes.length;
+    add(c, 'core', c.resource);
+    if (nodes.length === before) continue;
+    const core = nodes[nodes.length - 1]![0];
+    if (!c.satellites?.length) problems.push(`Fracking core ${core} has no satellites`);
+    for (const s of c.satellites ?? []) add(s, 'satellite', c.resource, core);
+  }
+  for (const r of used) if (r !== GEYSER_RESOURCE && itemNames[r] === undefined) problems.push(`Resource ${r} has no entry in item-names.json`);
+  if (nodes.length === 0) problems.push('default-world.json has no resource nodes');
+  if (problems.length > 0) throw new BuildError(problems);
+  const resources = [...used].sort().map(id => ({ id, name: id === GEYSER_RESOURCE ? 'Geyser' : itemNames[id]! }));
+  return { version: w.gameVersion ?? version, resources, nodes };
+}
+
 /** GeoJSON in world coordinates: one feature per biome; all rings under even-odd fill. */
 export function biomesToGeojson(biomes: BiomeShape[]) {
   return {
@@ -243,11 +303,14 @@ function main(): void {
       // The game's map areas (`--map-areas-out`); default: inside --extractor. When present they are the biomes,
       // instead of the editor polygons in --data-src.
       'map-areas': { type: 'string' },
+      // Resource nodes, geysers and fracking wells (`--out` of the extractor); default: inside --extractor.
+      // Without it the dataset has no resource node layer.
+      'default-world': { type: 'string' },
       build: { type: 'string', default: String(DEFAULT_BUILD) },
     },
   });
   if (!v.extractor || !v.out) {
-    throw new Error('usage: npm run dataset -- --extractor <dir> --out <dir> [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--snap-m 100] [--build N]');
+    throw new Error('usage: npm run dataset -- --extractor <dir> --out <dir> [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--default-world <default-world.json>] [--snap-m 100] [--build N]');
   }
   const src = resolve(v['data-src']!);
   const firstExisting = (...paths: string[]) => paths.find(p => existsSync(p)) ?? paths[0]!;
@@ -308,6 +371,19 @@ function main(): void {
     const { meta, bytes } = writeHeightTiles(heightGrid, join(out, 'height'));
     heightSummary = `${meta.width}x${meta.height} cells of ${meta.cell / 100} m, ${(bytes / 1e6).toFixed(1)} MB in tiles of ${meta.tile} cells`;
   }
+  const defaultWorldPath = resolve(v['default-world'] ?? join(resolve(v.extractor), 'default-world.json'));
+  let nodeSummary = 'no default-world.json, no resource node layer';
+  if (existsSync(defaultWorldPath)) {
+    let nodes: ResourceNodesFile;
+    try { nodes = buildResourceNodes(readJson(defaultWorldPath), input.itemNames, ds.version); } catch (e) {
+      if (e instanceof BuildError) { console.error(e.message); process.exit(1); }
+      throw e;
+    }
+    writeFileSync(join(out, 'resource-nodes.json'), JSON.stringify(nodes));
+    const perKind = new Map<string, number>();
+    for (const n of nodes.nodes) perKind.set(n[1], (perKind.get(n[1]) ?? 0) + 1);
+    nodeSummary = `${[...perKind].map(([k, c]) => `${c} ${k}`).join(', ')}; ${nodes.resources.length} resources`;
+  }
   const mapDir = join(resolve(v.extractor), 'map');
   cpSync(join(mapDir, 'map.json'), join(out, 'map.json'));
   cpSync(join(mapDir, 'tiles'), join(out, 'tiles'), { recursive: true });
@@ -325,6 +401,7 @@ function main(): void {
   console.log(`  biomes: ${biomeSummary}`);
   console.log(`  caves: ${caveSummary}`);
   console.log(`  heights: ${heightSummary}`);
+  console.log(`  resource nodes: ${nodeSummary}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
