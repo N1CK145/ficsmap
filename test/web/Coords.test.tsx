@@ -10,10 +10,11 @@ import { encodeHeightTile, type HeightmapMeta } from '../../src/shared/heightmap
 import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { CoordsReadout } from '../../src/web/features/coords/CoordsReadout.js';
-import { HeightControl } from '../../src/web/features/coords/HeightControl.js';
 import { HeightLayer } from '../../src/web/features/coords/HeightLayer.js';
 import { HEIGHT_LUT, HEIGHT_RAMP, paintHeights } from '../../src/web/features/coords/heightColors.js';
+import { coordsFeature } from '../../src/web/features/coords/index.js';
 import { useHeightLayer } from '../../src/web/features/coords/useHeights.js';
+import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
 import userEvent from '@testing-library/user-event';
 
 const W = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
@@ -101,7 +102,7 @@ describe('height layer', () => {
   function renderControl() {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const ctx: WorldCtx = { worldId: W, world: WORLD, me: { ...ME, datasetVersion: 'test2' }, index: indexDataset(DS), queryClient: client, navigate: () => {}, toast: { show: () => {} } };
-    render(<QueryClientProvider client={client}><HeightControl ctx={ctx} /></QueryClientProvider>);
+    render(<QueryClientProvider client={client}><ToolButton tool={coordsFeature.tools![0]!} ctx={ctx} /></QueryClientProvider>);
   }
 
   it('offers the switch when the dataset has heights, and remembers it', async () => {

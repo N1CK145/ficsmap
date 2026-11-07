@@ -393,5 +393,32 @@
       "half": "half",
       "full": "full"
     }
+  },
+  "search": {
+    "label": "Search",
+    "open": "Search",
+    "placeholder": "Search items, IDs, biomes, caves …",
+    "clear": "Clear search",
+    "results": "Search results",
+    "none": "No matches",
+    "count": "{count, plural, one {# result} other {# results}}",
+    "countOnMap": "{count, plural, one {# result} other {# results}} · {onMap, plural, one {# item} other {# items}} highlighted on the map",
+    "typeCount": "{count, number} on the map",
+    "itemCount": "{count, plural, one {# item} other {# items}}",
+    "cave": "Cave {n, number}",
+    "caveIn": "{biome} · {count, plural, one {# item} other {# items}}",
+    "crashSite": "Crash site · {place}",
+    "crashSiteTerms": "crash site, drop pod",
+    "toOpen": "To open: {what}",
+    "kind": {
+      "item": "Item",
+      "type": "Type",
+      "biome": "Biome",
+      "cave": "Cave",
+      "crashSite": "Crash site"
+    }
+  },
+  "tools": {
+    "label": "Tools"
   }
 }

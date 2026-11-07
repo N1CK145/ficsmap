@@ -393,5 +393,32 @@
       "half": "halb",
       "full": "voll"
     }
+  },
+  "search": {
+    "label": "Suche",
+    "open": "Suche",
+    "placeholder": "Gegenstände, IDs, Biome, Höhlen suchen …",
+    "clear": "Suche leeren",
+    "results": "Suchergebnisse",
+    "none": "Keine Treffer",
+    "count": "{count, plural, one {# Treffer} other {# Treffer}}",
+    "countOnMap": "{count, plural, one {# Treffer} other {# Treffer}} · {onMap, plural, one {# Objekt} other {# Objekte}} auf der Karte hervorgehoben",
+    "typeCount": "{count, number} auf der Karte",
+    "itemCount": "{count, plural, one {# Objekt} other {# Objekte}}",
+    "cave": "Höhle {n, number}",
+    "caveIn": "{biome} · {count, plural, one {# Objekt} other {# Objekte}}",
+    "crashSite": "Absturzort · {place}",
+    "crashSiteTerms": "Absturzort, Absturzstelle, Absturzkapsel, Kapsel",
+    "toOpen": "Zum Öffnen: {what}",
+    "kind": {
+      "item": "Objekt",
+      "type": "Typ",
+      "biome": "Biom",
+      "cave": "Höhle",
+      "crashSite": "Absturzort"
+    }
+  },
+  "tools": {
+    "label": "Werkzeuge"
   }
 }

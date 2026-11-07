@@ -74,10 +74,32 @@ Features are modules that plug into extension points. `src/web/app/feature.ts` d
 - `mapOverlays`: free-standing boxes over the map that position themselves (e.g. the route's "Bring with you" list)
 - `mapModes`: exclusive click modes (inspect, Quick Check, route editing)
 - `itemDetailSections`, `itemActions`: content and buttons in the item panel
-- `headerItems`, `settingsSections`
+- `headerItems`: things in the top bar; `slot: 'center'` puts one in the middle (the search), the default `start` after the world name
+- `tools`: switches and actions in the top bar's tool navigation (see below)
+- `searchProviders`: sources of results for the header search (see below)
+- `settingsSections`
 - `sseHandlers`: reactions to server events
 
-All features are listed once in `src/web/features/index.ts`. `collect()` flattens one extension point over all features and sorts by `order`. The current features are `worlds`, `marks`, `live`, `map`, `progress`, `biomes`, `caves`, `coords`, `itemPanel`, `quickCheck`, `routes`, `import`, `conflicts`, `sharing` and `listView`. `features/mobile` is not a feature module; it holds the bottom sheet the world layout uses on small screens. A new feature should add a module here rather than edit core screens.
+All features are listed once in `src/web/features/index.ts`. `collect()` flattens one extension point over all features and sorts by `order`. The current features are `worlds`, `marks`, `live`, `map`, `progress`, `biomes`, `caves`, `coords`, `itemPanel`, `quickCheck`, `routes`, `import`, `conflicts`, `sharing`, `listView` and `search`.
+
+**Top bar.** `components/Header.tsx` has three parts: the app name, the world name and the `start` header items on the left; the `center` items (the search) in the middle; the tool navigation, the language switch and the account menu on the right. Both sides share the free width equally, so the search stays centred as long as the right side fits into its half. On mobile (below 900 px) the search is a button next to the Tools menu and opens over the bar. The settings page shows neither search nor tools.
+
+**Tools** (`Tool` in `app/feature.ts`). A tool describes itself (`id`, `order`, `labelKey`, optional `hintKey`, `icon`, `shortcut`) and has a hook `useTool(ctx)` that returns `{ available, pressed?, run }`: `available: false` hides it (e.g. no caves in the dataset), `pressed` makes it a switch (aria-pressed, a filled button), without it the tool is a plain action. `features/worlds/ToolsNav.tsx` shows them as buttons from 1280 px width and as a "Tools" menu below that and on phones (a WAI-ARIA menu button with `menuitemcheckbox` entries for switches), so a tool never renders itself. Today: Quick Check (order 10), Caves (20), Heights (25). On mobile Quick Check keeps its round button over the map as well (a `mapControls` entry that renders only there).
+
+A map switch kept in a `{ visible, toggle }` zustand store moves from `mapControls` into the tool navigation by replacing its control entry with one line, using `toggleTool()` from `app/tools.ts`:
+
+```ts
+// before: mapControls: [{ id: 'resource-nodes', order: 30, Component: ResourceNodesControl }],
+tools: [toggleTool({ id: 'resource-nodes', order: 30, labelKey: 'nodes.control', hintKey: 'nodes.hint', useToggle: useNodeLayer, useAvailable: ctx => hasNodes(ctx.index) })],
+```
+
+The control component can then be deleted. `useAvailable` is a hook too (it may load something, like the heights' `meta.json`); leave it out when the switch always applies.
+
+**Search** (`features/search`). The search box knows nothing about what it finds. Every feature can add a `SearchProvider` whose hook `useEntries(ctx, active)` returns `SearchEntry` objects, or undefined while its data loads. `active` turns true once the user opens the search, so providers with large files (caves) load them only then. An entry has an `id`, a `label` (current language), an optional `detail` line and `icon`, a `kindKey` ("Biome", "Cave", ...), `terms` (IDs, the name in the other language, synonyms), the `actors` it stands for and an `onSelect(ctx)`. Providers today: collectibles (types and single items, in `search`), biomes, caves and crash sites (in their own features). Recipes can be added later as one more provider in a recipes feature; entries without `actors` simply leave the map as it is.
+
+Matching and ranking (`features/search/match.ts`) are pure functions: text is normalised (case, accents, ß), and an entry matches when a term contains the whole query or when every word of the query starts a word in some term. Exact term before prefix before word start before inside a word, a match ending at a word end before one that does not ("Dune Desert 3" before "... 30"); ties go by the entry's `weight` (default: the provider's `order`; types 0, biomes 10, caves 20, items 30, crash sites 40), then by label in natural order. Queries under two characters match nothing.
+
+While a query is typed, the union of the matches' `actors` goes into the store's `searchHighlight`; after a choice, the chosen entry's `actors`. The map's marker canvas reads it like the other filters: matches get a halo in the accent colour and are drawn on top, even where a filter would hide them; everything else fades to 20 %. Choosing an item calls `focusItem` (select and zoom, like "Show on map"), a biome sets the biome scope, a cave switches the cave layer on and asks `useMapFit` (a map layer of the search feature) to fit the view to it. `features/mobile` is not a feature module; it holds the bottom sheet the world layout uses on small screens. A new feature should add a module here rather than edit core screens.
 
 ## Backend
 

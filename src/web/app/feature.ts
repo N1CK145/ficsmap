@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import type { FC } from 'react';
+import type { FC, ReactNode } from 'react';
 import type { RouteObject } from 'react-router';
 import type { MeDto, WorldDto } from '../../shared/api.js';
 import type { DatasetIndex, Item } from '../../shared/dataset.js';
@@ -27,7 +27,76 @@ export interface MapControl { id: string; order: number; Component: FC<{ ctx: Wo
 export interface MapOverlay { id: string; order: number; Component: FC<{ ctx: WorldCtx }> }
 export interface ItemDetailSection { id: string; order: number; applies(item: Item): boolean; Component: FC<{ item: Item; ctx: WorldCtx }> }
 export interface ItemAction { id: string; order: number; Component: FC<{ item: Item; ctx: WorldCtx }> }
-export interface HeaderItem { id: string; order: number; Component: FC<{ ctx: WorldCtx }> }
+/**
+ * `slot`: where in the top bar the item goes. `start` (default) follows the world name; `center` is
+ * centred in the bar (the search). On mobile both sit in one row.
+ */
+export interface HeaderItem { id: string; order: number; slot?: 'start' | 'center'; Component: FC<{ ctx: WorldCtx }> }
+
+/** What a tool shows and does right now; returned by `Tool.useTool` on every render. */
+export interface ToolState {
+  /** False hides the tool, e.g. the caves switch for a dataset without caves (also while that is still loading). */
+  available: boolean;
+  /** For a switch: whether it is on (aria-pressed, a filled button). Leave it out for a plain action. */
+  pressed?: boolean;
+  /** A click: flip the switch, or run the action (open a dialog, a panel, ...). */
+  run(): void;
+}
+
+/**
+ * A tool in the top bar's tool navigation (next to the search): a switch such as a map layer or a
+ * mode, or an action. Shown as buttons on wide screens and in a "Tools" menu on narrow ones and on
+ * mobile, so a tool only describes itself. `toggleTool()` (app/tools.ts) builds one for a
+ * `{ visible, toggle }` store.
+ */
+export interface Tool {
+  id: string; order: number; labelKey: string;
+  /** Tooltip (title) and the description in the menu. */
+  hintKey?: string;
+  /** A small decorative glyph or SVG in front of the label (hidden from assistive technology). */
+  icon?: ReactNode;
+  /** `aria-keyshortcuts`, e.g. "Q"; the feature handles the key itself. */
+  shortcut?: string;
+  /** A hook, called by the tool's own button component on every render. */
+  useTool(ctx: WorldCtx): ToolState;
+}
+
+/**
+ * One result of the header search. Every source of results (collectibles, biomes, caves, crash
+ * sites, later recipes) is a `SearchProvider` that returns these; the search box matches, ranks,
+ * lists and highlights them without knowing where they come from.
+ */
+export interface SearchEntry {
+  /** Unique over all providers, e.g. `item:BP_WAT139`. */
+  id: string;
+  /** The result's name in the current language; also matched. */
+  label: string;
+  /** Second line, e.g. the actor ID or what lies at a crash site. */
+  detail?: string;
+  /** i18n key of the kind shown next to the result ("Biome", "Cave", ...). */
+  kindKey: string;
+  /** More text the query is matched against: IDs, the name in the other language, synonyms. */
+  terms: readonly string[];
+  /** Map items the entry stands for: highlighted on the map while it matches and after it is chosen. */
+  actors?: readonly string[];
+  /** Between equally good matches, lower comes first; defaults to the provider's `order`. */
+  weight?: number;
+  /** A small icon in front of the label (decorative). */
+  icon?: ReactNode;
+  /** What choosing the entry does besides highlighting its `actors` (select the item, scope the biome, ...). */
+  onSelect?(ctx: WorldCtx): void;
+}
+
+export interface SearchProvider {
+  id: string; order: number;
+  /**
+   * A hook returning the provider's entries, or undefined while its data loads. Called on every
+   * render of the search box, in feature order (the list is fixed, so the hook order is too).
+   * `active` turns true once the user opens the search and stays true: wait for it before loading
+   * large files. Return the same array while nothing changed; the search prepares it once.
+   */
+  useEntries(ctx: WorldCtx, active: boolean): readonly SearchEntry[] | undefined;
+}
 export interface SettingsSection { id: string; order: number; ownerOnly: boolean; Component: FC<{ ctx: WorldCtx }> }
 export type SseHandlerMap = { [K in SseEvent['type']]: (e: Extract<SseEvent, { type: K }>, ctx: WorldCtx) => void };
 
@@ -39,13 +108,17 @@ export interface FeatureModule {
   mapLayers?: MapLayer[];
   /** Exclusive click modes; the active one gets marker clicks and shows its `Banner` across the map top. */
   mapModes?: MapMode[];
-  /** Stacked top right under the zoom buttons, inside the map; clicks on them do not reach the map. */
+  /** Stacked top right under the zoom buttons, inside the map; clicks on them do not reach the map. On/off switches belong in `tools`. */
   mapControls?: MapControl[];
   /** Free-standing boxes over the map (each positions itself, absolutely), under the item panel; clicks on them do not reach the map. */
   mapOverlays?: MapOverlay[];
   itemDetailSections?: ItemDetailSection[];
   itemActions?: ItemAction[];
   headerItems?: HeaderItem[];
+  /** Switches and actions in the top bar's tool navigation (desktop: buttons, mobile: a menu). */
+  tools?: Tool[];
+  /** Sources of results for the header search. */
+  searchProviders?: SearchProvider[];
   settingsSections?: SettingsSection[];
   sseHandlers?: Partial<SseHandlerMap>;
 }

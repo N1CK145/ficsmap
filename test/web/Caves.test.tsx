@@ -8,11 +8,11 @@ import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
 import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { queryKeys } from '../../src/web/app/queryKeys.js';
-import { CaveControl } from '../../src/web/features/caves/CaveControl.js';
 import { CaveLayer } from '../../src/web/features/caves/CaveLayer.js';
 import { cavesFeature } from '../../src/web/features/caves/index.js';
 import { InCave } from '../../src/web/features/caves/InCave.js';
 import { nearestEntrance, toShapes, useCaveLayer } from '../../src/web/features/caves/useCaves.js';
+import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
 import { stubFetch } from './fetchStub.js';
 
 const W = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
@@ -71,9 +71,9 @@ describe('caves', () => {
     expect(nearestEntrance(0, 0, [])).toBeNull();
   });
 
-  it('shows the control only when the dataset has caves, and toggles and remembers the layer', async () => {
+  it('shows the switch in the tool navigation only when the dataset has caves, and toggles and remembers the layer', async () => {
     const { ctx, wrap, calls } = setup('present');
-    wrap(<CaveControl ctx={ctx} />);
+    wrap(<ToolButton tool={cavesFeature.tools![0]!} ctx={ctx} />);
     const button = await screen.findByRole('button', { name: 'Caves' });
     expect(calls).toEqual([]); // the large caves.geojson is not loaded just for the button
     expect(button).toHaveAttribute('aria-pressed', 'false');
@@ -82,9 +82,9 @@ describe('caves', () => {
     expect(localStorage.getItem('ficsmap:caves')).toBe('1');
   });
 
-  it('has no control for a dataset built without caves', () => {
+  it('has no switch for a dataset built without caves', () => {
     const { ctx, wrap } = setup('missing');
-    const { container } = wrap(<CaveControl ctx={ctx} />);
+    const { container } = wrap(<ToolButton tool={cavesFeature.tools![0]!} ctx={ctx} />);
     expect(container).toBeEmptyDOMElement();
   });
 

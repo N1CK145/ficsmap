@@ -53,6 +53,11 @@ const ICON_BADGE = { x: 15, y: -15, r: 5.5 };
 const ICON_ROUTE_BADGE = { x: -16, y: -16, r: 7 };
 const ICON_SELECT_R = ICON_DISC_R + 4;
 const POD_BADGE = { x: 7, y: 6, r: 4.5 };
+/** The search halo: a soft accent disk behind the marker, a little larger than the selection ring. */
+const HALO_ALPHA = 0.45;
+const DOT_HALO_R = DOT_R + 5;
+const HALO_R = SELECT_R + 2;
+const ICON_HALO_R = ICON_SELECT_R + 3;
 const ICON_POD_BADGE = { x: 14, y: 14, r: 6 };
 
 /** A lightning bolt, centred on (0, 0), about 8 px high at scale 1. */
@@ -242,12 +247,22 @@ function drawCheck(ctx: CanvasRenderingContext2D, x: number, y: number, p: Marke
   ctx.stroke();
 }
 
+/** The halo of a search match, under the marker and always at the same strength. */
+function drawHalo(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, p: MarkerPalette): void {
+  ctx.globalAlpha = HALO_ALPHA;
+  circle(ctx, x, y, r);
+  ctx.fillStyle = p.accent;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
 /** A marker showing the type's game icon (zoomed in, icon loaded). Same states as the shape markers. */
 function drawIconMarker(
   ctx: CanvasRenderingContext2D, x: number, y: number, img: CanvasImageSource, color: string, v: MarkerVisual, p: MarkerPalette, pulses: MarkerPulses,
 ): void {
   const conflictPulse = v.badge === 'conflict' ? pulses.conflict : null;
   const collected = v.badge !== 'none';
+  if (v.highlight) drawHalo(ctx, x, y, ICON_HALO_R, p);
   ctx.globalAlpha = v.opacity * (collected ? 0.5 : 0.75);
   circle(ctx, x, y, ICON.discR);
   ctx.fillStyle = p.bg;
@@ -274,8 +289,8 @@ function drawIconMarker(
 }
 
 /**
- * Draws one marker. The body and badges use `v.opacity`; the selection ring and the remote-change
- * ring are always fully opaque. With `img` (the type's game icon) a zoomed-in marker shows the icon;
+ * Draws one marker. The body and badges use `v.opacity`; the search halo, the selection ring and the
+ * remote-change ring do not fade. With `img` (the type's game icon) a zoomed-in marker shows the icon;
  * without it, the type's shape.
  */
 export function drawMarker(
@@ -291,6 +306,7 @@ export function drawMarker(
   const color = p.types[t.colorToken] ?? p.fg;
 
   if (v.dot) {
+    if (v.highlight) drawHalo(ctx, x, y, DOT_HALO_R, p);
     ctx.globalAlpha = v.opacity;
     circle(ctx, x, y, DOT_R);
     ctx.fillStyle = color;
@@ -310,6 +326,7 @@ export function drawMarker(
     return;
   }
 
+  if (v.highlight) drawHalo(ctx, x, y, HALO_R, p);
   ctx.globalAlpha = v.opacity;
   ctx.lineJoin = 'round';
   shapePath(ctx, t.shape, x, y);

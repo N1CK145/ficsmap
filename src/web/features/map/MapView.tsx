@@ -136,11 +136,12 @@ function BannerBar({ children }: { children: ReactNode }) {
 
 interface BaseMarker { item: Item; lat: number; lng: number; type: CollectibleType }
 
-type MarkerFilters = Pick<UiState, 'typeFilter' | 'visibility' | 'biomeScope' | 'onlyConflicts' | 'selectedActor'>;
+type MarkerFilters = Pick<UiState, 'typeFilter' | 'visibility' | 'biomeScope' | 'onlyConflicts' | 'selectedActor' | 'searchHighlight'>;
 
-/** Draw order: uncollected, collected, conflicts, then the selected marker on top. */
+/** Draw order: uncollected, collected, conflicts, search matches, then the selected marker on top. */
 function rank(m: DrawMarker): number {
-  if (m.visual.selected) return 3;
+  if (m.visual.selected) return 4;
+  if (m.visual.highlight) return 3;
   return m.visual.badge === 'conflict' ? 2 : m.visual.badge === 'check' ? 1 : 0;
 }
 
@@ -165,6 +166,7 @@ function buildMarkers(
       typeEnabled: f.typeFilter.has(item.type),
       onlyConflicts: f.onlyConflicts,
       routeIndex: routeIndex.get(item.name) ?? null,
+      search: f.searchHighlight === null ? null : f.searchHighlight.has(item.name),
     });
     const pod = podBadge(item.extra?.pod);
     const m: DrawMarker = { id: item.name, lat, lng, type, visual: pod ? { ...visual, pod } : visual };
@@ -190,6 +192,7 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
   const marks = useMarks(ctx.worldId);
   const filters = useUiStore(useShallow((s): MarkerFilters => ({
     typeFilter: s.typeFilter, visibility: s.visibility, biomeScope: s.biomeScope, onlyConflicts: s.onlyConflicts, selectedActor: s.selectedActor,
+    searchHighlight: s.searchHighlight,
   })));
   const pulse = useRemotePulse(s => s.pulse);
   const routeIndex = useRouteIndex(ctx.worldId);

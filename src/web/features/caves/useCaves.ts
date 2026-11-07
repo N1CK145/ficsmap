@@ -17,8 +17,8 @@ interface CaveGeojson { type: 'FeatureCollection'; features: CaveFeature[] }
 export type LatLngRing = [lat: number, lng: number][];
 /** An entrance in world coordinates (cm) and in map coordinates. */
 export interface CaveEntrancePoint { x: number; y: number; z: number; lat: number; lng: number }
-/** Per cave its outline rings as Leaflet rings (`[lat, lng]`, filled even-odd), and all entrances. */
-export interface CaveShapes { caves: LatLngRing[][]; entrances: CaveEntrancePoint[] }
+/** Per cave its outline rings as Leaflet rings (`[lat, lng]`, filled even-odd) and its id (same order), and all entrances. */
+export interface CaveShapes { caves: LatLngRing[][]; ids: string[]; entrances: CaveEntrancePoint[] }
 
 /**
  * The caves of a dataset version (`/data/<v>/caves.geojson`, world coordinates), converted into the
@@ -44,17 +44,19 @@ export function useCaves(version: string, bounds: WorldBounds, enabled = true): 
 
 export function toShapes(raw: CaveGeojson, bounds: WorldBounds): CaveShapes {
   const caves: LatLngRing[][] = [];
+  const ids: string[] = [];
   const entrances: CaveEntrancePoint[] = [];
   for (const f of raw.features) {
     if (f.properties.kind === 'cave' && f.geometry.type === 'Polygon') {
       caves.push(f.geometry.coordinates.map(ring => ring.map(p => worldToLatLng(p[0]!, p[1]!, bounds))));
+      ids.push(f.properties.id);
     } else if (f.properties.kind === 'entrance' && f.geometry.type === 'Point') {
       const [x, y] = f.geometry.coordinates as [number, number];
       const [lat, lng] = worldToLatLng(x, y, bounds);
       entrances.push({ x, y, z: f.properties.z, lat, lng });
     }
   }
-  return { caves, entrances };
+  return { caves, ids, entrances };
 }
 
 /** Whether the dataset was built with caves: then items inside caves carry `extra.cave`. */

@@ -17,6 +17,7 @@ import { useUndoShortcut } from '../../src/web/features/marks/useUndoShortcut.js
 import type { MarksCache } from '../../src/web/features/marks/useMarks.js';
 import { quickCheckFeature } from '../../src/web/features/quickCheck/index.js';
 import { useQuickCheckKeys } from '../../src/web/features/quickCheck/useQuickCheckKeys.js';
+import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
 import { stubFetch } from './fetchStub.js';
 import { MOBILE, stubMatchMedia } from './matchMedia.js';
 
@@ -135,11 +136,14 @@ function QuickKeys() {
   return null;
 }
 
-function renderMap(ctx: WorldCtx, zoom: number) {
+/** `tool`: also render the Quick Check button of the top bar's tool navigation. */
+function renderMap(ctx: WorldCtx, zoom: number, tool = true) {
   saveView(W, { center: [-128, 128], zoom, typeFilter: ['mercer_sphere', 'somersloop'], visibility: 'dim', biomeScope: null });
   return render(
     <QueryClientProvider client={ctx.queryClient}>
-      <FeaturesProvider features={[quickCheckFeature]}><QuickKeys /><MapView ctx={ctx} /></FeaturesProvider>
+      <FeaturesProvider features={[quickCheckFeature]}>
+        <QuickKeys />{tool && <ToolButton tool={quickCheckFeature.tools![0]!} ctx={ctx} />}<MapView ctx={ctx} />
+      </FeaturesProvider>
     </QueryClientProvider>,
   );
 }
@@ -151,7 +155,7 @@ describe('Quick Check control and banner', () => {
     useUiStore.getState().enterWorld(W);
   });
 
-  it('turns the mode on and off with the control, Q and Esc', async () => {
+  it('turns the mode on and off with its tool button, Q and Esc', async () => {
     const { ctx } = setup();
     renderMap(ctx, 3);
     const control = screen.getByRole('button', { name: 'Quick Check' });
@@ -171,7 +175,7 @@ describe('Quick Check control and banner', () => {
   it('is a round 56 px button above the sheet on mobile, banner still at the top', async () => {
     stubMatchMedia({ [MOBILE]: true });
     const { ctx } = setup();
-    renderMap(ctx, 3);
+    renderMap(ctx, 3, false);
     const control = screen.getByRole('button', { name: 'Quick Check' });
     expect(control).toHaveClass('size-14', 'rounded-full');
     await userEvent.click(control);
@@ -179,6 +183,12 @@ describe('Quick Check control and banner', () => {
     expect(control).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('QUICK CHECK ON · Click a marker to check it · Q to stop')).toBeInTheDocument();
     vi.unstubAllGlobals();
+  });
+
+  it('has no button over the map on desktop: the switch is in the tool navigation', () => {
+    const { ctx } = setup();
+    renderMap(ctx, 3, false);
+    expect(screen.queryByRole('button', { name: 'Quick Check' })).toBeNull();
   });
 
   it('ignores Q while typing', () => {
