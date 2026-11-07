@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyWikiMap, gameMasks, landMask, NONE } from '../../scripts/wiki-biomes.js';
+import { classifyWikiMap, gameMasks, landMask, NONE, labelMask } from '../../scripts/wiki-biomes.js';
 
 // 200 x 200: sea (map blue) around an island (map beige) from 30 to 170; the island's west half is tinted
 // green in the wiki map, its east half red; a lake (blue) inside the west half; a black frame of 1 px.
@@ -71,5 +71,29 @@ describe('wiki biome map', () => {
       { width: 2, height: 2, top: Float32Array.from([0, Number.NaN, -1000, -25000]) });
     expect([...masks.noMansLand]).toEqual([1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect([...masks.void]).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1]);
+  });
+});
+
+describe('grid labels', () => {
+  const n = 300;
+  const image = () => {
+    const rgb = new Uint8Array(n * n * 3).fill(150);
+    const paint = (x0: number, y0: number, x1: number, y1: number, v: [number, number, number]) => {
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) rgb.set(v, (y * n + x) * 3);
+    };
+    paint(20, 20, 130, 58, [40, 48, 32]); // a label box, 110 x 38
+    paint(40, 30, 60, 48, [216, 224, 208]); // its light text
+    paint(20, 150, 280, 153, [30, 30, 30]); // a dark line: not a label
+    paint(150, 200, 300, 300, [60, 60, 60]); // a dark area (void): not a label
+    return rgb;
+  };
+  it('masks the label box with its text and a small margin, nothing else', () => {
+    const m = labelMask(image(), n);
+    expect(m[25 * n + 25]).toBe(1);
+    expect(m[35 * n + 45]).toBe(1); // text inside
+    expect(m[18 * n + 18]).toBe(1); // margin
+    expect(m[10 * n + 10]).toBe(0);
+    expect(m[151 * n + 100]).toBe(0);
+    expect(m[250 * n + 250]).toBe(0);
   });
 });

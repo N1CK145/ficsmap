@@ -168,9 +168,48 @@ function fillLand(index: Uint8Array, land: Uint8Array, n: number): void {
 }
 
 /**
+ * The wiki map's grid labels ("X2Y1"): boxes about 110 x 38 px at 5000 px with light text, a dark shade of whatever
+ * lies under them (every channel below `maxChannel`).
+ */
+const LABEL = { maxChannel: 72, minW: 60, maxW: 220, minH: 20, maxH: 70, minFill: 0.5, pad: 3 };
+
+/**
+ * The pixels of the wiki map's grid labels: 4-connected pieces of dark pixels whose bounding box has a
+ * label's size and shape and is mostly filled with it, grown by a few pixels (anti-aliased edges, the light text
+ * inside counts as part of the box). Their dark colour would otherwise pass for a dark biome tint (Snaketree Forest).
+ */
+export function labelMask(wiki: Uint8Array, n: number): Uint8Array {
+  const dark = new Uint8Array(n * n);
+  for (let k = 0; k < n * n; k++) {
+    if (Math.max(wiki[k * 3]!, wiki[k * 3 + 1]!, wiki[k * 3 + 2]!) < LABEL.maxChannel) dark[k] = 1;
+  }
+  const mask = new Uint8Array(n * n);
+  const seen = new Uint8Array(n * n);
+  const queue = new Int32Array(n * n);
+  for (let k = 0; k < n * n; k++) {
+    if (!dark[k] || seen[k]) continue;
+    let head = 0, tail = 0, x0 = n, y0 = n, x1 = -1, y1 = -1;
+    queue[tail++] = k; seen[k] = 1;
+    while (head < tail) {
+      const p = queue[head++]!, x = p % n, y = (p - x) / n;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      for (const q of [x > 0 ? p - 1 : -1, x < n - 1 ? p + 1 : -1, y > 0 ? p - n : -1, y < n - 1 ? p + n : -1]) {
+        if (q >= 0 && dark[q] && !seen[q]) { seen[q] = 1; queue[tail++] = q; }
+      }
+    }
+    const w = x1 - x0 + 1, h = y1 - y0 + 1;
+    if (w < LABEL.minW || w > LABEL.maxW || h < LABEL.minH || h > LABEL.maxH || w < h * 1.5 || tail / (w * h) < LABEL.minFill) continue;
+    for (let y = Math.max(0, y0 - LABEL.pad); y <= Math.min(n - 1, y1 + LABEL.pad); y++) {
+      for (let x = Math.max(0, x0 - LABEL.pad); x <= Math.min(n - 1, x1 + LABEL.pad); x++) mask[y * n + x] = 1;
+    }
+  }
+  return mask;
+}
+
+/**
  * The biome index per pixel (NONE for none). `wiki` and `map` are RGB, n x n, over the same square. Biomes only
- * on land (`landMask`), so the grey glow along the coasts cannot pass for Abyss Cliffs; at the end every land
- * pixel left without a biome (labels, grid lines, lakes) gets the nearest biome over land, except on the game's
+ * on land (`landMask`), so the grey glow along the coasts cannot pass for Abyss Cliffs; the wiki map's grid labels
+ * (`labelMask`) get none either. At the end every land pixel left without a biome (labels, grid lines, lakes) gets the nearest biome over land, except on the game's
  * no man's land (`masks.noMansLand`), so coasts, channels and islands the wiki leaves without a biome stay so.
  * Void pixels (`masks.void`) are neither filled nor kept.
  */
@@ -179,9 +218,11 @@ export function classifyWikiMap(
 ): { index: Uint8Array; tints: Tint[] } {
   const tints = biomes.map(b => fitTint(wiki, map, n, b.samples));
   const land = landMask(map, n);
+  // Grid labels are left without a biome here and filled from their surroundings below.
+  const labels = labelMask(wiki, n);
   let index: Uint8Array = new Uint8Array(n * n);
   for (let k = 0; k < n * n; k++) {
-    if (!land[k]) { index[k] = NONE; continue; }
+    if (!land[k] || labels[k]) { index[k] = NONE; continue; }
     let best = NONE, bestE = 0;
     for (let c = 0; c < 3; c++) { const d = wiki[k * 3 + c]! - map[k * 3 + c]!; bestE += d * d; }
     for (let i = 0; i < tints.length; i++) {
