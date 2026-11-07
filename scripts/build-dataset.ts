@@ -8,6 +8,7 @@ import { cavesToGeojson, type RawCaves } from '../src/shared/caves.js';
 import { sampleCaves } from './cave-geometry.js';
 import { readHeightGrid, writeHeightTiles } from './heightmap.js';
 import { AREA_SNAP, biomesFromAreas, readMapAreas, SEA_LEVEL } from './map-areas.js';
+import { MachineBuildError, machineSummary, writeMachines } from './machines.js';
 import { UNITS_PER_METER, type Calibration } from '../src/shared/geo.js';
 import type { CollectibleTypeId, WorldBounds } from '../src/shared/types.js';
 import type { CrashSites, Dataset, DatasetItemTuple, ItemExtra, PodRequirement } from '../src/shared/dataset.js';
@@ -243,11 +244,14 @@ function main(): void {
       // The game's map areas (`--map-areas-out`); default: inside --extractor. When present they are the biomes,
       // instead of the editor polygons in --data-src.
       'map-areas': { type: 'string' },
+      // The game's CommunityResources/Docs folder (en-US.json, de.json); default: <extractor>/docs. With it the
+      // dataset gets machines.json for the machine and vehicle wiki.
+      docs: { type: 'string' },
       build: { type: 'string', default: String(DEFAULT_BUILD) },
     },
   });
   if (!v.extractor || !v.out) {
-    throw new Error('usage: npm run dataset -- --extractor <dir> --out <dir> [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--snap-m 100] [--build N]');
+    throw new Error('usage: npm run dataset -- --extractor <dir> --out <dir> [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--docs <install>/CommunityResources/Docs] [--snap-m 100] [--build N]');
   }
   const src = resolve(v['data-src']!);
   const firstExisting = (...paths: string[]) => paths.find(p => existsSync(p)) ?? paths[0]!;
@@ -308,6 +312,16 @@ function main(): void {
     const { meta, bytes } = writeHeightTiles(heightGrid, join(out, 'height'));
     heightSummary = `${meta.width}x${meta.height} cells of ${meta.cell / 100} m, ${(bytes / 1e6).toFixed(1)} MB in tiles of ${meta.tile} cells`;
   }
+  const docsDir = resolve(v.docs ?? join(resolve(v.extractor), 'docs'));
+  let machineLine = 'no Docs (--docs), no machines.json';
+  if (existsSync(join(docsDir, 'en-US.json'))) {
+    try {
+      machineLine = machineSummary(writeMachines(docsDir, out));
+    } catch (e) {
+      if (e instanceof MachineBuildError) { console.error(e.message); process.exit(1); }
+      throw e;
+    }
+  }
   const mapDir = join(resolve(v.extractor), 'map');
   cpSync(join(mapDir, 'map.json'), join(out, 'map.json'));
   cpSync(join(mapDir, 'tiles'), join(out, 'tiles'), { recursive: true });
@@ -325,6 +339,7 @@ function main(): void {
   console.log(`  biomes: ${biomeSummary}`);
   console.log(`  caves: ${caveSummary}`);
   console.log(`  heights: ${heightSummary}`);
+  console.log(`  machines: ${machineLine}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

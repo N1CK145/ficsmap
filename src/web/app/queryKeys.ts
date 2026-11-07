@@ -11,4 +11,5 @@ export const queryKeys = {
   crashSites: (version: string) => ['crash-sites', version] as const,
   caves: (version: string) => ['caves', version] as const,
   heightmap: (version: string) => ['heightmap', version] as const,
+  machines: (version: string) => ['machines', version] as const,
 };

@@ -20,7 +20,7 @@ One npm package, one process, one container. The server serves the API, the buil
 src/shared/     types and pure logic used by server and web
 src/server/     Fastify server
 src/web/        React SPA (Vite root)
-scripts/        build-dataset.ts (dataset build), cave-geometry.ts (cave sampling for it), heightmap.ts (height map tiles for it), map-areas.ts (biomes from the game's map areas), trace.ts (outline tracing), inspect-save.ts (dump a save for checks)
+scripts/        build-dataset.ts (dataset build), cave-geometry.ts (cave sampling for it), heightmap.ts (height map tiles for it), map-areas.ts (biomes from the game's map areas), trace.ts (outline tracing), machines.ts and game-docs.ts (machine wiki data from the game's Docs files), inspect-save.ts (dump a save for checks)
 data-src/       extraction tooling and notes (extractor/README.md, the AssetsExtractor patch, item names)
 test/           unit/, api/, web/, fixtures/
 data/           local datasets, data/<game-version>/ (git-ignored)
@@ -77,7 +77,7 @@ Features are modules that plug into extension points. `src/web/app/feature.ts` d
 - `headerItems`, `settingsSections`
 - `sseHandlers`: reactions to server events
 
-All features are listed once in `src/web/features/index.ts`. `collect()` flattens one extension point over all features and sorts by `order`. The current features are `worlds`, `marks`, `live`, `map`, `progress`, `biomes`, `caves`, `coords`, `itemPanel`, `quickCheck`, `routes`, `import`, `conflicts`, `sharing` and `listView`. `features/mobile` is not a feature module; it holds the bottom sheet the world layout uses on small screens. A new feature should add a module here rather than edit core screens.
+All features are listed once in `src/web/features/index.ts`. `collect()` flattens one extension point over all features and sorts by `order`. The current features are `worlds`, `marks`, `live`, `map`, `progress`, `biomes`, `caves`, `coords`, `itemPanel`, `quickCheck`, `routes`, `import`, `conflicts`, `sharing`, `listView` and `machineWiki`. `features/mobile` is not a feature module; it holds the bottom sheet the world layout uses on small screens. A new feature should add a module here rather than edit core screens.
 
 ## Backend
 
@@ -134,7 +134,7 @@ All features are listed once in `src/web/features/index.ts`. `collect()` flatten
 
 ## Dataset
 
-The dataset is static and versioned by game version: `<DATASET_DIR>/<game-version>/` with `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/{z}/{x}/{y}.webp`, `icons/` and optionally `caves.geojson` and `height/` (`meta.json` plus 500 m tiles `<ti>_<tj>.bin.gz`, fetched by the browser on hover and unpacked with `DecompressionStream`; tile URLs carry the content hash from `meta.json` because non-JSON files are served as immutable). It is not in the repository and not in the Docker image; it is mounted at run time. The server loads `collectibles.min.json` at start and serves the directory under `/data/`.
+The dataset is static and versioned by game version: `<DATASET_DIR>/<game-version>/` with `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/{z}/{x}/{y}.webp`, `icons/` and optionally `caves.geojson`, `machines.json` (the machine and vehicle wiki, from the game's `CommunityResources/Docs` files via `--docs`) and `height/` (`meta.json` plus 500 m tiles `<ti>_<tj>.bin.gz`, fetched by the browser on hover and unpacked with `DecompressionStream`; tile URLs carry the content hash from `meta.json` because non-JSON files are served as immutable). It is not in the repository and not in the Docker image; it is mounted at run time. The server loads `collectibles.min.json` at start and serves the directory under `/data/`.
 
 `npm run dataset` (`scripts/build-dataset.ts`) builds it from:
 

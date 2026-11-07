@@ -34,6 +34,7 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 - **Coordinates and height.** Hovering the map shows the position under the mouse in metres, with the height of the highest surface there, read from the game's terrain and rock geometry.
 - **Route planner.** Up to 30 stops, optimise the order, jump to the next stop, and see a combined list of what the route's drop pods need.
 - **List view** as an alternative to the map.
+- **Machine and vehicle wiki.** Stats of every production building, extractor, generator, other powered machine and vehicle (power, clock speed, extraction rates, fuels, inventories, build cost, unlocks, recipes), with the game's own description and a link to the Satisfactory wiki. Read from the game's data files.
 - **Mobile layout** with a bottom sheet.
 - **English and German** user interface, picked from the browser language.
 
@@ -147,7 +148,7 @@ Set `TRUST_PROXY` to the IP address the proxy connects from.
 
 The map dataset is **not** part of this repository or the Docker image, because it consists of Coffee Stain Studios' game assets. You build it yourself from your own game installation and mount it into the container (`./dataset:/app/data:ro`). The app uses the one version directory it finds there; if there is more than one, set `DATASET_VERSION` in `.env`.
 
-A dataset directory `<game-version>/` contains `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/` and `icons/`, optionally `caves.geojson` (cave outlines and entrances; a dataset built without caves offers no cave layer) and `height/` (height map tiles; without it the coordinates show no height).
+A dataset directory `<game-version>/` contains `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/` and `icons/`, optionally `caves.geojson` (cave outlines and entrances; a dataset built without caves offers no cave layer), `height/` (height map tiles; without it the coordinates show no height) and `machines.json` (the machine and vehicle wiki; without it the wiki says so).
 
 To build one:
 
@@ -159,7 +160,7 @@ To build one:
    npm run dataset -- --extractor <extractor-output-dir> --data-src <dir> --out data/1.2.4.1
    ```
 
-   `--data-src` points to a folder with `biomes/biomes.editor.geojson`, `biomes/calibration.json` and `crash-sites/crash-sites.json`. If the extractor output contains `caves.json` and `cave-geometry/` (or you pass `--caves <file> --cave-geometry <dir>`), the build samples the caves, writes `caves.geojson` and marks items that lie in a cave. If it contains `heightmap/` (or you pass `--heightmap <dir>`), the build writes the height map tiles to `height/`. If it contains `map-areas/` (or you pass `--map-areas <dir>`), the biomes come from the game's map areas and the editor polygons in `--data-src` are not used.
+   `--data-src` points to a folder with `biomes/biomes.editor.geojson`, `biomes/calibration.json` and `crash-sites/crash-sites.json`. If the extractor output contains `caves.json` and `cave-geometry/` (or you pass `--caves <file> --cave-geometry <dir>`), the build samples the caves, writes `caves.geojson` and marks items that lie in a cave. If it contains `heightmap/` (or you pass `--heightmap <dir>`), the build writes the height map tiles to `height/`. If it contains `map-areas/` (or you pass `--map-areas <dir>`), the biomes come from the game's map areas and the editor polygons in `--data-src` are not used. With `--docs <install>/CommunityResources/Docs` (or the game's `Docs` folder copied to `<extractor-output-dir>/docs`) the build writes `machines.json`; `npm run machines -- --docs <dir> --out data/<version>` builds it on its own.
 3. Copy `data/1.2.4.1/` into the `dataset/` directory next to your `docker-compose.yml`.
 
 **Current limitation:** the crash-site data are maintainer data and are not published. With the extractor output (including `map-areas/`) you get the tiles, icons, collectible positions and biomes, but the crash-site layer needs a source of your own in the format above. `--data-src` still has to provide the biome editor files, even though they are unused when `map-areas/` exists.
