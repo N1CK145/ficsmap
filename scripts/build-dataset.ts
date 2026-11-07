@@ -7,9 +7,9 @@ import { assignBiome, loadEditorBiomes, type BiomeShape } from '../src/shared/bi
 import { cavesToGeojson, type RawCaves } from '../src/shared/caves.js';
 import { sampleCaves } from './cave-geometry.js';
 import { readHeightGrid, writeHeightTiles } from './heightmap.js';
-import { AREA_SNAP, biomesFromAreas, readMapAreas, SEA_LEVEL } from './map-areas.js';
+import { AREA_SNAP, biomesFromAreas, landTest, readMapAreas } from './map-areas.js';
 import { UNITS_PER_METER, type Calibration } from '../src/shared/geo.js';
-import type { CollectibleTypeId, WorldBounds } from '../src/shared/types.js';
+import type { CollectibleTypeId, LocalizedName, WorldBounds } from '../src/shared/types.js';
 import type { CrashSites, Dataset, DatasetItemTuple, ItemExtra, PodRequirement } from '../src/shared/dataset.js';
 
 export class BuildError extends Error {
@@ -25,8 +25,8 @@ export interface BuildInput {
   map: unknown;
   biomesGeojson: unknown;
   calibration: Calibration;
-  /** descriptor class (Desc_X_C) -> English display name; used for both locales */
-  itemNames: Record<string, string>;
+  /** descriptor class (Desc_X_C) -> the game's display name in English and German (item-names.json) */
+  itemNames: Record<string, LocalizedName>;
   snapUnits: number;
   build: number;
   /** data-src/crash-sites/crash-sites.json (Steam guide + game pickups), optional. */
@@ -41,33 +41,27 @@ interface RawEntry { name: string; class: string; location: [number, number, num
 interface RawPod { costType: string | null; item: string | null; amount: number; power: number }
 interface RawShrine { name: string; attachedTo: string }
 interface RawCrashSite {
-  requirement?: { type: string };
-  items?: { item: string; amount: number; pickup?: string; where?: string; inGame?: boolean }[];
+  items?: { item: string; itemClass?: string; amount: number; pickup?: string; where?: string; inGame?: boolean }[];
   threats?: { name: string; count: number | null }[];
   notes?: string[];
 }
 const crashSitePods = (raw: unknown): Record<string, RawCrashSite> => (raw as { pods?: Record<string, RawCrashSite> } | undefined)?.pods ?? {};
 interface RawMap { id: string; gameVersion?: string; world: WorldBounds }
 
-const DEFAULT_BUILD = 513885;
+const DEFAULT_BUILD = 517554;
 
-function podRequirement(raw: RawPod, itemNames: Record<string, string>, problems: string[]): PodRequirement | undefined {
-  const hasItem = !!raw.item && raw.amount > 0;
-  const hasPower = raw.power > 0;
-  let useItem: boolean;
-  let usePower: boolean;
-  if (raw.costType === 'Item') { useItem = hasItem; usePower = false; }
-  else if (raw.costType === 'Power') { useItem = false; usePower = hasPower; }
-  else if (raw.costType === 'None') { useItem = hasItem; usePower = hasPower; }
-  else return undefined; // no mUnlockCost: requirement unknown
-  if (!useItem && !usePower) return undefined;
-  let item: PodRequirement['item'] = null;
-  if (useItem) {
-    const en = itemNames[raw.item!];
-    if (en === undefined) problems.push(`Pod item ${raw.item} has no entry in item-names.json`);
-    item = { en: en ?? raw.item!, de: en ?? raw.item! };
-  }
-  return { item, amount: useItem ? raw.amount : 0, power: usePower ? raw.power : 0 };
+/**
+ * A pod's unlock cost (mUnlockCost). CostType says which field counts: Item (item and amount) or Power. With None, or
+ * without mUnlockCost (null: the class default), the pod needs nothing; leftover item or power values in the fields the
+ * game ignores do not count. Undefined (unknown) only for a cost type without its value or an unknown cost type.
+ */
+function podRequirement(raw: RawPod, itemNames: Record<string, LocalizedName>, problems: string[]): PodRequirement | undefined {
+  if (raw.costType === 'None' || raw.costType === null) return { item: null, amount: 0, power: 0 };
+  if (raw.costType === 'Power') return raw.power > 0 ? { item: null, amount: 0, power: raw.power } : undefined;
+  if (raw.costType !== 'Item' || !raw.item || raw.amount <= 0) return undefined;
+  const name = itemNames[raw.item];
+  if (name === undefined) problems.push(`Pod item ${raw.item} has no entry in item-names.json`);
+  return { item: name ?? { en: raw.item, de: raw.item }, amount: raw.amount, power: 0 };
 }
 
 export function buildDataset(input: BuildInput): Dataset {
@@ -98,9 +92,7 @@ export function buildDataset(input: BuildInput): Dataset {
       if (t.powerShards !== undefined) w.extra = { shards: t.powerShards };
       if (t.details === 'dropPod') {
         const raw = extras.dropPods[e.name];
-        let pod = raw && podRequirement(raw, input.itemNames, problems);
-        // The game data has no cost for some pods; where the crash-site guide says none is needed, trust it.
-        if (!pod && crashSitePods(input.crashSites)[e.name]?.requirement?.type === 'none') pod = { item: null, amount: 0, power: 0 };
+        const pod = raw && podRequirement(raw, input.itemNames, problems);
         if (pod) w.extra = { pod };
       }
       if (input.itemsInCaves?.has(e.name)) w.extra = { ...w.extra, cave: true };
@@ -153,7 +145,8 @@ export function buildDataset(input: BuildInput): Dataset {
     build: input.build,
     bounds: map.world,
     mapId: map.id,
-    podRequirementsKnown: Object.keys(extras.dropPods).length > 0,
+    // True only when every drop pod has its requirement from the game data (extras.json).
+    podRequirementsKnown: work.every(w => typeById(w.type).details !== 'dropPod' || w.extra?.pod !== undefined),
     biomes: biomes.map(b => ({ id: b.id, name: { en: b.name, de: b.nameDe ?? b.name } })),
     items,
     aliases,
@@ -162,16 +155,19 @@ export function buildDataset(input: BuildInput): Dataset {
 
 /**
  * Per pod of the dataset: the items lying around its crash site (only pickups that exist in the game),
- * threats and notes, from data-src/crash-sites/crash-sites.json. Served as `crash-sites.json`.
+ * threats and notes, from data-src/crash-sites/crash-sites.json. Served as `crash-sites.json`. Items whose class is in
+ * `itemNames` get the game's English name (the key that matches pod requirements) and its German name.
  */
-export function buildCrashSites(raw: unknown, ds: Dataset): CrashSites {
+export function buildCrashSites(raw: unknown, ds: Dataset, itemNames: Record<string, LocalizedName> = {}): CrashSites {
   const pods = new Set(ds.items.filter(i => i[1] === 'hard_drive').map(i => i[0]));
   const out: CrashSites = {};
   for (const [name, site] of Object.entries(crashSitePods(raw))) {
     if (!pods.has(name)) continue;
     out[name] = {
-      items: (site.items ?? []).filter(i => i.pickup !== undefined && i.inGame !== false)
-        .map(i => (i.where ? { item: i.item, amount: i.amount, where: i.where } : { item: i.item, amount: i.amount })),
+      items: (site.items ?? []).filter(i => i.pickup !== undefined && i.inGame !== false).map(i => {
+        const known = i.itemClass === undefined ? undefined : itemNames[i.itemClass];
+        return { item: known?.en ?? i.item, ...(known && { de: known.de }), amount: i.amount, ...(i.where ? { where: i.where } : {}) };
+      }),
       threats: (site.threats ?? []).map(t => ({ name: t.name, count: t.count })),
       notes: site.notes ?? [],
     };
@@ -207,8 +203,13 @@ export function loadExtractorDir(dir: string, opts: LoadOptions = {}): BuildInpu
   const itemNamesPath = opts.itemNames ?? join(dir, 'item-names.json');
 
   const rawNames = existsSync(itemNamesPath) ? (readJson(itemNamesPath) as Record<string, unknown>) : {};
-  const itemNames: Record<string, string> = {};
-  for (const [k, v] of Object.entries(rawNames)) if (!k.startsWith('_') && typeof v === 'string') itemNames[k] = v;
+  // Entries are { en, de }; a plain string (older copies of the file) serves both locales.
+  const itemNames: Record<string, LocalizedName> = {};
+  for (const [k, v] of Object.entries(rawNames)) {
+    if (k.startsWith('_')) continue;
+    if (typeof v === 'string') itemNames[k] = { en: v, de: v };
+    else if (v && typeof v === 'object') itemNames[k] = v as LocalizedName;
+  }
   return {
     collectibles: readJson(join(dir, 'collectibles.json')),
     extras: readJson(join(dir, 'extras.json')),
@@ -240,14 +241,17 @@ function main(): void {
       'cave-geometry': { type: 'string' },
       // The extractor's height grid (`--heightmap-out`); default: inside --extractor. Without it there are no heights.
       heightmap: { type: 'string' },
-      // The game's map areas (`--map-areas-out`); default: inside --extractor. When present they are the biomes,
-      // instead of the editor polygons in --data-src.
+      // The game's map areas (`--map-areas-out`); default: inside --extractor. They tell land from sea for the
+      // biomes, and are the biomes themselves when there is no biome raster.
       'map-areas': { type: 'string' },
+      // The biomes as a raster in the map-areas format (scripts/wiki-biomes.ts, from the wiki's biome map);
+      // default: <data-src>/biomes/wiki-raster. First choice for the biomes.
+      'biome-raster': { type: 'string' },
       build: { type: 'string', default: String(DEFAULT_BUILD) },
     },
   });
   if (!v.extractor || !v.out) {
-    throw new Error('usage: npm run dataset -- --extractor <dir> --out <dir> [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--snap-m 100] [--build N]');
+    throw new Error('usage: npm run dataset -- --extractor <dir> --out <dir> [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--snap-m 100] [--build N]');
   }
   const src = resolve(v['data-src']!);
   const firstExisting = (...paths: string[]) => paths.find(p => existsSync(p)) ?? paths[0]!;
@@ -259,22 +263,22 @@ function main(): void {
     crashSites: resolve(v['crash-sites'] ?? join(src, 'crash-sites', 'crash-sites.json')),
     snapMeters: Number(v['snap-m']), build: Number(v.build),
   });
-  const mapAreas = readMapAreas(resolve(v['map-areas'] ?? join(resolve(v.extractor), 'map-areas')));
+  const gameAreas = readMapAreas(resolve(v['map-areas'] ?? join(resolve(v.extractor), 'map-areas')));
+  const biomeRaster = readMapAreas(resolve(v['biome-raster'] ?? join(src, 'biomes', 'wiki-raster')));
+  const mapAreas = biomeRaster ?? gameAreas;
   const heightGrid = readHeightGrid(resolve(v.heightmap ?? join(resolve(v.extractor), 'heightmap')));
   let biomeSummary = 'editor polygons (--data-src)';
+  const biomeSource = biomeRaster ? 'biome raster (wiki biome map)' : 'game map areas';
   if (mapAreas) {
-    // Land the game names no area joins the nearest biome; land is told from the height grid.
-    const isLand = heightGrid ? (x: number, y: number) => {
-      const { meta, top } = heightGrid;
-      const i = Math.floor((x - meta.minX) / meta.cell), j = Math.floor((y - meta.minY) / meta.cell);
-      return i >= 0 && j >= 0 && i < meta.width && j < meta.height && top[j * meta.width + i]! > SEA_LEVEL;
-    } : undefined;
+    // Land without a biome joins the nearest biome (landTest: everything but the open sea). The biome raster from
+    // the wiki map comes already filled (scripts/wiki-biomes.ts, with a land mask from the map image).
+    const isLand = biomeRaster ? undefined : landTest(heightGrid);
     const world = (input.map as { world: WorldBounds }).world;
     const areas = biomesFromAreas(mapAreas, world, AREA_SNAP, isLand);
     input.biomeAreas = areas;
     const pxArea = ((world.maxX - world.minX) / mapAreas.width / 100) ** 2;
-    biomeSummary = `game map areas, ${areas.biomes.length} biomes, ${areas.biomes.reduce((n, b) => n + b.rings.reduce((m, r) => m + r.length, 0), 0)} outline points, `
-      + (isLand ? `${(areas.filled * pxArea / 1e6).toFixed(2)} km² of land without an area joined to the nearest biome` : 'no height grid, land without an area stays without a biome');
+    biomeSummary = `${biomeSource}, ${areas.biomes.length} biomes, ${areas.biomes.reduce((n, b) => n + b.rings.reduce((m, r) => m + r.length, 0), 0)} outline points, `
+      + (isLand ? `${(areas.filled * pxArea / 1e6).toFixed(2)} km² of land without a biome joined to the nearest one` : 'no land fill');
   }
   const cavesPath = resolve(v.caves ?? join(resolve(v.extractor), 'caves.json'));
   const geometryDir = resolve(v['cave-geometry'] ?? join(resolve(v.extractor), 'cave-geometry'));
@@ -283,7 +287,9 @@ function main(): void {
     console.log('Sampling caves ...');
     const coll = input.collectibles as { pickups: RawEntry[]; dropPods: RawEntry[] };
     const points = [...coll.pickups, ...coll.dropPods].map(e => ({ name: e.name, x: e.location[0], y: e.location[1], z: e.location[2] }));
-    caveLayer = sampleCaves(geometryDir, readJson(cavesPath) as RawCaves, points, line => console.log(line));
+    // The landscape alone (`landscape.f32` next to the height grid): items far under it lie in a cave.
+    const landscape = readHeightGrid(resolve(v.heightmap ?? join(resolve(v.extractor), 'heightmap')), 'landscape.f32');
+    caveLayer = sampleCaves(geometryDir, readJson(cavesPath) as RawCaves, points, line => console.log(line), landscape);
     input.itemsInCaves = caveLayer.itemsInCaves;
   }
   let ds: Dataset;
@@ -294,7 +300,7 @@ function main(): void {
   const out = resolve(v.out);
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, 'collectibles.min.json'), JSON.stringify(ds));
-  if (input.crashSites !== undefined) writeFileSync(join(out, 'crash-sites.json'), JSON.stringify(buildCrashSites(input.crashSites, ds)));
+  if (input.crashSites !== undefined) writeFileSync(join(out, 'crash-sites.json'), JSON.stringify(buildCrashSites(input.crashSites, ds, input.itemNames)));
   const shapes = input.biomeAreas?.biomes ?? loadEditorBiomes(input.biomesGeojson, input.calibration);
   writeFileSync(join(out, 'biomes.geojson'), JSON.stringify(biomesToGeojson(shapes)));
   let caveSummary = 'no caves.json / cave geometry, no cave layer';

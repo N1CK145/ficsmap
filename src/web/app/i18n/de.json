@@ -15,9 +15,9 @@
     "retry": "Erneut versuchen"
   },
   "types": {
-    "slug_blue": "Blaue Power-Schnecke",
-    "slug_yellow": "Gelbe Power-Schnecke",
-    "slug_purple": "Violette Power-Schnecke",
+    "slug_blue": "Blaue Elektroschnecke",
+    "slug_yellow": "Gelbe Elektroschnecke",
+    "slug_purple": "Violette Elektroschnecke",
     "somersloop": "Somersloop",
     "mercer_sphere": "Mercer-Sphäre",
     "hard_drive": "Festplatte"
@@ -128,9 +128,9 @@
     "dim": "Abblenden",
     "hide": "Ausblenden",
     "types": {
-      "slug_blue": "Blaue Power-Schnecken",
-      "slug_yellow": "Gelbe Power-Schnecken",
-      "slug_purple": "Violette Power-Schnecken",
+      "slug_blue": "Blaue Elektroschnecken",
+      "slug_yellow": "Gelbe Elektroschnecken",
+      "slug_purple": "Violette Elektroschnecken",
       "somersloop": "Somersloops",
       "mercer_sphere": "Mercer-Sphären",
       "hard_drive": "Festplatten"
@@ -152,14 +152,14 @@
     "toOpen": {
       "title": "Zum Öffnen",
       "varies": "Die Anforderungen sind je Welt verschieden",
-      "noData": "Für diese Kapsel gibt es keine Anforderungsdaten",
+      "noData": "Für diese Landekapsel gibt es keine Anforderungsdaten",
       "nothing": "Nichts nötig",
       "items": "{amount, number}× {item}",
       "power": "{power, number} MW"
     },
     "crashSite": {
-      "title": "Absturzort",
-      "items": "Items am Absturzort",
+      "title": "Absturzstelle",
+      "items": "Gegenstände an der Absturzstelle",
       "threats": "Gefahren",
       "notes": "Hinweise",
       "none": "Keine",
@@ -167,8 +167,8 @@
       "threat": "{count, number}× {name}"
     },
     "powerSlug": {
-      "title": "Power-Schnecke",
-      "yields": "{count, plural, one {Ergibt # Power-Splitter} other {Ergibt # Power-Splitter}}"
+      "title": "Elektroschnecke",
+      "yields": "{count, plural, one {Ergibt # Energiefragment} other {Ergibt # Energiefragmente}}"
     },
     "nearby": {
       "title": "In der Nähe · {radius, number} m",
@@ -267,9 +267,9 @@
       "allFound": "Nichts mitzunehmen: alles liegt unterwegs.",
       "collapse": "Liste einklappen",
       "expand": "Liste ausklappen",
-      "power": "Strom: {count, plural, one {# Pod} other {# Pods}}, bis {mw, number} MW",
-      "free": "{count, plural, one {# Pod ohne Voraussetzung} other {# Pods ohne Voraussetzung}}",
-      "unknown": "{count, plural, one {# Pod ohne Anforderungsdaten} other {# Pods ohne Anforderungsdaten}}"
+      "power": "Strom: {count, plural, one {# Landekapsel} other {# Landekapseln}}, bis {mw, number} MW",
+      "free": "{count, plural, one {# Landekapsel ohne Voraussetzung} other {# Landekapseln ohne Voraussetzung}}",
+      "unknown": "{count, plural, one {# Landekapsel ohne Anforderungsdaten} other {# Landekapseln ohne Anforderungsdaten}}"
     },
     "title": "Routen",
     "new": "+ Neue Route",

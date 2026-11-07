@@ -9,10 +9,15 @@ export interface RawCaveElement { hull: number[][]; zMin: number; zMax: number }
 export interface RawCaveVolume { name: string; source: string; elements: RawCaveElement[] }
 export interface RawCaves { volumes: RawCaveVolume[] }
 
-/** An element this many times larger (any axis) than its volume's median element is a broken brush (seen twice). */
+/**
+ * An element this many times larger (any axis) than its volume's median element, and over BROKEN_SIZE (cm), is a
+ * broken brush (seen twice: one reaches about 300 m out to sea, one about 396 km up). Smaller outliers are real:
+ * a cave hall drawn as one big box next to a few small ones (cave-059's main element is about 190 x 200 m).
+ */
 const OUTLIER_FACTOR = 5;
+const BROKEN_SIZE = 30000;
 
-/** A volume's elements without the ones far larger than the rest. */
+/** A volume's elements without the broken ones (far larger than the rest and hundreds of metres large). */
 export function cleanElements(elements: readonly RawCaveElement[]): RawCaveElement[] {
   if (elements.length < 3) return [...elements];
   const size = (e: RawCaveElement) => {
@@ -21,7 +26,7 @@ export function cleanElements(elements: readonly RawCaveElement[]): RawCaveEleme
   };
   const sizes = elements.map(size);
   const median = [...sizes].sort((a, b) => a - b)[Math.floor(sizes.length / 2)]!;
-  return elements.filter((_, i) => sizes[i]! <= OUTLIER_FACTOR * median);
+  return elements.filter((_, i) => sizes[i]! <= OUTLIER_FACTOR * median || sizes[i]! <= BROKEN_SIZE);
 }
 
 /** A cave's outline rings (world cm, filled even-odd: outer rings and holes) and its entrances. */

@@ -18,9 +18,11 @@ const STEP = 150;
 const BAND_BELOW = 300;
 /** Connected cave floor smaller than this (cells = m²) is an overhang or a gap between rocks, not cave. */
 const MIN_CAVE_CELLS = 200;
-/** Mouth pieces closer than this (cm) and at about the same height are one entrance. */
+/** Mouth pieces closer than this (cm) and at about the same height are one entrance (see also `classify`). */
 const ENTRANCE_MERGE = 2000;
 const ENTRANCE_MERGE_DZ = 300;
+/** Mouth pieces joined by cave floor outside the volumes are one entrance up to this far apart (cm). */
+const ENTRANCE_MERGE_STRIP = 5000;
 /** Smaller mouths (cells along the opening) are ignored. */
 const MIN_MOUTH_CELLS = 3;
 /** How far (cells) a mouth may lie under an overhang from open sky. */
@@ -29,15 +31,17 @@ const OVERHANG_REACH = 15;
 const BAND_GROW = 3000;
 /** Triangles steeper than this (|normal.z| below) are walls; they do not make floors or ceilings. */
 const MIN_FLAT = 0.1;
+/** Where `classify` is told so, the landscape at least this far (cm) above a floor counts as its ceiling. */
+const LANDSCAPE_CEILING = 1000;
 
 export interface CaveBox { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number }
 
-/** Triangles in UE world coordinates (cm), 9 floats each, and whether each one faces up. */
-export interface Triangles { pos: Float32Array; up: Uint8Array; count: number }
+/** Triangles in UE world coordinates (cm), 9 floats each, whether each one faces up, and which are the landscape (1). */
+export interface Triangles { pos: Float32Array; up: Uint8Array; count: number; land?: Uint8Array }
 
 interface GltfAccessor { bufferView: number; componentType: number; count: number; byteOffset?: number }
 interface GltfJson {
-  nodes: { mesh?: number; matrix?: number[] }[];
+  nodes: { mesh?: number; matrix?: number[]; name?: string }[];
   meshes: { primitives: { attributes: { POSITION: number }; indices: number }[] }[];
   accessors: GltfAccessor[];
   bufferViews: { byteOffset?: number; byteLength: number }[];
@@ -59,6 +63,7 @@ export function readGlb(path: string): Triangles {
   }
   const pos = new Float32Array(total * 9);
   const up = new Uint8Array(total);
+  const land = new Uint8Array(total);
   let t = 0;
   const v = [0, 0, 0];
   for (const n of json.nodes) {
@@ -90,15 +95,16 @@ export function readGlb(path: string): Triangles {
         const ny = uz * wx - ux * wz;
         const len = Math.hypot(uy * wz - uz * wy, ny, ux * wy - uy * wx);
         up[t] = len === 0 || Math.abs(ny) / len < MIN_FLAT ? 2 : ny > 0 ? 1 : 0; // 2 = wall
+        if (n.name === 'landscape') land[t] = 1;
         t++;
       }
     }
   }
-  return { pos, up, count: total };
+  return { pos, up, count: total, land };
 }
 
-/** Per cell, every surface a vertical ray passes: heights (cm) and facing (1 up, 0 down), sorted by height. */
-export interface Columns { w: number; h: number; x0: number; y0: number; start: Uint32Array; z: Float32Array; up: Uint8Array }
+/** Per cell, every surface a vertical ray passes: heights (cm), facing (1 up, 0 down) and landscape (1), sorted by height. */
+export interface Columns { w: number; h: number; x0: number; y0: number; start: Uint32Array; z: Float32Array; up: Uint8Array; land: Uint8Array }
 
 /** Cell (i, j) covers x0 + i*CELL .. +CELL; its ray is at the cell centre. */
 export function sampleColumns(tris: Triangles, box: CaveBox): Columns {
@@ -136,20 +142,21 @@ export function sampleColumns(tris: Triangles, box: CaveBox): Columns {
   for (let k = 0; k < w * h; k++) start[k + 1] = start[k]! + counts[k + 1]!;
   const z = new Float32Array(start[w * h]!);
   const up = new Uint8Array(start[w * h]!);
+  const land = new Uint8Array(start[w * h]!);
   const fill = start.slice(0, w * h);
   for (let t = 0; t < tris.count; t++) {
     if (tris.up[t] === 2) continue;
-    visit(t, (cell, zz) => { const k = fill[cell]!++; z[k] = zz; up[k] = tris.up[t]!; });
+    visit(t, (cell, zz) => { const k = fill[cell]!++; z[k] = zz; up[k] = tris.up[t]!; land[k] = tris.land?.[t] ?? 0; });
   }
   // sort each column by height
   for (let cell = 0; cell < w * h; cell++) {
     const a = start[cell]!, b = start[cell + 1]!;
     if (b - a < 2) continue;
     const order = Array.from({ length: b - a }, (_, k) => a + k).sort((p, q) => z[p]! - z[q]!);
-    const zs = order.map(k => z[k]!), us = order.map(k => up[k]!);
-    for (let k = 0; k < order.length; k++) { z[a + k] = zs[k]!; up[a + k] = us[k]!; }
+    const zs = order.map(k => z[k]!), us = order.map(k => up[k]!), ls = order.map(k => land[k]!);
+    for (let k = 0; k < order.length; k++) { z[a + k] = zs[k]!; up[a + k] = us[k]!; land[a + k] = ls[k]!; }
   }
-  return { w, h, x0, y0, start, z, up };
+  return { w, h, x0, y0, start, z, up, land };
 }
 
 /**
@@ -213,6 +220,8 @@ export interface CaveSample {
   /** Per hit of the columns: 1 cave floor, 2 open floor (sky above), 3 open floor reachable from outside, 4 covered floor not in the cave, 0 none. */
   kind: Uint8Array;
   entrances: { x: number; y: number; z: number; cells: number }[];
+  /** The volumes' height band the sample was classified with. */
+  band: Band;
 }
 
 /**
@@ -222,11 +231,15 @@ export interface CaveSample {
  * walkable. Floors connect to the four neighbouring columns when the step is at most STEP.
  * The **cave** is the covered floor inside the volumes' height band (grown BAND_GROW sideways, so mouths just
  * outside a volume are found); the map and the items only use the part inside the volumes (`area`). **Outside**
- * is open floor connected to the edge of the sampled box over open floor. An **entrance** is cave floor next
- * to outside floor, or next to covered non-cave floor at most OVERHANG_REACH cells from it (a mouth under
- * an overhang).
+ * is open floor at the edge of the sampled box or outside the volumes (where the game plays no cave sound), and
+ * open floor connected to it. A **mouth** is cave floor next to outside floor, or next to covered non-cave floor
+ * at most OVERHANG_REACH cells from it (a mouth under an overhang). One **entrance** per opening: mouth pieces
+ * joined by cave floor outside the volumes (the floor under the overhang in front of a cave) and at most
+ * ENTRANCE_MERGE_STRIP apart, or closer than ENTRANCE_MERGE at about the same height, are one; `keepZonesWith` drops the ones that do not lead into a
+ * volume. In the cells of `landCeiling` (`missedVolumes`), the landscape at least LANDSCAPE_CEILING above a
+ * floor counts as its ceiling: a hall under the landscape whose own ceiling the geometry does not have.
  */
-export function classify(cols: Columns, band: Band): CaveSample {
+export function classify(cols: Columns, band: Band, landCeiling?: Uint8Array): CaveSample {
   const n = cols.w * cols.h;
   const hits = cols.z.length;
   const kind = new Uint8Array(hits);
@@ -237,7 +250,8 @@ export function classify(cols: Columns, band: Band): CaveSample {
       const zf = cols.z[s]!;
       if (s === b - 1) { kind[s] = 2; continue; } // open sky
       if (cols.z[s + 1]! - zf < CLEARANCE) continue;
-      if (cols.up[s + 1] !== 0) continue; // buried
+      // buried, unless the surface above is the landscape high overhead where it counts as ceiling
+      if (cols.up[s + 1] !== 0 && !(cols.land[s + 1] && landCeiling?.[k] && cols.z[s + 1]! - zf >= LANDSCAPE_CEILING)) continue;
       const inBand = !Number.isNaN(band.lo[k]!) && zf >= band.lo[k]! - BAND_BELOW && zf <= band.hi[k]!;
       kind[s] = inBand ? 1 : 4;
     }
@@ -273,11 +287,11 @@ export function classify(cols: Columns, band: Band): CaveSample {
     if (part.length < MIN_CAVE_CELLS) for (const t of part) kind[t] = 4;
   }
 
-  // Outside: non-cave floor reachable from the box edge.
+  // Outside: open floor at the box edge or outside the volumes, and open floor reachable from there.
   const queue: number[] = [];
   for (let k = 0; k < n; k++) {
     const i = k % cols.w, j = (k - i) / cols.w;
-    if (i !== 0 && j !== 0 && i !== cols.w - 1 && j !== cols.h - 1) continue;
+    if (band.inside[k] && i !== 0 && j !== 0 && i !== cols.w - 1 && j !== cols.h - 1) continue;
     for (let s = cols.start[k]!; s < cols.start[k + 1]!; s++) if (kind[s] === 2) { kind[s] = 3; queue.push(s); }
   }
   while (queue.length > 0) {
@@ -307,7 +321,7 @@ export function classify(cols: Columns, band: Band): CaveSample {
     if (nb.some(t => kind[t] === 3 || reach[t]! > 0)) mouthZ[k] = cols.z[s]!;
   }
 
-  // Mouth pieces: 8-connected mouth cells; pieces of one opening merged; narrow ones dropped.
+  // Mouth pieces: 8-connected mouth cells; pieces of one opening merged; narrow openings dropped.
   const pieces: { cells: number[]; x: number; y: number; z: number }[] = [];
   const done = new Uint8Array(n);
   for (let k = 0; k < n; k++) {
@@ -328,26 +342,24 @@ export function classify(cols: Columns, band: Band): CaveSample {
     }
     pieces.push({ cells, ...centre(cells) });
   }
+  // One opening: mouth pieces joined by cave floor outside the volumes (the mouth's own floor, an overhang).
+  const strip = components(Uint8Array.from(floor, (f, k) => (!Number.isNaN(mouthZ[k]!) || (!Number.isNaN(f) && !band.inside[k]) ? 1 : 0)), cols.w, cols.h);
   const groups: (typeof pieces)[] = [];
   for (const p of pieces.sort((a, b) => b.cells.length - a.cells.length)) {
-    const g = groups.find(gr => gr.some(q => Math.hypot(q.x - p.x, q.y - p.y) <= ENTRANCE_MERGE && Math.abs(q.z - p.z) <= ENTRANCE_MERGE_DZ));
+    const g = groups.find(gr => gr.some(q => {
+      const d = Math.hypot(q.x - p.x, q.y - p.y);
+      return (d <= ENTRANCE_MERGE_STRIP && strip.label[q.cells[0]!] === strip.label[p.cells[0]!]) || (d <= ENTRANCE_MERGE && Math.abs(q.z - p.z) <= ENTRANCE_MERGE_DZ);
+    }));
     if (g) g.push(p);
     else groups.push([p]);
   }
-  const entrances: CaveSample['entrances'] = [];
-  const mouthCells: number[] = [];
-  for (const g of groups) {
-    const cells = g.flatMap(p => p.cells);
-    if (cells.length < MIN_MOUTH_CELLS) continue;
-    entrances.push({ ...centre(cells), cells: cells.length });
-    mouthCells.push(...cells);
-  }
-  // A cave without any found entrance (reached through a shaft or water, say) is kept whole.
-  let area = caveArea(Uint8Array.from(floor, f => (Number.isNaN(f) ? 0 : 1)), cols.w, cols.h);
-  if (mouthCells.length > 0) area = keepZonesWith(area, cols.w, cols.h, mouthCells);
+  const mouths = groups.map(g => g.flatMap(p => p.cells)).filter(cells => cells.length >= MIN_MOUTH_CELLS);
+  const area = caveArea(Uint8Array.from(floor, f => (Number.isNaN(f) ? 0 : 1)), cols.w, cols.h);
+  const kept = keepZonesWith(area, cols.w, cols.h, mouths, band.inside);
+  const entrances = mouths.filter((_, m) => kept.entrances[m]).map(cells => ({ ...centre(cells), cells: cells.length }));
   // Cave only where the game itself says so: inside its cave volumes (cave sound and fog).
   for (let k = 0; k < n; k++) if (!band.inside[k]) area[k] = 0;
-  return { w: cols.w, h: cols.h, x0: cols.x0, y0: cols.y0, floor, area, kind, entrances };
+  return { w: cols.w, h: cols.h, x0: cols.x0, y0: cols.y0, floor, area, kind, entrances, band };
 
   /** The cell of `cells` nearest their mean, as a world point at its mouth height. */
   function centre(cells: readonly number[]) {
@@ -370,6 +382,8 @@ const NEIGHBOURS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
 const CLOSE_RADIUS = 3;
 /** Holes in the cave floor up to this size (cells = m²) are filled: rocks and pillars standing in the cave. */
 const MAX_HOLE_CELLS = 1000;
+/** Parts of the cave area closer than twice this (cells) are one zone for the entrance rule (`keepZonesWith`). */
+const ZONE_REACH = 4;
 
 /**
  * The area the map shows as cave, from the cave floor cells (1 = cave): a rock lying in the cave has its own
@@ -378,27 +392,7 @@ const MAX_HOLE_CELLS = 1000;
  * (dilate, then erode with a disc) and fills holes up to MAX_HOLE_CELLS that do not reach the box edge.
  */
 export function caveArea(mask: Uint8Array, w: number, h: number): Uint8Array {
-  const disc: [number, number][] = [];
-  for (let dj = -CLOSE_RADIUS; dj <= CLOSE_RADIUS; dj++) {
-    for (let di = -CLOSE_RADIUS; di <= CLOSE_RADIUS; di++) if (di * di + dj * dj <= CLOSE_RADIUS * CLOSE_RADIUS + 1) disc.push([di, dj]);
-  }
-  // value: what a cell becomes if any (dilate) or every (erode) cell of the disc around it is set; outside the box counts as `edge`
-  const morph = (src: Uint8Array, any: boolean, edge: number) => {
-    const dst = new Uint8Array(w * h);
-    for (let j = 0; j < h; j++) {
-      for (let i = 0; i < w; i++) {
-        let hit = !any;
-        for (const [di, dj] of disc) {
-          const ni = i + di, nj = j + dj;
-          const v = ni < 0 || nj < 0 || ni >= w || nj >= h ? edge : src[nj * w + ni]!;
-          if (any ? v === 1 : v === 0) { hit = any; break; }
-        }
-        dst[j * w + i] = hit ? 1 : 0;
-      }
-    }
-    return dst;
-  };
-  const area = morph(morph(mask, true, 0), false, 1);
+  const area = morph(morph(mask, w, h, CLOSE_RADIUS, true, 0), w, h, CLOSE_RADIUS, false, 1);
 
   // Fill enclosed holes (4-connected empty cells not touching the box edge) up to MAX_HOLE_CELLS.
   const seen = new Uint8Array(w * h);
@@ -423,51 +417,182 @@ export function caveArea(mask: Uint8Array, w: number, h: number): Uint8Array {
 }
 
 /**
- * Keeps only the zones of `area` (8-connected cells) that contain one of `seeds` (cell indices, the entrances'
- * mouth cells); the rest is cleared in place. Zones without an entrance are mostly gaps under rocks next to the
- * cave or parts reached only through openings too small to count.
+ * Dilates (`any`: a cell is set if any cell of the disc of `radius` cells around it is) or erodes (if every cell
+ * is) a cell mask; cells outside the grid count as `edge`.
  */
-export function keepZonesWith(area: Uint8Array, w: number, h: number, seeds: readonly number[]): Uint8Array {
-  const keep = new Uint8Array(w * h);
-  const queue = seeds.filter(k => area[k]);
-  for (const k of queue) keep[k] = 1;
-  while (queue.length > 0) {
-    const c = queue.pop()!, i = c % w, j = (c - i) / w;
-    for (let dj = -1; dj <= 1; dj++) {
-      for (let di = -1; di <= 1; di++) {
+function morph(src: Uint8Array, w: number, h: number, radius: number, any: boolean, edge: number): Uint8Array {
+  const disc: [number, number][] = [];
+  for (let dj = -radius; dj <= radius; dj++) {
+    for (let di = -radius; di <= radius; di++) if (di * di + dj * dj <= radius * radius + 1) disc.push([di, dj]);
+  }
+  const dst = new Uint8Array(w * h);
+  for (let j = 0; j < h; j++) {
+    for (let i = 0; i < w; i++) {
+      let hit = !any;
+      for (const [di, dj] of disc) {
         const ni = i + di, nj = j + dj;
-        if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
-        const nk = nj * w + ni;
-        if (area[nk] && !keep[nk]) { keep[nk] = 1; queue.push(nk); }
+        const v = ni < 0 || nj < 0 || ni >= w || nj >= h ? edge : src[nj * w + ni]!;
+        if (any ? v === 1 : v === 0) { hit = any; break; }
       }
+      dst[j * w + i] = hit ? 1 : 0;
     }
   }
-  for (let k = 0; k < w * h; k++) area[k] = keep[k]!;
-  return area;
+  return dst;
+}
+
+/** 8-connected components of the cells where `mask` is set: label per cell (-1 where unset) and their count. */
+function components(mask: Uint8Array, w: number, h: number): { label: Int32Array; count: number } {
+  const label = new Int32Array(w * h).fill(-1);
+  let count = 0;
+  for (let k = 0; k < w * h; k++) {
+    if (!mask[k] || label[k]! >= 0) continue;
+    const queue = [k];
+    label[k] = count;
+    while (queue.length > 0) {
+      const c = queue.pop()!, i = c % w, j = (c - i) / w;
+      for (let dj = -1; dj <= 1; dj++) {
+        for (let di = -1; di <= 1; di++) {
+          const ni = i + di, nj = j + dj;
+          if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+          const nk = nj * w + ni;
+          if (mask[nk] && label[nk]! < 0) { label[nk] = count; queue.push(nk); }
+        }
+      }
+    }
+    count++;
+  }
+  return { label, count };
+}
+
+/**
+ * Which zones of `area` are cave, per cluster of cave volumes (8-connected cells of `inside`; one group of volumes
+ * can hold several separate caves). A zone is a connected part of the area, parts less than 2 * ZONE_REACH cells
+ * apart included. In a cluster with an entrance, only the zones with one are kept: zones without are mostly gaps
+ * under rocks next to the cave or parts reached only through openings too small to count. A cluster without any
+ * found entrance (reached through a shaft or water, say) keeps all its zones. Zones that do not reach into any
+ * volume are dropped, and so are their entrances (overhangs next to the cave). `mouths`: the entrances' mouth
+ * cells (cell indices). Clears the dropped zones of `area` in place; `entrances` tells per mouth whether its
+ * entrance leads into a kept zone.
+ */
+export function keepZonesWith(area: Uint8Array, w: number, h: number, mouths: readonly (readonly number[])[], inside: Uint8Array):
+  { area: Uint8Array; entrances: boolean[] } {
+  // A rock lying across a tunnel cuts its floor apart.
+  const zones = components(morph(area, w, h, ZONE_REACH, true, 0), w, h);
+  const clusters = components(inside, w, h);
+  /** Per zone: the clusters it reaches into. */
+  const reaches = Array.from({ length: zones.count }, () => new Set<number>());
+  for (let k = 0; k < w * h; k++) if (area[k] && clusters.label[k]! >= 0) reaches[zones.label[k]!]!.add(clusters.label[k]!);
+  const zoneHasMouth = new Uint8Array(zones.count);
+  const entrances = mouths.map(cells => {
+    const zs = new Set(cells.map(k => zones.label[k]!).filter(z => z >= 0 && reaches[z]!.size > 0));
+    for (const z of zs) zoneHasMouth[z] = 1;
+    return zs.size > 0;
+  });
+  const clusterHasMouth = new Uint8Array(clusters.count);
+  for (let z = 0; z < zones.count; z++) if (zoneHasMouth[z]) for (const c of reaches[z]!) clusterHasMouth[c] = 1;
+  const keep = reaches.map((cs, z) => zoneHasMouth[z] === 1 || [...cs].some(c => !clusterHasMouth[c]));
+  for (let k = 0; k < w * h; k++) if (zones.label[k]! < 0 || !keep[zones.label[k]!]) area[k] = 0;
+  return { area, entrances };
 }
 
 /** Items this far below a cave floor or above its ceiling still count as inside (cm). */
 const ITEM_BELOW = 300;
 const ITEM_ABOVE = 100;
+/** A point this far (cm) under the landscape all around it is underground. */
+const UNDERGROUND = 500;
+
+/** A height grid of the extractor's `--heightmap-out` (scripts/heightmap.ts `readHeightGrid`). */
+export interface HeightGrid { meta: { cell: number; minX: number; minY: number; width: number; height: number }; top: Float32Array }
 
 /**
- * Whether a world point lies in the cave: a cave floor in its cell or a neighbour, inside the cave area (not in a
- * zone dropped for having no entrance), with the point between floor and ceiling.
+ * Whether a point lies more than UNDERGROUND under the landscape (`landscape.f32`) in its grid cell and the eight
+ * around it. Cells without landscape (holes cut for cave mouths and under rocks, the sea) make it not underground.
  */
-export function inCaveAt(cols: Columns, sample: CaveSample, x: number, y: number, z: number): boolean {
+export function isUnderground(landscape: HeightGrid, x: number, y: number, z: number): boolean {
+  const { meta: g, top } = landscape;
+  const ci = Math.floor((x - g.minX) / g.cell), cj = Math.floor((y - g.minY) / g.cell);
+  for (let dj = -1; dj <= 1; dj++) {
+    for (let di = -1; di <= 1; di++) {
+      const i = ci + di, j = cj + dj;
+      if (i < 0 || j < 0 || i >= g.width || j >= g.height) return false;
+      if (!(top[j * g.width + i]! - z > UNDERGROUND)) return false; // NaN: a hole
+    }
+  }
+  return true;
+}
+
+/**
+ * Whether a world point lies in the cave, in its cell or a neighbour, inside the cave area (not in a zone dropped
+ * for having no entrance):
+ * - a cave floor lies at most ITEM_BELOW under the point, with the point below the floor's ceiling (+ ITEM_ABOVE);
+ * - or the point is `underground` (`isUnderground`) and within the volumes' height band. Such items lie on rocks
+ *   and ledges in the cave (too small to count as cave floor) or in hollows the sampling does not see as floor.
+ *   Underground is where nothing but caves is, and the landscape test keeps out items lying on the ground below a
+ *   cave that sits in a rock above it.
+ */
+export function inCaveAt(cols: Columns, sample: CaveSample, x: number, y: number, z: number, underground = false): boolean {
   const ci = Math.floor((x - cols.x0) / CELL), cj = Math.floor((y - cols.y0) / CELL);
   for (let dj = -1; dj <= 1; dj++) {
     for (let di = -1; di <= 1; di++) {
       const i = ci + di, j = cj + dj;
       if (i < 0 || j < 0 || i >= cols.w || j >= cols.h) continue;
       const k = j * cols.w + i;
+      if (!sample.area[k]) continue;
+      if (underground && z >= sample.band.lo[k]! - BAND_BELOW && z <= sample.band.hi[k]! + ITEM_ABOVE) return true;
       for (let s = cols.start[k]!; s < cols.start[k + 1]! - 1; s++) {
-        if (sample.kind[s] !== 1 || !sample.area[k]) continue;
+        if (sample.kind[s] !== 1) continue;
         if (z >= cols.z[s]! - ITEM_BELOW && z <= cols.z[s + 1]! + ITEM_ABOVE) return true;
       }
     }
   }
   return false;
+}
+
+/**
+ * Volume clusters (8-connected cells of `Band.inside`) holding an underground item (cell index, height in cm)
+ * within the volumes' height band but outside the cave area (no area in its cell or the eight around it): the
+ * sampling missed cave there. Returns their cells as a mask (1), or null if there are none.
+ */
+export function missedVolumes(sample: CaveSample, items: readonly { cell: number; z: number }[]): Uint8Array | null {
+  const { band, area, w, h } = sample;
+  const clusters = components(band.inside, w, h);
+  const missed = new Uint8Array(clusters.count);
+  let any = false;
+  for (const { cell, z } of items) {
+    const c = clusters.label[cell]!;
+    if (!(c >= 0) || z < band.lo[cell]! - BAND_BELOW || z > band.hi[cell]! + ITEM_ABOVE) continue;
+    const ci = cell % w, cj = (cell - ci) / w;
+    let covered = false;
+    for (let dj = -1; dj <= 1 && !covered; dj++) {
+      for (let di = -1; di <= 1; di++) {
+        const i = ci + di, j = cj + dj;
+        if (i >= 0 && j >= 0 && i < w && j < h && area[j * w + i]) { covered = true; break; }
+      }
+    }
+    if (!covered) { missed[c] = 1; any = true; }
+  }
+  return any ? Uint8Array.from(clusters.label, c => (c >= 0 && missed[c] ? 1 : 0)) : null;
+}
+
+/**
+ * Fallback for volumes where the sampling found no cave: clusters of volumes (8-connected cells of `Band.inside`)
+ * without any cave area but with an underground item in them count as cave as a whole (the volume outline).
+ * `items`: the underground items' cells (cell indices) and heights (cm); only those within the volumes' height
+ * band count. Sets `sample.area` in place; returns the number of clusters filled.
+ */
+export function fillEmptyVolumes(sample: CaveSample, items: readonly { cell: number; z: number }[]): number {
+  const { band, area } = sample;
+  const clusters = components(band.inside, sample.w, sample.h);
+  const hasArea = new Uint8Array(clusters.count), hasItem = new Uint8Array(clusters.count);
+  for (let k = 0; k < area.length; k++) if (area[k] && clusters.label[k]! >= 0) hasArea[clusters.label[k]!] = 1;
+  for (const { cell, z } of items) {
+    const c = clusters.label[cell]!;
+    if (c >= 0 && z >= band.lo[cell]! - BAND_BELOW && z <= band.hi[cell]! + ITEM_ABOVE) hasItem[c] = 1;
+  }
+  let filled = 0;
+  for (let c = 0; c < clusters.count; c++) if (hasItem[c] && !hasArea[c]) filled++;
+  if (filled > 0) for (let k = 0; k < area.length; k++) if (clusters.label[k]! >= 0 && hasItem[clusters.label[k]!] && !hasArea[clusters.label[k]!]) area[k] = 1;
+  return filled;
 }
 
 /** Rings smaller than this (cm²) are dropped. */
@@ -491,30 +616,38 @@ export interface CaveLayer { caves: SampledCave[]; itemsInCaves: Set<string> }
 
 /**
  * Samples every cave of the extractor's cave geometry (`<dir>/index.json` and one GLB per cave) and tests the
- * given points (items) against the caves. `volumes` is the extractor's caves.json.
+ * given points (items) against the caves. `volumes` is the extractor's caves.json; `landscape` the landscape
+ * height grid (`landscape.f32`), for the underground rule of `inCaveAt` and `fillEmptyVolumes` (both off without it).
  */
 export function sampleCaves(
   dir: string, volumes: RawCaves, points: readonly { name: string; x: number; y: number; z: number }[],
-  log: (line: string) => void = () => {},
+  log: (line: string) => void = () => {}, landscape?: HeightGrid | null,
 ): CaveLayer {
   const index = JSON.parse(readFileSync(`${dir}/index.json`, 'utf8')) as CaveGeometryIndex;
   const byName = new Map(volumes.volumes.map(v => [v.name, v]));
   const caves: SampledCave[] = [];
   const itemsInCaves = new Set<string>();
+  const underground = new Set(landscape ? points.filter(p => isUnderground(landscape, p.x, p.y, p.z)).map(p => p.name) : []);
   for (const entry of index.caves) {
     const elements = entry.volumes.flatMap(n => cleanElements(byName.get(n)?.elements ?? []));
     if (elements.length === 0) continue;
     const box: CaveBox = { minX: entry.min[0]!, minY: entry.min[1]!, minZ: entry.min[2]!, maxX: entry.max[0]!, maxY: entry.max[1]!, maxZ: entry.max[2]! };
     const cols = sampleColumns(readGlb(`${dir}/${entry.file}`), box);
-    const sample = classify(cols, volumeBand(cols, elements));
+    const band = volumeBand(cols, elements);
+    let sample = classify(cols, band);
+    const inBox = points.filter(p => p.x >= box.minX && p.x < box.maxX && p.y >= box.minY && p.y < box.maxY);
+    const cellOf = (p: { x: number; y: number }) => Math.floor((p.y - cols.y0) / CELL) * cols.w + Math.floor((p.x - cols.x0) / CELL);
+    const deep = inBox.filter(p => underground.has(p.name)).map(p => ({ cell: cellOf(p), z: p.z }));
+    // Underground items outside the cave area: sample those volumes again with the landscape as ceiling.
+    const missed = missedVolumes(sample, deep);
+    if (missed) sample = classify(cols, band, missed);
+    const filled = fillEmptyVolumes(sample, deep);
     const rings = traceRings(sample);
     if (rings.length === 0) continue;
     caves.push({ id: entry.id, rings, entrances: sample.entrances.map(({ x, y, z }) => ({ x, y, z })) });
-    for (const p of points) {
-      if (p.x < box.minX || p.x > box.maxX || p.y < box.minY || p.y > box.maxY) continue;
-      if (inCaveAt(cols, sample, p.x, p.y, p.z)) itemsInCaves.add(p.name);
-    }
-    log(`  ${entry.id}: ${rings.length} outline rings, ${sample.entrances.length} entrances`);
+    for (const p of inBox) if (inCaveAt(cols, sample, p.x, p.y, p.z, underground.has(p.name))) itemsInCaves.add(p.name);
+    const notes = [missed ? 'landscape as ceiling in volumes with items outside the cave' : '', filled ? `${filled} volume cluster(s) without cave floor drawn whole` : ''].filter(Boolean);
+    log(`  ${entry.id}: ${rings.length} outline rings, ${sample.entrances.length} entrances${notes.length ? ` (${notes.join('; ')})` : ''}`);
   }
   return { caves, itemsInCaves };
 }

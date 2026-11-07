@@ -75,7 +75,7 @@ ficsmap/
   .env
   state/            app.db, backups/, ficsmap-version.json (written by the app)
   dataset/
-    1.2.4.1/        collectibles.min.json, map.json, biomes.geojson, crash-sites.json, tiles/, icons/
+    1.2.5.0/        collectibles.min.json, map.json, biomes.geojson, crash-sites.json, tiles/, icons/, caves.geojson, height/
 ```
 
 `state/` must be writable by the container user (uid 1000):
@@ -156,11 +156,11 @@ To build one:
 
    ```sh
    npm ci
-   npm run dataset -- --extractor <extractor-output-dir> --data-src <dir> --out data/1.2.4.1
+   npm run dataset -- --extractor <extractor-output-dir> --data-src <dir> --build <changelist> --out data/1.2.5.0
    ```
 
-   `--data-src` points to a folder with `biomes/biomes.editor.geojson`, `biomes/calibration.json` and `crash-sites/crash-sites.json`. If the extractor output contains `caves.json` and `cave-geometry/` (or you pass `--caves <file> --cave-geometry <dir>`), the build samples the caves, writes `caves.geojson` and marks items that lie in a cave. If it contains `heightmap/` (or you pass `--heightmap <dir>`), the build writes the height map tiles to `height/`. If it contains `map-areas/` (or you pass `--map-areas <dir>`), the biomes come from the game's map areas and the editor polygons in `--data-src` are not used.
-3. Copy `data/1.2.4.1/` into the `dataset/` directory next to your `docker-compose.yml`.
+   `--data-src` points to a folder with `biomes/biomes.editor.geojson`, `biomes/calibration.json` and `crash-sites/crash-sites.json`. If the extractor output contains `caves.json` and `cave-geometry/` (or you pass `--caves <file> --cave-geometry <dir>`), the build samples the caves, writes `caves.geojson` and marks items that lie in a cave. If it contains `heightmap/` (or you pass `--heightmap <dir>`), the build writes the height map tiles to `height/`, and the cave sampling uses its `landscape.f32` to also mark items deep underground in a cave volume. If it contains `map-areas/` (or you pass `--map-areas <dir>`), the biomes come from the game's map areas and the editor polygons in `--data-src` are not used.
+3. Copy `data/1.2.5.0/` into the `dataset/` directory next to your `docker-compose.yml`.
 
 **Current limitation:** the crash-site data are maintainer data and are not published. With the extractor output (including `map-areas/`) you get the tiles, icons, collectible positions and biomes, but the crash-site layer needs a source of your own in the format above. `--data-src` still has to provide the biome editor files, even though they are unused when `map-areas/` exists.
 
@@ -250,7 +250,7 @@ The app shows "ficsmap vX.Y.Z" with a link to the GitHub release. `GET /api/vers
 - Accounts are invite-only. There is no open sign-up.
 - Self-hosting needs your own Discord application.
 - The map dataset is not included and has to be built from your own game install. Crash-site data are not published yet.
-- The data is from game version 1.2.4.1.
+- The data is from game version 1.2.5.0.
 - Route distances are straight lines; terrain is not taken into account.
 - Berries, nuts and mushrooms are not tracked.
 - One instance per database: live sync and rate limits are held in memory, and SQLite has a single writer. ficsmap does not scale out to several containers.

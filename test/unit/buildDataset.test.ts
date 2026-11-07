@@ -60,14 +60,32 @@ describe('buildDataset (mini fixture)', () => {
     expect(by('BP_DropPod2_1')[7]).toEqual({ pod: { item: null, amount: 0, power: 30 } });
     expect(by('BP_WAT1_C_1')[7]).toBeUndefined();
   });
-  it('pod cost semantics: None keeps what is set, null cost is omitted', () => {
+  it('pod cost semantics: None and a missing cost need nothing; values in fields the cost type ignores do not count', () => {
     const i = base();
     const e = i.extras as Extras;
-    e.dropPods.BP_DropPod1 = { costType: 'None', item: 'Desc_Rotor_C', amount: 2, power: 0 };
+    e.dropPods.BP_DropPod1 = { costType: 'None', item: 'Desc_Rotor_C', amount: 2, power: 30 };
     e.dropPods.BP_DropPod2_1 = { costType: null, item: null, amount: 0, power: 0 };
     const d = buildDataset(i);
-    expect(d.items.find(x => x[0] === 'BP_DropPod1')![7]).toEqual({ pod: { item: { en: 'Rotor', de: 'Rotor' }, amount: 2, power: 0 } });
+    expect(d.items.find(x => x[0] === 'BP_DropPod1')![7]).toEqual({ pod: { item: null, amount: 0, power: 0 } });
+    expect(d.items.find(x => x[0] === 'BP_DropPod2_1')![7]).toEqual({ pod: { item: null, amount: 0, power: 0 } });
+    expect(d.podRequirementsKnown).toBe(true);
+    e.dropPods.BP_DropPod1 = { costType: 'Item', item: 'Desc_Rotor_C', amount: 2, power: 40 };
+    e.dropPods.BP_DropPod2_1 = { costType: 'Power', item: 'Desc_Rotor_C', amount: 5, power: 40 };
+    const d2 = buildDataset(i);
+    expect(d2.items.find(x => x[0] === 'BP_DropPod1')![7]).toEqual({ pod: { item: { en: 'Rotor', de: 'Rotor' }, amount: 2, power: 0 } });
+    expect(d2.items.find(x => x[0] === 'BP_DropPod2_1')![7]).toEqual({ pod: { item: null, amount: 0, power: 40 } });
+  });
+  it('gives pod items their German name from item-names.json', () => {
+    const i = base();
+    i.itemNames = { Desc_Rotor_C: { en: 'Rotor', de: 'Rotor (de)' } };
+    expect(buildDataset(i).items.find(x => x[0] === 'BP_DropPod1')![7]).toEqual({ pod: { item: { en: 'Rotor', de: 'Rotor (de)' }, amount: 3, power: 0 } });
+  });
+  it('podRequirementsKnown is false when a pod has no requirement in the game data', () => {
+    const i = base();
+    delete (i.extras as Extras).dropPods.BP_DropPod2_1;
+    const d = buildDataset(i);
     expect(d.items.find(x => x[0] === 'BP_DropPod2_1')![7]).toBeUndefined();
+    expect(d.podRequirementsKnown).toBe(false);
   });
 });
 
@@ -123,21 +141,15 @@ describe('crash-site data', () => {
     ...extra,
   });
 
-  it('fills an unknown pod requirement from the guide when it says nothing is needed', () => {
+  it('takes pod requirements from the game data only, never from the guide', () => {
     const input = base();
-    (input.extras as Extras).dropPods.BP_DropPod2_1 = { costType: null, item: null, amount: 0, power: 0 };
-    input.crashSites = { pods: { BP_DropPod2_1: site({ type: 'none' }), BP_DropPod1: site({ type: 'none' }) } };
+    const e = input.extras as Extras;
+    e.dropPods.BP_DropPod2_1 = { costType: null, item: null, amount: 0, power: 0 };
+    delete e.dropPods.BP_DropPod1;
+    input.crashSites = { pods: { BP_DropPod2_1: site({ type: 'power', mw: 50 }), BP_DropPod1: site({ type: 'none' }) } };
     const d = buildDataset(input);
     expect(d.items.find(x => x[0] === 'BP_DropPod2_1')![7]).toEqual({ pod: { item: null, amount: 0, power: 0 } });
-    // The game's own requirement wins over the guide.
-    expect(d.items.find(x => x[0] === 'BP_DropPod1')![7]).toEqual({ pod: { item: { en: 'Rotor', de: 'Rotor' }, amount: 3, power: 0 } });
-  });
-
-  it('keeps an unknown requirement unknown when the guide names one', () => {
-    const input = base();
-    (input.extras as Extras).dropPods.BP_DropPod2_1 = { costType: null, item: null, amount: 0, power: 0 };
-    input.crashSites = { pods: { BP_DropPod2_1: site({ type: 'power', mw: 50 }) } };
-    expect(buildDataset(input).items.find(x => x[0] === 'BP_DropPod2_1')![7]).toBeUndefined();
+    expect(d.items.find(x => x[0] === 'BP_DropPod1')![7]).toBeUndefined();
   });
 
   it('writes the in-game items, threats and notes per pod of the dataset', () => {
@@ -149,6 +161,15 @@ describe('crash-site data', () => {
       threats: [{ name: 'Hatcher', count: 2 }, { name: 'Gas Pillar', count: null }],
       notes: ['Bring a gas mask.'],
     });
+  });
+
+  it('names items with a known class in English and German from item-names.json', () => {
+    const d = buildDataset(base());
+    const out = buildCrashSites({ pods: { BP_DropPod1: site({ type: 'none' }) } }, d, { Desc_SteelPipe_C: { en: 'Steel Pipe', de: 'Stahlrohr' } });
+    expect(out.BP_DropPod1!.items).toEqual([
+      { item: 'Steel Pipe', de: 'Stahlrohr', amount: 98, where: 'lower level' },
+      { item: 'Stator', amount: 37 },
+    ]);
   });
 });
 

@@ -7,7 +7,11 @@ const square = (x: number, y: number, size: number, zMin = 0, zMax = 1000): RawC
 
 describe('cleanElements', () => {
   it('drops an element far larger than the rest of its volume in X/Y (broken brush)', () => {
-    const els = [square(0, 0, 1000), square(1000, 0, 1000), square(2000, 0, 1000), square(0, 0, 30000)];
+    const els = [square(0, 0, 1000), square(1000, 0, 1000), square(2000, 0, 1000), square(0, 0, 45000)];
+    expect(cleanElements(els)).toHaveLength(3);
+  });
+  it('keeps a large element under 300 m next to small ones (a hall drawn as one box)', () => {
+    const els = [square(0, 0, 19000), square(19000, 0, 1000), square(19000, 1000, 300)];
     expect(cleanElements(els)).toHaveLength(3);
   });
   it('drops an element far taller than the rest', () => {

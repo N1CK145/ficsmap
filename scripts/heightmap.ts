@@ -13,13 +13,16 @@ const COLOUR_RANGE: [number, number] = [-17000, 47000];
 /** Overview cell: 4 x 4 cells (8 m), about 900 x 900 for the whole map, ~0.5 MB gzip. */
 const OVERVIEW_FACTOR = 4;
 
-/** The extractor's `--heightmap-out` grid (heightmap.json + top.f32), or null if the directory has none. */
-export function readHeightGrid(dir: string): { meta: { cell: number; minX: number; minY: number; width: number; height: number }; top: Float32Array } | null {
-  if (!existsSync(join(dir, 'heightmap.json')) || !existsSync(join(dir, 'top.f32'))) return null;
+/**
+ * The extractor's `--heightmap-out` grid (heightmap.json + top.f32), or null if the directory has none. `file`
+ * picks another grid of the same directory (`landscape.f32`: the landscape alone); it is returned as `top` all the same.
+ */
+export function readHeightGrid(dir: string, file = 'top.f32'): { meta: { cell: number; minX: number; minY: number; width: number; height: number }; top: Float32Array } | null {
+  if (!existsSync(join(dir, 'heightmap.json')) || !existsSync(join(dir, file))) return null;
   const meta = JSON.parse(readFileSync(join(dir, 'heightmap.json'), 'utf8')) as { cell: number; minX: number; minY: number; width: number; height: number };
-  const buf = readFileSync(join(dir, 'top.f32'));
+  const buf = readFileSync(join(dir, file));
   const top = new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length));
-  if (top.length !== meta.width * meta.height) throw new Error(`${dir}/top.f32: ${top.length} values, expected ${meta.width * meta.height}`);
+  if (top.length !== meta.width * meta.height) throw new Error(`${dir}/${file}: ${top.length} values, expected ${meta.width * meta.height}`);
   return { meta, top };
 }
 

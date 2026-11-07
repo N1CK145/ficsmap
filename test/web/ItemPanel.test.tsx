@@ -139,6 +139,25 @@ describe('ItemPanel', () => {
     expect(section).toHaveTextContent('Bring a gas mask.');
   });
 
+  it('names crash-site items in German in the German UI where the dataset has the German name', async () => {
+    stubFetch({
+      'GET /data/test/crash-sites.json': { body: { P1: {
+        items: [{ item: 'Screws', de: 'Schrauben', amount: 98 }, { item: 'Stator', amount: 37 }],
+        threats: [], notes: [],
+      } } },
+    });
+    initI18n(['de']);
+    try {
+      renderPanel('P1');
+      const details = screen.getByRole('complementary', { name: 'Objektdetails' });
+      const section = await within(details).findByRole('region', { name: 'Absturzstelle' });
+      expect(section).toHaveTextContent('Schrauben98×');
+      expect(section).toHaveTextContent('Stator37×');
+    } finally {
+      initI18n(['en']);
+    }
+  });
+
   it('has no crash-site section for a pod without data, or when the dataset has no crash-sites file', async () => {
     stubFetch({ 'GET /data/test/crash-sites.json': { status: 404, body: { error: 'not_found', message: 'x' } } });
     renderPanel('P2');

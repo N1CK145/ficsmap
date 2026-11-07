@@ -1,5 +1,5 @@
 diff --git a/world-extractor-net/Program.cs b/world-extractor-net/Program.cs
-index 5af71fd..2a5affb 100644
+index 5af71fd..955dd58 100644
 --- a/world-extractor-net/Program.cs
 +++ b/world-extractor-net/Program.cs
 @@ -7,6 +7,7 @@ using CUE4Parse.Encryption.Aes;
@@ -158,16 +158,109 @@ index 5af71fd..2a5affb 100644
      {
          var root = captureActor.Get<FPackageIndex>("RootComponent").Load()!;
          var capture = captureActor.Get<FPackageIndex>("CaptureComponent2D").Load()!;
-@@ -428,7 +512,7 @@ record PickupContent(string? Item, int Amount);
+@@ -428,64 +512,67 @@ record PickupContent(string? Item, int Amount);
  /** What each loose item pickup holds, from the world partition cells that contain the pickups. */
  static class PickupContents
  {
 -    private const string CellsDir = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persistent_Level/_Generated_/";
+-    private static readonly string[] DescriptorRoots =
+-        ["FactoryGame/Content/FactoryGame/Resource/", "FactoryGame/Content/FactoryGame/Equipment/"];
+-    private static readonly string[] DescriptorPrefixes = ["Desc_", "BP_EquipmentDescriptor", "BP_ItemDescriptor"];
 +    public const string CellsDir = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persistent_Level/_Generated_/";
-     private static readonly string[] DescriptorRoots =
-         ["FactoryGame/Content/FactoryGame/Resource/", "FactoryGame/Content/FactoryGame/Equipment/"];
-     private static readonly string[] DescriptorPrefixes = ["Desc_", "BP_EquipmentDescriptor", "BP_ItemDescriptor"];
-@@ -534,8 +618,29 @@ static class MapIcons
+ 
+     public static Dictionary<string, PickupContent> Read(IFileProvider provider)
+     {
+         var started = DateTime.UtcNow;
+-        var meshes = new Dictionary<string, (string? Mesh, int Amount)>();
++        var contents = new Dictionary<string, PickupContent>();
+         foreach (var cell in provider.Files.Keys.Where(k => k.StartsWith(CellsDir, StringComparison.OrdinalIgnoreCase) && k.EndsWith(".umap")))
+         {
++            CUE4Parse.UE4.Assets.IPackage package;
+             IEnumerable<UObject> exports;
+-            try { exports = provider.LoadPackage(cell).GetExports(); }
++            try { package = provider.LoadPackage(cell); exports = package.GetExports(); }
+             catch { continue; }
++            byte[]? data = null;
+             foreach (var export in exports)
+             {
+                 if (export.ExportType != "FGItemPickup_Spawnable") continue;
+-                // The item itself is a natively serialized FInventoryItem that cannot be read without mappings;
+-                // the pickup's mesh is the item's conveyor mesh, which identifies it just as well.
+-                string? mesh = null;
++                int amount = export.GetOrDefault<FStructFallback>("mPickupItems")?.GetOrDefault<int>("NumItems") ?? 0;
++                string? item = null;
+                 try
+                 {
+-                    mesh = export.Get<FPackageIndex>("mMeshComponent").Load()?
+-                        .GetOrDefault<FPackageIndex>("StaticMesh")?.ResolvedObject?.GetPathName();
++                    if (package is CUE4Parse.UE4.Assets.IoPackage io) item = ItemClass(provider, io, cell, export.Name, ref data);
+                 }
+                 catch { /* unknown item */ }
+-                int amount = export.GetOrDefault<FStructFallback>("mPickupItems")?.GetOrDefault<int>("NumItems") ?? 0;
+-                meshes[export.Name] = (mesh, amount);
++                contents[export.Name] = new PickupContent(item, amount);
+             }
+         }
+-
+-        var items = DescriptorsByMesh(provider, meshes.Values.Select(m => m.Mesh).OfType<string>().ToHashSet());
+-        var contents = meshes.ToDictionary(
+-            entry => entry.Key,
+-            entry => new PickupContent(entry.Value.Mesh is null ? null : items.GetValueOrDefault(entry.Value.Mesh), entry.Value.Amount));
+         Console.WriteLine($"Pickup contents: {contents.Count} pickups, {contents.Values.Count(c => c.Item is not null)} identified ({(DateTime.UtcNow - started).TotalSeconds:F0} s)");
+         return contents;
+     }
+ 
+-    private static Dictionary<string, string> DescriptorsByMesh(IFileProvider provider, HashSet<string> wanted)
++    /**
++     * The item class of one pickup. `mPickupItems.Item` is an FInventoryItem, which the game serializes natively
++     * (tag flag HasBinaryOrNativeSerialize) and CUE4Parse skips. Its first field is the item class as a package
++     * index, so the tag is looked up in the export's raw bytes and that index resolved. (The pickup's mesh does
++     * not identify the item: several pickups use a mesh that is not their item's conveyor mesh, and packaged
++     * and liquid fuels share one.)
++     */
++    private static string? ItemClass(IFileProvider provider, CUE4Parse.UE4.Assets.IoPackage package, string cell, string exportName, ref byte[]? data)
+     {
+-        var result = new Dictionary<string, string>();
+-        var descriptors = provider.Files.Keys
+-            .Where(k => DescriptorRoots.Any(root => k.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+-                        && DescriptorPrefixes.Any(prefix => Path.GetFileName(k).StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+-                        && k.EndsWith(".uasset", StringComparison.OrdinalIgnoreCase));
+-        foreach (var file in descriptors)
++        int exportIndex = Array.FindIndex(package.ExportMap, e => package.CreateFNameFromMappedName(e.ObjectName).Text == exportName);
++        if (exportIndex < 0) return null;
++        var names = package.NameMap.Select(n => n.Name).ToList();
++        int itemName = names.IndexOf("Item"), structProperty = names.IndexOf("StructProperty"), inventoryItem = names.IndexOf("InventoryItem");
++        if (itemName < 0 || structProperty < 0 || inventoryItem < 0) return null;
++        data ??= provider.SaveAsset(cell);
++        // Export data starts after the zen package header (FZenPackageSummary: bHasVersioningInfo, HeaderSize, ...).
++        long headerSize = BitConverter.ToUInt32(data, 4);
++        var export = package.ExportMap[exportIndex];
++        long start = headerSize + (long) export.CookedSerialOffset, end = Math.Min(start + (long) export.CookedSerialSize, data.Length);
++        // Property tag: Name (index, number), then the type name as nodes (name index, number, inner count):
++        // StructProperty(InventoryItem(/Script/FactoryGame)).
++        for (long p = start; p + 24 <= end; p++)
+         {
+-            if (result.Count == wanted.Count) break;
+-            try
+-            {
+-                var cdo = provider.LoadPackage(file).GetExports().FirstOrDefault(e => e.Name.StartsWith("Default__"));
+-                string? mesh = cdo?.GetOrDefault<FPackageIndex>("mConveyorMesh")?.ResolvedObject?.GetPathName();
+-                if (mesh is not null && wanted.Contains(mesh)) result.TryAdd(mesh, cdo!.ExportType);
+-            }
+-            catch { /* not an item descriptor */ }
++            if (BitConverter.ToInt32(data, (int) p) != itemName || BitConverter.ToInt32(data, (int) p + 4) != 0
++                || BitConverter.ToInt32(data, (int) p + 8) != structProperty || BitConverter.ToInt32(data, (int) p + 20) != inventoryItem) continue;
++            var ar = new CUE4Parse.UE4.Assets.Readers.FAssetArchive(new CUE4Parse.UE4.Readers.FByteArchive(cell, data, provider.Versions), package) { Position = p };
++            var tag = new FPropertyTag(ar, false);
++            if (tag.Name.Text != "Item" || tag.Size < 4 || ar.Position + 4 > end) continue;
++            return new FPackageIndex(package, BitConverter.ToInt32(data, (int) ar.Position)).ResolvedObject?.Name.Text;
+         }
+-        return result;
++        return null;
+     }
+ }
+ 
+@@ -534,8 +621,29 @@ static class MapIcons
              }
              catch (Exception e) { Console.Error.WriteLine($"WARN: creature descriptor {file}: {e.Message}"); }
          }
@@ -197,7 +290,7 @@ index 5af71fd..2a5affb 100644
  }
  
  // ---- output model (matches Konsl/satisfactory-world-generator default-world.json) ----
-@@ -599,6 +704,1001 @@ record MapInfo(
+@@ -599,6 +707,1002 @@ record MapInfo(
      [property: JsonPropertyName("world")] MapBounds World,
      [property: JsonPropertyName("icons")] Dictionary<string, string> Icons);
  
@@ -458,13 +551,14 @@ index 5af71fd..2a5affb 100644
 +
 +    static List<Group3> Group(List<CaveVolume> volumes)
 +    {
-+        // Elements far larger than the rest of their volume are broken brushes (see caves.ts); leave them out of the box.
++        // Elements far larger than the rest of their volume and over 300 m are broken brushes (see cleanElements in
++        // caves.ts); leave them out of the box.
 +        var clean = volumes.Select(v =>
 +        {
 +            if (v.Elements.Count < 3) return v;
 +            var size = v.Elements.Select(e => new[] { e.Hull.Max(p => p[0]) - e.Hull.Min(p => p[0]), e.Hull.Max(p => p[1]) - e.Hull.Min(p => p[1]), e.ZMax - e.ZMin }.Max()).ToList();
 +            var median = size.OrderBy(x => x).ElementAt(size.Count / 2);
-+            return v with { Elements = v.Elements.Where((_, i) => size[i] <= 5 * median).ToList() };
++            return v with { Elements = v.Elements.Where((_, i) => size[i] <= 5 * median || size[i] <= 30000).ToList() };
 +        }).ToList();
 +        var boxes = clean.Select(BoxOf).ToList();
 +        var parent = Enumerable.Range(0, boxes.Count).ToArray();
