@@ -15,4 +15,5 @@ export const queryKeys = {
   nodeOverrides: (worldId: string) => ['node-overrides', worldId] as const,
   transport: (version: string) => ['transport', version] as const,
   recipes: (version: string) => ['recipes', version] as const,
+  machines: (version: string) => ['machines', version] as const,
 };

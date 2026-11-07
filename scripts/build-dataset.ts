@@ -11,6 +11,7 @@ import { AREA_SNAP, biomesFromAreas, landTest, readMapAreas } from './map-areas.
 import { readDocsFile } from './game-docs.js';
 import { buildTransportData, type RawTransport } from './transport.js';
 import { RecipeBuildError, recipeSummary, writeRecipes } from './recipes.js';
+import { MachineBuildError, machineSummary, writeMachines } from './machines.js';
 import { UNITS_PER_METER, type Calibration } from '../src/shared/geo.js';
 import type { CollectibleTypeId, LocalizedName, WorldBounds } from '../src/shared/types.js';
 import type { CrashSites, Dataset, DatasetItemTuple, ItemExtra, PodRequirement } from '../src/shared/dataset.js';
@@ -315,7 +316,7 @@ function main(): void {
       'default-world': { type: 'string' },
       // The game's CommunityResources/Docs folder (en-US.json, de.json) and the extractor's transport.json
       // (`--transport-out`); defaults: <extractor>/docs and <extractor>/transport.json. With the Docs the dataset
-      // gets recipes.json for the production planner, with both also transport.json for the vehicle calculator.
+      // gets recipes.json for the production planner and machines.json for the machine wiki, with both also transport.json for the vehicle calculator.
       docs: { type: 'string' },
       transport: { type: 'string' },
       build: { type: 'string', default: String(DEFAULT_BUILD) },
@@ -416,6 +417,15 @@ function main(): void {
       throw e;
     }
   }
+  let machineLine = 'no Docs (--docs), no machines.json';
+  if (existsSync(join(docsDir, 'en-US.json'))) {
+    try {
+      machineLine = machineSummary(writeMachines(docsDir, out));
+    } catch (e) {
+      if (e instanceof MachineBuildError) { console.error(e.message); process.exit(1); }
+      throw e;
+    }
+  }
   const mapDir = join(resolve(v.extractor), 'map');
   cpSync(join(mapDir, 'map.json'), join(out, 'map.json'));
   cpSync(join(mapDir, 'tiles'), join(out, 'tiles'), { recursive: true });
@@ -436,6 +446,7 @@ function main(): void {
   console.log(`  resource nodes: ${nodeSummary}`);
   console.log(`  transport: ${transportSummary}`);
   console.log(`  recipes: ${recipeLine}`);
+  console.log(`  machines: ${machineLine}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
