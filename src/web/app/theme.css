@@ -47,6 +47,18 @@
   /* Power Shards in an extractor (diamonds next to its tag on the resource node layer). */
   --color-shard: #7FD4FF;
 
+  /* Machine wiki: one accent per category (heading text, bars, the tint behind the pictures) and the unlock badges
+     for MAM research and the AWESOME Shop (milestone tiers stay neutral). Each is at least 4.5:1 as text on bg,
+     panel and on its own 10-15 % tint over panel. */
+  --color-cat-production: #F28C28;
+  --color-cat-extraction: #2EC4B6;
+  --color-cat-power: #FFD23F;
+  --color-cat-logistics: #4DA3FF;
+  --color-cat-special: #F062C0;
+  --color-cat-vehicles: #3DDC84;
+  --color-unlock-mam: #B084F5;
+  --color-unlock-shop: #E8B931;
+
   --font-display: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
 
   /* One radius for everything: bare `rounded` (Tailwind v4 reads the unsuffixed --radius key). */

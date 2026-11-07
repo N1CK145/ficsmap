@@ -157,6 +157,14 @@ export function wikiUrl(page: string): string {
   return WIKI_BASE + encodeURIComponent(page).replace(/%2F/g, '/');
 }
 
+/**
+ * The descriptor class of an entry, whose icon is its picture: `Build_ConstructorMk1_C` -> `Desc_ConstructorMk1_C`;
+ * vehicles are descriptors already. The machine data build fails for an entry without a build recipe for this class.
+ */
+export function descriptorClass(entryId: string): string {
+  return entryId.startsWith('Build_') ? entryId.replace(/^Build_/, 'Desc_') : entryId;
+}
+
 /** Units per minute of a per-cycle amount at 100 % clock speed. */
 export function perMinute(amount: number, durationSeconds: number): number {
   return round(amount * 60 / durationSeconds);
@@ -177,6 +185,81 @@ export function matchesQuery(entry: MachineEntry, query: string): boolean {
   return words.every(w => hay.includes(w));
 }
 
+/**
+ * A group of the wiki's unlock filter: milestone tiers `T0` to `T9` (the HUB upgrades of the tutorial are tier 0),
+ * MAM research, the AWESOME Shop, and `other` (alternate recipes, hard drives, or no unlock at all).
+ */
+export type TierKey = `T${number}` | 'mam' | 'shop' | 'other';
+
+const TIER_KEY = /^T(\d)$/;
+const GROUP_ORDER: readonly TierKey[] = ['mam', 'shop', 'other'];
+
+/** The tier of a tier key (`T4` -> 4), or undefined for MAM, Shop and other. */
+export function tierOf(key: TierKey): number | undefined {
+  const m = TIER_KEY.exec(key);
+  return m ? Number(m[1]) : undefined;
+}
+
+export function isTierKey(value: unknown): value is TierKey {
+  return typeof value === 'string' && (TIER_KEY.test(value) || (GROUP_ORDER as readonly string[]).includes(value));
+}
+
+/** The filter group of one unlock. */
+export function unlockKey(u: Unlock): TierKey {
+  switch (u.kind) {
+    case 'tutorial': return 'T0';
+    case 'milestone': return `T${u.tier}`;
+    case 'mam': return 'mam';
+    case 'shop': return 'shop';
+    default: return 'other';
+  }
+}
+
+/** The groups an entry is in, one per way to unlock it (first unlock first); `other` for an entry without any. */
+export function entryTierKeys(entry: MachineEntry): TierKey[] {
+  const keys = [...new Set(entry.unlockedBy.map(unlockKey))];
+  return keys.length > 0 ? keys : ['other'];
+}
+
+/** Tiers in ascending order, then MAM, Shop and other. */
+export function sortTierKeys(keys: Iterable<TierKey>): TierKey[] {
+  const rank = (k: TierKey) => tierOf(k) ?? 100 + GROUP_ORDER.indexOf(k);
+  return [...new Set(keys)].sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * The filter's options for these entries: every tier from T0 to the highest one in the data (also tiers without an
+ * entry, so "up to T4" is a plain range), then MAM, Shop and other where the data has them.
+ */
+export function tierOptions(entries: readonly MachineEntry[]): TierKey[] {
+  const present = new Set(entries.flatMap(entryTierKeys));
+  const max = Math.max(-1, ...[...present].map(k => tierOf(k) ?? -1));
+  const tiers = Array.from({ length: max + 1 }, (_, i): TierKey => `T${i}`);
+  return [...tiers, ...GROUP_ORDER.filter(k => present.has(k))];
+}
+
+/** Whether an entry is in one of the selected groups; nothing selected lets every entry through. */
+export function matchesTiers(entry: MachineEntry, selected: readonly TierKey[]): boolean {
+  return selected.length === 0 || entryTierKeys(entry).some(k => selected.includes(k));
+}
+
+/** The selection with one group switched on or off. */
+export function toggleTier(selected: readonly TierKey[], key: TierKey): TierKey[] {
+  return sortTierKeys(selected.includes(key) ? selected.filter(k => k !== key) : [...selected, key]);
+}
+
+/** "Up to tier n": exactly the tiers T0 to Tn (none for null); MAM, Shop and other stay as they were. */
+export function upToTier(selected: readonly TierKey[], n: number | null): TierKey[] {
+  const tiers = n === null ? [] : Array.from({ length: n + 1 }, (_, i): TierKey => `T${i}`);
+  return sortTierKeys([...selected.filter(k => tierOf(k) === undefined), ...tiers]);
+}
+
+/** n when the selected tiers are exactly T0 to Tn, else null (no tiers, or not a range from T0). */
+export function selectedUpTo(selected: readonly TierKey[]): number | null {
+  const tiers = selected.map(tierOf).filter((t): t is number => t !== undefined).sort((a, b) => a - b);
+  return tiers.length > 0 && tiers.every((t, i) => t === i) ? tiers.length - 1 : null;
+}
+
 /** The entries per category, in `MACHINE_CATEGORIES` order, empty categories left out. */
 export function groupByCategory(entries: readonly MachineEntry[]): { category: MachineCategory; entries: MachineEntry[] }[] {
   return MACHINE_CATEGORIES
@@ -188,7 +271,12 @@ export function groupByCategory(entries: readonly MachineEntry[]): { category: M
  * One line of an entry's stats table: `id` names the i18n keys (`machineWiki.stat.<id>` for the label,
  * `machineWiki.statValue.<id>` for the ICU value), `params` fills the value.
  */
-export interface StatRow { id: string; params: Record<string, number | string> }
+export interface StatRow {
+  id: string;
+  params: Record<string, number | string>;
+  /** The items the row names (the resources an extractor is limited to), for pictures next to the names. */
+  items?: string[];
+}
 
 /**
  * The stats table of an entry, in a fixed order. Names in `params` (resources) are in `lang`. Values
@@ -198,7 +286,7 @@ export interface StatRow { id: string; params: Record<string, number | string> }
 export function statRows(entry: MachineEntry, items: Readonly<Record<string, WikiItem>>, lang: Lang): StatRow[] {
   const s = entry.stats;
   const rows: StatRow[] = [];
-  const add = (id: string, params: Record<string, number | string>) => rows.push({ id, params });
+  const add = (id: string, params: Record<string, number | string>, items?: string[]) => rows.push({ id, params, ...(items && { items }) });
   const itemName = (id: string) => items[id]?.name[lang] ?? id;
 
   if (s.powerUse !== undefined) add('powerUse', { mw: s.powerUse });
@@ -212,7 +300,7 @@ export function statRows(entry: MachineEntry, items: Readonly<Record<string, Wik
   if (s.extractionPerMinute !== undefined) {
     add(s.extractionFluid ? 'extractionFluid' : 'extraction', { rate: s.extractionPerMinute, node: s.extractionNode ? 'yes' : 'no' });
   }
-  if (s.resources) add('resources', { names: s.resources.map(itemName).join(', ') });
+  if (s.resources) add('resources', { names: s.resources.map(itemName).join(', ') }, s.resources);
   else for (const form of s.resourceForms ?? []) add('resourceForm', { form });
   if (s.inventorySlots !== undefined) add('inventorySlots', { slots: s.inventorySlots });
   if (s.storageSlots !== undefined) add('storageSlots', { slots: s.storageSlots });

@@ -10,7 +10,7 @@ export interface DialogProps {
   labelledBy?: string;
   children: ReactNode;
   footer?: ReactNode;
-  /** A wide dialog (e.g. the production planner) instead of the default narrow one. */
+  /** A wide dialog (the production planner, the machine wiki) instead of the default narrow one. */
   wide?: boolean;
 }
 

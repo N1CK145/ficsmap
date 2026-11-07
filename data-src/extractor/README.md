@@ -7,7 +7,7 @@ Raw game data for ficsmap, read from the game client's paks. Nothing here is han
 ## Provenance
 
 - Tool: [SatisfactoryTools/AssetsExtractor](https://github.com/SatisfactoryTools/AssetsExtractor) `world-extractor-net`, branch `master`, upstream commit `19e3010c781d4250242d4cc68b6c5c8c340fdea0`.
-- Local patch: `world-extractor-extras.patch` (git diff against that commit). Adds the optional flags `--extras-out <file>`, `--caves-out <file>`, `--cave-geometry-out <dir>` (see "Caves" below), `--heightmap-out <dir>` (see "Height map" below), `--map-areas-out <dir>` (see "Map areas" below) and `--transport-out <file>` (see "Transport" below), and exports the item icons of the five pickup types (`Desc_Crystal_C`, `Desc_Crystal_mk2_C`, `Desc_Crystal_mk3_C`, `Desc_WAT1_C`, `Desc_WAT2_C`, from each descriptor's `mPersistentBigIcon`) into `map/icons/`; the map markers use them. It also reads the item of each loose item pickup (`collectibles.json` `item`) from the pickup itself: `mPickupItems.Item` is an `FInventoryItem` that the game serializes natively and CUE4Parse skips, so the patch finds that property tag in the export's raw bytes and resolves its first field, the item class (a package index). Upstream guessed the item from the pickup's mesh, the item's conveyor mesh; that was wrong for 43 of the 703 pickups (level pickups often keep another item's mesh; packaged and liquid fuels share one) and failed for 4 (Supercomputer, Rifle Ammo, 2 Medicinal Inhalers). The Steam crash-site guide (maintainer data) agrees: of the 41 crash-site items where it named another item than the old classes, 38 now match (2026-11-07). Apply with `git apply` in the AssetsExtractor checkout.
+- Local patch: `world-extractor-extras.patch` (git diff against that commit). Adds the optional flags `--extras-out <file>`, `--caves-out <file>`, `--cave-geometry-out <dir>` (see "Caves" below), `--heightmap-out <dir>` (see "Height map" below), `--map-areas-out <dir>` (see "Map areas" below), `--transport-out <file>` (see "Transport" below) and `--icons-out <dir>` (the game's pictures of every item, building and vehicle for the machine wiki, see "Pictures" below), and exports the item icons of the five pickup types (`Desc_Crystal_C`, `Desc_Crystal_mk2_C`, `Desc_Crystal_mk3_C`, `Desc_WAT1_C`, `Desc_WAT2_C`, from each descriptor's `mPersistentBigIcon`) into `map/icons/`; the map markers use them. It also reads the item of each loose item pickup (`collectibles.json` `item`) from the pickup itself: `mPickupItems.Item` is an `FInventoryItem` that the game serializes natively and CUE4Parse skips, so the patch finds that property tag in the export's raw bytes and resolves its first field, the item class (a package index). Upstream guessed the item from the pickup's mesh, the item's conveyor mesh; that was wrong for 43 of the 703 pickups (level pickups often keep another item's mesh; packaged and liquid fuels share one) and failed for 4 (Supercomputer, Rifle Ammo, 2 Medicinal Inhalers). The Steam crash-site guide (maintainer data) agrees: of the 41 crash-site items where it named another item than the old classes, 38 now match (2026-11-07). Apply with `git apply` in the AssetsExtractor checkout.
 - Game: Steam install, GameVersion `1.2.5.0` (CL 517554, UE 5.6.1), engine detected as `GAME_UE5_6`. Output folder: `1.2.5.0/` (extracted 2026-11-06). The previous output was from 1.2.4.1 (CL 513885).
 - Build and run (.NET 10 SDK needed):
 
@@ -21,7 +21,8 @@ dotnet run -c Release --no-build -- --install-dir <game install> --out $O/defaul
 dotnet run -c Release --no-build -- --install-dir <game install> --out /tmp/default-world.json \
   --cave-geometry-out $O/cave-geometry
 dotnet run -c Release --no-build -- --install-dir <game install> --out /tmp/default-world.json \
-  --map-out $O/map --heightmap-out $O/heightmap --map-areas-out $O/map-areas --transport-out $O/transport.json
+  --map-out $O/map --heightmap-out $O/heightmap --map-areas-out $O/map-areas --transport-out $O/transport.json \
+  --icons-out $O/icons
 ```
 
 Three runs, because everything in one process does not fit in 10 GiB (it ran out of memory in the cave geometry, 2026-11-06). Times on 1.2.5.0: about 3.5 min, 2.5 min (10 GB peak) and 1.5 min (5 GB peak).
@@ -32,11 +33,11 @@ Then build the dataset with the game's build number (`Changelist` in `<game inst
 npm run dataset -- --extractor data-src/extractor/1.2.5.0 --data-src <maintainer data-src> --build 517554 --out data/1.2.5.0
 ```
 
-This builds every part and fails, listing what is missing, if an input is not there: copy the game's `CommunityResources/Docs` (`en-US.json`, `de.json`) to `1.2.5.0/docs/` (or pass `--docs`). `--only caves,recipes` (parts: `collectibles`, `crash-sites`, `biomes`, `caves`, `heights`, `map`, `nodes`, `transport`, `recipes`, `machines`) rebuilds just those parts in place.
+This builds every part and fails, listing what is missing, if an input is not there: copy the game's `CommunityResources/Docs` (`en-US.json`, `de.json`) to `1.2.5.0/docs/` (or pass `--docs`). `--only caves,recipes` (parts: `collectibles`, `crash-sites`, `biomes`, `caves`, `heights`, `map`, `nodes`, `transport`, `recipes`, `machines`, `icons`) rebuilds just those parts in place.
 
 The cave geometry export needs about 10 GB of memory; cap the .NET heap so a run cannot take the machine down: `DOTNET_GCHeapHardLimit=0x280000000` (10 GiB). An uncapped run reached 24 GB once and was killed. A full run takes about 3 minutes.
 
-- Printed: `Collectibles: 7653 pickups (703 with a known item), 118 drop pods, 2277 creature spawners`, `Map: 968e47122e1f868c (8192px, zoom 0-5, 30 icons)`, `Extras: 118 drop pods, 298 mercer shrines`. Runs in about 25 s. The `usmap` warning is harmless.
+- Printed: `Collectibles: 7653 pickups (703 with a known item), 118 drop pods, 2277 creature spawners`, `Map: 968e47122e1f868c (8192px, zoom 0-5, 30 icons)`, `Extras: 118 drop pods, 298 mercer shrines`, `Icons: 747 descriptors at 64 and 256 px, 3 without an icon`. Runs in about 25 s. The `usmap` warning is harmless.
 
 ## Files in `1.2.4.1/`
 
@@ -48,6 +49,7 @@ The cave geometry export needs about 10 GB of memory; cap the .NET heap so a run
 - `heightmap/`: from the patch (`--heightmap-out`), see "Height map".
 - `map-areas/`: from the patch (`--map-areas-out`), see "Map areas".
 - `transport.json`: from the patch (`--transport-out`), see "Transport".
+- `icons/`: from the patch (`--icons-out`), see "Pictures".
 
 ## Class names (pickups and dropPods in `collectibles.json`)
 
@@ -359,6 +361,19 @@ npm run dataset -- --extractor ... --out data/<game-version> --docs <install>/Co
 - **In the Docs but left out** (meaning or unit not clear from the data): the Radar Tower's `mRevealRadius`, the pipeline pumps' `mDesignPressure`/`mMaxPressure`/`mDefaultFlowLimit`, the Truck Station's `mLoadUnloadCycleLength`, the vehicles' `mAutopilotFuelConsumption`, extractor start-up times (`mExtractStartupTime`, negative for some).
 - 1.2.5.0: 49 entries, 291 recipes, 169 items, about 165 KB.
 
+## Pictures (`icons/`, machine and vehicle wiki)
+
+The wiki shows the game's own icons of machines, vehicles and items; no pictures are taken from the wiki or other sites. The patch flag `--icons-out <dir>` exports them from the paks (class `DescriptorIcons` in the patch):
+
+- **Which:** every class in `<install>/CommunityResources/Docs/en-US.json` with an `mSmallIcon` or `mPersistentBigIcon` field: items, resources, equipment, ammunition, buildings and vehicles (750 classes in 1.2.5.0; the extractor reads the Docs from the install itself). The texture is the one `mSmallIcon` names, else `mPersistentBigIcon`; the Docs resolve inherited values. In 1.2.5.0 both fields name the same texture for every class (256 or 512 px, e.g. `/Game/FactoryGame/Buildable/Factory/ConstructorMk1/UI/ConstructorMk1_256`). Three classes have `None` (`Desc_PillarTop_C`, `Desc_Wall_Conveyor_8x4_04_Steel_C`, `Desc_Wall_Window_8x4_03_Steel_C`) and are listed under `missing`; one texture is an 8 x 8 px placeholder (`Interface/UI/Assets/Shared/01_White`, used by `Desc_Wall_Conveyor_8x4_04_C`; the run prints a warning).
+- **Files:** `<dir>/64/<ClassName>.webp` and `<dir>/256/<ClassName>.webp` (square, transparent background, scaled with SkiaSharp's high quality filter, lossy WebP quality 90 with lossless alpha; a non-square texture would be centred on a square first) and `<dir>/index.json`: `{gameVersion, format: "webp", sizes: [64, 256], icons: {<ClassName>: {nativeClass, texture}}, missing: {<ClassName>: reason}}` (texture paths without the leading `/Game/`). A texture several classes share is decoded once. A re-run replaces the two size folders and the index.
+- 1.2.5.0 (2026-11-07): 747 pictures (544 buildings, 8 vehicles, 195 other descriptors), 1.3 MB at 64 px (about 1.7 KB each) and 8.3 MB at 256 px (about 11 KB each, at most 50 KB). About 25 s and 1 GB of memory on its own; it fits into any of the three runs above.
+- **Dataset part `icons`** (`scripts/icons.ts`, default input `<extractor output>/icons`, or `--icons <dir>`): copies into `<dataset>/icons/items/<size>/` the pictures of every descriptor that is not a building (`nativeClass` other than `FGBuildingDescriptor`) and of the buildings that are wiki entries (`Build_X_C` -> `Desc_X_C`; the Docs say which, so this part needs `--docs` as well). The other building descriptors (walls, foundations, signs, ...) are left out. It writes `icons/items/index.json` `{format: 1, sizes, icons: [class, ...]}` for the browser, fails on a malformed index, a class name that is not `[A-Za-z0-9_]`, or a listed file that is missing, and names wiki buildings without a picture in its log line. The map part's marker icons in `icons/` stay as they are. 1.2.5.0: 242 pictures, 3.9 MB; every one of the 49 entries and 169 items in `machines.json` has a picture.
+
+```
+npm run dataset -- --extractor data-src/extractor/1.2.5.0 --data-src <maintainer data-src> --only icons --out data/1.2.5.0
+```
+
 ## Rebuild after a game patch
 
-Re-run the commands above against the new install, use the printed gameVersion as the folder name, and diff the class counts against this table. If the patch no longer applies, re-create it: add the `--extras-out` flag, and for every `BP_DropPod_C` / `BP_MercerShrine_C` export in the persistent level and the `_Generated_` cells write the data described above; then `--caves-out` and `--cave-geometry-out` as described in "Caves", `--heightmap-out` as in "Height map", `--map-areas-out` as in "Map areas" and `--transport-out` as in "Transport". After a patch also compare the Transport tables above with the new values (the build fails if Docs and blueprints disagree on inventory sizes or fluid capacities, and on a `transport.json` from a patch without `tractionSpeedLimit` and `droneFuelTypes`).
+Re-run the commands above against the new install, use the printed gameVersion as the folder name, and diff the class counts against this table. If the patch no longer applies, re-create it: add the `--extras-out` flag, and for every `BP_DropPod_C` / `BP_MercerShrine_C` export in the persistent level and the `_Generated_` cells write the data described above; then `--caves-out` and `--cave-geometry-out` as described in "Caves", `--heightmap-out` as in "Height map", `--map-areas-out` as in "Map areas", `--transport-out` as in "Transport" and `--icons-out` as in "Pictures". After a patch also compare the Transport tables above with the new values (the build fails if Docs and blueprints disagree on inventory sizes or fluid capacities, and on a `transport.json` from a patch without `tractionSpeedLimit` and `droneFuelTypes`).

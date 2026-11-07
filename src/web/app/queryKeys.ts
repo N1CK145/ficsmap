@@ -16,4 +16,5 @@ export const queryKeys = {
   transport: (version: string) => ['transport', version] as const,
   recipes: (version: string) => ['recipes', version] as const,
   machines: (version: string) => ['machines', version] as const,
+  itemIcons: (version: string) => ['item-icons', version] as const,
 };

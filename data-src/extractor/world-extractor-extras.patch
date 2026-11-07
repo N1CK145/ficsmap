@@ -1,5 +1,5 @@
 diff --git a/world-extractor-net/Program.cs b/world-extractor-net/Program.cs
-index 5af71fd..ebd4ebb 100644
+index 5af71fd..c8301c2 100644
 --- a/world-extractor-net/Program.cs
 +++ b/world-extractor-net/Program.cs
 @@ -7,6 +7,7 @@ using CUE4Parse.Encryption.Aes;
@@ -10,7 +10,7 @@ index 5af71fd..ebd4ebb 100644
  using CUE4Parse.UE4.Assets.Exports.Texture;
  using CUE4Parse.UE4.Assets.Objects;
  using CUE4Parse.UE4.Objects.Core.Math;
-@@ -30,10 +31,16 @@ using SkiaSharp;
+@@ -30,10 +31,18 @@ using SkiaSharp;
  //   --map-out           a directory with the in-game map as a 256px WebP tile pyramid
  //                       (tiles/{z}/{x}/{y}.webp) plus map.json (content id, zoom range and the world
  //                       rectangle the image covers, read from the level's minimap capture actor).
@@ -19,16 +19,18 @@ index 5af71fd..ebd4ebb 100644
 +//   --heightmap-out     a directory with height grids of the whole map (highest surface per cell), see Heightmap.
 +//   --map-areas-out     a directory with the game's map area raster (which area every spot belongs to), see MapAreas.
 +//   --transport-out     transport.json: capacity, timing, speed and drone fuel values of the transport vehicles, see TransportData.
++//   --icons-out         a directory with the icon of every item, building and vehicle descriptor (WebP per size), see DescriptorIcons.
  //
  // Usage:
  //   WorldExtractor --install-dir <game install> --out <default-world.json>
 -//                  [--collectibles-out <collectibles.json>] [--map-out <dir>]
 +//                  [--collectibles-out <collectibles.json>] [--map-out <dir>] [--caves-out <caves.json>]
 +//                  [--cave-geometry-out <dir>] [--heightmap-out <dir>] [--map-areas-out <dir>] [--transport-out <file>]
++//                  [--icons-out <dir>]
  //                  [--engine-candidates GAME_UE5_6,GAME_UE5_5] [--game-version 1.2.3.1]
  
  var opts = Args.Parse(args);
-@@ -41,6 +48,12 @@ string installDir = opts.Require("install-dir");
+@@ -41,6 +50,13 @@ string installDir = opts.Require("install-dir");
  string outPath = opts.Require("out");
  string? collectiblesPath = opts.Get("collectibles-out");
  string? mapDir = opts.Get("map-out");
@@ -38,10 +40,11 @@ index 5af71fd..ebd4ebb 100644
 +string? heightmapDir = opts.Get("heightmap-out");
 +string? mapAreasDir = opts.Get("map-areas-out");
 +string? transportPath = opts.Get("transport-out");
++string? iconsDir = opts.Get("icons-out");
  
  string paksDir = Path.Combine(installDir, "FactoryGame", "Content", "Paks");
  string usmapPath = Path.Combine(installDir, "CommunityResources", "FactoryGame.usmap");
-@@ -62,7 +75,6 @@ const string levelPath = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persis
+@@ -62,7 +78,6 @@ const string levelPath = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persis
  
  var (provider, level, engine) = OpenLevel(paksDir, usmapPath, candidates);
  Console.WriteLine($"Engine: {engine} | mounted files: {provider.Files.Count} | game version: {gameVersion}");
@@ -49,7 +52,7 @@ index 5af71fd..ebd4ebb 100644
  var resourceNodes = new List<ResourceNode>();
  var geysers = new List<GeyserNode>();
  var cores = new List<FrackingCore>();
-@@ -71,6 +83,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
+@@ -71,6 +86,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
  UObject? scannableGenerator = null;
  UObject? minimapCapture = null;
  int skipped = 0;
@@ -58,7 +61,7 @@ index 5af71fd..ebd4ebb 100644
  
  foreach (var actorIndex in level.Actors)
  {
-@@ -99,6 +113,9 @@ foreach (var actorIndex in level.Actors)
+@@ -99,6 +116,9 @@ foreach (var actorIndex in level.Actors)
              satellites.Add((actor.Get<FPackageIndex>("mCore").Name, ResourceClass(actor),
                  new GeyserNode(actor.Name, Location(actor), Purity(actor))));
              break;
@@ -68,7 +71,7 @@ index 5af71fd..ebd4ebb 100644
          case "BP_WorldScannableDataGenerator_C":
              scannableGenerator = actor;
              break;
-@@ -146,6 +163,57 @@ if (collectiblesPath is not null)
+@@ -146,6 +166,64 @@ if (collectiblesPath is not null)
          $"{collectibles.DropPods.Count} drop pods, {collectibles.CreatureSpawners.Count} creature spawners -> {collectiblesPath}");
  }
  
@@ -116,6 +119,13 @@ index 5af71fd..ebd4ebb 100644
 +    Console.WriteLine($"Transport: {transport.Vehicles.Count} vehicles -> {transportPath}");
 +}
 +
++if (iconsDir is not null)
++{
++    var icons = DescriptorIcons.Write(provider, installDir, gameVersion, iconsDir);
++    Console.WriteLine($"Icons: {icons.Icons.Count} descriptors at {string.Join(" and ", icons.Sizes)} px, " +
++        $"{icons.Missing.Count} without an icon -> {iconsDir}");
++}
++
 +if (heightmapDir is not null)
 +{
 +    if (minimapCapture is null) throw new Exception("BP_MinimapCaptureActor_C not found in the level.");
@@ -126,7 +136,7 @@ index 5af71fd..ebd4ebb 100644
  if (mapDir is not null)
  {
      if (minimapCapture is null) throw new Exception("BP_MinimapCaptureActor_C not found in the level.");
-@@ -163,6 +231,31 @@ static float[] Location(UObject actor)
+@@ -163,6 +241,31 @@ static float[] Location(UObject actor)
      return [loc.X, loc.Y, loc.Z];
  }
  
@@ -158,7 +168,7 @@ index 5af71fd..ebd4ebb 100644
  static string ResourceClass(UObject actor) => actor.Get<FPackageIndex>("mResourceClass").Name;
  
  static string Purity(UObject actor) => actor.GetOrDefault<FName>("mPurity", new FName("RP_Normal")).ToString();
-@@ -372,7 +465,7 @@ static class MapTiler
+@@ -372,7 +475,7 @@ static class MapTiler
      }
  
      /** A top-down orthographic capture: the image is OrthoWidth world units wide and as tall, centred on the capture. */
@@ -167,7 +177,22 @@ index 5af71fd..ebd4ebb 100644
      {
          var root = captureActor.Get<FPackageIndex>("RootComponent").Load()!;
          var capture = captureActor.Get<FPackageIndex>("CaptureComponent2D").Load()!;
-@@ -428,64 +521,67 @@ record PickupContent(string? Item, int Amount);
+@@ -390,12 +493,8 @@ static class MapTiler
+         {
+             try
+             {
+-                using var bitmap = (texture.Decode() ?? throw new Exception("decode returned null")).ToSkBitmap();
+-                using var scaled = new SKBitmap(new SKImageInfo(IconSize, IconSize, SKColorType.Rgba8888, SKAlphaType.Premul));
+-                bitmap.ScalePixels(scaled, SKFilterQuality.High);
+-                using var image = SKImage.FromBitmap(scaled);
+-                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+-                icons[key] = data.ToArray();
++                using var bitmap = IconImage.Decode(texture);
++                icons[key] = IconImage.Encode(bitmap, IconSize, SKEncodedImageFormat.Png, 100);
+             }
+             catch (Exception e)
+             {
+@@ -428,64 +527,67 @@ record PickupContent(string? Item, int Amount);
  /** What each loose item pickup holds, from the world partition cells that contain the pickups. */
  static class PickupContents
  {
@@ -269,7 +294,7 @@ index 5af71fd..ebd4ebb 100644
      }
  }
  
-@@ -534,8 +630,29 @@ static class MapIcons
+@@ -534,8 +636,156 @@ static class MapIcons
              }
              catch (Exception e) { Console.Error.WriteLine($"WARN: creature descriptor {file}: {e.Message}"); }
          }
@@ -296,10 +321,137 @@ index 5af71fd..ebd4ebb 100644
 +    {
 +        "Desc_Crystal", "Desc_Crystal_mk2", "Desc_Crystal_mk3", "Desc_WAT1", "Desc_WAT2",
 +    };
++}
++
++// ---- icon images ----
++
++/** Decoding and scaling of icon textures, shared by the map icons and the descriptor icons. */
++static class IconImage
++{
++    public static SKBitmap Decode(UTexture2D texture) =>
++        (texture.Decode() ?? throw new Exception("decode returned null")).ToSkBitmap();
++
++    /** The bitmap scaled to a size x size square and encoded. */
++    public static byte[] Encode(SKBitmap bitmap, int size, SKEncodedImageFormat format, int quality)
++    {
++        using var scaled = new SKBitmap(new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Premul));
++        bitmap.ScalePixels(scaled, SKFilterQuality.High);
++        using var image = SKImage.FromBitmap(scaled);
++        using var data = image.Encode(format, quality) ?? throw new Exception($"{format} encoding is not available in this SkiaSharp build.");
++        return data.ToArray();
++    }
++
++    /** A square copy with the bitmap centred on a transparent background (icons are square; this only guards odd ones). */
++    public static SKBitmap Square(SKBitmap bitmap)
++    {
++        int side = Math.Max(bitmap.Width, bitmap.Height);
++        var square = new SKBitmap(new SKImageInfo(side, side, SKColorType.Rgba8888, SKAlphaType.Premul));
++        using var canvas = new SKCanvas(square);
++        canvas.Clear(SKColors.Transparent);
++        canvas.DrawBitmap(bitmap, (side - bitmap.Width) / 2f, (side - bitmap.Height) / 2f);
++        return square;
++    }
++}
++
++// ---- descriptor icons ----
++
++// --icons-out <dir>: the icon of every descriptor in the game's Docs (items, resources, equipment, buildings, vehicles, ...),
++// for the in-app machine and vehicle wiki. The class list and each class's icon texture come from
++// <install>/CommunityResources/Docs/en-US.json: mSmallIcon, else mPersistentBigIcon (the Docs resolve inherited values; in
++// 1.2.5.0 both fields name the same 256 or 512 px texture for every class). The textures are read from the paks and written
++// as <dir>/<size>/<ClassName>.webp for each of Sizes (square, transparent background), plus <dir>/index.json.
++static class DescriptorIcons
++{
++    public static readonly int[] Sizes = [64, 256];
++    const int WebpQuality = 90;
++    const string DocsFile = "CommunityResources/Docs/en-US.json";
++    static readonly Regex TextureValue = new(@"^(?:\w+ )?/Game/(\S+)$");
++
++    public record Icon(
++        [property: JsonPropertyName("nativeClass")] string NativeClass,
++        [property: JsonPropertyName("texture")] string Texture);
++
++    public record Index(
++        [property: JsonPropertyName("gameVersion")] string GameVersion,
++        [property: JsonPropertyName("format")] string Format,
++        [property: JsonPropertyName("sizes")] int[] Sizes,
++        [property: JsonPropertyName("icons")] SortedDictionary<string, Icon> Icons,
++        [property: JsonPropertyName("missing")] SortedDictionary<string, string> Missing);
++
++    public static Index Write(IFileProvider provider, string installDir, string gameVersion, string outDir)
++    {
++        string docsPath = Path.Combine(installDir, DocsFile);
++        if (!File.Exists(docsPath)) throw new Exception($"--icons-out needs the game's Docs: {docsPath} not found.");
++        // UTF-16 LE with a byte order mark: ReadAllText detects it (JsonDocument alone reads only UTF-8).
++        using var docs = JsonDocument.Parse(File.ReadAllText(docsPath));
++        var wanted = new SortedDictionary<string, Icon>(StringComparer.Ordinal);
++        var missing = new SortedDictionary<string, string>(StringComparer.Ordinal);
++        foreach (var group in docs.RootElement.EnumerateArray())
++        {
++            string native = Regex.Match(group.GetProperty("NativeClass").GetString() ?? "", @"\.(\w+)'?$").Groups[1].Value;
++            foreach (var c in group.GetProperty("Classes").EnumerateArray())
++            {
++                string? small = Field(c, "mSmallIcon"), big = Field(c, "mPersistentBigIcon");
++                if (small is null && big is null) continue;
++                string cls = Field(c, "ClassName") ?? throw new Exception("Docs class without a ClassName");
++                string? texture = TexturePath(small) ?? TexturePath(big);
++                if (texture is null) missing[cls] = $"no icon in the Docs ({small ?? big})";
++                else wanted[cls] = new Icon(native, texture);
++            }
++        }
++        if (wanted.Count == 0) throw new Exception($"No descriptor icons found in {docsPath}; the Docs format probably changed.");
++
++        foreach (int size in Sizes)
++        {
++            string dir = Path.Combine(outDir, size.ToString());
++            if (Directory.Exists(dir)) Directory.Delete(dir, true);
++            Directory.CreateDirectory(dir);
++        }
++        // Several classes share a texture (FICSMAS cartridges, jump pads): decode each texture once.
++        var written = new SortedDictionary<string, Icon>(StringComparer.Ordinal);
++        foreach (var byTexture in wanted.GroupBy(w => w.Value.Texture))
++        {
++            byte[][] encoded;
++            try
++            {
++                string objectPath = "FactoryGame/Content/" + byTexture.Key;
++                using var texture = IconImage.Decode(provider.LoadPackageObject<UTexture2D>(objectPath));
++                if (texture.Width < Sizes.Max() || texture.Height < Sizes.Max())
++                    Console.Error.WriteLine($"WARN: icon texture {byTexture.Key} is only {texture.Width}x{texture.Height} px");
++                using var square = texture.Width == texture.Height ? null : IconImage.Square(texture);
++                encoded = Sizes.Select(size => IconImage.Encode(square ?? texture, size, SKEncodedImageFormat.Webp, WebpQuality)).ToArray();
++            }
++            catch (Exception e)
++            {
++                foreach (var (cls, _) in byTexture) missing[cls] = $"texture {byTexture.Key} failed: {e.Message}";
++                Console.Error.WriteLine($"WARN: icon texture {byTexture.Key} failed: {e.Message}");
++                continue;
++            }
++            foreach (var (cls, icon) in byTexture)
++            {
++                for (int i = 0; i < Sizes.Length; i++)
++                    File.WriteAllBytes(Path.Combine(outDir, Sizes[i].ToString(), $"{cls}.webp"), encoded[i]);
++                written[cls] = icon;
++            }
++        }
++        var index = new Index(gameVersion, "webp", Sizes, written, missing);
++        File.WriteAllText(Path.Combine(outDir, "index.json"), JsonSerializer.Serialize(index, Json.Options));
++        return index;
++    }
++
++    static string? Field(JsonElement c, string name) =>
++        c.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
++
++    /** "Texture2D /Game/FactoryGame/X/Icon_256.Icon_256" -> "FactoryGame/X/Icon_256.Icon_256"; null for "None" or empty. */
++    static string? TexturePath(string? value)
++    {
++        var m = value is null ? null : TextureValue.Match(value);
++        return m is { Success: true } ? m.Groups[1].Value : null;
++    }
  }
  
  // ---- output model (matches Konsl/satisfactory-world-generator default-world.json) ----
-@@ -599,6 +716,1142 @@ record MapInfo(
+@@ -599,6 +849,1142 @@ record MapInfo(
      [property: JsonPropertyName("world")] MapBounds World,
      [property: JsonPropertyName("icons")] Dictionary<string, string> Icons);
  

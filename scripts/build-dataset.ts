@@ -11,7 +11,9 @@ import { AREA_SNAP, biomesFromAreas, landTest, readMapAreas } from './map-areas.
 import { readDocsFile } from './game-docs.js';
 import { buildTransportData, type RawTransport } from './transport.js';
 import { RecipeBuildError, recipeSummary, writeRecipes } from './recipes.js';
-import { MachineBuildError, machineSummary, writeMachines } from './machines.js';
+import { buildMachinesFromDocs, MachineBuildError, machineSummary, writeMachines } from './machines.js';
+import { IconBuildError, iconSummary, writeIcons } from './icons.js';
+import { descriptorClass, type MachineData } from '../src/shared/machines.js';
 import { UNITS_PER_METER, type Calibration } from '../src/shared/geo.js';
 import type { CollectibleTypeId, LocalizedName, WorldBounds } from '../src/shared/types.js';
 import type { CrashSites, Dataset, DatasetItemTuple, ItemExtra, PodRequirement } from '../src/shared/dataset.js';
@@ -302,6 +304,7 @@ export const DATASET_PARTS = {
   transport: 'transport.json (vehicle calculator)',
   recipes: 'recipes.json (production planner)',
   machines: 'machines.json (machine and vehicle wiki)',
+  icons: 'icons/items/ (pictures of items, machines and vehicles for the wiki)',
 } as const;
 export type DatasetPart = keyof typeof DATASET_PARTS;
 
@@ -322,7 +325,7 @@ export function missingParts(parts: ReadonlySet<DatasetPart>, inputs: Record<Dat
   return [...parts].filter(p => !inputs[p].ok).map(p => `${p}: ${inputs[p].what}`);
 }
 
-const USAGE = 'usage: npm run dataset -- --extractor <dir> --out <dir> [--only <part,...>] [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--default-world <default-world.json>] [--docs <dir>] [--transport <file>] [--snap-m 100] [--build N]'
+const USAGE = 'usage: npm run dataset -- --extractor <dir> --out <dir> [--only <part,...>] [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--default-world <default-world.json>] [--docs <dir>] [--transport <file>] [--icons <dir>] [--snap-m 100] [--build N]'
   + `\nparts: ${Object.keys(DATASET_PARTS).join(', ')} (default: all)`;
 
 function main(): void {
@@ -358,6 +361,8 @@ function main(): void {
       // the extractor's transport.json (`--transport-out`); defaults: <extractor>/docs and <extractor>/transport.json.
       docs: { type: 'string' },
       transport: { type: 'string' },
+      // The extractor's descriptor pictures (`--icons-out`); default: <extractor>/icons.
+      icons: { type: 'string' },
       build: { type: 'string', default: String(DEFAULT_BUILD) },
     },
   });
@@ -379,6 +384,7 @@ function main(): void {
   const defaultWorldPath = resolve(v['default-world'] ?? join(ext, 'default-world.json'));
   const docsDir = resolve(v.docs ?? join(ext, 'docs'));
   const rawTransportPath = resolve(v.transport ?? join(ext, 'transport.json'));
+  const iconsDir = resolve(v.icons ?? join(ext, 'icons'));
   const mapDir = join(ext, 'map');
   const hasDocs = existsSync(join(docsDir, 'en-US.json'));
   const hasCaves = existsSync(cavesPath) && existsSync(join(geometryDir, 'index.json'));
@@ -393,6 +399,11 @@ function main(): void {
     transport: { ok: hasDocs && existsSync(rawTransportPath), what: `${join(docsDir, 'en-US.json')} (--docs) and ${rawTransportPath} (extractor --transport-out)` },
     recipes: { ok: hasDocs, what: `${join(docsDir, 'en-US.json')} (--docs <install>/CommunityResources/Docs)` },
     machines: { ok: hasDocs, what: `${join(docsDir, 'en-US.json')} (--docs <install>/CommunityResources/Docs)` },
+    // The Docs say which buildings are wiki entries (only their pictures are copied, not those of walls and foundations).
+    icons: {
+      ok: hasDocs && existsSync(join(iconsDir, 'index.json')),
+      what: `${join(iconsDir, 'index.json')} (extractor --icons-out, or --icons) and ${join(docsDir, 'en-US.json')} (--docs)`,
+    },
   };
   const missing = missingParts(parts, inputs);
   if (missing.length) {
@@ -499,11 +510,14 @@ function main(): void {
       throw e;
     }
   }
-  if (parts.has('machines')) {
-    try { done('machines', machineSummary(writeMachines(docsDir, out))); } catch (e) {
-      if (e instanceof MachineBuildError) { console.error(e.message); process.exit(1); }
-      throw e;
-    }
+  let machineData: MachineData | undefined;
+  const machines = () => (machineData ??= buildMachinesFromDocs(docsDir));
+  try {
+    if (parts.has('machines')) done('machines', machineSummary(writeMachines(docsDir, out, machines())));
+    if (parts.has('icons')) done('icons', iconSummary(writeIcons(iconsDir, out, new Set(machines().machines.map(m => descriptorClass(m.id))))));
+  } catch (e) {
+    if (e instanceof MachineBuildError || e instanceof IconBuildError) { console.error(e.message); process.exit(1); }
+    throw e;
   }
   if (parts.has('map')) {
     cpSync(join(mapDir, 'map.json'), join(out, 'map.json'));
