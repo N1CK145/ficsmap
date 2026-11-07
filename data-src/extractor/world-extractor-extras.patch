@@ -1,5 +1,5 @@
 diff --git a/world-extractor-net/Program.cs b/world-extractor-net/Program.cs
-index 5af71fd..2a5affb 100644
+index 5af71fd..f92aa02 100644
 --- a/world-extractor-net/Program.cs
 +++ b/world-extractor-net/Program.cs
 @@ -7,6 +7,7 @@ using CUE4Parse.Encryption.Aes;
@@ -10,7 +10,7 @@ index 5af71fd..2a5affb 100644
  using CUE4Parse.UE4.Assets.Exports.Texture;
  using CUE4Parse.UE4.Assets.Objects;
  using CUE4Parse.UE4.Objects.Core.Math;
-@@ -30,10 +31,15 @@ using SkiaSharp;
+@@ -30,10 +31,16 @@ using SkiaSharp;
  //   --map-out           a directory with the in-game map as a 256px WebP tile pyramid
  //                       (tiles/{z}/{x}/{y}.webp) plus map.json (content id, zoom range and the world
  //                       rectangle the image covers, read from the level's minimap capture actor).
@@ -18,16 +18,17 @@ index 5af71fd..2a5affb 100644
 +//   --cave-geometry-out a directory with the 3D geometry around every cave (GLB per cave), see CaveGeometry.
 +//   --heightmap-out     a directory with height grids of the whole map (highest surface per cell), see Heightmap.
 +//   --map-areas-out     a directory with the game's map area raster (which area every spot belongs to), see MapAreas.
++//   --transport-out     transport.json: capacity, timing, speed and drone fuel values of the transport vehicles, see TransportData.
  //
  // Usage:
  //   WorldExtractor --install-dir <game install> --out <default-world.json>
 -//                  [--collectibles-out <collectibles.json>] [--map-out <dir>]
 +//                  [--collectibles-out <collectibles.json>] [--map-out <dir>] [--caves-out <caves.json>]
-+//                  [--cave-geometry-out <dir>] [--heightmap-out <dir>] [--map-areas-out <dir>]
++//                  [--cave-geometry-out <dir>] [--heightmap-out <dir>] [--map-areas-out <dir>] [--transport-out <file>]
  //                  [--engine-candidates GAME_UE5_6,GAME_UE5_5] [--game-version 1.2.3.1]
  
  var opts = Args.Parse(args);
-@@ -41,6 +47,11 @@ string installDir = opts.Require("install-dir");
+@@ -41,6 +48,12 @@ string installDir = opts.Require("install-dir");
  string outPath = opts.Require("out");
  string? collectiblesPath = opts.Get("collectibles-out");
  string? mapDir = opts.Get("map-out");
@@ -36,10 +37,11 @@ index 5af71fd..2a5affb 100644
 +string? caveGeometryDir = opts.Get("cave-geometry-out");
 +string? heightmapDir = opts.Get("heightmap-out");
 +string? mapAreasDir = opts.Get("map-areas-out");
++string? transportPath = opts.Get("transport-out");
  
  string paksDir = Path.Combine(installDir, "FactoryGame", "Content", "Paks");
  string usmapPath = Path.Combine(installDir, "CommunityResources", "FactoryGame.usmap");
-@@ -62,7 +73,6 @@ const string levelPath = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persis
+@@ -62,7 +75,6 @@ const string levelPath = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persis
  
  var (provider, level, engine) = OpenLevel(paksDir, usmapPath, candidates);
  Console.WriteLine($"Engine: {engine} | mounted files: {provider.Files.Count} | game version: {gameVersion}");
@@ -47,7 +49,7 @@ index 5af71fd..2a5affb 100644
  var resourceNodes = new List<ResourceNode>();
  var geysers = new List<GeyserNode>();
  var cores = new List<FrackingCore>();
-@@ -71,6 +81,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
+@@ -71,6 +83,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
  UObject? scannableGenerator = null;
  UObject? minimapCapture = null;
  int skipped = 0;
@@ -56,7 +58,7 @@ index 5af71fd..2a5affb 100644
  
  foreach (var actorIndex in level.Actors)
  {
-@@ -99,6 +111,9 @@ foreach (var actorIndex in level.Actors)
+@@ -99,6 +113,9 @@ foreach (var actorIndex in level.Actors)
              satellites.Add((actor.Get<FPackageIndex>("mCore").Name, ResourceClass(actor),
                  new GeyserNode(actor.Name, Location(actor), Purity(actor))));
              break;
@@ -66,7 +68,7 @@ index 5af71fd..2a5affb 100644
          case "BP_WorldScannableDataGenerator_C":
              scannableGenerator = actor;
              break;
-@@ -146,6 +161,50 @@ if (collectiblesPath is not null)
+@@ -146,6 +163,57 @@ if (collectiblesPath is not null)
          $"{collectibles.DropPods.Count} drop pods, {collectibles.CreatureSpawners.Count} creature spawners -> {collectiblesPath}");
  }
  
@@ -107,6 +109,13 @@ index 5af71fd..2a5affb 100644
 +    Console.WriteLine($"Map areas: {areas.Width}x{areas.Height} px, {areas.Areas.Count} palette entries -> {mapAreasDir}");
 +}
 +
++if (transportPath is not null)
++{
++    var transport = TransportData.Read(provider);
++    File.WriteAllText(transportPath, JsonSerializer.Serialize(transport, Json.Options));
++    Console.WriteLine($"Transport: {transport.Vehicles.Count} vehicles -> {transportPath}");
++}
++
 +if (heightmapDir is not null)
 +{
 +    if (minimapCapture is null) throw new Exception("BP_MinimapCaptureActor_C not found in the level.");
@@ -117,7 +126,7 @@ index 5af71fd..2a5affb 100644
  if (mapDir is not null)
  {
      if (minimapCapture is null) throw new Exception("BP_MinimapCaptureActor_C not found in the level.");
-@@ -163,6 +222,31 @@ static float[] Location(UObject actor)
+@@ -163,6 +231,31 @@ static float[] Location(UObject actor)
      return [loc.X, loc.Y, loc.Z];
  }
  
@@ -149,7 +158,7 @@ index 5af71fd..2a5affb 100644
  static string ResourceClass(UObject actor) => actor.Get<FPackageIndex>("mResourceClass").Name;
  
  static string Purity(UObject actor) => actor.GetOrDefault<FName>("mPurity", new FName("RP_Normal")).ToString();
-@@ -372,7 +456,7 @@ static class MapTiler
+@@ -372,7 +465,7 @@ static class MapTiler
      }
  
      /** A top-down orthographic capture: the image is OrthoWidth world units wide and as tall, centred on the capture. */
@@ -158,7 +167,7 @@ index 5af71fd..2a5affb 100644
      {
          var root = captureActor.Get<FPackageIndex>("RootComponent").Load()!;
          var capture = captureActor.Get<FPackageIndex>("CaptureComponent2D").Load()!;
-@@ -428,7 +512,7 @@ record PickupContent(string? Item, int Amount);
+@@ -428,7 +521,7 @@ record PickupContent(string? Item, int Amount);
  /** What each loose item pickup holds, from the world partition cells that contain the pickups. */
  static class PickupContents
  {
@@ -167,7 +176,7 @@ index 5af71fd..2a5affb 100644
      private static readonly string[] DescriptorRoots =
          ["FactoryGame/Content/FactoryGame/Resource/", "FactoryGame/Content/FactoryGame/Equipment/"];
      private static readonly string[] DescriptorPrefixes = ["Desc_", "BP_EquipmentDescriptor", "BP_ItemDescriptor"];
-@@ -534,8 +618,29 @@ static class MapIcons
+@@ -534,8 +627,29 @@ static class MapIcons
              }
              catch (Exception e) { Console.Error.WriteLine($"WARN: creature descriptor {file}: {e.Message}"); }
          }
@@ -197,7 +206,7 @@ index 5af71fd..2a5affb 100644
  }
  
  // ---- output model (matches Konsl/satisfactory-world-generator default-world.json) ----
-@@ -599,6 +704,1001 @@ record MapInfo(
+@@ -599,6 +713,1141 @@ record MapInfo(
      [property: JsonPropertyName("world")] MapBounds World,
      [property: JsonPropertyName("icons")] Dictionary<string, string> Icons);
  
@@ -1193,6 +1202,146 @@ index 5af71fd..2a5affb 100644
 +        foreach (var (ns, keys) in loc.Entries)
 +            foreach (var (key, val) in keys) result[(ns.Str, key.Str)] = val.LocalizedString;
 +        return result;
++    }
++}
++
++// Values of the transport vehicles that the game's CommunityResources/Docs JSON does not contain, read from the
++// class default objects of the vehicle blueprints (written by --transport-out as transport.json):
++//   inventorySize             mInventorySize (also in the Docs; written for cross-checking)
++//   isFluidStorage            mIsFluidStorageInventory
++//   fluidStackSizeMultiplier  mFluidStackSizeMultiplier: a fluid slot holds the fluid's stack size times this
++//   dockingSequenceDuration,  mDockingSequenceDuration, mTakeoffSequenceDuration of the drone (seconds)
++//   takeoffSequenceDuration
++//   straightPathSpeedLimit    the autopilot's mCurvatureSpeedLimitCurve at curvature 0 (a straight path), m/s
++//   tractionSpeedLimit        the speed (m/s) at which the autopilot's mTractiveEffortCurve (m/s -> kN) reaches 0:
++//                             the engine pulls no more, so the vehicle gets no faster on level ground
++//   droneFuelTypes            the drone's mFuelTypes: item class and TravelSpeed (cm/s, the cruising speed) per fuel
++// Blueprint defaults are stored as deltas, so a value missing on a class is taken from its parent blueprint
++// (BP_FluidTruck inherits from BP_Truck). null means no blueprint in the chain sets it (a C++ default, not in the paks).
++static class TransportData
++{
++    const string Root = "FactoryGame/Content/FactoryGame/Buildable/";
++    static readonly string[] Vehicles =
++    [
++        "Vehicle/Tractor/BP_Tractor", "Vehicle/Truck/BP_Truck", "Vehicle/Truck/BP_FluidTruck",
++        "Vehicle/Explorer/BP_Explorer", "Vehicle/Train/Wagon/BP_FreightWagon", "Factory/DroneStation/BP_DroneTransport",
++    ];
++
++    public record DroneFuel(
++        [property: JsonPropertyName("item")] string Item,
++        [property: JsonPropertyName("travelSpeed")] float? TravelSpeed);
++
++    public record Vehicle(
++        [property: JsonPropertyName("class")] string Class,
++        [property: JsonPropertyName("asset")] string Asset,
++        [property: JsonPropertyName("inventorySize")] int? InventorySize,
++        [property: JsonPropertyName("isFluidStorage")] bool? IsFluidStorage,
++        [property: JsonPropertyName("fluidStackSizeMultiplier")] int? FluidStackSizeMultiplier,
++        [property: JsonPropertyName("dockingSequenceDuration")] float? DockingSequenceDuration,
++        [property: JsonPropertyName("takeoffSequenceDuration")] float? TakeoffSequenceDuration,
++        [property: JsonPropertyName("straightPathSpeedLimit")] float? StraightPathSpeedLimit,
++        [property: JsonPropertyName("tractionSpeedLimit")] float? TractionSpeedLimit,
++        [property: JsonPropertyName("droneFuelTypes")] List<DroneFuel>? DroneFuelTypes);
++
++    public record Info([property: JsonPropertyName("vehicles")] List<Vehicle> Vehicles);
++
++    public static Info Read(IFileProvider provider)
++    {
++        var list = new List<Vehicle>();
++        foreach (var path in Vehicles)
++        {
++            var chain = Chain(provider, Root + path);
++            if (chain.Count == 0) throw new Exception($"Vehicle blueprint {path} not found");
++            list.Add(new Vehicle(
++                chain[0].Class, "/Game/FactoryGame/Buildable/" + path,
++                First(chain, c => c.Cdo.TryGetValue(out int v, "mInventorySize") ? v : (int?)null),
++                First(chain, c => c.Cdo.TryGetValue(out bool v, "mIsFluidStorageInventory") ? v : (bool?)null),
++                First(chain, c => c.Cdo.TryGetValue(out int v, "mFluidStackSizeMultiplier") ? v : (int?)null),
++                First(chain, c => c.Cdo.TryGetValue(out float v, "mDockingSequenceDuration") ? v : (float?)null),
++                First(chain, c => c.Cdo.TryGetValue(out float v, "mTakeoffSequenceDuration") ? v : (float?)null),
++                First(chain, c => SpeedLimitAtZero(c.Autopilot)),
++                First(chain, c => TractionZero(c.Autopilot)),
++                chain.Select(c => DroneFuels(c.Cdo)).FirstOrDefault(f => f is not null)));
++        }
++        return new Info(list);
++    }
++
++    record Level(string Class, UObject Cdo, UObject? Autopilot);
++
++    static T? First<T>(List<Level> chain, Func<Level, T?> get) where T : struct
++    {
++        foreach (var c in chain) if (get(c) is T v) return v;
++        return null;
++    }
++
++    /// The blueprint and its parent blueprints, each with its class default object and autopilot component template.
++    static List<Level> Chain(IFileProvider provider, string package)
++    {
++        var chain = new List<Level>();
++        for (int depth = 0; depth < 10 && package.Length > 0; depth++)
++        {
++            if (!provider.TryLoadPackage(package + ".uasset", out var pkg)) break;
++            var exports = pkg.GetExports().ToList();
++            var cls = exports.OfType<CUE4Parse.UE4.Objects.Engine.UBlueprintGeneratedClass>().FirstOrDefault();
++            if (cls is null) break;
++            var cdo = cls.ClassDefaultObject.Load();
++            if (cdo is null) break;
++            // The component template the class default object owns (one per blueprint package).
++            var autopilot = exports.FirstOrDefault(e => e.Name == "AutopilotComponent" && e.ExportType == "FGVehicleAutopilotComponent");
++            chain.Add(new Level(cls.Name, cdo, autopilot));
++            var super = cls.SuperStruct?.ResolvedObject;
++            var superPackage = super?.Package?.Name;
++            if (superPackage is null || !superPackage.StartsWith("/Game/")) break;
++            var next = "FactoryGame/Content/FactoryGame/" + superPackage["/Game/FactoryGame/".Length..];
++            // The root blueprint (BP_WheeledVehicle) resolves its native parent to its own package: stop there.
++            if (next.Equals(package, StringComparison.OrdinalIgnoreCase)) break;
++            package = next;
++        }
++        return chain;
++    }
++
++    /// The keys of a runtime float curve property: its external curve asset, else the curve stored inline.
++    /// Empty when the component does not set the property.
++    static CUE4Parse.UE4.Objects.Engine.Curves.FRichCurveKey[] CurveKeys(UObject? owner, string property)
++    {
++        if (owner is null || !owner.TryGetValue(out FStructFallback curve, property)) return [];
++        var external = curve.GetOrDefault<FPackageIndex>("ExternalCurve");
++        if (external is not null && !external.IsNull)
++            return external.Load()?.GetOrDefault<CUE4Parse.UE4.Objects.Engine.Curves.FRichCurve>("FloatCurve")?.Keys ?? [];
++        return curve.GetOrDefault<CUE4Parse.UE4.Objects.Engine.Curves.FRichCurve>("EditorCurveData")?.Keys ?? [];
++    }
++
++    /// The first key of the autopilot's curvature speed limit curve, if it is at curvature 0.
++    static float? SpeedLimitAtZero(UObject? autopilot)
++    {
++        var keys = CurveKeys(autopilot, "mCurvatureSpeedLimitCurve");
++        if (keys.Length == 0) return null;
++        return keys[0].Time == 0 ? keys[0].Value : null;
++    }
++
++    /// The speed at which the tractive effort curve first drops to 0 or below after being positive: the key's speed
++    /// when the key is 0 (Tractor, Explorer), else linear between the two keys around the crossing (the Truck's
++    /// last key is -3.5e-7). In 1.2.5.0 the cubic segment before that key stays positive, so this is where it reaches 0.
++    static float? TractionZero(UObject? autopilot)
++    {
++        var keys = CurveKeys(autopilot, "mTractiveEffortCurve");
++        for (int i = 1; i < keys.Length; i++)
++        {
++            var (a, b) = (keys[i - 1], keys[i]);
++            if (a.Value <= 0 || b.Value > 0) continue;
++            return b.Value == 0 ? b.Time : a.Time + (b.Time - a.Time) * a.Value / (a.Value - b.Value);
++        }
++        return null;
++    }
++
++    /// The drone's fuel types (item class and travel speed in cm/s); null for a class that does not set mFuelTypes.
++    /// A travel speed the blueprint does not set is written as null (the build then fails rather than guess).
++    static List<DroneFuel>? DroneFuels(UObject cdo)
++    {
++        if (!cdo.TryGetValue(out FStructFallback[] fuels, "mFuelTypes")) return null;
++        return fuels.Select(f => new DroneFuel(
++            f.GetOrDefault<FPackageIndex>("Item")?.Name ?? throw new Exception("Drone fuel type without an item"),
++            f.TryGetValue(out float speed, "TravelSpeed") ? speed : null)).ToList();
 +    }
 +}
 +

@@ -8,6 +8,8 @@ import { cavesToGeojson, type RawCaves } from '../src/shared/caves.js';
 import { sampleCaves } from './cave-geometry.js';
 import { readHeightGrid, writeHeightTiles } from './heightmap.js';
 import { AREA_SNAP, biomesFromAreas, readMapAreas, SEA_LEVEL } from './map-areas.js';
+import { readDocsFile } from './game-docs.js';
+import { buildTransportData, type RawTransport } from './transport.js';
 import { UNITS_PER_METER, type Calibration } from '../src/shared/geo.js';
 import type { CollectibleTypeId, WorldBounds } from '../src/shared/types.js';
 import type { CrashSites, Dataset, DatasetItemTuple, ItemExtra, PodRequirement } from '../src/shared/dataset.js';
@@ -243,11 +245,16 @@ function main(): void {
       // The game's map areas (`--map-areas-out`); default: inside --extractor. When present they are the biomes,
       // instead of the editor polygons in --data-src.
       'map-areas': { type: 'string' },
+      // The game's CommunityResources/Docs folder (en-US.json, de.json) and the extractor's transport.json
+      // (`--transport-out`); defaults: <extractor>/docs and <extractor>/transport.json. With both, the dataset
+      // gets transport.json for the vehicle calculator.
+      docs: { type: 'string' },
+      transport: { type: 'string' },
       build: { type: 'string', default: String(DEFAULT_BUILD) },
     },
   });
   if (!v.extractor || !v.out) {
-    throw new Error('usage: npm run dataset -- --extractor <dir> --out <dir> [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--snap-m 100] [--build N]');
+    throw new Error('usage: npm run dataset -- --extractor <dir> --out <dir> [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--docs <dir>] [--transport <file>] [--snap-m 100] [--build N]');
   }
   const src = resolve(v['data-src']!);
   const firstExisting = (...paths: string[]) => paths.find(p => existsSync(p)) ?? paths[0]!;
@@ -308,6 +315,15 @@ function main(): void {
     const { meta, bytes } = writeHeightTiles(heightGrid, join(out, 'height'));
     heightSummary = `${meta.width}x${meta.height} cells of ${meta.cell / 100} m, ${(bytes / 1e6).toFixed(1)} MB in tiles of ${meta.tile} cells`;
   }
+  const docsDir = resolve(v.docs ?? join(resolve(v.extractor), 'docs'));
+  const rawTransportPath = resolve(v.transport ?? join(resolve(v.extractor), 'transport.json'));
+  let transportSummary = 'no Docs (--docs) or extractor transport.json, no vehicle calculator data';
+  if (existsSync(join(docsDir, 'en-US.json')) && existsSync(rawTransportPath)) {
+    const deDocs = existsSync(join(docsDir, 'de.json')) ? readDocsFile(join(docsDir, 'de.json')) : [];
+    const transport = buildTransportData(readDocsFile(join(docsDir, 'en-US.json')), deDocs, readJson(rawTransportPath) as RawTransport, ds.version);
+    writeFileSync(join(out, 'transport.json'), JSON.stringify(transport));
+    transportSummary = `${transport.vehicles.length} vehicles, ${transport.items.length} items`;
+  }
   const mapDir = join(resolve(v.extractor), 'map');
   cpSync(join(mapDir, 'map.json'), join(out, 'map.json'));
   cpSync(join(mapDir, 'tiles'), join(out, 'tiles'), { recursive: true });
@@ -325,6 +341,7 @@ function main(): void {
   console.log(`  biomes: ${biomeSummary}`);
   console.log(`  caves: ${caveSummary}`);
   console.log(`  heights: ${heightSummary}`);
+  console.log(`  transport: ${transportSummary}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

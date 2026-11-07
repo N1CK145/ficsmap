@@ -7,7 +7,7 @@ Raw game data for ficsmap, read from the game client's paks. Nothing here is han
 ## Provenance
 
 - Tool: [SatisfactoryTools/AssetsExtractor](https://github.com/SatisfactoryTools/AssetsExtractor) `world-extractor-net`, branch `master`, upstream commit `19e3010c781d4250242d4cc68b6c5c8c340fdea0`.
-- Local patch: `world-extractor-extras.patch` (git diff against that commit). Adds the optional flags `--extras-out <file>`, `--caves-out <file>`, `--cave-geometry-out <dir>` (see "Caves" below), `--heightmap-out <dir>` (see "Height map" below) and `--map-areas-out <dir>` (see "Map areas" below), and exports the item icons of the five pickup types (`Desc_Crystal_C`, `Desc_Crystal_mk2_C`, `Desc_Crystal_mk3_C`, `Desc_WAT1_C`, `Desc_WAT2_C`, from each descriptor's `mPersistentBigIcon`) into `map/icons/`; the map markers use them. Apply with `git apply` in the AssetsExtractor checkout.
+- Local patch: `world-extractor-extras.patch` (git diff against that commit). Adds the optional flags `--extras-out <file>`, `--caves-out <file>`, `--cave-geometry-out <dir>` (see "Caves" below), `--heightmap-out <dir>` (see "Height map" below), `--map-areas-out <dir>` (see "Map areas" below) and `--transport-out <file>` (see "Transport" below), and exports the item icons of the five pickup types (`Desc_Crystal_C`, `Desc_Crystal_mk2_C`, `Desc_Crystal_mk3_C`, `Desc_WAT1_C`, `Desc_WAT2_C`, from each descriptor's `mPersistentBigIcon`) into `map/icons/`; the map markers use them. Apply with `git apply` in the AssetsExtractor checkout.
 - Game: Steam install, GameVersion `1.2.4.1` (CL 513885, UE 5.6), engine detected as `GAME_UE5_6`. Output folder: `1.2.4.1/`.
 - Build and run (.NET 10 SDK needed):
 
@@ -21,7 +21,8 @@ dotnet run -c Release --no-build -- --install-dir <game install> --out /tmp/defa
   --caves-out <repo>/data-src/extractor/1.2.4.1/caves.json \
   --cave-geometry-out <repo>/data-src/extractor/1.2.4.1/cave-geometry \
   --heightmap-out <repo>/data-src/extractor/1.2.4.1/heightmap \
-  --map-areas-out <repo>/data-src/extractor/1.2.4.1/map-areas
+  --map-areas-out <repo>/data-src/extractor/1.2.4.1/map-areas \
+  --transport-out <repo>/data-src/extractor/1.2.4.1/transport.json
 ```
 
 The cave geometry export needs about 10 GB of memory; cap the .NET heap so a run cannot take the machine down: `DOTNET_GCHeapHardLimit=0x280000000` (10 GiB). An uncapped run reached 24 GB once and was killed. A full run takes about 3 minutes.
@@ -36,6 +37,7 @@ The cave geometry export needs about 10 GB of memory; cap the .NET heap so a run
 - `caves.json`, `cave-geometry/`: from the patch (`--caves-out`, `--cave-geometry-out`), see "Caves".
 - `heightmap/`: from the patch (`--heightmap-out`), see "Height map".
 - `map-areas/`: from the patch (`--map-areas-out`), see "Map areas".
+- `transport.json`: from the patch (`--transport-out`), see "Transport".
 
 ## Class names (pickups and dropPods in `collectibles.json`)
 
@@ -145,6 +147,53 @@ The biomes. The game decides which region name the HUD shows from the `FGMapArea
 
 1.2.5.0 items per biome: Dune Desert 177, Rocky Desert 312, Spire Coast 238, Desert Canyon 87, Northern Forest 61, Swamp 89, Lake Forest 44, Crater Lakes 69, Maze Canyon 30, Red Bamboo Fields 49, Titan Forest 175, Red Jungle 63, Jungle Spires 66, Western Dune Forest 45, Abyss Cliffs 72, Grass Fields 86, Blue Crater 66, Southern Forest 35.
 
+## Transport (`transport.json`, vehicle calculator)
+
+The vehicle calculator needs capacities, stack sizes, stop times, speeds and fuel use. They come from two sources, combined by the dataset build (`scripts/transport.ts`, Docs parsing in `scripts/game-docs.ts`) into the dataset's `transport.json`:
+
+**1. The game's Docs files** `<install>/CommunityResources/Docs/en-US.json` and `de.json` (shipped with every install; UTF-16 LE with BOM). Pass the folder with `--docs` or copy it to `<extractor output>/docs/`. Used fields:
+
+| Value | Class | Field | 1.2.5.0 |
+|---|---|---|---|
+| Item stack size | every class with `mForm` `RF_SOLID`, `RF_LIQUID` or `RF_GAS` (195) | `mCachedStackSize` (the number the game resolved from the `mStackSize` enum: SS_ONE 1, SS_SMALL 50, SS_MEDIUM 100, SS_BIG 200, SS_HUGE 500, SS_FLUID 50000) | |
+| Item names | same | `mDisplayName` in `en-US.json` and `de.json`, on one line: a hyphen with a line break before a lowercase letter is removed (German "Plutonium- \r\nbrennstab" becomes "Plutoniumbrennstab"), after another hyphen only the break goes, any other break becomes a space; a hyphen followed by a plain space stays ("Luft- und Raumfahrttechnik") | |
+| Fuels | every solid item with `mEnergyValue` > 0 (Leaves to Plutonium Fuel Rod) | `mEnergyValue` (MJ per item) | 19 items; Packaged Fuel 750 MJ (the default), Coal 300 MJ, Battery 6000 MJ |
+| Inventory slots | `Desc_Tractor_C`, `Desc_Truck_C`, `Desc_Explorer_C`, `Desc_FluidTruck_C`, `Desc_DroneTransport_C`, `Desc_FreightWagon_C` | `mInventorySize`, `mIsFluidStorageInventory` | 25, 48, 12, 1 (fluid), 9, 32 |
+| Fuel use of wheeled vehicles on autopilot | `Desc_Tractor_C`, `Desc_Truck_C`, `Desc_Explorer_C`, `Desc_FluidTruck_C` | `mAutopilotFuelConsumption` (energy per cm travelled, read as MJ) | 0.05 for all four = 5 MJ per metre |
+| Drone trip cost | `Build_DroneStation_C` | `mTripPowerCost`, `mTripPowerPerMeterCost` (MJ) | 24 000 per round trip, 6 per metre flown |
+| Truck Station load/unload cycle | `Build_TruckStation_C` | `mLoadUnloadCycleLength` (s) | 8 s |
+| Fluid Truck Station load/unload cycle | `Build_FluidTruckStation_C` | `mLoadUnloadCycleLength` (s) | 9 s |
+| Freight Platform times | `Build_TrainDockingStation_C`, `Build_TrainDockingStationLiquid_C` | `mTimeToCompleteLoad`, `mTimeToCompleteUnload` | 27 s, 27 s |
+
+Not used: `mManualFuelConsumption` (MW while a player drives: Tractor 55, Truck and Fluid Truck 75, Explorer 90).
+
+Fluid amounts are litres in the game data: SS_FLUID = 50 000 = 50 m³ per fluid slot.
+
+**2. The paks** via the patch flag `--transport-out` (class default objects of the vehicle blueprints; a value a blueprint does not set is taken from its parent blueprint, e.g. `BP_FluidTruck` from `BP_Truck`; `null` = no blueprint sets it, i.e. a C++ default that is not in the paks):
+
+| Value | Blueprint field | 1.2.5.0 |
+|---|---|---|
+| `fluidStackSizeMultiplier` | `mFluidStackSizeMultiplier` | Fluid Truck 64, Freight Car 48 (Truck 32, unused: the Truck carries no fluids) |
+| `dockingSequenceDuration`, `takeoffSequenceDuration` | `BP_DroneTransport` `mDockingSequenceDuration`, `mTakeoffSequenceDuration` | 28 s, 23 s |
+| `straightPathSpeedLimit` | the autopilot component's `mCurvatureSpeedLimitCurve` (`PathCurvatureSpeedLimitCurve_Truck` for Tractor, Truck and Fluid Truck, `..._Explorer` for the Explorer), first key at curvature 0 | 25 (Tractor, Truck, Fluid Truck), 28 (Explorer); none for drone and train |
+| `tractionSpeedLimit` | the autopilot component's `mTractiveEffortCurve` (m/s to kN; `AccelerationCurve_Tractor`, `_Truck`, `_Explorer`): the speed of the first key at or below 0 after a positive one, linear between the two keys when that key is below 0 (the cubic segment before it stays positive in 1.2.5.0) | 19.6 (Tractor), 26.2 (Truck, Fluid Truck; last key -3.5e-7), 27.9 (Explorer); none for drone and train |
+| `droneFuelTypes` | `BP_DroneTransport` `mFuelTypes[]`: `Item` and `TravelSpeed` (cm/s) | Battery 7500, Packaged Fuel 5000, Packaged Turbofuel 6000, Packaged Rocket Fuel 7500, Packaged Ionized Fuel 10000, Uranium Fuel Rod 9000, Plutonium Fuel Rod 10000 |
+| `inventorySize`, `isFluidStorage` | `mInventorySize`, `mIsFluidStorageInventory` | only for the cross-check with the Docs |
+
+**Derived values** (`scripts/transport.ts`):
+
+- Fluid capacity = fluid slots × 50 000 L × `mFluidStackSizeMultiplier` / 1000: Fluid Truck 1 × 50 × 64 = 3200 m³, Freight Car one fluid slot × 50 × 48 = 2400 m³. The build checks both against the "<n> m³" in the vehicle's English description (Fluid Truck "3200 m³", Freight Car "2400 m³ or 32-slot capacity") and fails on a difference.
+- Stop time per round trip (load at one end, unload at the other): Truck Station vehicles 2 × the 8 s cycle = 16 s, whatever they carry (since 1.2.0.0 a Truck Station loads or unloads a docked vehicle in one fixed cycle; the "120 stacks per minute" still in its description is left over from the old system and not used); Fluid Truck 2 × the Fluid Truck Station's 9 s cycle = 18 s (that one cycle moves the whole load is assumed by analogy with the Truck Station, not tested); Freight Car 27 s + 27 s = 54 s; Drone 2 × (28 s + 23 s) = 102 s (docking and take-off at both ports). Docking manoeuvres of wheeled vehicles and trains (braking, approaching the station) are not in the game data and not included.
+- Fuel per round trip, in items = (fixed MJ per round trip + MJ per metre × 2 × route) / energy per item; per minute it is spread over the round trip and multiplied by the vehicles. Shown as an estimate.
+  - Wheeled vehicles on autopilot burn fuel per distance: `mAutopilotFuelConsumption` is, per the modding headers (SatisfactoryModLoader `FGWheeledVehicle.h`, CL 517554), the fuel "per centimeter of distance travelled with autopilot enabled"; the header says MW, read here as MJ: 0.05 MJ/cm = 5 MJ per metre, 10 000 MJ per round trip on a 1 km route (13.3 Packaged Fuel). Speed and standing time do not change it. Not modelled: 1.2 has a fuel distance scale per climb angle, one curve per vehicle (`FuelClimbAngleDistanceScaleCurve_Tractor` ×1.4 at 35°, `_Explorer` ×1.4 at 90°, `_Truck` flat), so the Tractor and Explorer burn more uphill.
+  - Drone: per `FGBuildableDroneStation.h`, `mTripPowerCost` is the base cost of launching a drone on a trip and `mTripPowerPerMeterCost` what every metre of travel between two stations costs (no unit given). In MJ this matches a player test on the wiki (satisfactory.wiki.gg, Talk:Drone, 2026-04): 24 000 MJ per round trip (two take-offs and landings) plus 12 MJ per metre between the ports (6 MJ there and 6 MJ back), measured on the horizontal distance. 1 km apart: 36 000 MJ = 48 Packaged Fuel or 6 Batteries per round trip. The drone takes only the seven fuels of its `mFuelTypes`; Packaged Fuel is the default.
+  - The freight car (pulled by an electric locomotive) gets no fuel figure.
+- Speed (the default of the speed input, shown as km/h): wheeled vehicles the lower of the straight-path limit and the speed where the tractive effort ends. The straight-path limit is the autopilot's upper limit in m/s (the curve's x axis is the path curvature; 25 m/s = 90 km/h); the Tractor never reaches its 25 m/s because its tractive effort is 0 from 19.6 m/s (70.6 km/h). Defaults: Tractor 19.6 m/s, Truck and Fluid Truck 25 m/s (traction ends at 26.2), Explorer 27.9 m/s (limit 28). The drone flies at the `TravelSpeed` of its current fuel (50 m/s with Packaged Fuel, 75 with Batteries; `FGDroneVehicle.h`: "traveling speed of the drone while using this fuel"); take-off and landing are in its stop time. All of them are upper limits, not averages: curves, slopes and acceleration make the real average lower, so the calculator labels them as defaults.
+
+**Not in the game data** (user input in the calculator, no default): the average speed of the train (C++ default of the locomotive, not overridden in any blueprint). Not offered: Cyber Wagon (1 slot; it has no vehicle path preset, so it does not drive automatically) and Factory Cart (`BP_Golfcart` `mInventorySize` 1 like the Cyber Wagon, `mNeedsFuelToDrive` False, so it needs no fuel). Indirect evidence only: that the Explorer docks at Truck Stations (it can drive vehicle paths: `Build_VehiclePath_Universal_C` `mAllowedVehicleTypes` lists Tractor, Truck and Explorer); the calculator offers it with the Truck Station stop time.
+
+The dataset build writes `transport.json` only when both sources are there; otherwise the calculator shows that the dataset has no vehicle data. Checked for 1.2.5.0 (2026-11-07): 6 vehicles, 195 items, 19 fuels, about 26 KB.
+
 ## Rebuild after a game patch
 
-Re-run the commands above against the new install, use the printed gameVersion as the folder name, and diff the class counts against this table. If the patch no longer applies, re-create it: add the `--extras-out` flag, and for every `BP_DropPod_C` / `BP_MercerShrine_C` export in the persistent level and the `_Generated_` cells write the data described above; then `--caves-out` and `--cave-geometry-out` as described in "Caves", `--heightmap-out` as in "Height map" and `--map-areas-out` as in "Map areas".
+Re-run the commands above against the new install, use the printed gameVersion as the folder name, and diff the class counts against this table. If the patch no longer applies, re-create it: add the `--extras-out` flag, and for every `BP_DropPod_C` / `BP_MercerShrine_C` export in the persistent level and the `_Generated_` cells write the data described above; then `--caves-out` and `--cave-geometry-out` as described in "Caves", `--heightmap-out` as in "Height map", `--map-areas-out` as in "Map areas" and `--transport-out` as in "Transport". After a patch also compare the Transport tables above with the new values (the build fails if Docs and blueprints disagree on inventory sizes or fluid capacities, and on a `transport.json` from a patch without `tractionSpeedLimit` and `droneFuelTypes`).

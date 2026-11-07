@@ -33,6 +33,7 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 - **Caves.** A switchable layer with the floor plans of the caves and their entrances, sampled from the game's 3D geometry, and a note in the item panel when an item lies in a cave (with the distance to the nearest entrance).
 - **Coordinates and height.** Hovering the map shows the position under the mouse in metres, with the height of the highest surface there, read from the game's terrain and rock geometry.
 - **Route planner.** Up to 30 stops, optimise the order, jump to the next stop, and see a combined list of what the route's drop pods need.
+- **Vehicle calculator.** How many tractors, trucks, drones or freight cars a route of a given length needs for a target throughput, or what a number of them moves, in stacks, items or m³ per minute, and an estimate of the fuel they burn (Packaged Fuel by default, other fuels selectable). Capacities, stack sizes, fuel use, speed limits and stop times come from the game files; the speeds are upper limits, so enter the average you see on your route (for trains there is no default).
 - **List view** as an alternative to the map.
 - **Mobile layout** with a bottom sheet.
 - **English and German** user interface, picked from the browser language.
@@ -147,7 +148,7 @@ Set `TRUST_PROXY` to the IP address the proxy connects from.
 
 The map dataset is **not** part of this repository or the Docker image, because it consists of Coffee Stain Studios' game assets. You build it yourself from your own game installation and mount it into the container (`./dataset:/app/data:ro`). The app uses the one version directory it finds there; if there is more than one, set `DATASET_VERSION` in `.env`.
 
-A dataset directory `<game-version>/` contains `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/` and `icons/`, optionally `caves.geojson` (cave outlines and entrances; a dataset built without caves offers no cave layer) and `height/` (height map tiles; without it the coordinates show no height).
+A dataset directory `<game-version>/` contains `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/` and `icons/`, optionally `caves.geojson` (cave outlines and entrances; a dataset built without caves offers no cave layer) `height/` (height map tiles; without it the coordinates show no height) and `transport.json` (vehicle and item data for the vehicle calculator; without it the calculator says the dataset has no vehicle data).
 
 To build one:
 
@@ -159,7 +160,7 @@ To build one:
    npm run dataset -- --extractor <extractor-output-dir> --data-src <dir> --out data/1.2.4.1
    ```
 
-   `--data-src` points to a folder with `biomes/biomes.editor.geojson`, `biomes/calibration.json` and `crash-sites/crash-sites.json`. If the extractor output contains `caves.json` and `cave-geometry/` (or you pass `--caves <file> --cave-geometry <dir>`), the build samples the caves, writes `caves.geojson` and marks items that lie in a cave. If it contains `heightmap/` (or you pass `--heightmap <dir>`), the build writes the height map tiles to `height/`. If it contains `map-areas/` (or you pass `--map-areas <dir>`), the biomes come from the game's map areas and the editor polygons in `--data-src` are not used.
+   `--data-src` points to a folder with `biomes/biomes.editor.geojson`, `biomes/calibration.json` and `crash-sites/crash-sites.json`. If the extractor output contains `caves.json` and `cave-geometry/` (or you pass `--caves <file> --cave-geometry <dir>`), the build samples the caves, writes `caves.geojson` and marks items that lie in a cave. If it contains `heightmap/` (or you pass `--heightmap <dir>`), the build writes the height map tiles to `height/`. If it contains `map-areas/` (or you pass `--map-areas <dir>`), the biomes come from the game's map areas and the editor polygons in `--data-src` are not used. If the extractor output contains `transport.json` (patch flag `--transport-out`, or pass `--transport <file>`) and a copy of the game's `CommunityResources/Docs` folder in `docs/` (or you pass `--docs <install>/CommunityResources/Docs`), the build writes `transport.json` for the vehicle calculator.
 3. Copy `data/1.2.4.1/` into the `dataset/` directory next to your `docker-compose.yml`.
 
 **Current limitation:** the crash-site data are maintainer data and are not published. With the extractor output (including `map-areas/`) you get the tiles, icons, collectible positions and biomes, but the crash-site layer needs a source of your own in the format above. `--data-src` still has to provide the biome editor files, even though they are unused when `map-areas/` exists.

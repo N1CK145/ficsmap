@@ -13,7 +13,8 @@ import { progressFeature } from './progress/index.js';
 import { quickCheckFeature } from './quickCheck/index.js';
 import { routesFeature } from './routes/index.js';
 import { sharingFeature } from './sharing/index.js';
+import { vehicleCalcFeature } from './vehicleCalc/index.js';
 import { worldsFeature } from './worlds/index.js';
 
 /** Every feature, in one list (spec §4.2). Order here is the order of routes and SSE handlers. */
-export const FEATURES: FeatureModule[] = [worldsFeature, marksFeature, liveFeature, mapFeature, progressFeature, biomesFeature, cavesFeature, coordsFeature, itemPanelFeature, quickCheckFeature, routesFeature, importFeature, conflictsFeature, sharingFeature, listViewFeature];
+export const FEATURES: FeatureModule[] = [worldsFeature, marksFeature, liveFeature, mapFeature, progressFeature, biomesFeature, cavesFeature, coordsFeature, itemPanelFeature, quickCheckFeature, routesFeature, importFeature, conflictsFeature, sharingFeature, listViewFeature, vehicleCalcFeature];

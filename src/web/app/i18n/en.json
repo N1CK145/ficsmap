@@ -393,5 +393,87 @@
       "half": "half",
       "full": "full"
     }
+  },
+  "vehicleCalc": {
+    "open": "Vehicles",
+    "openHint": "Vehicle calculator: how many vehicles a route needs, or how much they move",
+    "title": "Vehicle calculator",
+    "unavailable": "This map dataset has no vehicle data. It is added when the dataset is built with the game's Docs files.",
+    "failed": "The vehicle data could not be loaded.",
+    "route": "Route length (one way)",
+    "vehicle": "Vehicle",
+    "item": "Item (optional)",
+    "itemPlaceholder": "Any item",
+    "itemHint": "Without an item the result is in stacks per minute.",
+    "itemUnknown": "No item with this name. Pick one from the list.",
+    "itemClear": "Clear item",
+    "cannotCarry": "{vehicle} cannot carry {item}.",
+    "speed": "Average speed",
+    "speedDefault": {
+      "pathLimit": "Default from the game data: the autopilot's limit on a straight path ({speed, number} km/h). The real average is lower (curves, slopes, acceleration), so enter yours.",
+      "traction": "Default from the game data: the speed at which the engine's tractive effort drops to zero ({speed, number} km/h); the autopilot's straight-path limit of {limit, number} km/h is out of reach. The real average is lower (curves, slopes, acceleration), so enter yours.",
+      "droneFuel": "Default from the game data: the drone's travel speed with {fuel} ({speed, number} km/h). Take-off and landing are in the stop time."
+    },
+    "speedMissing": "Not in the game data. Enter the average speed you see in the game.",
+    "stop": "Load and unload time per round trip",
+    "stopSource": {
+      "truckStation": "Default from the game data: one load/unload cycle of a Truck Station at each end ({seconds, number} s), whatever the vehicle carries. Driving into the station is not included.",
+      "fluidTruckStation": "Default from the game data: one load/unload cycle of a Fluid Truck Station at each end ({seconds, number} s). That one cycle moves the whole load is assumed, as at the Truck Station (not tested). Driving into the station is not included.",
+      "freightPlatform": "Default from the game data: a Freight Platform's load and unload time ({seconds, number} s). Braking and docking are not included.",
+      "dronePort": "Default from the game data: the drone's docking and take-off at both ports ({seconds, number} s)."
+    },
+    "stopMissing": "Not in the game data. Enter how long the vehicle stops per round trip in total.",
+    "fuel": "Fuel",
+    "fuelHint": {
+      "autopilot": "Self-driving vehicles burn {perMetre, number} MJ per metre driven, there and back (game data: energy per cm, read as MJ). This fuel has {energy, number} MJ per item. The Tractor and the Explorer burn more when climbing, which is not included, so the result is an estimate.",
+      "dronePort": "A round trip costs {trip, number} MJ for the take-offs and landings plus {perMetre, number} MJ per metre flown, there and back (Drone Port game data, in MJ as players tested it). This fuel has {energy, number} MJ per item."
+    },
+    "goal": "Calculate",
+    "goalVehicles": "Vehicles needed",
+    "goalRate": "Throughput",
+    "target": "Target throughput",
+    "count": "Number of vehicles",
+    "countFreightCars": "Number of freight cars",
+    "freightCarNote": "Counts freight cars. Cars in the same train share one round trip; locomotives are not counted.",
+    "unit": {
+      "m": "m",
+      "kmh": "km/h",
+      "s": "s",
+      "items": "items/min",
+      "stacks": "stacks/min",
+      "m3": "m³/min"
+    },
+    "rate": {
+      "items": "{items, number} items/min ({stacks, number} stacks/min)",
+      "stacks": "{value, number} stacks/min",
+      "m3": "{value, number} m³/min"
+    },
+    "amount": {
+      "items": "{value, number} items",
+      "stacks": "{value, plural, one {# stack} other {# stacks}}",
+      "m3": "{value, number} m³"
+    },
+    "result": {
+      "title": "Result",
+      "incomplete": "Enter the route length, speed, stop time and target to see a result.",
+      "needed": {
+        "vehicles": "Vehicles needed",
+        "freightCars": "Freight cars needed"
+      },
+      "countValue": "{count, number}",
+      "utilisation": "Utilisation",
+      "percent": "{share, number, percent}",
+      "capacity": "They move up to",
+      "throughput": "Throughput",
+      "perOne": {
+        "vehicles": "Per vehicle",
+        "freightCars": "Per freight car"
+      },
+      "perTrip": "Load per trip",
+      "roundTrip": "Round trip",
+      "seconds": "{value, number} s",
+      "fuel": "Fuel (estimated)",
+      "fuelValue": "{value, number} {fuel}/min ({perOne, number} per vehicle, {perTrip, number} per round trip)"
+    }
   }
 }
