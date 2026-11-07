@@ -1,4 +1,5 @@
 import { COLLECTIBLE_TYPES } from '../../shared/collectibleTypes.js';
+import { isTierKey, sortTierKeys, type TierKey } from '../../shared/machines.js';
 import type { Locale } from '../../shared/i18n.js';
 import { OCCUPANCIES, PURITIES, type Occupancy, type Purity } from '../../shared/resourceNodes.js';
 import type { CollectibleTypeId } from '../../shared/types.js';
@@ -168,4 +169,23 @@ export function loadResourceNodeView(): ResourceNodeView {
 
 export function saveResourceNodeView(v: ResourceNodeView): void {
   write(RESOURCE_NODES_KEY, JSON.stringify(v));
+}
+
+const MACHINE_WIKI_TIERS_KEY = 'ficsmap:machineWikiTiers';
+
+/** The machine wiki's unlock filter (per device): the selected tiers and groups; empty shows everything. */
+export function loadMachineWikiTiers(): TierKey[] {
+  const raw = read(MACHINE_WIKI_TIERS_KEY);
+  if (raw === null) return [];
+  try {
+    const data: unknown = JSON.parse(raw);
+    return Array.isArray(data) ? sortTierKeys(data.filter(isTierKey)) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveMachineWikiTiers(tiers: readonly TierKey[]): void {
+  if (tiers.length === 0) remove(MACHINE_WIKI_TIERS_KEY);
+  else write(MACHINE_WIKI_TIERS_KEY, JSON.stringify(tiers));
 }

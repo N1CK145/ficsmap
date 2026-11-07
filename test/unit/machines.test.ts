@@ -1,4 +1,7 @@
-import { groupByCategory, matchesQuery, perMinute, statRows, wikiTitle, wikiUrl, type MachineEntry, type WikiItem } from '../../src/shared/machines.js';
+import {
+  descriptorClass, entryTierKeys, groupByCategory, isTierKey, matchesQuery, matchesTiers, perMinute, selectedUpTo, sortTierKeys, statRows,
+  tierOf, tierOptions, toggleTier, unlockKey, upToTier, wikiTitle, wikiUrl, type MachineEntry, type Unlock, type WikiItem,
+} from '../../src/shared/machines.js';
 
 const entry = (over: Partial<MachineEntry>): MachineEntry => ({
   id: 'Build_X_C', category: 'production', name: { en: 'X', de: 'X' }, description: { en: '', de: '' },
@@ -59,7 +62,7 @@ describe('machine wiki helpers', () => {
     const well = entry({ stats: { extractionPerMinute: 60, extractionFluid: true, extractionNode: true, resources: ['Desc_LiquidOil_C', 'Desc_NitrogenGas_C', 'Desc_Unknown_C'] } });
     expect(statRows(well, ITEMS, 'de')).toEqual([
       { id: 'extractionFluid', params: { rate: 60, node: 'yes' } },
-      { id: 'resources', params: { names: 'Rohöl, Stickstoff, Desc_Unknown_C' } },
+      { id: 'resources', params: { names: 'Rohöl, Stickstoff, Desc_Unknown_C' }, items: ['Desc_LiquidOil_C', 'Desc_NitrogenGas_C', 'Desc_Unknown_C'] },
     ]);
     const miner = entry({ stats: { extractionPerMinute: 60, extractionFluid: false, extractionNode: true, resourceForms: ['solid'] } });
     expect(statRows(miner, ITEMS, 'en')).toEqual([{ id: 'extraction', params: { rate: 60, node: 'yes' } }, { id: 'resourceForm', params: { form: 'solid' } }]);
@@ -74,5 +77,75 @@ describe('machine wiki helpers', () => {
     expect(statRows(geo, ITEMS, 'en')).toEqual([{ id: 'powerVariable', params: { mw: 200, seconds: 60 } }]);
     const port = entry({ category: 'logistics', stats: { powerUse: 100, storageSlots: 18, fuelSlots: 1 } });
     expect(statRows(port, ITEMS, 'en').map(r => r.id)).toEqual(['powerUse', 'storageSlots', 'fuelSlots']);
+  });
+
+  it('names the descriptor whose icon is an entry\'s picture', () => {
+    expect(descriptorClass('Build_ConstructorMk1_C')).toBe('Desc_ConstructorMk1_C');
+    expect(descriptorClass('Desc_Truck_C')).toBe('Desc_Truck_C');
+    expect(descriptorClass('Desc_GolfCart_C')).toBe('Desc_GolfCart_C');
+  });
+});
+
+const unlock = (kind: Unlock['kind'], tier: number): Unlock => ({ kind, tier, name: { en: `${kind} ${tier}`, de: `${kind} ${tier}` } });
+
+describe('machine wiki tier filter', () => {
+  // As in machines.json from 1.2.5.0: HUB upgrades (tutorial) are tier 0, MAM and Shop unlocks have their own groups
+  const constructor = entry({ id: 'constructor', unlockedBy: [unlock('tutorial', 0)] });
+  const assembler = entry({ id: 'assembler', unlockedBy: [unlock('milestone', 2)] });
+  const coal = entry({ id: 'coal', unlockedBy: [unlock('milestone', 3)] });
+  const manufacturer = entry({ id: 'manufacturer', unlockedBy: [unlock('milestone', 6)] });
+  const geothermal = entry({ id: 'geothermal', unlockedBy: [unlock('mam', 3)] });
+  const cart = entry({ id: 'cart', unlockedBy: [unlock('shop', 1)] });
+  const both = entry({ id: 'both', unlockedBy: [unlock('milestone', 4), unlock('mam', 0)] });
+  const none = entry({ id: 'none', unlockedBy: [] });
+  const all = [constructor, assembler, coal, manufacturer, geothermal, cart, both, none];
+  const shown = (selected: Parameters<typeof matchesTiers>[1]) => all.filter(e => matchesTiers(e, selected)).map(e => e.id);
+
+  it('puts each entry in the groups of its unlocks', () => {
+    expect(unlockKey(unlock('tutorial', 0))).toBe('T0');
+    expect(unlockKey(unlock('milestone', 7))).toBe('T7');
+    expect(unlockKey(unlock('mam', 3))).toBe('mam');
+    expect(unlockKey(unlock('shop', 1))).toBe('shop');
+    expect(unlockKey(unlock('hardDrive', 0))).toBe('other');
+    expect(entryTierKeys(both)).toEqual(['T4', 'mam']);
+    expect(entryTierKeys(none)).toEqual(['other']);
+    expect(tierOf('T4')).toBe(4);
+    expect(tierOf('mam')).toBeUndefined();
+  });
+
+  it('offers every tier from 0 to the highest in the data, then the other groups present', () => {
+    expect(tierOptions(all)).toEqual(['T0', 'T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'mam', 'shop', 'other']);
+    expect(tierOptions([assembler, cart])).toEqual(['T0', 'T1', 'T2', 'shop']);
+    expect(tierOptions([])).toEqual([]);
+  });
+
+  it('shows everything without a selection and the union of several groups with one', () => {
+    expect(shown([])).toEqual(all.map(e => e.id));
+    expect(shown(['T2', 'T3'])).toEqual(['assembler', 'coal']);
+    expect(shown(['mam'])).toEqual(['geothermal', 'both']);
+    expect(shown(['T4'])).toEqual(['both']);
+    expect(shown(['other'])).toEqual(['none']);
+  });
+
+  it('selects everything up to a tier in one step, keeping MAM and Shop as they were', () => {
+    expect(upToTier([], 4)).toEqual(['T0', 'T1', 'T2', 'T3', 'T4']);
+    expect(shown(upToTier([], 4))).toEqual(['constructor', 'assembler', 'coal', 'both']);
+    expect(upToTier(['T6', 'mam'], 2)).toEqual(['T0', 'T1', 'T2', 'mam']);
+    expect(upToTier(['T1', 'T3', 'shop'], null)).toEqual(['shop']);
+    expect(selectedUpTo(['T0', 'T1', 'T2', 'T3', 'T4', 'mam'])).toBe(4);
+    expect(selectedUpTo(['T1', 'T2'])).toBeNull();
+    expect(selectedUpTo(['mam'])).toBeNull();
+  });
+
+  it('toggles single groups and keeps a stable order', () => {
+    expect(toggleTier([], 'T3')).toEqual(['T3']);
+    expect(toggleTier(['mam', 'T3'], 'T1')).toEqual(['T1', 'T3', 'mam']);
+    expect(toggleTier(['T1', 'T3', 'mam'], 'T3')).toEqual(['T1', 'mam']);
+    expect(sortTierKeys(['other', 'shop', 'T9', 'mam', 'T0', 'T0'])).toEqual(['T0', 'T9', 'mam', 'shop', 'other']);
+  });
+
+  it('accepts only known keys from storage', () => {
+    expect(['T0', 'T9', 'mam', 'shop', 'other'].every(isTierKey)).toBe(true);
+    expect(['T', 'T10', 'tier4', 'MAM', 4, null].some(isTierKey)).toBe(false);
   });
 });

@@ -4,6 +4,7 @@ import { useMachineWiki } from './useMachineWiki.js';
 
 export { MachineWikiDialog } from './MachineWikiDialog.js';
 export { useMachineData, useMachineWiki } from './useMachineWiki.js';
+export { GameIcon, IconsContext, useItemIcons, type ItemIcons } from './icons.js';
 
 /** "Machines" in the tool navigation: opens the wiki. */
 export const machineWikiTool: Tool = {
@@ -16,7 +17,8 @@ export const machineWikiTool: Tool = {
 
 /**
  * Machine and vehicle wiki: stats, game description, build cost, unlocks and recipes of every machine
- * and vehicle, from the dataset's `machines.json`. Self-contained: its own open state (`useMachineWiki`)
+ * and vehicle, from the dataset's `machines.json`, with the game's pictures of machines, vehicles and items
+ * (dataset part `icons`, optional) and a filter by unlock tier. Self-contained: its own open state (`useMachineWiki`)
  * and dialog (a header item, so it renders in the top layer), opened from the tool navigation; anything
  * else can open an entry with `useMachineWiki.getState().show(id)`.
  */

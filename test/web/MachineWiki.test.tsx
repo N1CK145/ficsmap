@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
@@ -46,7 +46,8 @@ const DATA: MachineData = {
     {
       id: 'Build_FrackingExtractor_C', category: 'extraction', name: { en: 'Resource Well Extractor', de: 'Quellenextraktor' },
       description: { en: 'x', de: 'x' }, wikiPage: 'Resource_Well_Extractor',
-      stats: { extractionPerMinute: 60, extractionFluid: true, extractionNode: true, resources: ['Desc_LiquidOil_C'] }, unlockedBy: [],
+      stats: { extractionPerMinute: 60, extractionFluid: true, extractionNode: true, resources: ['Desc_LiquidOil_C'] },
+      unlockedBy: [{ kind: 'milestone', name: { en: 'Advanced Aluminum Production', de: 'Fortgeschrittene Aluminiumproduktion' }, tier: 8 }],
     },
     {
       id: 'Build_GeneratorCoal_C', category: 'power', name: { en: 'Coal-Powered Generator', de: 'Kohlegenerator' },
@@ -61,11 +62,13 @@ const DATA: MachineData = {
     {
       id: 'Build_AlienPowerBuilding_C', category: 'power', name: { en: 'Alien Power Augmenter', de: 'Alien-Energieverstärker' },
       description: { en: 'x', de: 'x' }, wikiPage: 'Alien_Power_Augmenter',
-      stats: { powerProduction: 500, gridBoost: 0.1, fuels: [{ item: 'Desc_AlienPowerFuel_C', perMinute: 5, boost: 0.2 }] }, unlockedBy: [],
+      stats: { powerProduction: 500, gridBoost: 0.1, fuels: [{ item: 'Desc_AlienPowerFuel_C', perMinute: 5, boost: 0.2 }] },
+      unlockedBy: [{ kind: 'mam', name: { en: 'Power Augmenter', de: 'Energieverstärker' }, tier: 0 }],
     },
     {
       id: 'Build_DroneStation_C', category: 'logistics', name: { en: 'Drone Port', de: 'Drohnenlandeplatz' },
-      description: { en: 'x', de: 'x' }, wikiPage: 'Drone_Port', stats: { powerUse: 100, storageSlots: 18, fuelSlots: 1 }, unlockedBy: [],
+      description: { en: 'x', de: 'x' }, wikiPage: 'Drone_Port', stats: { powerUse: 100, storageSlots: 18, fuelSlots: 1 },
+      unlockedBy: [{ kind: 'milestone', name: { en: 'Aeronautical Engineering', de: 'Luft- und Raumfahrttechnik' }, tier: 8 }],
     },
     {
       id: 'Desc_FluidTruck_C', category: 'vehicles', name: { en: 'Fluid Truck', de: 'Tanklaster' },
@@ -79,8 +82,17 @@ const DATA: MachineData = {
   ],
 };
 
-function setup(data: 'present' | 'missing') {
-  const { calls } = stubFetch(data === 'present' ? { 'GET /data/test/machines.json': { body: DATA } } : {});
+// The picture index of the dataset part `icons`: every class above but Coal has a picture.
+const ICONS = {
+  format: 1, sizes: [64, 256],
+  icons: [...Object.keys(DATA.items).filter(i => i !== 'Desc_Coal_C'), ...DATA.machines.map(m => m.id.replace(/^Build_/, 'Desc_'))].sort(),
+};
+
+function setup(data: 'present' | 'missing', icons: 'present' | 'missing' = 'present') {
+  const { calls } = stubFetch({
+    ...(data === 'present' && { 'GET /data/test/machines.json': { body: DATA } }),
+    ...(icons === 'present' && { 'GET /data/test/icons/items/index.json': { body: ICONS } }),
+  });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ctx: WorldCtx = { worldId: W, world: WORLD, me: ME, index: indexDataset(DS), queryClient: client, navigate: () => {}, toast: { show: () => {} } };
   render(<QueryClientProvider client={client}><ToolButton tool={machineWikiTool} ctx={ctx} /><MachineWikiHost ctx={ctx} /></QueryClientProvider>);
@@ -88,6 +100,17 @@ function setup(data: 'present' | 'missing') {
 }
 
 const user = () => userEvent.setup();
+/** The accessible name of a simple element: its aria-label or alt, else its text without the aria-hidden parts. */
+function nameOf(el: Element): string {
+  const label = el.getAttribute('aria-label') ?? el.getAttribute('alt');
+  if (label !== null) return label;
+  const copy = el.cloneNode(true) as Element;
+  copy.querySelectorAll('[aria-hidden="true"]').forEach(n => n.remove());
+  return copy.textContent?.trim() ?? '';
+}
+/** The accessible names of the buttons in an element. */
+const buttonNames = (el: HTMLElement) => within(el).queryAllByRole('button').map(nameOf);
+const ICON = (cls: string, size: number) => `/data/test/icons/items/${size}/${cls}.webp`;
 
 async function open() {
   await user().click(screen.getByRole('button', { name: 'Machines' }));
@@ -97,7 +120,8 @@ async function open() {
 describe('machine wiki', () => {
   beforeEach(() => {
     initI18n(['en']);
-    useMachineWiki.setState({ open: false, selected: null, query: '' });
+    localStorage.clear();
+    useMachineWiki.setState({ open: false, selected: null, query: '', tiers: [] });
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -112,12 +136,17 @@ describe('machine wiki', () => {
     expect(calls).toEqual([]);
     const dialog = await open();
     const list = await within(dialog).findByRole('navigation', { name: 'Machines and vehicles' });
-    expect(calls.map(c => c.path)).toEqual(['/data/test/machines.json']);
-    expect(within(list).getAllByRole('heading').map(h => h.textContent)).toEqual(['Production', 'Extraction', 'Power', 'Logistics', 'Vehicles']);
-    expect(within(list).getAllByRole('button').map(b => b.textContent)).toEqual([
+    expect(calls.map(c => c.path)).toEqual(['/data/test/machines.json', '/data/test/icons/items/index.json']);
+    expect(within(list).getAllByRole('heading').map(nameOf)).toEqual(['Production', 'Extraction', 'Power', 'Logistics', 'Vehicles']);
+    expect(buttonNames(list)).toEqual([
       'Constructor', 'Resource Well Extractor', 'Coal-Powered Generator', 'Geothermal Generator', 'Alien Power Augmenter', 'Drone Port', 'Fluid Truck',
     ]);
-    expect(within(dialog).getByText('Pick a machine or vehicle from the list.')).toBeInTheDocument();
+    // the tier is the card's description
+    expect(within(list).getByRole('button', { name: 'Constructor' })).toHaveAccessibleDescription('Tier 0');
+    expect(within(list).getByRole('button', { name: 'Alien Power Augmenter' })).toHaveAccessibleDescription('MAM');
+    expect(within(list).getByRole('button', { name: 'Fluid Truck' })).not.toHaveAccessibleDescription();
+    expect(within(dialog).getByText('Pick a machine or vehicle.')).toBeInTheDocument();
+    expect(within(dialog).getByText('7 of 7 shown')).toBeInTheDocument();
   });
 
   it('filters by English or German name', async () => {
@@ -126,10 +155,10 @@ describe('machine wiki', () => {
     const search = await within(dialog).findByLabelText('Search');
     const list = within(dialog).getByRole('navigation');
     await user().type(search, 'kohle');
-    expect(within(list).getAllByRole('button').map(b => b.textContent)).toEqual(['Coal-Powered Generator']);
+    expect(buttonNames(list)).toEqual(['Coal-Powered Generator']);
     await user().clear(search);
     await user().type(search, 'zzz');
-    expect(within(list).queryAllByRole('button')).toEqual([]);
+    expect(buttonNames(list)).toEqual([]);
     expect(within(list).getByText('Nothing matches.')).toBeInTheDocument();
   });
 
@@ -151,7 +180,7 @@ describe('machine wiki', () => {
     expect(within(article).getByText('Tier 0: HUB Upgrade 3')).toBeInTheDocument();
     expect(within(article).getByText('1 recipe')).toBeInTheDocument();
     const recipe = within(article).getAllByRole('listitem').find(li => li.textContent?.startsWith('Iron Plate'));
-    expect(recipe).toHaveTextContent('Iron Plate30/min Iron Ingot →makes 20/min Iron Plate6 s per cycle');
+    expect(recipe).toHaveTextContent('Iron Plate30/min Iron Ingot→makes20/min Iron Plate6 s per cycle');
     const link = within(article).getByRole('link', { name: /On the Satisfactory wiki/ });
     expect(link).toHaveAttribute('href', 'https://satisfactory.wiki.gg/wiki/Constructor');
     expect(link).toHaveAttribute('target', '_blank');
@@ -241,5 +270,138 @@ describe('machine wiki', () => {
     setup('missing');
     const dialog = await open();
     expect(await within(dialog).findByText(/This dataset has no machine data/)).toBeInTheDocument();
+  });
+
+  describe('pictures', () => {
+    it('shows the game pictures in the cards, the entry header and next to every item, sized for the screen', async () => {
+      setup('present');
+      const dialog = await open();
+      const card = await within(dialog).findByRole('button', { name: 'Constructor' });
+      const cardPic = card.querySelector('img')!;
+      expect(cardPic).toHaveAttribute('src', ICON('Desc_ConstructorMk1_C', 256));
+      expect(cardPic).toHaveAttribute('srcset', `${ICON('Desc_ConstructorMk1_C', 64)} 64w, ${ICON('Desc_ConstructorMk1_C', 256)} 256w`);
+      expect(cardPic).toHaveAttribute('sizes', '88px');
+      expect(cardPic).toHaveAttribute('alt', '');
+      expect(cardPic).toHaveAttribute('aria-hidden', 'true');
+      expect(cardPic).toHaveAttribute('loading', 'lazy');
+      expect(within(dialog).getByRole('button', { name: 'Fluid Truck' }).querySelector('img')).toHaveAttribute('src', ICON('Desc_FluidTruck_C', 256));
+
+      await user().click(card);
+      const article = within(dialog).getByRole('article', { name: 'Constructor' });
+      // the header picture stands for the entry; all other pictures are decoration next to a name
+      expect(within(article).getAllByRole('img').map(nameOf)).toEqual(['Constructor']);
+      expect(within(article).getByRole('img', { name: 'Constructor' })).toHaveAttribute('src', ICON('Desc_ConstructorMk1_C', 256));
+      expect(within(article).getByText('2 × Reinforced Iron Plate').querySelector('img')).toHaveAttribute('src', ICON('Desc_IronPlateReinforced_C', 64));
+      const recipe = within(article).getAllByRole('listitem').find(li => li.textContent?.startsWith('Iron Plate'))!;
+      expect([...recipe.querySelectorAll('img')].map(i => i.getAttribute('src'))).toEqual([ICON('Desc_IronIngot_C', 64), ICON('Desc_IronPlate_C', 64)]);
+      // the list beside the entry has small pictures too
+      expect(within(dialog).getByRole('navigation').querySelector('img')).toHaveAttribute('sizes', '28px');
+    });
+
+    it('shows pictures next to fuels and extracted resources, and nothing for an item without one', async () => {
+      setup('present');
+      const dialog = await open();
+      await user().click(await within(dialog).findByRole('button', { name: 'Coal-Powered Generator' }));
+      const gen = within(dialog).getByRole('article');
+      expect(within(gen).getByText('15/min Coal').querySelector('img')).toBeNull(); // Coal is not in the picture index
+      expect(within(gen).getByText(/45 m³\/min Water/).querySelector('img')).toHaveAttribute('src', ICON('Desc_Water_C', 64));
+      await user().click(within(dialog).getByRole('button', { name: 'Resource Well Extractor' }));
+      const extracts = within(within(dialog).getByRole('article')).getByRole('rowheader', { name: 'Extracts' }).nextElementSibling!;
+      expect(extracts).toHaveTextContent('Crude Oil');
+      expect(extracts.querySelector('img')).toHaveAttribute('src', ICON('Desc_LiquidOil_C', 64));
+    });
+
+    it('drops a picture whose file fails to load', async () => {
+      setup('present');
+      const dialog = await open();
+      await user().click(await within(dialog).findByRole('button', { name: 'Constructor' }));
+      const article = within(dialog).getByRole('article');
+      const pic = within(article).getByRole('img', { name: 'Constructor' });
+      fireEvent.error(pic);
+      expect(within(article).queryByRole('img', { name: 'Constructor' })).toBeNull();
+      expect(within(article).getByRole('heading', { name: 'Constructor' })).toBeInTheDocument();
+      expect(article.querySelector('header [data-testid="icon-placeholder"]')).not.toBeNull();
+    });
+
+    it('works without pictures in the dataset', async () => {
+      const { calls } = setup('present', 'missing');
+      const dialog = await open();
+      await user().click(await within(dialog).findByRole('button', { name: 'Constructor' }));
+      expect(calls.map(c => c.path)).toContain('/data/test/icons/items/index.json');
+      expect(dialog.querySelector('img')).toBeNull();
+      expect(within(dialog).getByRole('article', { name: 'Constructor' })).toBeInTheDocument();
+      expect(within(dialog).getByText('2 × Reinforced Iron Plate')).toBeInTheDocument();
+    });
+  });
+
+  describe('tier filter', () => {
+    const chips = (dialog: HTMLElement) => within(within(dialog).getByRole('group', { name: 'Filter by tier' }));
+    const list = (dialog: HTMLElement) => within(dialog).getByRole('navigation', { name: 'Machines and vehicles' });
+
+    it('offers tiers 0 to the highest in the data and the other unlock groups', async () => {
+      setup('present');
+      const dialog = await open();
+      await within(dialog).findByRole('navigation');
+      expect(buttonNames(within(dialog).getByRole('group', { name: 'Filter by tier' }))).toEqual([
+        'Tier 0', 'Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6', 'Tier 7', 'Tier 8', 'MAM research', 'Other unlocks',
+      ]);
+      expect(chips(dialog).getByRole('button', { name: 'Tier 3' })).toHaveTextContent(/^3$/);
+      expect(chips(dialog).getByRole('button', { name: 'Tier 3' })).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('shows the entries of every selected tier, combined with the search', async () => {
+      setup('present');
+      const dialog = await open();
+      await within(dialog).findByRole('navigation');
+      await user().click(chips(dialog).getByRole('button', { name: 'Tier 8' }));
+      expect(chips(dialog).getByRole('button', { name: 'Tier 8' })).toHaveAttribute('aria-pressed', 'true');
+      expect(buttonNames(list(dialog))).toEqual(['Resource Well Extractor', 'Drone Port']);
+      await user().click(chips(dialog).getByRole('button', { name: 'MAM research' }));
+      expect(buttonNames(list(dialog))).toEqual(['Resource Well Extractor', 'Alien Power Augmenter', 'Drone Port']);
+      expect(within(dialog).getByText('3 of 7 shown')).toBeInTheDocument();
+      await user().type(within(dialog).getByLabelText('Search'), 'drohne');
+      expect(buttonNames(list(dialog))).toEqual(['Drone Port']);
+      await user().clear(within(dialog).getByLabelText('Search'));
+      await user().click(within(dialog).getByRole('button', { name: 'Show all' }));
+      expect(buttonNames(list(dialog))).toHaveLength(7);
+      expect(within(dialog).queryByRole('button', { name: 'Show all' })).toBeNull();
+    });
+
+    it('selects everything up to a tier with Shift-click or the select, and remembers it on the device', async () => {
+      setup('present');
+      const dialog = await open();
+      await within(dialog).findByRole('navigation');
+      const u = userEvent.setup();
+      await u.keyboard('{Shift>}');
+      await u.click(chips(dialog).getByRole('button', { name: 'Tier 3' }));
+      await u.keyboard('{/Shift}');
+      expect(useMachineWiki.getState().tiers).toEqual(['T0', 'T1', 'T2', 'T3']);
+      expect(buttonNames(list(dialog))).toEqual(['Constructor', 'Coal-Powered Generator']);
+      expect(within(dialog).getByRole('combobox', { name: 'Up to tier' })).toHaveValue('3');
+      expect(JSON.parse(localStorage.getItem('ficsmap:machineWikiTiers')!)).toEqual(['T0', 'T1', 'T2', 'T3']);
+
+      await user().selectOptions(within(dialog).getByRole('combobox', { name: 'Up to tier' }), '8');
+      expect(useMachineWiki.getState().tiers).toEqual(['T0', 'T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8']);
+      expect(buttonNames(list(dialog))).toEqual(['Constructor', 'Resource Well Extractor', 'Coal-Powered Generator', 'Drone Port']);
+      // a single tier switched off: no longer a range from tier 0
+      await user().click(chips(dialog).getByRole('button', { name: 'Tier 0' }));
+      expect(within(dialog).getByRole('combobox', { name: 'Up to tier' })).toHaveValue('mixed');
+      await user().selectOptions(within(dialog).getByRole('combobox', { name: 'Up to tier' }), '');
+      expect(useMachineWiki.getState().tiers).toEqual([]);
+      expect(localStorage.getItem('ficsmap:machineWikiTiers')).toBeNull();
+    });
+
+    it('speaks German', async () => {
+      initI18n(['de']);
+      setup('present');
+      await user().click(screen.getByRole('button', { name: 'Maschinen' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Maschinen und Fahrzeuge' });
+      await within(dialog).findByRole('navigation');
+      const group = within(dialog).getByRole('group', { name: 'Nach Stufe filtern' });
+      expect(buttonNames(group).slice(0, 2)).toEqual(['Stufe 0', 'Stufe 1']);
+      expect(within(group).getByRole('button', { name: 'MAM-Forschung' })).toBeInTheDocument();
+      expect(within(dialog).getByRole('button', { name: 'Konstruktor' })).toHaveAccessibleDescription('Stufe 0');
+      expect(within(dialog).getByRole('combobox', { name: 'Bis Stufe' })).toBeInTheDocument();
+    });
   });
 });

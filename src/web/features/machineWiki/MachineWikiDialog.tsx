@@ -1,20 +1,27 @@
 import { useTranslation } from 'react-i18next';
 import type { WorldCtx } from '../../app/feature.js';
 import { Dialog } from '../../components/Dialog.js';
+import { IconsContext, useItemIcons } from './icons.js';
 import { MachineWiki } from './MachineWiki.js';
 import { useMachineData, useMachineWiki } from './useMachineWiki.js';
 
-/** The wiki in a dialog, bound to `useMachineWiki`. Fetches the data only once opened. */
+/** The wiki in a dialog, bound to `useMachineWiki`. Fetches the data and the picture index only once opened. */
 export function MachineWikiDialog({ version }: { version: string }) {
   const { t } = useTranslation();
-  const { open, hide, selected, select, query, setQuery } = useMachineWiki();
+  const { open, hide, selected, select, query, setQuery, tiers, setTiers } = useMachineWiki();
   const { data, failed } = useMachineData(version, open);
+  const icons = useItemIcons(version, open);
   return (
-    <Dialog open={open} onClose={hide} title={t('machineWiki.title')} wide>
+    <Dialog open={open} onClose={hide} title={t('machineWiki.title')} wide="xl">
       {failed ? <p role="alert">{t('machineWiki.failed')}</p>
         : data === undefined ? <p>{t('common.loading')}</p>
           : data === null ? <p>{t('machineWiki.unavailable')}</p>
-            : <MachineWiki data={data} selected={selected} query={query} onSelect={select} onQuery={setQuery} />}
+            : (
+              <IconsContext.Provider value={icons}>
+                <MachineWiki data={data} selected={selected} query={query} tiers={tiers}
+                  onSelect={select} onQuery={setQuery} onTiers={setTiers} />
+              </IconsContext.Provider>
+            )}
     </Dialog>
   );
 }

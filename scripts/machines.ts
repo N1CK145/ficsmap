@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { readDocsFile, type DocsClass } from './game-docs.js';
 import {
-  MACHINE_CATEGORIES, round, wikiTitle,
+  descriptorClass, MACHINE_CATEGORIES, round, wikiTitle,
   type BuildCost, type BuildPlace, type FuelUse, type ItemAmount, type ItemForm, type MachineCategory, type MachineData,
   type MachineEntry, type MachineStats, type Names, type Unlock, type UnlockKind, type WikiItem, type WikiRecipe,
 } from '../src/shared/machines.js';
@@ -149,7 +149,6 @@ export function buildMachineData(en: readonly DocsClass[], de: readonly DocsClas
     const c = byName.get(id);
     if (c) entries.push({ c, category: 'vehicles' });
   }
-  const descriptorOf = (c: DocsClass) => (c.ClassName.startsWith('Build_') ? c.ClassName.replace(/^Build_/, 'Desc_') : c.ClassName);
 
   // Build recipes (Build Gun, Equipment Workshop) by their product, and the schematics that unlock them
   const buildRecipes = new Map<string, { recipe: DocsClass; place: BuildPlace }>();
@@ -301,7 +300,7 @@ export function buildMachineData(en: readonly DocsClass[], de: readonly DocsClas
   };
 
   const machines: (MachineEntry & { priority: number })[] = entries.map(({ c, category }) => {
-    const descriptor = descriptorOf(c);
+    const descriptor = descriptorClass(c.ClassName);
     const name = named(c);
     if (!name.en) problems.push(`${c.ClassName} has no display name`);
     const entry: MachineEntry & { priority: number } = {
@@ -353,8 +352,7 @@ export function machineSummary(d: MachineData): string {
   return `${d.machines.length} entries (${per}), ${d.recipes.length} recipes, ${Object.keys(d.items).length} items`;
 }
 
-export function writeMachines(docsDir: string, outDir: string): MachineData {
-  const data = buildMachinesFromDocs(docsDir);
+export function writeMachines(docsDir: string, outDir: string, data: MachineData = buildMachinesFromDocs(docsDir)): MachineData {
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, 'machines.json'), JSON.stringify(data));
   return data;
