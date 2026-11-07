@@ -21,11 +21,11 @@ const WORLD: WorldDto = {
   id: W, name: 'Alpha', isOwner: true, rev: 1, datasetVersion: 'test', owner: { id: 1, displayName: 'Nick' }, members: [], lastImport: null,
 };
 
-function setup(recipes: 'present' | 'missing' = 'present') {
+function setup(recipes: 'present' | 'missing' = 'present', worldVersion = WORLD.datasetVersion) {
   const { calls } = stubFetch(recipes === 'present' ? { 'GET /data/test/recipes.json': { body: RECIPE_DATA } } : {});
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const index = indexDataset({ version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true, biomes: [], items: [], aliases: {} });
-  const ctx: WorldCtx = { worldId: W, world: WORLD, me: ME, index, queryClient: client, navigate: () => {}, toast: { show: () => {} } };
+  const ctx: WorldCtx = { worldId: W, world: { ...WORLD, datasetVersion: worldVersion }, me: ME, index, queryClient: client, navigate: () => {}, toast: { show: () => {} } };
   render(
     <QueryClientProvider client={client}>
       <ToolButton tool={plannerTool} ctx={ctx} />
@@ -69,6 +69,13 @@ describe('production planner', () => {
     expect(calls.map(c => c.path)).toEqual(['/data/test/recipes.json']);
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(usePlanner.getState().visible).toBe(false);
+  });
+
+  it('uses the dataset the server serves, also for a world created with an older one', async () => {
+    const { calls } = setup('present', '1.2.4.1');
+    await userEvent.click(screen.getByRole('button', { name: 'Planner' }));
+    await screen.findByRole('combobox', { name: 'Item 1' });
+    expect(calls.map(c => c.path)).toEqual(['/data/test/recipes.json']);
   });
 
   it('says so when the dataset has no recipe data', async () => {
