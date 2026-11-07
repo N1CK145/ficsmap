@@ -5,17 +5,11 @@ export type Snap = 'peek' | 'half' | 'full';
 
 export const SNAPS: readonly Snap[] = ['peek', 'half', 'full'];
 
-/** Peek height in px; the Quick Check button and toasts sit above it. */
+/** Peek height in px; toasts sit above it. */
 export const PEEK_PX = 96;
 
-/**
- * The round 56 px Quick Check button's distance from the viewport bottom: 16 px above the peek,
- * which itself sits on the footer.
- */
-export const QUICK_CHECK_BOTTOM_PX = FOOTER_PX + PEEK_PX + 16;
-
-/** Toasts on mobile clear the peek and the Quick Check button. */
-export const TOAST_OFFSET_PX = QUICK_CHECK_BOTTOM_PX + 56;
+/** Toasts on mobile clear the peek (which sits on the footer) by 16 px. */
+export const TOAST_OFFSET_PX = FOOTER_PX + PEEK_PX + 16;
 
 /** Faster than this (px/ms) a release is a flick. */
 const FLICK_PX_PER_MS = 0.5;

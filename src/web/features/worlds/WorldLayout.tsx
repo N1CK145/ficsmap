@@ -30,7 +30,6 @@ import { BottomSheet } from '../mobile/BottomSheet.js';
 import { ItemSheet } from '../mobile/ItemSheet.js';
 import type { Snap } from '../mobile/snap.js';
 import { ProgressChips } from '../progress/ProgressChips.js';
-import { useQuickCheckKeys } from '../quickCheck/useQuickCheckKeys.js';
 import { NextStopButton } from '../routes/NextStopButton.js';
 import { useRouteDraft } from '../routes/useRoutes.js';
 import { AccountMenu } from './AccountMenu.js';
@@ -133,7 +132,6 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
   const features = useFeatures();
   useWorldEvents(ctx.worldId, ctx);
   useUndoShortcut(ctx);
-  useQuickCheckKeys();
   useSidebarKey(!mobile && !inSettings);
   // Sidebar panels' `visible` read the marks cache, so the shell re-renders when it changes.
   useMarks(ctx.worldId);

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { APP_VERSION, RELEASE_URL, REPO_URL } from '../app/version.js';
 
-/** The footer's fixed height; the mobile sheets and the Quick Check button sit above it. */
+/** The footer's fixed height; the mobile sheets sit above it. */
 export const FOOTER_PX = 28;
 
 const linkClass = 'rounded focus-ring hover:text-fg hover:underline';

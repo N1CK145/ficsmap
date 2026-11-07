@@ -3,7 +3,7 @@ import { COLLECTIBLE_TYPES } from '../../shared/collectibleTypes.js';
 import type { CollectibleTypeId } from '../../shared/types.js';
 import type { PersistedView } from './persist.js';
 
-export type InteractionMode = 'inspect' | 'quick' | 'route';
+export type InteractionMode = 'inspect' | 'route';
 export type CollectedVisibility = 'show' | 'dim' | 'hide';
 export type MainView = 'map' | 'list';
 

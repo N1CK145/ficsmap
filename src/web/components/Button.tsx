@@ -3,7 +3,7 @@ import type { ComponentPropsWithRef } from 'react';
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'link-accent';
 /**
  * `touch` (44 px) is the minimum touch target for small mobile controls; `lg` (56 px) is the mobile
- * item sheet's Check and the round Quick Check button.
+ * item sheet's Check.
  */
 export type ButtonSize = 'sm' | 'md' | 'touch' | 'lg';
 /** `square`: fixed width = height, no horizontal padding (icon buttons); `round`: the same as a circle. */

@@ -27,8 +27,7 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 - **Save import.** Read a save file to mark everything you have already collected. The save is parsed in your browser.
 - **Conflict review.** If the save says an item is still in the world but it is ticked off in ficsmap, it is flagged. Resolve conflicts one by one or in bulk, with undo.
 - **Search.** One field in the middle of the top bar (`/` or Ctrl+K) finds collectibles by type, label or actor ID (`BP_WAT139`, also partial), biomes and caves in English and German, and crash sites by what lies there or what the pod needs. Matches are highlighted on the map; choosing one selects the item, scopes the biome or shows the cave.
-- **Tools in the top bar.** Quick Check, the cave layer and the height layer are switched in the top bar's tool navigation (a Tools menu on narrow screens and phones).
-- **Quick Check.** Tick off markers with a single click while you play.
+- **Tools in the top bar.** The cave, height and resource node layers are switched in the top bar's tool navigation; the planner, the vehicle calculator and the machine wiki open from its Tools menu (everything is in the Tools menu on narrow screens and phones).
 - **Filters and progress.** Show, dim or hide collected items per type. Limit the view to one biome and see progress per biome. The biomes follow the Satisfactory wiki's biome map, with the game's German names.
 - **Height layer.** A switchable colour scale of the terrain height over the map.
 - **Item panel.** Drop-pod requirements (item or power) and crash-site information: items lying around, threats and notes.

@@ -25,7 +25,7 @@ function ToolsIcon() {
 
 /**
  * The tool navigation in the top bar: every feature's `tools` (map layers such as Caves and Heights,
- * Quick Check, ...). Wide screens get a button per map switch, filled while it is on, and one "Tools" menu
+ * resource nodes). Wide screens get a button per map switch, filled while it is on, and one "Tools" menu
  * for the tools that open something of their own (`action`: planner, vehicle calculator, machine wiki);
  * narrower screens and phones get one "Tools" menu with every entry.
  */

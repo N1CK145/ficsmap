@@ -125,7 +125,7 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
         return;
       }
       case 'Escape':
-        // Used up here, so page-wide Esc handlers (item panel, Quick Check) leave this press alone.
+        // Used up here, so page-wide Esc handlers (item panel, map modes) leave this press alone.
         e.preventDefault();
         if (listOpen) setOpen(false);
         else if (query) clear();

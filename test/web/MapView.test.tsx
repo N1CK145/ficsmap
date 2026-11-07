@@ -40,7 +40,7 @@ const probeFeature: FeatureModule = {
   id: 'probe',
   mapLayers: [{ id: 'probe-layer', order: 1, Component: ProbeLayer }, { id: 'grabber', order: 2, Component: MapGrabber }],
   mapControls: [{ id: 'probe-control', order: 1, Component: () => <button type="button">Probe control</button> }],
-  mapModes: [{ id: 'quick', onMarkerClick: onQuickClick, Banner: () => <p>Probe banner</p> }],
+  mapModes: [{ id: 'route', onMarkerClick: onQuickClick, Banner: () => <p>Probe banner</p> }],
 };
 
 function renderMap(worldId = WORLD) {
@@ -76,7 +76,7 @@ describe('MapView', () => {
   it('shows the banner of the active map mode only', () => {
     renderMap();
     expect(screen.queryByText('Probe banner')).not.toBeInTheDocument();
-    act(() => { useUiStore.getState().setMode('quick'); });
+    act(() => { useUiStore.getState().setMode('route'); });
     expect(screen.getByText('Probe banner')).toBeInTheDocument();
   });
 });
@@ -120,7 +120,7 @@ describe('MapView clicks', () => {
   it('hands the item to the active map mode', () => {
     renderMap();
     const map = probedMap!;
-    act(() => { map.setZoom(3); useUiStore.getState().setMode('quick'); });
+    act(() => { map.setZoom(3); useUiStore.getState().setMode('route'); });
     clickAt(map, 256, 256);
     expect(onQuickClick).toHaveBeenCalledWith(expect.objectContaining({ name: 'S1' }), expect.objectContaining({ worldId: WORLD }));
     expect(useUiStore.getState().selectedActor).toBeNull();

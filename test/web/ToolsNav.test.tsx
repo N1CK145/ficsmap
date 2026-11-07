@@ -9,7 +9,6 @@ import { FeaturesProvider } from '../../src/web/app/FeaturesContext.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { useUiStore } from '../../src/web/app/store.js';
 import { toggleTool } from '../../src/web/app/tools.js';
-import { quickCheckFeature } from '../../src/web/features/quickCheck/index.js';
 import { ToolsNav, WIDE_QUERY } from '../../src/web/features/worlds/ToolsNav.js';
 import { stubMatchMedia } from './matchMedia.js';
 
@@ -23,6 +22,12 @@ const nodesFeature: FeatureModule = {
   id: 'nodes',
   tools: [toggleTool({ id: 'nodes', order: 30, labelKey: 'caves.control', hintKey: 'caves.hint', useToggle: useNodes, useAvailable: () => nodesAvailable })],
 };
+/** A switch with an icon and a key, like a feature's map mode switch. */
+const useHeightsProbe = create<{ visible: boolean; toggle(): void }>()(set => ({ visible: false, toggle: () => set(s => ({ visible: !s.visible })) }));
+const heightsFeature: FeatureModule = {
+  id: 'heights',
+  tools: [{ ...toggleTool({ id: 'heights', order: 10, labelKey: 'heights.control', useToggle: useHeightsProbe }), icon: '✓', shortcut: 'H' }],
+};
 const ran: string[] = [];
 const actionTool: Tool = { id: 'export', order: 40, labelKey: 'common.retry', useTool: () => ({ available: true, run: () => ran.push('export') }) };
 const actionFeature: FeatureModule = { id: 'export', tools: [actionTool] };
@@ -34,7 +39,7 @@ function renderNav({ mobile = false } = {}) {
   };
   return render(
     <QueryClientProvider client={ctx.queryClient}>
-      <FeaturesProvider features={[actionFeature, nodesFeature, quickCheckFeature]}><ToolsNav ctx={ctx} mobile={mobile} /></FeaturesProvider>
+      <FeaturesProvider features={[actionFeature, nodesFeature, heightsFeature]}><ToolsNav ctx={ctx} mobile={mobile} /></FeaturesProvider>
     </QueryClientProvider>,
   );
 }
@@ -44,6 +49,7 @@ describe('ToolsNav', () => {
   beforeEach(() => {
     useUiStore.getState().enterWorld(W);
     useNodes.setState({ visible: false });
+    useHeightsProbe.setState({ visible: false });
     nodesAvailable = true;
     ran.length = 0;
   });
@@ -53,12 +59,12 @@ describe('ToolsNav', () => {
     stubMatchMedia({ [WIDE_QUERY]: true });
     renderNav();
     const nav = screen.getByRole('navigation', { name: 'Tools' });
-    expect(within(nav).getAllByRole('button').map(b => b.textContent)).toEqual(['✓Quick Check', 'Caves', 'Retry']);
-    const quick = within(nav).getByRole('button', { name: 'Quick Check' });
-    expect(quick).toHaveAttribute('aria-keyshortcuts', 'Q');
-    await userEvent.click(quick);
-    expect(quick).toHaveAttribute('aria-pressed', 'true');
-    expect(useUiStore.getState().interactionMode).toBe('quick');
+    expect(within(nav).getAllByRole('button').map(b => b.textContent)).toEqual(['✓Heights', 'Caves', 'Retry']);
+    const heights = within(nav).getByRole('button', { name: 'Heights' });
+    expect(heights).toHaveAttribute('aria-keyshortcuts', 'H');
+    await userEvent.click(heights);
+    expect(heights).toHaveAttribute('aria-pressed', 'true');
+    expect(useHeightsProbe.getState().visible).toBe(true);
     const nodes = within(nav).getByRole('button', { name: 'Caves' });
     expect(nodes).toHaveAttribute('title', 'Show caves and their entrances (from the game data)');
     await userEvent.click(nodes);
@@ -102,9 +108,9 @@ describe('ToolsNav', () => {
     expect(button).toHaveAttribute('aria-haspopup', 'menu');
     await userEvent.click(button);
     const menu = screen.getByRole('menu', { name: 'Tools' });
-    const quick = within(menu).getByRole('menuitemcheckbox', { name: /Quick Check/ });
-    expect(quick).toHaveFocus();
-    expect(quick).toHaveAttribute('aria-checked', 'false');
+    const heights = within(menu).getByRole('menuitemcheckbox', { name: /Heights/ });
+    expect(heights).toHaveFocus();
+    expect(heights).toHaveAttribute('aria-checked', 'false');
     expect(within(menu).getByRole('menuitem', { name: 'Retry' })).toBeInTheDocument();
     await userEvent.keyboard('{ArrowDown}');
     expect(within(menu).getByRole('menuitemcheckbox', { name: /Caves/ })).toHaveFocus();

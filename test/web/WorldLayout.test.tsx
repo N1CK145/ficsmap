@@ -192,7 +192,7 @@ describe('WorldLayout', () => {
     const search = within(header).getByRole('search');
     expect(within(search).getByRole('combobox', { name: 'Search' })).toBeInTheDocument();
     const tools = within(header).getByRole('navigation', { name: 'Tools' });
-    expect(within(tools).getByRole('button', { name: 'Quick Check' })).toHaveAttribute('aria-pressed', 'false');
+    expect(within(tools).getByRole('button', { name: 'Tools' })).toHaveAttribute('aria-haspopup', 'menu');
     // The empty test dataset has no caves and no heights: those switches stay hidden.
     expect(within(tools).queryByRole('button', { name: 'Caves' })).toBeNull();
     // The search sits between the left and the right part of the bar.
@@ -214,6 +214,6 @@ describe('WorldLayout', () => {
     expect(within(header).getByRole('combobox', { name: 'Search' })).toHaveFocus();
     await userEvent.click(within(header).getByRole('button', { name: 'Close' }));
     await userEvent.click(within(header).getByRole('button', { name: 'Tools' }));
-    expect(within(screen.getByRole('menu', { name: 'Tools' })).getByRole('menuitemcheckbox', { name: /Quick Check/ })).toBeInTheDocument();
+    expect(within(screen.getByRole('menu', { name: 'Tools' })).getByRole('menuitem', { name: 'Planner' })).toBeInTheDocument();
   });
 });

@@ -244,9 +244,9 @@ describe('ItemPanel', () => {
     expect(useUiStore.getState().selectedActor).toBeNull();
   });
 
-  it('keeps the panel open on Esc in quick mode (Esc leaves the mode there)', async () => {
+  it('keeps the panel open on Esc in another map mode (Esc leaves the mode there)', async () => {
     renderPanel('S1');
-    act(() => { useUiStore.getState().setMode('quick'); });
+    act(() => { useUiStore.getState().setMode('route'); });
     await userEvent.keyboard('{Escape}');
     expect(useUiStore.getState().selectedActor).toBe('S1');
   });

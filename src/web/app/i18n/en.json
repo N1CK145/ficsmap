@@ -303,14 +303,6 @@
     "copyId": "Copy ID",
     "copied": "Copied"
   },
-  "quickCheck": {
-    "control": "Quick Check",
-    "banner": "QUICK CHECK ON · Click a marker to check it · Q to stop",
-    "zoomIn": "Zoom in to quick-check",
-    "checked": "{type} checked",
-    "unchecked": "{type} unchecked",
-    "zoomInShort": "Zoom in first"
-  },
   "import": {
     "privacy": "Your save is read in your browser. Only this is sent to the server: the list of collected items; the save's name, date and game build; and for resource nodes the resource or purity your save sets and which extractor stands on which node (building, clock speed, Power Shards).",
     "button": "Import",

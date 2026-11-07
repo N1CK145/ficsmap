@@ -39,7 +39,7 @@ export function BottomSheet({ label, snap, onSnap, children, footer }: BottomShe
   // The click that ends a drag must not also cycle the size.
   const dragEnded = useRef(false);
 
-  // Toasts float above the peek and the Quick Check button while the sheet is there.
+  // Toasts float above the peek while the sheet is there.
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--ficsmap-toast-offset', `${TOAST_OFFSET_PX}px`);

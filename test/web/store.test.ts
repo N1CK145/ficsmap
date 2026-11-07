@@ -17,8 +17,6 @@ describe('ui store', () => {
   });
 
   it('keeps map modes exclusive and returns to inspect when the active mode is set again', () => {
-    ui().setMode('quick');
-    expect(ui().interactionMode).toBe('quick');
     ui().setMode('route');
     expect(ui().interactionMode).toBe('route');
     ui().setMode('route');

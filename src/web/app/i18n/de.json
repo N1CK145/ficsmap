@@ -303,14 +303,6 @@
     "copyId": "ID kopieren",
     "copied": "Kopiert"
   },
-  "quickCheck": {
-    "control": "Schnell abhaken",
-    "banner": "SCHNELL ABHAKEN AN · Klicke auf eine Markierung, um sie abzuhaken · Q zum Beenden",
-    "zoomIn": "Vergrößere die Karte zum schnellen Abhaken",
-    "checked": "{type} abgehakt",
-    "unchecked": "Haken bei {type} entfernt",
-    "zoomInShort": "Erst vergrößern"
-  },
   "import": {
     "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur: die Liste der gesammelten Objekte; Name, Datum und Build des Spielstands; und zu den Rohstoffvorkommen die Ressource oder Reinheit, die dein Spielstand festlegt, sowie welcher Extraktor auf welchem Vorkommen steht (Gebäude, Taktrate, Energiefragmente).",
     "button": "Importieren",
