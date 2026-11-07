@@ -10,6 +10,7 @@ import { readHeightGrid, writeHeightTiles } from './heightmap.js';
 import { AREA_SNAP, biomesFromAreas, landTest, readMapAreas } from './map-areas.js';
 import { readDocsFile } from './game-docs.js';
 import { buildTransportData, type RawTransport } from './transport.js';
+import { RecipeBuildError, recipeSummary, writeRecipes } from './recipes.js';
 import { UNITS_PER_METER, type Calibration } from '../src/shared/geo.js';
 import type { CollectibleTypeId, LocalizedName, WorldBounds } from '../src/shared/types.js';
 import type { CrashSites, Dataset, DatasetItemTuple, ItemExtra, PodRequirement } from '../src/shared/dataset.js';
@@ -313,8 +314,8 @@ function main(): void {
       // Without it the dataset has no resource node layer.
       'default-world': { type: 'string' },
       // The game's CommunityResources/Docs folder (en-US.json, de.json) and the extractor's transport.json
-      // (`--transport-out`); defaults: <extractor>/docs and <extractor>/transport.json. With both, the dataset
-      // gets transport.json for the vehicle calculator.
+      // (`--transport-out`); defaults: <extractor>/docs and <extractor>/transport.json. With the Docs the dataset
+      // gets recipes.json for the production planner, with both also transport.json for the vehicle calculator.
       docs: { type: 'string' },
       transport: { type: 'string' },
       build: { type: 'string', default: String(DEFAULT_BUILD) },
@@ -406,6 +407,15 @@ function main(): void {
     writeFileSync(join(out, 'transport.json'), JSON.stringify(transport));
     transportSummary = `${transport.vehicles.length} vehicles, ${transport.items.length} items`;
   }
+  let recipeLine = 'no Docs (--docs), no recipes.json';
+  if (existsSync(join(docsDir, 'en-US.json'))) {
+    try {
+      recipeLine = recipeSummary(writeRecipes(docsDir, out));
+    } catch (e) {
+      if (e instanceof RecipeBuildError) { console.error(e.message); process.exit(1); }
+      throw e;
+    }
+  }
   const mapDir = join(resolve(v.extractor), 'map');
   cpSync(join(mapDir, 'map.json'), join(out, 'map.json'));
   cpSync(join(mapDir, 'tiles'), join(out, 'tiles'), { recursive: true });
@@ -425,6 +435,7 @@ function main(): void {
   console.log(`  heights: ${heightSummary}`);
   console.log(`  resource nodes: ${nodeSummary}`);
   console.log(`  transport: ${transportSummary}`);
+  console.log(`  recipes: ${recipeLine}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
