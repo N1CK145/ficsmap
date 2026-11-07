@@ -8,6 +8,8 @@ import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { machineWikiFeature, machineWikiTool } from '../../src/web/features/machineWiki/index.js';
 import { MachineWikiHost } from '../../src/web/features/machineWiki/MachineWikiDialog.js';
+import { machineEntries } from '../../src/web/features/machineWiki/search.js';
+import { getI18n } from 'react-i18next';
 import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
 import { useMachineWiki } from '../../src/web/features/machineWiki/useMachineWiki.js';
 import { stubFetch } from './fetchStub.js';
@@ -241,5 +243,25 @@ describe('machine wiki', () => {
     setup('missing');
     const dialog = await open();
     expect(await within(dialog).findByText(/This dataset has no machine data/)).toBeInTheDocument();
+  });
+});
+
+describe('machine wiki in the search', () => {
+  beforeEach(() => { useMachineWiki.setState({ open: false, selected: null, query: '' }); });
+
+  it('has one entry per machine and vehicle, found by both names and the class, opening the wiki there', () => {
+    initI18n(['de']);
+    const entries = machineEntries(DATA, getI18n());
+    expect(entries).toHaveLength(DATA.machines.length);
+    const first = DATA.machines[0]!;
+    const e = entries[0]!;
+    expect(e).toMatchObject({ id: `machine:${first.id}`, label: first.name.de });
+    expect(e.terms).toEqual(expect.arrayContaining([first.name.en, first.name.de, first.id]));
+    expect(e.actors).toBeUndefined();
+    const vehicle = DATA.machines.findIndex(m => m.category === 'vehicles');
+    if (vehicle >= 0) expect(entries[vehicle]!.kindKey).toBe('search.kind.vehicle');
+    e.onSelect?.({} as WorldCtx);
+    expect(useMachineWiki.getState()).toMatchObject({ open: true, selected: first.id });
+    expect(machineWikiFeature.searchProviders?.map(p => p.id)).toEqual(['machines']);
   });
 });

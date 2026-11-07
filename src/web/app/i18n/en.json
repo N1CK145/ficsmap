@@ -769,7 +769,9 @@
       "type": "Type",
       "biome": "Biome",
       "cave": "Cave",
-      "crashSite": "Crash site"
+      "crashSite": "Crash site",
+      "machine": "Machine",
+      "vehicle": "Vehicle"
     }
   },
   "tools": {

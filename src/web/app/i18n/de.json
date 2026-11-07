@@ -769,7 +769,9 @@
       "type": "Typ",
       "biome": "Biom",
       "cave": "Höhle",
-      "crashSite": "Absturzort"
+      "crashSite": "Absturzort",
+      "machine": "Maschine",
+      "vehicle": "Fahrzeug"
     }
   },
   "tools": {
