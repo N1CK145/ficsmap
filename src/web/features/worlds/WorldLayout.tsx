@@ -35,6 +35,7 @@ import { NextStopButton } from '../routes/NextStopButton.js';
 import { useRouteDraft } from '../routes/useRoutes.js';
 import { AccountMenu } from './AccountMenu.js';
 import { useMe, useWorld } from './queries.js';
+import { ToolsNav } from './ToolsNav.js';
 import { useSidebarKey } from './useSidebarKey.js';
 
 /**
@@ -137,22 +138,32 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
   // Sidebar panels' `visible` read the marks cache, so the shell re-renders when it changes.
   useMarks(ctx.worldId);
 
-  const { headerItems, panels } = useMemo(() => ({
-    headerItems: collect(features, 'headerItems'),
-    panels: collect(features, 'sidebarPanels'),
-  }), [features]);
+  const { startItems, centerItems, panels } = useMemo(() => {
+    const items = collect(features, 'headerItems');
+    return {
+      startItems: items.filter(h => (h.slot ?? 'start') === 'start'),
+      centerItems: items.filter(h => h.slot === 'center'),
+      panels: collect(features, 'sidebarPanels'),
+    };
+  }, [features]);
   const shown = panels.filter(p => p.visible?.(ctx) ?? true);
   const sidebarId = useId();
   const hasSidebar = !inSettings && !mobile;
   // On mobile the map is always the main area; the sheet's full height is the list view.
   const view = inSettings ? 'settings' : mobile ? 'map' : mainView;
+  // The search and the tools act on the map, so the settings page has neither. On mobile the search
+  // is a button next to the tools rather than in the middle of the bar.
+  const centered = inSettings ? null : centerItems.map(h => <h.Component key={h.id} ctx={ctx} />);
+  const toolsNav = inSettings ? null : <ToolsNav ctx={ctx} mobile={mobile} />;
+  const center = mobile || !centered ? undefined : centered;
+  const tools = mobile ? <>{centered}{toolsNav}</> : toolsNav;
 
   return (
     <div className="flex h-dvh flex-col">
-      <Header end={<AccountMenu />}>
+      <Header center={center} tools={tools} end={<AccountMenu />}>
         {hasSidebar && <SidebarToggle sidebarId={sidebarId} />}
         <h1 className="min-w-0 truncate font-display text-lg font-semibold">{ctx.world.name}</h1>
-        {headerItems.map(h => <h.Component key={h.id} ctx={ctx} />)}
+        {startItems.map(h => <h.Component key={h.id} ctx={ctx} />)}
       </Header>
       <div className="flex min-h-0 flex-1">
         {hasSidebar && <Sidebar id={sidebarId} ctx={ctx} panels={shown} />}

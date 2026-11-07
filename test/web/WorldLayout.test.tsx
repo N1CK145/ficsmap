@@ -182,4 +182,38 @@ describe('WorldLayout', () => {
     await userEvent.click(show);
     expect(screen.getByRole('complementary', { name: 'Sidebar' })).toBeInTheDocument();
   });
+
+  it('has the search in the middle of the top bar and the tools next to it, neither on the settings page', async () => {
+    stubMatchMedia({ '(min-width: 1280px)': true });
+    stubWorld();
+    const router = renderAt(`/w/${W}`);
+    await screen.findByRole('heading', { name: 'Alpha' });
+    const header = screen.getByRole('banner');
+    const search = within(header).getByRole('search');
+    expect(within(search).getByRole('combobox', { name: 'Search' })).toBeInTheDocument();
+    const tools = within(header).getByRole('navigation', { name: 'Tools' });
+    expect(within(tools).getByRole('button', { name: 'Quick Check' })).toHaveAttribute('aria-pressed', 'false');
+    // The empty test dataset has no caves and no heights: those switches stay hidden.
+    expect(within(tools).queryByRole('button', { name: 'Caves' })).toBeNull();
+    // The search sits between the left and the right part of the bar.
+    expect(search.parentElement?.previousElementSibling).toContainElement(screen.getByRole('heading', { name: 'Alpha' }));
+    expect(search.parentElement?.nextElementSibling).toContainElement(tools);
+    await act(() => router.navigate(`/w/${W}/settings`));
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Search' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Tools' })).toBeNull();
+  });
+
+  it('on mobile has a search button and a Tools menu in the top bar', async () => {
+    stubMatchMedia({ [MOBILE]: true });
+    stubWorld();
+    renderAt(`/w/${W}`);
+    await screen.findByRole('heading', { name: 'Alpha' });
+    const header = screen.getByRole('banner');
+    await userEvent.click(within(header).getByRole('button', { name: 'Search' }));
+    expect(within(header).getByRole('combobox', { name: 'Search' })).toHaveFocus();
+    await userEvent.click(within(header).getByRole('button', { name: 'Close' }));
+    await userEvent.click(within(header).getByRole('button', { name: 'Tools' }));
+    expect(within(screen.getByRole('menu', { name: 'Tools' })).getByRole('menuitemcheckbox', { name: /Quick Check/ })).toBeInTheDocument();
+  });
 });

@@ -1,7 +1,7 @@
 import { getI18n } from 'react-i18next';
 import { typeById } from '../../../shared/collectibleTypes.js';
 import type { Item } from '../../../shared/dataset.js';
-import type { FeatureModule, WorldCtx } from '../../app/feature.js';
+import type { FeatureModule, Tool, WorldCtx } from '../../app/feature.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { useUiStore } from '../../app/store.js';
 import { DOT_ZOOM } from '../map/markerStyle.js';
@@ -60,7 +60,19 @@ async function onQuickClick(item: Item, ctx: WorldCtx): Promise<void> {
   });
 }
 
-/** Quick Check (spec §10.3): the `quick` map mode, its banner and cursor, and the map control. Q/Esc: useQuickCheckKeys (world layout). */
+/** The Quick Check switch in the tool navigation; Q does the same (useQuickCheckKeys). */
+export const quickCheckTool: Tool = {
+  id: 'quick-check', order: 10, labelKey: 'quickCheck.control', icon: '✓', shortcut: 'Q',
+  useTool: () => {
+    const on = useUiStore(s => s.interactionMode === 'quick');
+    return { available: true, pressed: on, run: () => useUiStore.getState().setMode('quick') };
+  },
+};
+
+/**
+ * Quick Check (spec §10.3): the `quick` map mode, its banner and cursor, its switch in the tool
+ * navigation and, on mobile, the round button over the map. Q/Esc: useQuickCheckKeys (world layout).
+ */
 export const quickCheckFeature: FeatureModule = {
   id: 'quickCheck',
   mapModes: [{
@@ -69,5 +81,6 @@ export const quickCheckFeature: FeatureModule = {
     get cursor() { return checkCursor(); },
     Banner: QuickCheckBanner,
   }],
+  tools: [quickCheckTool],
   mapControls: [{ id: 'quick-check', order: 10, Component: QuickCheckControl }],
 };

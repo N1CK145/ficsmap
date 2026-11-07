@@ -7,7 +7,7 @@ import type { WorldCtx } from '../../../app/feature.js';
 import { Panel } from '../../../components/Panel.js';
 
 /** "5× Motor · 20 MW", leaving out what is not needed; "Nothing needed" when nothing is. */
-function requirementText(pod: PodRequirement, t: TFunction, locale: Locale): string {
+export function requirementText(pod: PodRequirement, t: TFunction, locale: Locale): string {
   const parts: string[] = [];
   if (pod.item && pod.amount > 0) parts.push(t('item.toOpen.items', { amount: pod.amount, item: pod.item[locale] }));
   if (pod.power > 0) parts.push(t('item.toOpen.power', { power: pod.power }));

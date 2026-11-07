@@ -23,6 +23,12 @@ export interface UiState {
   selfLeaving: string | null;
   /** A pending request for the map to bring an item into view (list view's Show on map); the map clears it. */
   focusRequest: { actor: string } | null;
+  /**
+   * The items the header search highlights on the map (the others are dimmed), or null while no
+   * search with item results is active. Matches are drawn even when the filters would hide them.
+   */
+  searchHighlight: ReadonlySet<string> | null;
+  setSearchHighlight(actors: ReadonlySet<string> | null): void;
   setSelfLeaving(worldId: string | null): void;
   /** Selects the item, shows the map and asks it to zoom to the item (spec §10.10). */
   focusItem(actor: string): void;
@@ -43,7 +49,7 @@ export interface UiState {
   enterWorld(worldId: string, view?: Partial<PersistedView>): void;
 }
 
-type WorldState = Pick<UiState, 'worldId' | 'interactionMode' | 'selectedActor' | 'typeFilter' | 'visibility' | 'biomeScope' | 'onlyConflicts' | 'mainView' | 'selfLeaving' | 'focusRequest'>;
+type WorldState = Pick<UiState, 'worldId' | 'interactionMode' | 'selectedActor' | 'typeFilter' | 'visibility' | 'biomeScope' | 'onlyConflicts' | 'mainView' | 'selfLeaving' | 'focusRequest' | 'searchHighlight'>;
 
 function worldState(worldId: string | null, view: Partial<PersistedView> = {}): WorldState {
   return {
@@ -57,6 +63,7 @@ function worldState(worldId: string | null, view: Partial<PersistedView> = {}): 
     mainView: 'map',
     selfLeaving: null,
     focusRequest: null,
+    searchHighlight: null,
   };
 }
 
@@ -81,5 +88,6 @@ export const useUiStore = create<UiState>()(set => ({
   setSelfLeaving: worldId => set({ selfLeaving: worldId }),
   focusItem: actor => set({ mainView: 'map', selectedActor: actor, focusRequest: { actor } }),
   clearFocusRequest: () => set({ focusRequest: null }),
+  setSearchHighlight: actors => set({ searchHighlight: actors }),
   enterWorld: (worldId, view) => set(worldState(worldId, view)),
 }));

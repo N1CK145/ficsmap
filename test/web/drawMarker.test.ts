@@ -68,3 +68,23 @@ describe('drop-pod badges', () => {
     expect(fillsOf('free', 'collected')).not.toContain(palette.free);
   });
 });
+
+describe('search halo', () => {
+  const firstFill = (highlight: boolean, zoom: number, withImg: boolean) => {
+    const { ctx, images } = stubCtx();
+    drawMarker(ctx, 0, 0, typeById('somersloop'), { ...visual('uncollected', zoom), highlight }, palette, NO_PULSES, withImg ? img : null);
+    return (images as unknown as { fills: string[] }).fills[0];
+  };
+
+  it('draws an accent disk under a matching marker, as dot, shape and icon', () => {
+    expect(firstFill(true, 0, false)).toBe(palette.accent);
+    expect(firstFill(true, 3, false)).toBe(palette.accent);
+    expect(firstFill(true, 3, true)).toBe(palette.accent);
+  });
+
+  it('draws no halo without a match', () => {
+    expect(firstFill(false, 0, false)).not.toBe(palette.accent);
+    expect(firstFill(false, 3, false)).not.toBe(palette.accent);
+    expect(firstFill(false, 3, true)).not.toBe(palette.accent);
+  });
+});
