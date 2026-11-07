@@ -1,3 +1,5 @@
+import type { NodeExtractor, NodeSettings, ResourceNodeOverride, SaveResourceNodes } from './resourceNodes.js';
+
 export type ApiErrorCode =
   | 'unauthorized'
   | 'forbidden'
@@ -56,6 +58,8 @@ export interface ImportRequest {
   saveTime: number;
   build: number;
   collected: string[];
+  /** What the save says about resource nodes; when present it replaces the world's node data (older clients omit it). */
+  resourceNodes?: SaveResourceNodes;
 }
 
 export interface ImportResultDto {
@@ -94,4 +98,14 @@ export type RestoreRow = [actor: string, collected: boolean, mismatch: 0 | 1];
 export interface MarksDto {
   rev: number;
   marks: [actor: string, mismatch: 0 | 1, updatedBy: number | null, updatedAt: number][];
+}
+
+/**
+ * `GET /api/worlds/:id/resource-nodes`: the world's resource nodes where its last save import differs from the
+ * default map, and the extractors standing on nodes in that save.
+ */
+export interface ResourceNodesDto {
+  overrides: ResourceNodeOverride[];
+  settings: NodeSettings | null;
+  extractors: NodeExtractor[];
 }

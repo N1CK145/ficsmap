@@ -15,6 +15,7 @@ import { registerWorldRoutes } from './http/worlds.js';
 import { registerMemberRoutes } from './http/members.js';
 import { registerMarkRoutes } from './http/marks.js';
 import { registerImportRoutes } from './http/import.js';
+import { registerResourceNodeRoutes } from './http/resourceNodes.js';
 import { registerRouteRoutes } from './http/routes.js';
 import { registerEventRoutes } from './http/events.js';
 import { registerInviteRoutes } from './http/invites.js';
@@ -131,6 +132,7 @@ export async function buildApp(input: AppDeps): Promise<FastifyInstance> {
   registerMemberRoutes(app, deps);
   registerMarkRoutes(app, deps);
   registerImportRoutes(app, deps);
+  registerResourceNodeRoutes(app, deps);
   registerRouteRoutes(app, deps);
   registerEventRoutes(app, deps);
   registerInviteRoutes(app, deps);

@@ -113,6 +113,123 @@
     "legend": "Height (highest point)",
     "metres": "{value} m"
   },
+  "resourceNodes": {
+    "title": "Resource nodes",
+    "control": "Resources",
+    "hint": "Show resource nodes, geysers and resource wells (from the game data and the last save import)",
+    "show": "Show on map",
+    "on": "On",
+    "off": "Off",
+    "none": "This map dataset has no resource nodes.",
+    "resource": "Resource",
+    "resourceHint": "Click to show or hide · Alt-click to show only this resource",
+    "all": "All",
+    "noneShown": "None",
+    "purityLabel": "Purity",
+    "count": "{count, number}",
+    "purity": {
+      "impure": "Impure",
+      "normal": "Normal",
+      "pure": "Pure"
+    },
+    "kinds": {
+      "node": "Resource node",
+      "geyser": "Geyser",
+      "core": "Resource well (centre)",
+      "satellite": "Resource well node"
+    },
+    "fromSave": "From the save import. Default map: {resource}, {purity}",
+    "changedNote": "{count, plural, one {# node differs} other {# nodes differ}} from the default map (from the last save import, marked with an orange dot).",
+    "randomizedNote": "This world was started with randomised resource nodes ({mode}), but the save holds no node data ficsmap can read. The map shows the default nodes.",
+    "importChanged": "{count, plural, one {# resource node differs} other {# resource nodes differ}} from the default map.",
+    "importRandomized": "Randomised resource nodes ({mode}): the save holds no node data ficsmap can read, so the map keeps the default nodes.",
+    "nodeSettings": {
+      "entry": "{name}: {value}",
+      "randomization": "Resource Node Randomization",
+      "purity": "Resource Node Purity",
+      "randomizationValues": {
+        "NRM_None": "Default",
+        "NRM_Strict": "Random",
+        "NRM_BasicReach": "Basic Resource Rich",
+        "NRM_AdvancedRich": "Advanced Resource Rich",
+        "NRM_FossilFuelRich": "Fossil Fuel Rich"
+      },
+      "purityValues": {
+        "NPS_NoChange": "Default",
+        "NPS_AllPure": "All Pure",
+        "NPS_AllNormal": "Average",
+        "NPS_AllImpure": "All Impure",
+        "NPS_AllRandom": "Random",
+        "NPS_Increase": "Mostly Pure",
+        "NPS_Decrease": "Mostly Impure"
+      }
+    },
+    "extractorsTitle": "Extractors (last save import)",
+    "occupancyLabel": "Extractor on the node",
+    "occupancy": {
+      "all": "All",
+      "occupied": "Occupied",
+      "free": "Free"
+    },
+    "extractorKinds": {
+      "miner1": "Miner Mk.1",
+      "miner2": "Miner Mk.2",
+      "miner3": "Miner Mk.3",
+      "oil": "Oil Extractor",
+      "pressurizer": "Resource Well Pressurizer",
+      "well": "Resource Well Extractor",
+      "geothermal": "Geothermal Generator",
+      "portable": "Portable Miner"
+    },
+    "extractorShort": {
+      "miner1": "Mk.1",
+      "miner2": "Mk.2",
+      "miner3": "Mk.3",
+      "oil": "Oil",
+      "pressurizer": "Pres",
+      "well": "Well",
+      "geothermal": "Geo",
+      "portable": "Port"
+    },
+    "clock": "Clock speed {value}",
+    "shards": "{count, plural, =0 {No Power Shards} one {# Power Shard} other {# Power Shards}}",
+    "times": "{name} × {count, number}",
+    "summaryNodes": "{count, plural, one {# node} other {# nodes}} with an extractor",
+    "summaryShards": "Power Shards in use: {count, number}",
+    "importExtractors": "{count, plural, one {# extractor} other {# extractors}} on resource nodes, with {shards, plural, one {# Power Shard} other {# Power Shards}}.",
+    "resources": {
+      "Desc_OreIron_C": "Iron Ore",
+      "Desc_OreCopper_C": "Copper Ore",
+      "Desc_Stone_C": "Limestone",
+      "Desc_Coal_C": "Coal",
+      "Desc_OreGold_C": "Caterium Ore",
+      "Desc_RawQuartz_C": "Raw Quartz",
+      "Desc_Sulfur_C": "Sulfur",
+      "Desc_OreBauxite_C": "Bauxite",
+      "Desc_OreUranium_C": "Uranium",
+      "Desc_SAM_C": "SAM",
+      "Desc_LiquidOil_C": "Crude Oil",
+      "Desc_Water_C": "Water",
+      "Desc_NitrogenGas_C": "Nitrogen Gas",
+      "Geyser": "Geyser"
+    },
+    "short": {
+      "Desc_OreIron_C": "Fe",
+      "Desc_OreCopper_C": "Cu",
+      "Desc_Stone_C": "Lm",
+      "Desc_Coal_C": "C",
+      "Desc_OreGold_C": "Ca",
+      "Desc_RawQuartz_C": "Qz",
+      "Desc_Sulfur_C": "S",
+      "Desc_OreBauxite_C": "Bx",
+      "Desc_OreUranium_C": "U",
+      "Desc_SAM_C": "SAM",
+      "Desc_LiquidOil_C": "Oil",
+      "Desc_Water_C": "H₂O",
+      "Desc_NitrogenGas_C": "N₂",
+      "Geyser": "Gy"
+    }
+  },
   "marks": {
     "saveFailed": "Couldn't save. Check your connection.",
     "undo": "Undo",
@@ -195,7 +312,7 @@
     "zoomInShort": "Zoom in first"
   },
   "import": {
-    "privacy": "Your save is read in your browser. Only the list of collected items, plus the save's name, date and game build, is sent to the server.",
+    "privacy": "Your save is read in your browser. Only this is sent to the server: the list of collected items; the save's name, date and game build; and for resource nodes the resource or purity your save sets and which extractor stands on which node (building, clock speed, Power Shards).",
     "button": "Import",
     "title": "Import save",
     "chooseFolder": "Choose save folder",

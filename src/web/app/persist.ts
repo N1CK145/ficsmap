@@ -1,5 +1,6 @@
 import { COLLECTIBLE_TYPES } from '../../shared/collectibleTypes.js';
 import type { Locale } from '../../shared/i18n.js';
+import { OCCUPANCIES, PURITIES, type Occupancy, type Purity } from '../../shared/resourceNodes.js';
 import type { CollectibleTypeId } from '../../shared/types.js';
 import type { CollectedVisibility } from './store.js';
 
@@ -136,4 +137,35 @@ export function loadPodChecklistCollapsed(): boolean {
 export function savePodChecklistCollapsed(collapsed: boolean): void {
   if (collapsed) write(POD_CHECKLIST_COLLAPSED_KEY, '1');
   else remove(POD_CHECKLIST_COLLAPSED_KEY);
+}
+
+const RESOURCE_NODES_KEY = 'ficsmap:resourceNodes';
+
+/**
+ * The resource node layer per device: shown or not, the hidden resources (new ones start shown), the shown purities
+ * and whether only nodes with (or without) an extractor show.
+ */
+export interface ResourceNodeView { visible: boolean; hiddenResources: string[]; purities: Purity[]; occupancy: Occupancy }
+
+export function loadResourceNodeView(): ResourceNodeView {
+  const view: ResourceNodeView = { visible: false, hiddenResources: [], purities: [...PURITIES], occupancy: 'all' };
+  const raw = read(RESOURCE_NODES_KEY);
+  if (raw === null) return view;
+  let d: Record<string, unknown>;
+  try {
+    const data: unknown = JSON.parse(raw);
+    if (data === null || typeof data !== 'object') return view;
+    d = data as Record<string, unknown>;
+  } catch {
+    return view;
+  }
+  if (typeof d.visible === 'boolean') view.visible = d.visible;
+  if (Array.isArray(d.hiddenResources)) view.hiddenResources = d.hiddenResources.filter((r): r is string => typeof r === 'string');
+  if (Array.isArray(d.purities)) view.purities = PURITIES.filter(p => (d.purities as unknown[]).includes(p));
+  if (OCCUPANCIES.includes(d.occupancy as Occupancy)) view.occupancy = d.occupancy as Occupancy;
+  return view;
+}
+
+export function saveResourceNodeView(v: ResourceNodeView): void {
+  write(RESOURCE_NODES_KEY, JSON.stringify(v));
 }

@@ -168,6 +168,39 @@ describe('ImportDialog', () => {
     expect(importRequest('a.sav', { ...r, meta: { ...r.meta, saveTime: Number.NaN } }).saveTime).toBe(0);
   });
 
+  it('sends the save\'s resource node data and extractors and says how many nodes differ and are mined', async () => {
+    const user = userEvent.setup();
+    const reply: ImportResultDto = { rev: 2, newlyChecked: 1, conflicts: 0, ignored: 0, collectedTotal: 1 };
+    const { calls } = stubFetch({ [`POST /api/worlds/${W}/import`]: { body: reply } });
+    const { onClose } = renderDialog();
+    const resourceNodes: NonNullable<ExtractResult['resourceNodes']> = {
+      overrides: [['N1', 'Desc_Coal_C', null], ['N2', null, 'pure']],
+      settings: null,
+      extractors: [['N1', 'miner2', 2.25, 3], ['N3', 'portable', null, null]],
+    };
+    await parse(user, { type: 'done', result: { ...result(['B']), resourceNodes } });
+    expect(screen.getByText('2 resource nodes differ from the default map.')).toBeInTheDocument();
+    expect(screen.getByText('2 extractors on resource nodes, with 3 Power Shards.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Import' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect((calls.find(c => c.method === 'POST')?.body as { resourceNodes: unknown }).resourceNodes).toEqual(resourceNodes);
+  });
+
+  it('sends an empty extractor list for a save without extractors', () => {
+    const r = { ...result(['B']), resourceNodes: { overrides: [], settings: null } };
+    expect(importRequest('a.sav', r).resourceNodes).toEqual({ overrides: [], settings: null, extractors: [] });
+  });
+
+  it('notes a randomised world whose save has no node data', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    const resourceNodes = { overrides: [], settings: { randomization: 'NRM_Strict', purity: 'NPS_AllRandom', seed: 1 } };
+    await parse(user, { type: 'done', result: { ...result(['B']), resourceNodes } });
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'Randomised resource nodes (Resource Node Randomization: Random; Resource Node Purity: Random): the save holds no node data',
+    );
+  });
+
   it('shows the mobile hint on narrow screens', () => {
     vi.stubGlobal('matchMedia', (q: string) => ({ matches: q === '(max-width: 899px)' }));
     renderDialog();

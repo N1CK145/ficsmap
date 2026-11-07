@@ -1,1 +1,19 @@
-{"Desc_Rotor_C":{"en":"Rotor","de":"Rotor"}}
+{
+  "_unverified": [],
+  "Desc_Coal_C": {
+    "en": "Coal",
+    "de": "Kohle"
+  },
+  "Desc_OreIron_C": {
+    "en": "Iron Ore",
+    "de": "Eisenerz"
+  },
+  "Desc_Rotor_C": {
+    "en": "Rotor",
+    "de": "Rotor"
+  },
+  "Desc_Water_C": {
+    "en": "Water",
+    "de": "Wasser"
+  }
+}

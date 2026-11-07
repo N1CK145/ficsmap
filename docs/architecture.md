@@ -20,7 +20,7 @@ One npm package, one process, one container. The server serves the API, the buil
 src/shared/     types and pure logic used by server and web
 src/server/     Fastify server
 src/web/        React SPA (Vite root)
-scripts/        build-dataset.ts (dataset build), cave-geometry.ts (cave sampling for it), heightmap.ts (height map tiles for it), map-areas.ts (biomes from the game's map areas), trace.ts (outline tracing), inspect-save.ts (dump a save for checks)
+scripts/        build-dataset.ts (dataset build, including resource-nodes.json), cave-geometry.ts (cave sampling for it), heightmap.ts (height map tiles for it), map-areas.ts (biomes from the game's map areas), trace.ts (outline tracing), inspect-save.ts (dump a save for checks)
 data-src/       extraction tooling and notes (extractor/README.md, the AssetsExtractor patch, item names)
 test/           unit/, api/, web/, fixtures/
 data/           local datasets, data/<game-version>/ (git-ignored)
@@ -35,6 +35,7 @@ data/           local datasets, data/<game-version>/ (git-ignored)
 - `geo.ts`: world to map coordinates (100 world units = 1 m), point-in-polygon.
 - `biomes.ts`: loads the hand-drawn biome polygons (fallback) and assigns items to them. The game's map areas (`scripts/map-areas.ts`) are the primary source: biomes, outlines (traced with `scripts/trace.ts`) and item assignment from the area raster.
 - `caves.ts`: the extractor's cave volumes and the `caves.geojson` format (the sampling itself is in `scripts/cave-geometry.ts`).
+- `resourceNodes.ts`: the `resource-nodes.json` format, the purity mapping (the game spells `RP_Inpure`), the layer's filter (resource, purity, occupied/free) and counts, reading node overrides, randomisation settings and the extractors on nodes (building, clock speed, Power Shards) from a parsed save, applying a world's overrides to the default nodes, and the extractor summary.
 - `heightmap.ts`: the height map tile format (`height/meta.json`, delta-coded int16 tiles in gzip) and the cell lookup.
 - `api.ts`, `sse.ts`: DTOs and the SSE event union, shared by server and client.
 - `i18n.ts`: locale detection, used by the SPA and the server-rendered invite page.
@@ -47,7 +48,7 @@ app.ts          Fastify instance, global hooks (CSRF, headers, rate limit, error
 config.ts       environment parsing (zod)
 db/             db.ts (open, WAL, foreign keys), migrations.ts
 auth/           discord.ts (OAuth client), session.ts, guards.ts (requireMember, requireOwner)
-domain/         business rules without HTTP: users, worlds, marks, importSave, invites, routes
+domain/         business rules without HTTP: users, worlds, marks, importSave, invites, routes, resourceNodes
 http/           thin route handlers, one file per area
 sse/hub.ts      in-memory fan-out of world events
 version/        app version, version guard, maintenance-mode app, rollback command
@@ -80,7 +81,7 @@ Features are modules that plug into extension points. `src/web/app/feature.ts` d
 - `settingsSections`
 - `sseHandlers`: reactions to server events
 
-All features are listed once in `src/web/features/index.ts`. `collect()` flattens one extension point over all features and sorts by `order`. The current features are `worlds`, `marks`, `live`, `map`, `progress`, `biomes`, `caves`, `coords`, `itemPanel`, `quickCheck`, `routes`, `import`, `conflicts`, `sharing`, `listView` and `search`.
+All features are listed once in `src/web/features/index.ts`. `collect()` flattens one extension point over all features and sorts by `order`. The current features are `worlds`, `marks`, `live`, `map`, `progress`, `biomes`, `caves`, `coords`, `resourceNodes`, `itemPanel`, `quickCheck`, `routes`, `import`, `conflicts`, `sharing`, `listView` and `search`.
 
 **Top bar.** `components/Header.tsx` has three parts: the app name, the world name and the `start` header items on the left; the `center` items (the search) in the middle; the tool navigation, the language switch and the account menu on the right. Both sides share the free width equally, so the search stays centred as long as the right side fits into its half. On mobile (below 900 px) the search is a button next to the Tools menu and opens over the bar. The settings page shows neither search nor tools.
 
@@ -105,9 +106,11 @@ While a query is typed, the union of the matches' `actors` goes into the store's
 
 **Stack.** Fastify 5, better-sqlite3, zod, jose, @fastify/cookie, @fastify/static, @fastify/rate-limit.
 
-**Database.** One SQLite file (`DB_PATH`, `/data/app.db` in the container), WAL mode, foreign keys on. Tables: `users`, `identities`, `sessions`, `worlds`, `world_members`, `invite_uses`, `marks`, `routes`. Migrations are an append-only list in `src/server/db/migrations.ts`; entry *i* sets `PRAGMA user_version` to *i*+1. Never edit a released migration; append a new one.
+**Database.** One SQLite file (`DB_PATH`, `/data/app.db` in the container), WAL mode, foreign keys on. Tables: `users`, `identities`, `sessions`, `worlds`, `world_members`, `invite_uses`, `marks`, `routes`, `resource_node_overrides`, `resource_node_extractors`. Migrations are an append-only list in `src/server/db/migrations.ts`; entry *i* sets `PRAGMA user_version` to *i*+1. Never edit a released migration; append a new one.
 
 **Marks.** A row in `marks` means "collected" for one actor in one world, with `mismatch` (conflict flag), `updated_by` and `updated_at`. Each world has a `rev` counter that is bumped on every change and sent with SSE events.
+
+**Resource nodes.** The default nodes are static dataset data (`resource-nodes.json`). A world's own resource and purity per node, as its last save import reports them, are world data on the server: rows in `resource_node_overrides` (node, resource, purity) and the save's node randomisation settings in `worlds.node_settings` (JSON). The extractors standing on nodes in that save are rows in `resource_node_extractors` (node, `seq` per node, kind `miner1`/`miner2`/`miner3`/`oil`/`pressurizer`/`well`/`geothermal`/`portable`, clock speed with 1 = 100 %, Power Shards; clock and shards null for extractors that cannot be overclocked, the portable miner and the geothermal generator). They live on the server, not in the importing browser, because only the owner imports while every member should see the world as it is; they are replaced by every import that sends node data (older clients send none and leave them alone; extractors likewise only when the request has `extractors`). Members read them with `GET /api/worlds/:id/resource-nodes` (`{overrides, settings, extractors}`, `src/shared/api.ts`); the client merges them over the default nodes and refetches on the `import` event.
 
 **Authentication.** Discord OAuth2 authorization code flow with PKCE (S256) and a `state` check. The transaction (state, verifier, return path, optional invite token) is kept in a signed, HttpOnly cookie for ten minutes. After the callback the Discord token is used to read the profile and then discarded. A new account is only created for an ID in `OWNER_DISCORD_IDS` or together with accepting a valid invite, in one transaction.
 
@@ -150,17 +153,17 @@ While a query is typed, the union of the matches' `actors` goes into the store's
 2. The file goes to `src/web/save.worker.ts` as a transferable `ArrayBuffer`. The worker parses it with `@etothepii/satisfactory-file-parser` and reports progress.
 3. `src/shared/extract.ts` collects the names of collected or destroyed actors and looted drop pods, maps aliases (Mercer Shrine to Mercer Sphere) and keeps only names that exist in the dataset.
 4. The UI shows a preview: how many items will be checked and how many conflicts arise.
-5. The client sends `POST /api/worlds/:id/import` with the file name, session name, save time, build and the list of names. The save itself never leaves the browser.
-6. In one transaction the server flags every existing mark as a possible conflict, then inserts the missing marks from the save and clears the flag on marks the save confirms. Marks the save does not confirm stay checked but flagged. It bumps `rev` and broadcasts `import`.
+5. The client sends `POST /api/worlds/:id/import` with the file name, session name, save time, build, the list of names and the save's resource node data (`resourceNodes`: per node the resource class and purity the save sets, the randomisation settings, and `extractors`: per extractor on a node the node name, building kind, clock speed and Power Shards; `src/shared/resourceNodes.ts`). The save itself never leaves the browser.
+6. In one transaction the server replaces the world's resource node overrides and extractors (when sent), flags every existing mark as a possible conflict, then inserts the missing marks from the save and clears the flag on marks the save confirms. Marks the save does not confirm stay checked but flagged. It bumps `rev` and broadcasts `import`.
 7. Members resolve conflicts per item or in bulk ("Trust current data" / "Trust the save"). Bulk actions only touch rows that are still flagged, so a teammate's manual change in the meantime is not overwritten. Undo restores the previous rows.
 
 ## Dataset
 
-The dataset is static and versioned by game version: `<DATASET_DIR>/<game-version>/` with `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/{z}/{x}/{y}.webp`, `icons/` and optionally `caves.geojson` and `height/` (`meta.json` plus 500 m tiles `<ti>_<tj>.bin.gz`, fetched by the browser on hover and unpacked with `DecompressionStream`; tile URLs carry the content hash from `meta.json` because non-JSON files are served as immutable). It is not in the repository and not in the Docker image; it is mounted at run time. The server loads `collectibles.min.json` at start and serves the directory under `/data/`.
+The dataset is static and versioned by game version: `<DATASET_DIR>/<game-version>/` with `collectibles.min.json`, `map.json`, `biomes.geojson`, `crash-sites.json`, `tiles/{z}/{x}/{y}.webp`, `icons/` and optionally `caves.geojson` and `height/` (`meta.json` plus 500 m tiles `<ti>_<tj>.bin.gz`, fetched by the browser on hover and unpacked with `DecompressionStream`; tile URLs carry the content hash from `meta.json` because non-JSON files are served as immutable) and `resource-nodes.json` (`{version, resources: [{id, name}], nodes: [name, kind, resource, purity, x, y, z, core?]}`; kind `node`, `geyser`, `core` or `satellite`, purity `impure`/`normal`/`pure`, null for cores; geysers have the pseudo resource `Geyser`; loaded only by the browser). It is not in the repository and not in the Docker image; it is mounted at run time. The server loads `collectibles.min.json` at start and serves the directory under `/data/`.
 
 `npm run dataset` (`scripts/build-dataset.ts`) builds it from:
 
-- the output of SatisfactoryTools/AssetsExtractor `world-extractor-net` with the patch in `data-src/extractor/` (collectibles, drop-pod requirements, Mercer shrines, cave volumes and the 3D geometry around each cave, the height grid, the map area raster, tiles, icons; see `data-src/extractor/README.md`),
+- the output of SatisfactoryTools/AssetsExtractor `world-extractor-net` with the patch in `data-src/extractor/` (resource nodes from its `--out` file `default-world.json`, collectibles, drop-pod requirements, Mercer shrines, cave volumes and the 3D geometry around each cave, the height grid, the map area raster, tiles, icons; see `data-src/extractor/README.md`),
 - a `--data-src` folder with crash-site data and the hand-drawn biome polygons with their calibration (used only when the extractor output has no `map-areas/`).
 
 The build filters to the registry types, assigns each item a biome and a number within it, adds drop-pod requirements and shrine aliases, and fails on missing types, duplicate names or items without a biome. Each world records the dataset version it was created with.

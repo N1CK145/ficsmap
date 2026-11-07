@@ -38,6 +38,7 @@ The cave geometry export needs about 10 GB of memory; cap the .NET heap so a run
 
 ## Files in `1.2.4.1/`
 
+- `default-world.json`: the extractor's own `--out` file (upstream, not from the patch). `{gameVersion, resourceNodes, geysers, frackingCores}`, see "Resource nodes".
 - `collectibles.json`: `{gameVersion, pickups, dropPods, creatureSpawners}`, entries `{name, class, location:[x,y,z], item?, amount?}`. `name` is the actor name saves use.
 - `map/`: `map.json` (world rectangle x -324698.16..425301.84, y -375000..375000; 8192 px, tile 256, zoom 0-5, webp), `tiles/{z}/{x}/{y}.webp`, `icons/`. About 9.9 MB.
 - `extras.json`: from the patch. `{dropPods: {[actorName]: {costType, item, amount, power}}, shrines: [{name, attachedTo, location}]}`.
@@ -195,3 +196,59 @@ npx tsx scripts/wiki-biomes.ts --wiki-rgb wiki.rgb --map-rgb map.rgb --biomes <d
 ## Rebuild after a game patch
 
 Re-run the commands above against the new install, use the printed gameVersion as the folder name, and diff the class counts against this table. If the patch no longer applies, re-create it: add the `--extras-out` flag, and for every `BP_DropPod_C` / `BP_MercerShrine_C` export in the persistent level and the `_Generated_` cells write the data described above; then `--caves-out` and `--cave-geometry-out` as described in "Caves", `--heightmap-out` as in "Height map" and `--map-areas-out` as in "Map areas".
+
+## Resource nodes (`default-world.json`)
+
+Written by upstream `world-extractor-net` (`--out`). 1.2.5.0: 459 `resourceNodes` `{name, location, resource, purity}`, 31 `geysers` `{name, location, purity}` (no resource), 17 `frackingCores` `{name, location, resource, satellites: [{name, location, purity}]}` with 118 satellites. `resource` is the descriptor class (`Desc_OreIron_C`); `purity` is `RP_Inpure`, `RP_Normal` or `RP_Pure` (the game's own spelling of impure). The dataset build turns it into `resource-nodes.json` (satellites take their core's resource, geysers get the pseudo resource `Geyser`); the 13 resource descriptors have English names in `item-names.json`. Every entry of `item-names.json` equals `mDisplayName` in the game's `CommunityResources/Docs/en-US.json` (build 517554), so `_unverified` is empty.
+
+**Names in saves.** Checked with the saves of one world (builds 493833 and 495413, 20 saves; all started without node randomisation): the save has one object per node in `Persistent_Level`, `BP_ResourceNode_C` (459), `BP_ResourceNodeGeyser_C` (31), `BP_FrackingCore_C` (17) and `BP_FrackingSatellite_C` (118), and their instance names equal `name` here (all 625 match 1:1). Their only saved properties are `mResourcesLeft` (IntProperty) and `mDoSpawnParticle` (BoolProperty); nothing about resource or purity, and the game state (`BP_GameState_C`) has no node settings.
+
+**Randomised nodes (game 1.1+).** The game's reflection data (`FactoryGameSteam-FactoryGame-Win64-Shipping.dll`, 1.2.5.0, install of 2026-11-04) show node randomisation: enum `ENodeRandomizationMode` (`NRM_None`, `NRM_Strict`, `NRM_BasicReach`, `NRM_AdvancedRich`, `NRM_FossilFuelRich`), enum `ENodePuritySettings` (`NPS_NoChange`, `NPS_AllPure`, `NPS_AllNormal`, `NPS_AllImpure`, `NPS_AllRandom`, `NPS_Increase`, `NPS_Decrease`), game-mode options `FG.GameMode.NodeRandomization`, `...NodePuritySettings`, `...NodeRandomizationSeed`, and an `AFGResourceNodeManager` on the world settings. The property flags in the same data say what a save can hold (all of these are `SaveGame`):
+
+| Object in the save | Property | Type in the save | Default (not written) |
+| --- | --- | --- | --- |
+| node, geyser, satellite (`AFGResourceNode`) | `mPurityOverride` | ByteProperty, enum `EResourcePurity`, bare member name `RP_Inpure`/`RP_Normal`/`RP_Pure` (plain C++ enum) | `RP_MAX` (set in the constructor) |
+| every node incl. cores (`AFGResourceNodeBase`) | `mResourceClassOverride` | class reference (ObjectProperty), `pathName` `/Game/.../Desc_Coal.Desc_Coal_C` | none |
+| `BP_GameState_C` (`AFGGameState`) | `mNodeRandomization`, `mNodePuritySettings` | EnumProperty, `ENodeRandomizationMode::NRM_*`, `ENodePuritySettings::NPS_*` | `NRM_None`, `NPS_NoChange` (SML `FGGameState.h`, CL517554) |
+| `BP_GameState_C` | `mNodeRandomizationSeed` | IntProperty | 0 (same header) |
+
+The node's own `mPurity` and `mResourceClass` are not `SaveGame`, so a save never states a node's purity unless it overrides it. Since a save only writes properties that differ from the default, an overridden node carries `mPurityOverride` (and/or `mResourceClassOverride`) and every other node carries neither. The import reads exactly these (`src/shared/resourceNodes.ts`); without them the world keeps the dataset's values. **Not verified:** no save of a randomised world was available, so the override and settings properties have not been seen in a real save; the value forms above come from the reflection data and from writing and re-reading such properties with the parser.
+
+**Seed only.** A randomised save may hold the settings and the seed but no per-node overrides: `AFGResourceNodeManager` (SML `Resources/FGResourceNodeManager.h`, CL517554) can rebuild the layout from the seed when the world loads ("This Stream or just a seed is the only thing that needs to be saved for the Random Nodes Game Mode to work"; its `mSeedStream` is not a `UPROPERTY`). For such a save the import stores the settings, the map keeps the default nodes, and the panel and the import dialog say that the world is randomised but its layout cannot be read. The same holds for anything else the manager decides from the seed: if randomisation leaves nodes without a resource or inactive, nothing in the save says which, so the map cannot show it. Its per-mode `mNodeCountMultiplier` is a class default (`EditDefaultsOnly`, not `SaveGame`); `BP_ResourceNodeManager` sets `NRM_BasicReach` 1.1, `NRM_AdvancedRich` 3.0 and `NRM_FossilFuelRich` 2.0 (build 517554).
+
+**Display names.** The UI names the settings as the game's own settings menu does, not by enum member. The settings assets `US_GM_ResourceRandomization` (`FG.GameMode.NodeRandomization`) and `US_GM_NodePurity` (`FG.GameMode.NodePuritySettings`) under `/Game/FactoryGame/Settings/GameModes/` map each enum value to a string-table key (`Menus_UI`, `AllStringTables.locres`, build 517554):
+
+| Value | Enum member | String-table key | English | German |
+| --- | --- | --- | --- | --- |
+| 0 | `NRM_None` | `Games/GameModes/ResourceRandomization/Default` | Default | Standard |
+| 1 | `NRM_Strict` | `Games/GameModes/ResourceNodePurity/Random` | Random | Zufällig |
+| 2 | `NRM_BasicReach` | `Games/GameModes/ResourceRandomization/BasicRich` | Basic Resource Rich | Reich: Grundressourcen |
+| 3 | `NRM_AdvancedRich` | `Games/GameModes/ResourceRandomization/AdvancedRch` | Advanced Resource Rich | Reich: Fortgeschrittene Ressourcen |
+| 4 | `NRM_FossilFuelRich` | `Games/GameModes/ResourceRandomization/FossilRich` | Fossil Fuel Rich | Reich: Fossile Brennstoffe |
+| 0 | `NPS_NoChange` | `Games/GameModes/ResourceNodePurity/Default` | Default | Standard |
+| 1 | `NPS_AllPure` | `Games/GameModes/ResourceNodePurity/AllPure` | All Pure | Alle rein |
+| 2 | `NPS_AllNormal` | `Games/GameModes/ResourceNodePurity/Average` | Average | Durchschnittlich |
+| 3 | `NPS_AllImpure` | `Games/GameModes/ResourceNodePurity/AllImpure` | All Impure | Alle unrein |
+| 4 | `NPS_AllRandom` | `Games/GameModes/ResourceNodePurity/Random` | Random | Zufällig |
+| 5 | `NPS_Increase` | `Games/GameModes/ResourceNodePurity/MostlyPure` | Mostly Pure | Hauptsächlich rein |
+| 6 | `NPS_Decrease` | `Games/GameModes/ResourceNodePurity/MostlyImpure` | Mostly Impure | Hauptsächlich unrein |
+
+The option names are `Games/GameModes/ResourceRandomName` (Resource Node Randomization / Zufällige Rohstoffvorkommen) and `Games/GameModes/ResourceNodePurityName` (Resource Node Purity / Reinheit von Rohstoffvorkommen). The game's string `Average` carries a trailing space in both languages; the UI drops it. The `UMETA` display names in the SML header (`Strict Randomization`, `No Change`, `Increase`, ...) differ; the settings menu shows the strings above. The enum values come from SML `FGGameState.h` (CL517554); the save may hold a member name or a value, the import accepts both.
+
+
+**Extractors on nodes (saves).** Checked with the same 20 saves of one world (builds 493833 and 495413, save version 60; parser 4.1.2): every extractor is one object in `Persistent_Level` that names its node by an object reference whose `pathName` is the node's instance name (`Persistent_Level:PersistentLevel.BP_ResourceNode586`). In the newest save (autosave of build 495413): 8 `Build_MinerMk1_C`, 17 `Build_MinerMk2_C`, 14 `BP_PortableMiner_C` on 27 nodes (portable miners share nodes: up to 6 on one, and 2 nodes have a portable miner next to a building), 26 Power Shards in miners; every linked node exists in `default-world.json`. 12 `Build_WaterPump_C` link to `FGWaterVolume*` actors, not to nodes, and are not extractors on nodes. Property names and the SaveGame flag were checked in the game's reflection data (`FactoryGameSteam-FactoryGame-Win64-Shipping.dll`, 1.2.5.0); the asset names of the other buildings come from the pak index (`FactoryGame-Windows.utoc`).
+
+| Building (class) | Kind | Seen in a save | Link to the node | Clock and Power Shards |
+| --- | --- | --- | --- | --- |
+| `Build_MinerMk1_C`, `Build_MinerMk2_C`, `Build_MinerMk3_C` | `miner1`-`miner3` | Mk.1, Mk.2 | `mExtractableResource` → `BP_ResourceNode*` | yes |
+| `Build_OilPump_C` | `oil` | no | `mExtractableResource` (`AFGBuildableResourceExtractorBase`) → `BP_ResourceNode*` (oil node) | yes (Docs `mCanChangePotential` True) |
+| `Build_FrackingSmasher_C` (resource well pressurizer) | `pressurizer` | no | `mExtractableResource` → `BP_FrackingCore*` | yes (Docs `mCanChangePotential` True) |
+| `Build_FrackingExtractor_C` (resource well extractor) | `well` | no | `mExtractableResource` → `BP_FrackingSatellite*` | none: Docs say `mCanChangePotential` True, but the game sets the clock at the pressurizer for the whole well (wiki Resource_Well_Pressurizer); clock and shards are always null, the pressurizer row has them |
+| `Build_GeneratorGeoThermal_C` | `geothermal` | no | `mExtractableResource` (its own SaveGame property on `AFGBuildableGeneratorGeoThermal`) → `BP_ResourceNodeGeyser*` | none (Docs `mCanChangePotential` False): clock and shards are always null |
+| `BP_PortableMiner_C` | `portable` | yes | `mExtractResourceNode` | none |
+
+- **Clock speed:** `mPendingPotential` and `mCurrentPotential` (FloatProperty on `AFGBuildableFactory`, 1 = 100 %), absent at the default 1. Pending is what the player set; current can lag behind (one save had a miner with `mPendingPotential` 1.125 and no `mCurrentPotential`), so the import takes pending, then current, then 1. Seen: 1, 1.125, 1.5, 2, 2.25.
+- **Power Shards:** `mInventoryPotential` is a reference to the building's own `FGInventoryComponent` object (`<building instance>.InventoryPotential`, a separate object in the level). With shards it has `mInventoryStacks` (ArrayProperty of `InventoryStack` structs: `Item.value.itemReference.pathName` = `/Game/FactoryGame/Resource/Environment/Crystal/Desc_CrystalShard.Desc_CrystalShard_C`, `NumItems` 1, empty slots with an empty `pathName` and 0); without shards only `mArbitrarySlotSizes` `[1, 1, 1]`. The import counts the shards there. In all 20 saves the count equals the minimum the pending clock needs (one shard per started 50 % above 100 %; against `mCurrentPotential` it did not match in 6 saves, see above). The import still counts them instead of deriving them from the clock, because the game lets a building hold more shards than its clock uses.
+- **Target nodes:** the node classes of the buildings not yet seen in a save are confirmed by the SML headers (CL517554: `FGBuildableFrackingActivator.h` "must be placed on an AFGResourceNodeFrackingCore node", `FGBuildableFrackingExtractor.h` "can only extract resources from an AFGResourceNodeFrackingSatellite node", `FGBuildableGeneratorGeoThermal.h` `mExtractableResource`, the geyser it is placed on) and by satisfactory-calculator's save code.
+- **Limits:** clock speed 1-250 % and three Power Shards (satisfactory.wiki.gg "Clock speed": each shard raises the maximum by 50 % up to three times; Docs `Desc_CrystalShard_C` `mExtraPotential` 0.5). The buildings' `mMaxPotential` (1.0) and `mPotentialShardSlots` (0) in the Docs are the base values before shards, not these limits.
+- **Not verified:** oil extractors, resource well pressurizers and extractors, Mk.3 miners and geothermal generators have not been seen in a real save (none in the available saves); their link property comes from the reflection data and their target node classes from SML and satisfactory-calculator.

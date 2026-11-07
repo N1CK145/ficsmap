@@ -1,5 +1,5 @@
 import {
-  lastWorld, loadLocale, loadPodChecklistCollapsed, loadPodTicks, loadView, saveLocale, savePodChecklistCollapsed, savePodTicks, saveView,
+  lastWorld, loadLocale, loadResourceNodeView, saveResourceNodeView, loadPodChecklistCollapsed, loadPodTicks, loadView, saveLocale, savePodChecklistCollapsed, savePodTicks, saveView,
   setLastWorld, type PersistedView,
 } from '../../src/web/app/persist.js';
 
@@ -79,5 +79,15 @@ describe('persist', () => {
     expect(loadPodTicks('w1', 'r1')).toEqual(new Set());
     expect(loadView('w1')).toBeNull();
     expect(lastWorld()).toBeNull();
+  });
+
+  it('remembers the resource node layer and keeps only valid filter values', () => {
+    expect(loadResourceNodeView()).toEqual({ visible: false, hiddenResources: [], purities: ['impure', 'normal', 'pure'], occupancy: 'all' });
+    saveResourceNodeView({ visible: true, hiddenResources: ['Desc_Coal_C'], purities: ['pure'], occupancy: 'free' });
+    expect(loadResourceNodeView()).toEqual({ visible: true, hiddenResources: ['Desc_Coal_C'], purities: ['pure'], occupancy: 'free' });
+    localStorage.setItem('ficsmap:resourceNodes', JSON.stringify({ visible: 'yes', hiddenResources: ['A', 3], purities: ['pure', 'shiny', 'impure'], occupancy: 'busy' }));
+    expect(loadResourceNodeView()).toEqual({ visible: false, hiddenResources: ['A'], purities: ['impure', 'pure'], occupancy: 'all' });
+    localStorage.setItem('ficsmap:resourceNodes', '{not json');
+    expect(loadResourceNodeView().purities).toHaveLength(3);
   });
 });

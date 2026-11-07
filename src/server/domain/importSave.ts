@@ -1,9 +1,13 @@
 import type { Db } from '../db/db.js';
 import type { DatasetIndex } from '../../shared/dataset.js';
 import type { ImportRequest, ImportResultDto } from '../../shared/api.js';
+import { replaceResourceNodes } from './resourceNodes.js';
 import { bumpRev } from './worlds.js';
 
-/** Spec §7: marks the save does not report get mismatch=1; names in the save are inserted or cleared to mismatch=0. */
+/**
+ * Spec §7: marks the save does not report get mismatch=1; names in the save are inserted or cleared to mismatch=0.
+ * Resource node data in the request replace the world's (the save describes the whole world).
+ */
 export function applyImport(
   db: Db, worldId: string, req: ImportRequest, index: DatasetIndex, userId: number, now: number,
 ): ImportResultDto {
@@ -25,6 +29,7 @@ export function applyImport(
     }
     const flagged = db.prepare('SELECT actor_name FROM marks WHERE world_id = ? AND mismatch = 1').all(worldId) as { actor_name: string }[];
     const conflicts = flagged.filter(r => index.has(r.actor_name)).length;
+    if (req.resourceNodes) replaceResourceNodes(db, worldId, req.resourceNodes);
     const rev = bumpRev(db, worldId);
     db.prepare('UPDATE worlds SET last_import_at = ?, last_import_meta = ? WHERE id = ?').run(
       now, JSON.stringify({ fileName: req.fileName, sessionName: req.sessionName, saveTime: req.saveTime, build: req.build }), worldId,
