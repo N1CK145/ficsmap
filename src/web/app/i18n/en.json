@@ -691,7 +691,8 @@
         "wanted": "Wanted item"
       }
     },
-    "gameModeNote": "Values are for the default game mode; game mode settings (recipe costs, power consumption, randomised node purity) are not taken into account."
+    "gameModeNote": "Values are for the default game mode; game mode settings (recipe costs, power consumption, randomised node purity) are not taken into account.",
+    "lastWorking": "Below is the last plan that worked; correct the value and it updates."
   },
   "vehicleCalc": {
     "open": "Vehicles",

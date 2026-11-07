@@ -50,16 +50,23 @@ function PlannerBody({ index, lang }: { index: RecipeIndex; lang: Lang }) {
       settings: { miner: minerId, clock: parseNumber(settings.clock) / 100, purity: settings.purity },
     });
   }, [index, targets, choices, stepInputs, settings, minerId]);
+  // A setting that breaks the plan (a clock speed out of range, a loop that cannot work) keeps the last working
+  // plan on screen, so the step editor with the field to correct stays reachable.
+  const lastOk = useRef<Extract<PlanResult, { ok: true }> | null>(null);
+  if (result?.ok) lastOk.current = result;
+  const stale = result !== null && !result.ok && result.error !== 'no-targets' && result.error !== 'unknown-item' ? lastOk.current : null;
+  const shown = result?.ok ? result : stale;
 
   return (
     <div className="flex flex-col gap-5">
       <Targets index={index} lang={lang} />
       <ExtractorSettings minerId={minerId} miners={miners.map(m => ({ value: m.id, label: m.name[lang] }))} limits={limits} />
       {result && !result.ok && <PlanError result={result} index={index} lang={lang} limits={limits} />}
-      {result?.ok && (
+      {stale && <p className="text-sm text-muted">{t('planner.lastWorking')}</p>}
+      {shown && (
         <>
-          <Steps steps={result.steps} index={index} lang={lang} minerId={minerId} defaultClock={settings.clock} />
-          <Totals result={result} index={index} lang={lang} />
+          <Steps steps={shown.steps} index={index} lang={lang} minerId={minerId} defaultClock={settings.clock} />
+          <Totals result={shown} index={index} lang={lang} />
         </>
       )}
     </div>

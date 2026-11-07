@@ -691,7 +691,8 @@
         "wanted": "Gewünschter Gegenstand"
       }
     },
-    "gameModeNote": "Die Werte gelten für den Standard-Spielmodus; Einstellungen des Spielmodus (Rezeptkosten, Stromverbrauch, zufällige Reinheit der Rohstoffvorkommen) werden nicht berücksichtigt."
+    "gameModeNote": "Die Werte gelten für den Standard-Spielmodus; Einstellungen des Spielmodus (Rezeptkosten, Stromverbrauch, zufällige Reinheit der Rohstoffvorkommen) werden nicht berücksichtigt.",
+    "lastWorking": "Unten steht der letzte gültige Plan; korrigiere den Wert, dann wird er aktualisiert."
   },
   "vehicleCalc": {
     "open": "Fahrzeuge",

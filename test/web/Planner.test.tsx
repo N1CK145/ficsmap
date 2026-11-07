@@ -148,6 +148,12 @@ describe('production planner', () => {
     await userEvent.clear(within(stepOf('ore')).getByLabelText('Clock speed (%)'));
     await userEvent.type(within(stepOf('ore')).getByLabelText('Clock speed (%)'), '300');
     expect(screen.getByRole('alert')).toHaveTextContent('The clock speed for ore must be a number from 1 to 250.');
+    // The last working plan stays, so the field can be corrected right there.
+    expect(screen.getByText(/last plan that worked/)).toBeInTheDocument();
+    await userEvent.clear(within(stepOf('ore')).getByLabelText('Clock speed (%)'));
+    await userEvent.type(within(stepOf('ore')).getByLabelText('Clock speed (%)'), '200');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(/last plan that worked/)).toBeNull();
   });
 
   it('runs a resource well at its pressurizer\'s clock speed, with its shards, power and the game mode note', async () => {

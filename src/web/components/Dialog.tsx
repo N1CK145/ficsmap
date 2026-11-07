@@ -40,7 +40,7 @@ export function Dialog({ open, onClose, title, labelledBy, children, footer, wid
       // Esc: the parent decides. A close the browser forces anyway (or a form method=dialog) is reported too.
       onCancel={e => { e.preventDefault(); onClose(); }}
       onClose={() => { if (open) onClose(); }}
-      className={`m-auto w-[calc(100%-2rem)] ${wide ? 'max-w-3xl' : 'max-w-md'} rounded border border-line bg-panel p-0 text-fg backdrop:bg-bg/70`}
+      className={`m-auto w-[calc(100%-2rem)] ${wide ? 'max-w-6xl' : 'max-w-md'} rounded border border-line bg-panel p-0 text-fg backdrop:bg-bg/70`}
     >
       {open && (
         <>
