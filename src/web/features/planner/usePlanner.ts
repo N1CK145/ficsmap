@@ -16,6 +16,9 @@ export interface PlannerSettingsInput {
 /** Per step: clock speed in percent as typed, node purity. Missing = the default. */
 export interface PlannerStepInput { clock?: string; purity?: Purity }
 
+/** How the steps are shown: a diagram from left to right, or a list. */
+export type PlannerView = 'diagram' | 'list';
+
 export interface PlannerState {
   visible: boolean;
   targets: PlannerTarget[];
@@ -24,6 +27,7 @@ export interface PlannerState {
   /** Per item: its step's clock speed and purity. */
   steps: Record<string, PlannerStepInput>;
   settings: PlannerSettingsInput;
+  view: PlannerView;
   toggle(): void;
   open(): void;
   close(): void;
@@ -34,13 +38,15 @@ export interface PlannerState {
   /** Merges into an item's step settings; an empty clock or undefined value goes back to the default. */
   setStep(item: string, patch: PlannerStepInput): void;
   setSettings(patch: Partial<PlannerSettingsInput>): void;
+  setView(view: PlannerView): void;
+  /** Back to an empty plan; the view stays. */
   reset(): void;
 }
 
 const STORAGE_KEY = 'ficsmap:planner';
 const DEFAULT_SETTINGS: PlannerSettingsInput = { miner: null, clock: '100', purity: 'normal' };
 
-interface Persisted { targets: PlannerTarget[]; choices: Record<string, Choice>; steps: Record<string, PlannerStepInput>; settings: PlannerSettingsInput }
+interface Persisted { targets: PlannerTarget[]; choices: Record<string, Choice>; steps: Record<string, PlannerStepInput>; settings: PlannerSettingsInput; view: PlannerView }
 
 const isStr = (v: unknown): v is string => typeof v === 'string';
 const isPurity = (v: unknown): v is Purity => isStr(v) && Object.hasOwn(PURITY_FACTOR, v);
@@ -84,7 +90,8 @@ export function loadPlanner(): Persisted | null {
       clock: isStr(s.clock) ? s.clock : DEFAULT_SETTINGS.clock,
       purity: isPurity(s.purity) ? s.purity : DEFAULT_SETTINGS.purity,
     };
-    return { targets, choices, steps, settings };
+    const view: PlannerView = d.view === 'list' ? 'list' : 'diagram';
+    return { targets, choices, steps, settings, view };
   } catch {
     return null;
   }
@@ -93,7 +100,7 @@ export function loadPlanner(): Persisted | null {
 function save(s: Persisted): void {
   try {
     const choices = Object.fromEntries(Object.entries(s.choices).map(([k, c]) => [k, choiceKey(c)]));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ targets: s.targets.map(t => ({ item: t.item, rate: t.rate })), choices, steps: s.steps, settings: s.settings }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ targets: s.targets.map(t => ({ item: t.item, rate: t.rate })), choices, steps: s.steps, settings: s.settings, view: s.view }));
   } catch {
     // Not remembering is fine.
   }
@@ -104,18 +111,21 @@ const emptyTarget = (key: number): PlannerTarget => ({ key, item: null, rate: '6
 function initial(): Persisted {
   const stored = loadPlanner();
   if (stored && stored.targets.length > 0) return stored;
-  return { targets: [emptyTarget(1)], choices: stored?.choices ?? {}, steps: stored?.steps ?? {}, settings: stored?.settings ?? { ...DEFAULT_SETTINGS } };
+  return {
+    targets: [emptyTarget(1)], choices: stored?.choices ?? {}, steps: stored?.steps ?? {}, settings: stored?.settings ?? { ...DEFAULT_SETTINGS },
+    view: stored?.view ?? 'diagram',
+  };
 }
 
 /**
- * The production planner's state: open or closed, and the plan (targets, choices, settings),
- * remembered on the device. `{ visible, toggle }` is the shape the header's tool navigation expects.
+ * The production planner's state: open or closed, and the plan (targets, choices, settings) and the
+ * view, remembered on the device. `{ visible, toggle }` is the shape the header's tool navigation expects.
  */
 export const usePlanner = create<PlannerState>()((set, get) => {
   const update = (patch: Partial<Persisted>) => {
     set(patch);
-    const { targets, choices, steps, settings } = get();
-    save({ targets, choices, steps, settings });
+    const { targets, choices, steps, settings, view } = get();
+    save({ targets, choices, steps, settings, view });
   };
   const nextKey = () => Math.max(0, ...get().targets.map(t => t.key)) + 1;
   return {
@@ -147,6 +157,7 @@ export const usePlanner = create<PlannerState>()((set, get) => {
       update({ steps });
     },
     setSettings: patch => update({ settings: { ...get().settings, ...patch } }),
+    setView: view => update({ view }),
     reset: () => update({ targets: [emptyTarget(1)], choices: {}, steps: {}, settings: { ...DEFAULT_SETTINGS } }),
   };
 });

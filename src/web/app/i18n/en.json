@@ -664,6 +664,33 @@
     "surplus": "Surplus",
     "shardsPressurizer": "{count, plural, one {# Power Shard} other {# Power Shards}} per {name}",
     "wellClock": "The clock speed is set at the {name} and applies to all extractors of the resource well; the extractors themselves cannot be overclocked and need no power.",
+    "view": "View",
+    "viewOption": {
+      "diagram": "Diagram",
+      "list": "List"
+    },
+    "diagram": {
+      "label": "Production chain",
+      "hint": "Wanted items on the left, what goes into them to the right, extractors at the right end. Select a step to change its recipe, clock speed or purity; the arrow keys move between the steps.",
+      "wanted": "wanted: {value}",
+      "alt": "Alternate",
+      "alternate": "{recipe} (alternate recipe)",
+      "clock": "{value, number} %",
+      "clockLong": "Clock speed {value, number} %",
+      "shards": "{count, plural, one {# Power Shard} other {# Power Shards}}",
+      "byproducts": "+ by-products",
+      "covered": "From by-products",
+      "autoLoop": "Automatically, avoids a loop",
+      "editor": "Edit {item}",
+      "close": "Stop editing {item}",
+      "legend": {
+        "label": "Legend",
+        "input": "Goes into the step the arrow points to, per minute",
+        "byproduct": "By-product of another step",
+        "loop": "Loop",
+        "wanted": "Wanted item"
+      }
+    },
     "gameModeNote": "Values are for the default game mode; game mode settings (recipe costs, power consumption, randomised node purity) are not taken into account."
   },
   "vehicleCalc": {

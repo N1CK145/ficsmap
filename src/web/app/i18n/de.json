@@ -664,6 +664,33 @@
     "surplus": "Überschuss",
     "shardsPressurizer": "{count, plural, one {# Energiefragment} other {# Energiefragmente}} je {name}",
     "wellClock": "Die Taktrate wird am {name} eingestellt und gilt für alle Extraktoren der Rohstoffquelle; die Extraktoren selbst lassen sich nicht übertakten und brauchen keinen Strom.",
+    "view": "Ansicht",
+    "viewOption": {
+      "diagram": "Diagramm",
+      "list": "Liste"
+    },
+    "diagram": {
+      "label": "Produktionskette",
+      "hint": "Gewünschte Gegenstände links, was in sie eingeht rechts davon, Extraktoren ganz rechts. Wähle einen Schritt aus, um Rezept, Taktrate oder Reinheit zu ändern; mit den Pfeiltasten wechselst du zwischen den Schritten.",
+      "wanted": "gewünscht: {value}",
+      "alt": "Alternativ",
+      "alternate": "{recipe} (Alternativrezept)",
+      "clock": "{value, number} %",
+      "clockLong": "Taktrate {value, number} %",
+      "shards": "{count, plural, one {# Energiefragment} other {# Energiefragmente}}",
+      "byproducts": "+ Nebenprodukte",
+      "covered": "Aus Nebenprodukten",
+      "autoLoop": "Automatisch, vermeidet einen Kreislauf",
+      "editor": "{item} bearbeiten",
+      "close": "Bearbeitung von {item} schließen",
+      "legend": {
+        "label": "Legende",
+        "input": "Geht in den Schritt, auf den der Pfeil zeigt, pro Minute",
+        "byproduct": "Nebenprodukt eines anderen Schritts",
+        "loop": "Kreislauf",
+        "wanted": "Gewünschter Gegenstand"
+      }
+    },
     "gameModeNote": "Die Werte gelten für den Standard-Spielmodus; Einstellungen des Spielmodus (Rezeptkosten, Stromverbrauch, zufällige Reinheit der Rohstoffvorkommen) werden nicht berücksichtigt."
   },
   "vehicleCalc": {
