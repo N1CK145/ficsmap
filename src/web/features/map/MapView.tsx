@@ -22,6 +22,7 @@ import { CONFLICT_PULSE_MS, newConflicts } from './conflictPulse.js';
 import { DOT_ZOOM, markerState, markerVisual, podBadge, type MarkerState } from './markerStyle.js';
 import { MarkerLayer, type DrawMarker } from './MarkerLayer.js';
 import { prefersReducedMotion } from './motion.js';
+import { currentMaxZoom } from './zoom.js';
 
 const MAX_BOUNDS = L.latLngBounds(IMAGE_BOUNDS).pad(0.1);
 /** Hit radius: covers the 42 px icon marker (mouse); half of the 44 px touch hit area (spec §10.1). */
@@ -67,7 +68,8 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
         {...initial}
         crs={L.CRS.Simple}
         minZoom={0}
-        maxZoom={7}
+        // 7, or more while a layer that draws fine detail is on (zoom.ts); layers change it later with setMaxZoom.
+        maxZoom={currentMaxZoom()}
         // Whole zoom levels only: scaled tiles at fractional zooms show seams.
         zoomSnap={1}
         maxBounds={MAX_BOUNDS}

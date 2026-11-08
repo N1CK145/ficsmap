@@ -1153,5 +1153,125 @@
       "older": "Add older saves",
       "member": "{owner} owns this world and can import saves. Then the factory shows here."
     }
+  },
+  "factoryMap": {
+    "title": "Factory plan",
+    "control": "Factory plan",
+    "hint": "Draw what your saves have built on the map: buildings, belts, roads, stations and vehicles, with a timeline",
+    "show": "Show the factory",
+    "on": "On",
+    "off": "Off",
+    "colorMode": "Colour by",
+    "colorModes": {
+      "category": "Category",
+      "productivity": "Productivity"
+    },
+    "legend": "Legend",
+    "layersLabel": "Layers",
+    "layers": {
+      "floor": "Floor plan",
+      "buildings": "Buildings",
+      "lines": "Belts and pipes",
+      "power": "Power lines",
+      "roads": "Roads, stations, vehicles",
+      "markers": "Map markers",
+      "crates": "Crates",
+      "fog": "Explored area"
+    },
+    "kinds": {
+      "production": "Production",
+      "extraction": "Extraction",
+      "power": "Power",
+      "building": "Storage, stations and other buildings",
+      "logistics": "Logistics (splitters, lifts, poles)",
+      "structure": "Foundations"
+    },
+    "showOnMapHint": "Outline these on the map and zoom to them",
+    "clearHighlight": "Clear the outline ({count, plural, one {# building} other {# buildings}})",
+    "perMin": "{value} /min",
+    "noMeasurement": "No productivity measured",
+    "productivityValue": "Productivity {value}",
+    "station": {
+      "loading": "Loading",
+      "unloading": "Unloading",
+      "idleShort": "no vehicles",
+      "rateShort": "{dir} {rate} /min",
+      "mode": "Mode",
+      "throughput": "Items moved",
+      "interval": "Vehicle docks",
+      "vehicles": "{count, plural, one {# vehicle} other {# vehicles}}",
+      "vehicleRow": "{rate} · {perDock} per dock · every {time}",
+      "state": {
+        "idle": "No vehicle docks here.",
+        "empty": "Vehicles dock here but move nothing: empty runs.",
+        "active": "In use. Figures are the game's own averages per vehicle."
+      },
+      "every": "every {time}"
+    },
+    "vehicle": {
+      "kind": "Vehicle",
+      "autopilot": "Autopilot",
+      "autopilotOn": "Autopilot on",
+      "autopilotOff": "Autopilot off",
+      "on": "On",
+      "off": "Off",
+      "fuel": "Fuel",
+      "loads": "Loads",
+      "unloads": "Unloads",
+      "route": "Route ({count, plural, one {# stop} other {# stops}})",
+      "noRoute": "No saved route.",
+      "roundTrip": "Round trip (estimated)"
+    },
+    "info": {
+      "close": "Close",
+      "newSince": "New since {date}",
+      "production": "Production",
+      "productivity": "Productivity",
+      "recipe": "Recipe",
+      "clock": "Clock speed",
+      "shards": "Power Shards",
+      "somersloops": "Somersloops",
+      "output": "Output",
+      "actualOf": "{actual} of {at}",
+      "onNode": "Stands on a resource node.",
+      "signText": "Text",
+      "change": "Before {before} ({delta})",
+      "lost": "Loses {rate}",
+      "power": "Power"
+    },
+    "panel": {
+      "save": "Save of {date}: {buildings} buildings, {machines} with productivity",
+      "transport": "Stations and vehicles",
+      "transportSummary": "{stations, plural, one {# station} other {# stations}}, {vehicles, plural, one {# vehicle} other {# vehicles}}",
+      "stops": "{count, plural, =0 {no route} one {# stop} other {# stops}}"
+    },
+    "empty": {
+      "title": "No factory data yet",
+      "owner": "Import a save to see what is built in this world. Older saves of the same world fill the timeline.",
+      "member": "The factory shows once the owner of this world imports a save.",
+      "import": "Import save",
+      "older": "Add older saves"
+    },
+    "timeline": {
+      "label": "Timeline",
+      "previous": "Previous save",
+      "next": "Next save",
+      "position": "{index} of {count}",
+      "loading": "Loading…",
+      "changes": "Changes",
+      "compareWith": "Compare with",
+      "comparePrevious": "The save before",
+      "slider": "Save",
+      "comparedWith": "Compared with {date}:",
+      "added": "{count, plural, one {+{n} building} other {+{n} buildings}}",
+      "removed": "{count, plural, one {−{n} removed} other {−{n} removed}}",
+      "floor": "Foundations +{added} −{removed}",
+      "lines": "Belts, pipes, roads +{added} −{removed}",
+      "nothingToCompare": "No other save to compare with.",
+      "better": "{count, plural, one {{n} better} other {{n} better}}",
+      "worse": "{count, plural, one {{n} worse} other {{n} worse}}"
+    },
+    "noProduction": "Buildings without production",
+    "reasonsLabel": "Reasons"
   }
 }

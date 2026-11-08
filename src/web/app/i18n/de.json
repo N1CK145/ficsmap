@@ -1153,5 +1153,125 @@
       "older": "Ältere Spielstände hinzufügen",
       "member": "{owner} besitzt diese Welt und kann Spielstände importieren. Dann erscheint die Fabrik hier."
     }
+  },
+  "factoryMap": {
+    "title": "Fabrikplan",
+    "control": "Fabrikplan",
+    "hint": "Zeichnet auf die Karte, was deine Spielstände gebaut haben: Gebäude, Förderbänder, Wege, Stationen und Fahrzeuge, mit Zeitstrahl",
+    "show": "Fabrik anzeigen",
+    "on": "An",
+    "off": "Aus",
+    "colorMode": "Färben nach",
+    "colorModes": {
+      "category": "Kategorie",
+      "productivity": "Produktivität"
+    },
+    "legend": "Legende",
+    "layersLabel": "Ebenen",
+    "layers": {
+      "floor": "Grundriss",
+      "buildings": "Gebäude",
+      "lines": "Förderbänder und Rohre",
+      "power": "Stromleitungen",
+      "roads": "Wege, Stationen, Fahrzeuge",
+      "markers": "Kartenmarkierungen",
+      "crates": "Kisten",
+      "fog": "Erkundet"
+    },
+    "kinds": {
+      "production": "Produktion",
+      "extraction": "Rohstoffgewinnung",
+      "power": "Strom",
+      "building": "Lager, Stationen und andere Gebäude",
+      "logistics": "Logistik (Splitter, Lifte, Masten)",
+      "structure": "Fundamente"
+    },
+    "showOnMapHint": "Auf der Karte umranden und hinzoomen",
+    "clearHighlight": "Umrandung aufheben ({count, plural, one {# Gebäude} other {# Gebäude}})",
+    "perMin": "{value} /min",
+    "noMeasurement": "Keine Produktivität gemessen",
+    "productivityValue": "Produktivität {value}",
+    "station": {
+      "loading": "Beladen",
+      "unloading": "Entladen",
+      "idleShort": "keine Fahrzeuge",
+      "rateShort": "{dir} {rate} /min",
+      "mode": "Modus",
+      "throughput": "Bewegte Gegenstände",
+      "interval": "Fahrzeug dockt",
+      "vehicles": "{count, plural, one {# Fahrzeug} other {# Fahrzeuge}}",
+      "vehicleRow": "{rate} · {perDock} pro Andocken · alle {time}",
+      "state": {
+        "idle": "Hier dockt kein Fahrzeug.",
+        "empty": "Fahrzeuge docken hier, bewegen aber nichts: Leerfahrten.",
+        "active": "In Betrieb. Die Werte sind die Durchschnitte des Spiels pro Fahrzeug."
+      },
+      "every": "alle {time}"
+    },
+    "vehicle": {
+      "kind": "Fahrzeug",
+      "autopilot": "Autopilot",
+      "autopilotOn": "Autopilot an",
+      "autopilotOff": "Autopilot aus",
+      "on": "An",
+      "off": "Aus",
+      "fuel": "Brennstoff",
+      "loads": "Lädt",
+      "unloads": "Entlädt",
+      "route": "Route ({count, plural, one {# Halt} other {# Halte}})",
+      "noRoute": "Keine gespeicherte Route.",
+      "roundTrip": "Rundfahrt (geschätzt)"
+    },
+    "info": {
+      "close": "Schließen",
+      "newSince": "Neu seit {date}",
+      "production": "Produktion",
+      "productivity": "Produktivität",
+      "recipe": "Rezept",
+      "clock": "Taktrate",
+      "shards": "Energiefragmente",
+      "somersloops": "Somersloops",
+      "output": "Ausgabe",
+      "actualOf": "{actual} von {at}",
+      "onNode": "Steht auf einem Rohstoffvorkommen.",
+      "signText": "Text",
+      "change": "Vorher {before} ({delta})",
+      "lost": "Verliert {rate}",
+      "power": "Strom"
+    },
+    "panel": {
+      "save": "Spielstand vom {date}: {buildings} Gebäude, {machines} mit Produktivität",
+      "transport": "Stationen und Fahrzeuge",
+      "transportSummary": "{stations, plural, one {# Station} other {# Stationen}}, {vehicles, plural, one {# Fahrzeug} other {# Fahrzeuge}}",
+      "stops": "{count, plural, =0 {keine Route} one {# Halt} other {# Halte}}"
+    },
+    "empty": {
+      "title": "Noch keine Fabrikdaten",
+      "owner": "Importiere einen Spielstand, um zu sehen, was in dieser Welt gebaut ist. Ältere Spielstände derselben Welt füllen den Zeitstrahl.",
+      "member": "Die Fabrik erscheint, sobald der Besitzer dieser Welt einen Spielstand importiert.",
+      "import": "Spielstand importieren",
+      "older": "Ältere Spielstände hinzufügen"
+    },
+    "timeline": {
+      "label": "Zeitstrahl",
+      "previous": "Vorheriger Spielstand",
+      "next": "Nächster Spielstand",
+      "position": "{index} von {count}",
+      "loading": "Lädt …",
+      "changes": "Änderungen",
+      "compareWith": "Vergleichen mit",
+      "comparePrevious": "Dem Spielstand davor",
+      "slider": "Spielstand",
+      "comparedWith": "Verglichen mit {date}:",
+      "added": "{count, plural, one {+{n} Gebäude} other {+{n} Gebäude}}",
+      "removed": "{count, plural, one {−{n} entfernt} other {−{n} entfernt}}",
+      "floor": "Fundamente +{added} −{removed}",
+      "lines": "Förderbänder, Rohre, Wege +{added} −{removed}",
+      "nothingToCompare": "Kein anderer Spielstand zum Vergleichen.",
+      "better": "{count, plural, one {{n} besser} other {{n} besser}}",
+      "worse": "{count, plural, one {{n} schlechter} other {{n} schlechter}}"
+    },
+    "noProduction": "Gebäude ohne Produktion",
+    "reasonsLabel": "Gründe"
   }
 }

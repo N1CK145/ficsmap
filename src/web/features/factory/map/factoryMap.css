@@ -1,0 +1,16 @@
+/* The factory map's info window floats over the right of the map like the item panel: the zoom keys and the map's
+   controls move to its left (8 px margin + 340 px). */
+@media (min-width: 900px) {
+  .ficsmap-map-root:has(.ficsmap-factory-info) .leaflet-right {
+    right: 348px;
+  }
+
+  .ficsmap-map-root:has(.ficsmap-factory-info) .ficsmap-map-controls {
+    right: calc(348px + 10px);
+  }
+}
+
+/* The explored-area veil: smooth edges when scaled up. */
+.ficsmap-factory-fog {
+  image-rendering: auto;
+}

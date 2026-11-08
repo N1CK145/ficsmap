@@ -16,20 +16,25 @@ export const FactoryIcon = ({ size }: { size?: number }) => (
   <Icon size={size}><path d="M1.5 14V7l4 2.5V7l4 2.5V2.5h3V14zM1.5 14h13" /><path d="M5 12h1.5M9 12h1.5" /></Icon>
 );
 
-/** One glyph per reason, so a reason never depends on its colour alone (the text says it too). */
+/**
+ * One glyph per reason, so a reason never depends on its colour alone (the text says it too). The SVG paths (16 × 16,
+ * stroked) are shared with the factory map's canvas, which draws the same glyphs with `Path2D`.
+ */
+export const REASON_PATHS: Record<Reason, string> = {
+  // an empty input: an arrow into an open box
+  starved: 'M2 8h6M5.5 5.5L8 8l-2.5 2.5M10 3.5h3.5v9H10',
+  // the output is full: a filled box with a stop bar
+  blocked: 'M2.5 3.5h7v9h-7zM2.5 8h7M12.5 3v10',
+  noPower: 'M9 1.5L3.5 9H8l-1 5.5L12.5 7H8z',
+  noFuel: 'M8 2s4 4.5 4 7.5a4 4 0 01-8 0C4 6.5 8 2 8 2zM3 13L13 3',
+  paused: 'M5.5 3.5v9M10.5 3.5v9',
+  noRecipe: 'M3.5 2.5h9v11h-9zM6 6.5a2 2 0 113 1.7c-.6.4-1 .8-1 1.5M8 11.5v.01',
+  // ran only part of the time: a wave
+  unknown: 'M1.5 9c1.5-3 3-3 4.5 0s3 3 4.5 0 3-3 4 0',
+};
+
 export function ReasonIcon({ reason, size = 14 }: { reason: Reason; size?: number }) {
-  switch (reason) {
-    // an empty input: an arrow into an open box
-    case 'starved': return <Icon size={size}><path d="M2 8h6M5.5 5.5L8 8l-2.5 2.5M10 3.5h3.5v9H10" /></Icon>;
-    // the output is full: a filled box with a stop bar
-    case 'blocked': return <Icon size={size}><path d="M2.5 3.5h7v9h-7zM2.5 8h7M12.5 3v10" /></Icon>;
-    case 'noPower': return <Icon size={size}><path d="M9 1.5L3.5 9H8l-1 5.5L12.5 7H8z" /></Icon>;
-    case 'noFuel': return <Icon size={size}><path d="M8 2s4 4.5 4 7.5a4 4 0 01-8 0C4 6.5 8 2 8 2zM3 13L13 3" /></Icon>;
-    case 'paused': return <Icon size={size}><path d="M5.5 3.5v9M10.5 3.5v9" /></Icon>;
-    case 'noRecipe': return <Icon size={size}><path d="M3.5 2.5h9v11h-9zM6 6.5a2 2 0 113 1.7c-.6.4-1 .8-1 1.5M8 11.5v.01" /></Icon>;
-    // ran only part of the time: a wave
-    case 'unknown': return <Icon size={size}><path d="M1.5 9c1.5-3 3-3 4.5 0s3 3 4.5 0 3-3 4 0" /></Icon>;
-  }
+  return <Icon size={size}><path d={REASON_PATHS[reason]} /></Icon>;
 }
 
 /** Shown on the map: a crosshair over a pin. */
