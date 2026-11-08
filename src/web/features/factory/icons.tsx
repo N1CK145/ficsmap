@@ -43,3 +43,8 @@ export function ReasonIcon({ reason, size = 14 }: { reason: Reason; size?: numbe
 export const LocateIcon = ({ size = 14 }: { size?: number }) => (
   <Icon size={size}><circle cx="8" cy="8" r="4.5" /><path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" /><circle cx="8" cy="8" r="1" /></Icon>
 );
+
+/** A full belt or pipe: a warning triangle. */
+export const FullIcon = ({ size = 12 }: { size?: number }) => (
+  <Icon size={size}><path d="M8 2L14.5 13.5h-13zM8 6.5v3.5M8 12v.01" /></Icon>
+);

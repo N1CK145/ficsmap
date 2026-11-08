@@ -62,7 +62,19 @@ const EPS = 1e-9;
 
 export interface Point { x: number; y: number }
 
+/** A node of any graph to lay out: its key and its row (0 = the top); optionally a width of its own. */
+export interface GraphNode {
+  id: string;
+  row: number;
+  /** Width of this node; `nodeWidth` when left out. */
+  width?: number;
+}
+
+/** An edge of any graph to lay out: from one node's key to another's. Several may join the same two nodes. */
+export interface GraphLink { from: string; to: string }
+
 export interface DiagramNode {
+  /** The node's key (the planner's item, a `GraphNode`'s id). */
   item: string;
   /** 0 = the top row (extraction). */
   row: number;
@@ -87,19 +99,19 @@ export interface DiagramLink {
   loop: boolean;
 }
 
-export interface DiagramEdge extends DiagramLink {
+export type DiagramEdge<L extends GraphLink = DiagramLink> = L & {
   /** The points the path runs through, from `from` to `to` (the arrowhead). */
   points: Point[];
   /** SVG path data. */
   path: string;
   /** Centre of the rate label, on the straight piece next to `to`, and its available width. */
   label: Point & { width: number };
-}
+};
 
-export interface DiagramLayout {
+export interface DiagramLayout<L extends GraphLink = DiagramLink> {
   /** By row from the top, then from the left. */
   nodes: DiagramNode[];
-  edges: DiagramEdge[];
+  edges: DiagramEdge<L>[];
   rows: number;
   width: number;
   height: number;
@@ -193,16 +205,26 @@ function curve(points: readonly Point[]): string {
 interface Slot { row: number; size: number; node?: string }
 type Side = 't' | 'b';
 
+/** The planner's plan laid out: a node per step in its row (`diagramRows`), the edges of `diagramLinks`. */
 export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<DiagramOptions> = {}): DiagramLayout {
-  const o: DiagramOptions = { ...DIAGRAM_DEFAULTS, ...options };
-  if (steps.length === 0) return { nodes: [], edges: [], rows: 0, width: 0, height: 0 };
   const rowOf = diagramRows(steps);
-  const links = diagramLinks(steps);
+  return layoutGraph(steps.map(s => ({ id: s.item, row: rowOf.get(s.item)! })), diagramLinks(steps), options);
+}
+
+/**
+ * Any graph laid out from top to bottom like the planner's plan: each node in its given row (the order given is the
+ * first order within a row), edges through lanes, ordered and placed as described at the top of this module. Edges
+ * may point down, up (into the bottom of the upper node) or stay in a row (an arc over it). Pure and deterministic.
+ */
+export function layoutGraph<L extends GraphLink>(graph: readonly GraphNode[], links: readonly L[], options: Partial<DiagramOptions> = {}): DiagramLayout<L> {
+  const o: DiagramOptions = { ...DIAGRAM_DEFAULTS, ...options };
+  if (graph.length === 0) return { nodes: [], edges: [], rows: 0, width: 0, height: 0 };
+  const rowOf = new Map(graph.map(n => [n.id, n.row]));
   const rows = Math.max(...rowOf.values()) + 1;
 
   // Slots: one per node, and a lane in every row an edge passes through.
-  const slots: Slot[] = steps.map(s => ({ row: rowOf.get(s.item)!, size: o.nodeWidth, node: s.item }));
-  const slotOf = new Map(steps.map((s, i) => [s.item, i]));
+  const slots: Slot[] = graph.map(n => ({ row: n.row, size: n.width ?? o.nodeWidth, node: n.id }));
+  const slotOf = new Map(graph.map((n, i) => [n.id, i]));
   const above: number[][] = slots.map(() => []);
   const below: number[][] = slots.map(() => []);
   // Per link: the slots from the upper end down to the lower one.
@@ -307,7 +329,7 @@ export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<Di
   for (const [key, list] of sides) {
     const slot = Number(key.slice(0, -1));
     list.sort((p, q) => p.other - q.other || p.link - q.link);
-    const room = o.nodeWidth - 2 * INSET;
+    const room = slots[slot]!.size - 2 * INSET;
     const gap = list.length > 1 ? Math.min(o.portGap, room / (list.length - 1)) : 0;
     list.forEach((a, i) => port.set(`${a.link}:${key}`, x[slot]! + (i - (list.length - 1) / 2) * gap));
   }
@@ -356,10 +378,7 @@ export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<Di
   const needTop = (r: number) => Math.max(0, ...nodesIn(r).map(s => room(s, 't')));
   const needBottom = (r: number) => Math.max(0, ...nodesIn(r).map(s => room(s, 'b')));
   const height = new Array<number>(rows).fill(0);
-  for (const s of steps) {
-    const r = rowOf.get(s.item)!;
-    height[r] = Math.max(height[r]!, o.heights?.get(s.item) ?? o.nodeHeight);
-  }
+  for (const n of graph) height[n.row] = Math.max(height[n.row]!, o.heights?.get(n.id) ?? o.nodeHeight);
   const top: number[] = [];
   for (let r = 0; r < rows; r++) {
     top.push(r === 0
@@ -385,7 +404,7 @@ export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<Di
       const bulge = Math.min(o.rowGap - 8, 24 + Math.abs(s.x - t.x) / 4);
       const cy = e.y - bulge;
       return {
-        link: l, points: [s, { x: (s.x + t.x) / 2, y: e.y - bulge * 0.75 }, e, t], arc: cy,
+        link: l as L, points: [s, { x: (s.x + t.x) / 2, y: e.y - bulge * 0.75 }, e, t], arc: cy,
         label: { x: t.x, y: t.y - labelOffset(v), width },
       };
     }
@@ -394,7 +413,7 @@ export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<Di
     for (const lane of chain.slice(1, -1)) pts.push({ x: x[lane]!, y: topOf(lane) }, { x: x[lane]!, y: bottomOf(lane) });
     pts.push({ x: port.get(`${k}:${down}t`)!, y: topOf(down) });
     // A straight piece next to the arrowhead carries the label.
-    let label: DiagramEdge['label'];
+    let label: Point & { width: number };
     if (end.slot === down) {
       const t = pts[pts.length - 1]!;
       pts.splice(pts.length - 1, 0, { x: t.x, y: t.y - stub(v) });
@@ -410,7 +429,7 @@ export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<Di
   });
 
   // Everything into view, with the padding on the top and left too (labels may reach past the outer nodes).
-  const nodeBoxes = byRow.flatMap(row => row.filter(s => slots[s]!.node).map(s => ({ s, x: x[s]! - o.nodeWidth / 2, y: topOf(s) })));
+  const nodeBoxes = byRow.flatMap(row => row.filter(s => slots[s]!.node).map(s => ({ s, x: x[s]! - slots[s]!.size / 2, y: topOf(s) })));
   const minX = Math.min(...nodeBoxes.map(b => b.x), ...edges.flatMap(e => [...e.points.map(p => p.x), e.label.x - e.label.width / 2]));
   const minY = Math.min(...nodeBoxes.map(b => b.y), ...edges.flatMap(e => [...e.points.map(p => p.y), e.label.y - o.labelHeight / 2, e.arc ?? Infinity]));
   const dx = o.padding - minX;
@@ -418,9 +437,9 @@ export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<Di
   const move = (p: Point): Point => ({ x: p.x + dx, y: p.y + dy });
 
   const nodes: DiagramNode[] = byRow.flatMap((row, r) => row.filter(s => slots[s]!.node).map((s, order) => ({
-    item: slots[s]!.node!, row: r, order, x: x[s]! - o.nodeWidth / 2 + dx, y: topOf(s) + dy, width: o.nodeWidth, height: height[r]!,
+    item: slots[s]!.node!, row: r, order, x: x[s]! - slots[s]!.size / 2 + dx, y: topOf(s) + dy, width: slots[s]!.size, height: height[r]!,
   })));
-  const out: DiagramEdge[] = edges.map(e => {
+  const out: DiagramEdge<L>[] = edges.map(e => {
     const points = e.points.map(move);
     const label = { ...move(e.label), width: e.label.width };
     let path: string;
@@ -429,7 +448,7 @@ export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<Di
       const cy = r1(e.arc + dy);
       path = `M${r1(s.x)} ${r1(s.y)} C${r1(s.x)} ${cy} ${r1(end.x)} ${cy} ${r1(end.x)} ${r1(end.y)} L${r1(t.x)} ${r1(t.y)}`;
     } else path = curve(points);
-    return { ...e.link, points, path, label };
+    return { ...e.link, points, path, label } as DiagramEdge<L>;
   });
 
   const xs = [...nodes.map(n => n.x + n.width), ...out.flatMap(e => [...e.points.map(p => p.x), e.label.x + e.label.width / 2])];
@@ -442,7 +461,7 @@ export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<Di
  * left edge: of the top row's runs of neighbouring nodes that fit the box, the longest (then the one nearest the
  * diagram's middle) is centred; where not even one node fits, the node nearest the middle. 0 when the diagram fits.
  */
-export function initialScroll(layout: Pick<DiagramLayout, 'nodes' | 'width'>, box: number): number {
+export function initialScroll(layout: Pick<DiagramLayout<GraphLink>, 'nodes' | 'width'>, box: number): number {
   const top = layout.nodes.filter(n => n.row === 0).sort((a, b) => a.x - b.x);
   if (box <= 0 || layout.width <= box || top.length === 0) return 0;
   const middle = layout.width / 2;

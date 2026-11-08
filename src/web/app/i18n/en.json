@@ -1066,6 +1066,69 @@
       "since": "{delta} since {date}",
       "inefficientPaused": "{count, number} inefficient, {paused, number} paused"
     },
+    "lines": {
+      "title": "Production lines",
+      "subtitle": "{count, plural, one {# line} other {# lines}} · {machines, plural, one {# machine} other {# machines}}",
+      "listLabel": "Production lines",
+      "more": "{list} +{count, number}",
+      "view": "Show line as",
+      "viewDiagram": "Diagram",
+      "viewMap": "Map",
+      "groupTitle": "{count, number}× {name}",
+      "rateOf": "{actual} of {nominal}",
+      "rateOfCapacity": "{rate} of {capacity}",
+      "of": "of {value}",
+      "connection": "Connection",
+      "makes": "Makes",
+      "needs": "Needs",
+      "members": "Buildings of this group",
+      "groupsLabel": "Groups of this line",
+      "close": "Close {name}",
+      "none": "No production lines found in this save: no machines are connected by belts or pipes.",
+      "noLinks": "Connections are missing in this save. Import the save again to see the production lines.",
+      "reimport": "Import save again",
+      "noLinksMember": "{owner} owns this world and can import it again.",
+      "kind": {
+        "splitter": "Splitter",
+        "merger": "Merger",
+        "junction": "Pipeline Junction",
+        "pump": "Pipeline Pump",
+        "valve": "Valve",
+        "storage": "Storage",
+        "tank": "Fluid Buffer",
+        "station": "Station",
+        "sink": "AWESOME Sink",
+        "other": "Logistics"
+      },
+      "band": {
+        "idle": "Stopped",
+        "throttled": "Part load",
+        "high": "Nearly full",
+        "full": "Full",
+        "paused": "Paused"
+      },
+      "bottleneck": {
+        "badge": "Bottleneck",
+        "edge": "Bottleneck: {belt} between {from} and {to}",
+        "edgeFlow": "Bottleneck: {belt} between {from} and {to} ({flow}, full)",
+        "group": "Bottleneck: {group} · {why}",
+        "demand": "less is taken off than it makes"
+      },
+      "diagram": {
+        "label": "Production line {name}",
+        "hint": "Inputs at the top, products at the bottom; on each belt or pipe the flow per minute and its capacity. Select a group to see its machines; the arrow keys move between the groups, Escape closes the group."
+      },
+      "legend": {
+        "load": "Thicker = fuller belt or pipe",
+        "full": "Full (≥ 95 %)",
+        "byproduct": "By-product",
+        "loop": "Back into the line",
+        "hidden": "{count, plural, one {# pump, valve or splitter} other {# pumps, valves and splitters}} without a branch left out",
+        "estimated": "Flows through splitters, mergers and buffers are estimated: the save does not say which machine's items take which way."
+      },
+      "logisticsInDiagram": "{count, plural, one {# logistics building} other {# logistics buildings}} (splitters, storage, stations) are in the diagram below.",
+      "machinesOnly": "Machines only"
+    },
     "items": {
       "title": "Inefficient items",
       "subtitle": "{losing, plural, =0 {Every item runs at full rate} one {# item below its rate} other {# items below their rate}}{shortage, plural, =0 {} other {, # of them short}}{full, plural, =0 {} other {, # at full rate}}",

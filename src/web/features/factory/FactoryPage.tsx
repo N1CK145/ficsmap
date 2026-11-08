@@ -11,6 +11,7 @@ import { ChangesSection } from './ChangesSection.js';
 import { useFactoryData, useFactoryDiff, useSnapshotAnalysis, type SnapshotAnalysis } from './data.js';
 import { nearestBiome, useFactoryFormat, type FactoryFormat } from './format.js';
 import { ItemsSection } from './ItemsSection.js';
+import { LinesSection } from './LinesSection.js';
 import { LocateContext, NONE } from './parts.js';
 import { MachinesSection } from './MachinesSection.js';
 import { RoutesSection } from './RoutesSection.js';
@@ -30,7 +31,7 @@ function useLastReady<T>(value: T | null | undefined): T | null | undefined {
 /**
  * The factory page ("Fabrik", `/w/:id/factory`): the timeline of the world's saves on top, then the answer first: the
  * figures (machines, mean productivity, stopped, part load, power capacity, with the change against the compared save),
- * the changes while comparing, the inefficient items (shortages first), the machines by class with the inefficient
+ * the production lines with the chosen one's diagram (`?line=<id>` opens one), the changes while comparing, the inefficient items (shortages first), the machines by class with the inefficient
  * ones, and the stations and vehicles. The snapshot choice and "Show on map" live in the shared factory view (`view.ts`), so
  * the factory map follows the page and the other way round.
  */
@@ -85,6 +86,7 @@ function Body({ ctx, shown, diff, since, fmt, data }: {
   return (
     <>
       <Kpis totals={shown.analysis.totals} diff={diff} since={since} fmt={fmt} />
+      {data.analysis && <LinesSection ctx={ctx} shown={shown} data={data.analysis} labels={labels} fmt={fmt} />}
       {diff && since !== null && <ChangesSection worldId={ctx.worldId} diff={diff} since={since} labels={labels} fmt={fmt} />}
       <ItemsSection worldId={ctx.worldId} analysis={shown.analysis} labels={labels} fmt={fmt} />
       <MachinesSection worldId={ctx.worldId} analysis={shown.analysis} labels={labels} fmt={fmt} recipes={data.analysis?.recipes ?? null} />
