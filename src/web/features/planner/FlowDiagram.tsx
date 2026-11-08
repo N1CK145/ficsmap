@@ -68,6 +68,11 @@ export interface FlowDiagramProps<L extends GraphLink> {
   focus?: string | null;
   /** A visible "more →" chip while the diagram continues to the right (it pans on); none without a label. */
   moreLabel?: string;
+  /**
+   * Fill the screen below the diagram (the planner's production steps): the box takes the rest of the scrolling area
+   * under its top edge, and at least 1.5 times the default height (the diagram at 100 %, at most 70 % of the screen).
+   */
+  fillScreen?: boolean;
 }
 
 
@@ -142,7 +147,7 @@ interface Gesture {
 export function FlowDiagram<L extends GraphLink>(props: FlowDiagramProps<L>) {
   const {
     nodes, links, options, label, hint, selected, onSelect, onDismiss, editorId, nodeId, nodeLabel, nodeClassName, nodeChrome,
-    renderNode, markers, edgeKey, edgeLook, renderLabel, footer, focus = null, moreLabel,
+    renderNode, markers, edgeKey, edgeLook, renderLabel, footer, focus = null, moreLabel, fillScreen = false,
   } = props;
   const { t } = useTranslation();
   const known = useMemo(() => new Set(nodes.map(n => n.id)), [nodes]);
@@ -437,6 +442,7 @@ export function FlowDiagram<L extends GraphLink>(props: FlowDiagramProps<L>) {
 
   // The edges of the selected and the hovered (or focused) node stand out; with a node selected the others fade.
   const hot = (e: DiagramEdge<L>) => [selected, hover].some(i => i !== null && (e.from === i || e.to === i));
+  const fillHeight = useFillHeight(box, fillScreen, layout.height);
   const stateOf = (e: DiagramEdge<L>): EdgeState => (hot(e) ? 'hot' : selected !== null ? 'dim' : 'plain');
   const edges = [...layout.edges].sort((a, b) => Number(hot(a)) - Number(hot(b)));
 
@@ -454,9 +460,10 @@ export function FlowDiagram<L extends GraphLink>(props: FlowDiagramProps<L>) {
           onClickCapture={onClickCapture}
           onDoubleClick={onDoubleClick}
           onDragStart={e => e.preventDefault()}
-          // As high as the diagram at 100 %, at most 70 % of the screen; the rest is panned to.
-          style={{ height: layout.height }}
-          className="relative max-h-[70svh] min-h-40 cursor-grab touch-pan-y overflow-clip bg-bg bg-[radial-gradient(var(--color-line)_1px,transparent_1px)] bg-size-[24px_24px] select-none data-panning:cursor-grabbing data-panning:**:cursor-grabbing"
+          // As high as the diagram at 100 %, at most 70 % of the screen; the rest is panned to. With `fillScreen` the
+          // rest of the screen, at least 1.5 times that.
+          style={{ height: fillHeight ?? layout.height }}
+          className={`relative ${fillHeight === null ? 'max-h-[70svh] ' : ''}min-h-40 cursor-grab touch-pan-y overflow-clip bg-bg bg-[radial-gradient(var(--color-line)_1px,transparent_1px)] bg-size-[24px_24px] select-none data-panning:cursor-grabbing data-panning:**:cursor-grabbing`}
         >
           <div
             ref={canvas}
@@ -606,4 +613,43 @@ function ViewChrome({ store, moreLabel, onZoom, onFit, onActual, onMore }: {
       </div>
     </>
   );
+}
+
+/** The nearest scrolling ancestor (the world page's scroll box), else the document. */
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const y = getComputedStyle(p).overflowY;
+    if (y === 'auto' || y === 'scroll') return p;
+  }
+  return null;
+}
+
+/**
+ * The box height for `fillScreen`: the space from the box's top to the bottom of its scrolling area (as if scrolled to
+ * the top, so it does not change while scrolling), less a margin, but at least 1.5 times the default height
+ * (`min(content, 70 % of the screen)`); null when off or not measurable (tests).
+ */
+export function fillScreenHeight(o: { viewport: number; boxTop: number; content: number; margin?: number }): number {
+  const base = Math.min(o.content, 0.7 * o.viewport);
+  const rest = o.viewport - o.boxTop - (o.margin ?? 16);
+  return Math.round(Math.max(rest, 1.5 * base));
+}
+
+function useFillHeight(box: { current: HTMLElement | null }, on: boolean, content: number): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!on || !el || typeof window === 'undefined') { setHeight(null); return; }
+    const measure = (): void => {
+      const parent = scrollParent(el);
+      const viewport = parent ? parent.clientHeight : window.innerHeight;
+      if (viewport <= 0) return;
+      const top = el.getBoundingClientRect().top - (parent ? parent.getBoundingClientRect().top - parent.scrollTop : -window.scrollY);
+      setHeight(fillScreenHeight({ viewport, boxTop: top, content }));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [box, on, content]);
+  return height;
 }

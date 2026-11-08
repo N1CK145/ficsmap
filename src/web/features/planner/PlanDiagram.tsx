@@ -67,6 +67,7 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, onDismiss,
   const texts = new Map(steps.map(s => [s.item, stepText(s, index, lang, t, defaultPurity)]));
   return (
     <FlowDiagram
+      fillScreen
       nodes={nodes}
       links={links}
       options={options}
