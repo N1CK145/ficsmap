@@ -28,8 +28,16 @@
   /* Cave layer: areas (drawn translucent) and the ring around entrances. */
   --color-cave: #E8DD55;
 
-  /* Resource node layer, per resource (features/resourceNodes/resourceStyle.ts). Colour is the second cue:
-     every node also has its short label and 1-3 purity pips. Dark fills get a light ring and label. */
+  /* Resource node purity: the ring around a node (zoomed out its dot), the purity filter and the info box. Never the
+     only cue: nodes also carry 1-3 pips (zoomed out the dot grows with the purity) and the UI names the purity. Each is
+     at least 5.3:1 against bg and panel (as ring and as text), and bg text on it at least 5.9:1. */
+  --color-purity-impure: #FF5C5C;
+  --color-purity-normal: #FFA94D;
+  --color-purity-pure: #4ADE80;
+
+  /* Resource node layer, per resource (features/resourceNodes/resourceStyle.ts): the panel's swatch and the disk a
+     node shows when the dataset has no picture of its resource (with its short label from zoom 4). Dark fills get a
+     light label. */
   --color-res-iron: #A9B6C6;
   --color-res-copper: #E0905C;
   --color-res-limestone: #E6D7B4;

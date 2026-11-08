@@ -1,6 +1,8 @@
 import L from 'leaflet';
+import { PURITIES } from '../../../shared/resourceNodes.js';
 import { drawNode, nodeRadius, nodeSize, type DrawNode, type NodePalette } from './drawNode.js';
-import { RESOURCE_TOKENS } from './resourceStyle.js';
+import { nodeImage, onNodeImageLoad } from './nodeImages.js';
+import { PURITY_TOKENS, RESOURCE_TOKENS } from './resourceStyle.js';
 
 const PANE = 'ficsmap-resource-nodes';
 /** Above the caves (350, entrances 420), below the collectible markers (450). */
@@ -14,21 +16,23 @@ function readPalette(): NodePalette | null {
   const token = (name: string) => style.getPropertyValue(`--color-${name}`).trim();
   const resources: Record<string, string> = {};
   for (const t of RESOURCE_TOKENS) resources[t] = token(t);
-  const p: NodePalette = { bg: token('bg'), fg: token('fg'), accent: token('accent'), shard: token('shard'), resources };
+  const purity = Object.fromEntries(PURITIES.map(q => [q, token(PURITY_TOKENS[q])])) as NodePalette['purity'];
+  const p: NodePalette = { bg: token('bg'), fg: token('fg'), accent: token('accent'), shard: token('shard'), purity, resources };
   // The stylesheet may not be applied yet; try again on the next draw instead of caching blanks.
-  return [p.bg, p.fg, p.accent, p.shard, ...Object.values(resources)].every(c => c !== '') ? p : null;
+  return [p.bg, p.fg, p.accent, p.shard, ...Object.values(purity), ...Object.values(resources)].every(c => c !== '') ? p : null;
 }
 
 /**
- * The resource nodes on one canvas in their own pane, redrawn (one frame at most) on move, zoom and
- * `redraw()`. Like the collectible markers it scales with the tiles during a zoom animation; hit tests go
- * through `pick()`.
+ * The resource nodes on one canvas in their own pane, redrawn (one frame at most) on move, zoom, `redraw()` and
+ * when a resource picture finishes loading. Like the collectible markers it scales with the tiles during a zoom
+ * animation; hit tests go through `pick()`.
  */
 export class NodeCanvasLayer extends L.Layer {
   private canvas: HTMLCanvasElement | null = null;
   private frame = 0;
   private animatingZoom = false;
   private palette: NodePalette | null = null;
+  private unsubscribeImages: (() => void) | null = null;
 
   constructor(private readonly getNodes: () => readonly DrawNode[], private readonly getHighlight: () => string | null) {
     super();
@@ -39,6 +43,7 @@ export class NodeCanvasLayer extends L.Layer {
     pane.style.zIndex = PANE_Z;
     pane.style.pointerEvents = 'none';
     this.canvas = L.DomUtil.create('canvas', 'leaflet-zoom-animated', pane);
+    this.unsubscribeImages = onNodeImageLoad(() => this.redraw());
     this.draw();
     return this;
   }
@@ -46,6 +51,8 @@ export class NodeCanvasLayer extends L.Layer {
   override onRemove(): this {
     if (this.frame) cancelAnimationFrame(this.frame);
     this.frame = 0;
+    this.unsubscribeImages?.();
+    this.unsubscribeImages = null;
     this.canvas?.remove();
     this.canvas = null;
     return this;
@@ -134,8 +141,8 @@ export class NodeCanvasLayer extends L.Layer {
       const p = map.latLngToContainerPoint([n.lat, n.lng]);
       if (p.x < -CULL_PX || p.y < -CULL_PX || p.x > size.x + CULL_PX || p.y > size.y + CULL_PX) continue;
       if (n.id === highlight) top = { n, x: p.x, y: p.y };
-      else drawNode(ctx, p.x, p.y, n, nodeSz, this.palette);
+      else drawNode(ctx, p.x, p.y, n, nodeSz, this.palette, false, nodeSz === 'dot' || !n.icon ? null : nodeImage(n.icon));
     }
-    if (top) drawNode(ctx, top.x, top.y, top.n, nodeSz === 'dot' ? 'small' : nodeSz, this.palette, true);
+    if (top) drawNode(ctx, top.x, top.y, top.n, nodeSz === 'dot' ? 'small' : nodeSz, this.palette, true, top.n.icon ? nodeImage(top.n.icon) : null);
   }
 }
