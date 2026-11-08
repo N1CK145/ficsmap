@@ -62,6 +62,8 @@ export const PinIcon = (p: IconProps) => <Icon {...p}><path d="M8 14s4.5-4.2 4.5
 export const CheckIcon = (p: IconProps) => <Icon {...p}><path d="M3 8.5l3 3 7-7" /></Icon>;
 export const PlusIcon = (p: IconProps) => <Icon {...p}><path d="M8 3v10M3 8h10" /></Icon>;
 /** Four corners of a frame: fit the content to its box. */
+export const FullscreenIcon = (p: IconProps) => <Icon {...p}><path d="M2.5 5.5v-3h3M10.5 2.5h3v3M13.5 10.5v3h-3M5.5 13.5h-3v-3M5.5 5.5l-2-2M10.5 5.5l2-2M10.5 10.5l2 2M5.5 10.5l-2 2" /></Icon>;
+export const ExitFullscreenIcon = (p: IconProps) => <Icon {...p}><path d="M5.5 2.5v3h-3M10.5 2.5v3h3M10.5 13.5v-3h3M5.5 13.5v-3h-3" /></Icon>;
 export const FitIcon = (p: IconProps) => <Icon {...p}><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" /></Icon>;
 export const SearchIcon = (p: IconProps) => <Icon {...p}><circle cx="6.75" cy="6.75" r="4.5" /><path d="M10.25 10.25L14 14" /></Icon>;
 

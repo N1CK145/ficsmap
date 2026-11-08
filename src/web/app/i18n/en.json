@@ -801,7 +801,9 @@
         "zoomOut": "Zoom out",
         "reset": "{percent} %, back to 100 %",
         "fit": "Fit",
-        "fitHint": "Show the whole diagram"
+        "fitHint": "Show the whole diagram",
+        "fullscreen": "Full screen",
+        "exitFullscreen": "Exit full screen"
       }
     },
     "panel": {

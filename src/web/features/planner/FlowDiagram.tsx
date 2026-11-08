@@ -4,7 +4,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getWheelSpeed } from '../../app/prefs.js';
-import { FitIcon } from '../../components/icons.js';
+import { ExitFullscreenIcon, FitIcon, FullscreenIcon } from '../../components/icons.js';
 import { layoutGraph, type DiagramEdge, type DiagramNode, type DiagramOptions, type GraphLink, type GraphNode } from './diagramLayout.js';
 import {
   clampView, fitView, initialView, overflowSides, pinchView, revealRect, scaleLimits, wheelFactor, zoomAt, type Point, type Size, type View,
@@ -442,7 +442,9 @@ export function FlowDiagram<L extends GraphLink>(props: FlowDiagramProps<L>) {
 
   // The edges of the selected and the hovered (or focused) node stand out; with a node selected the others fade.
   const hot = (e: DiagramEdge<L>) => [selected, hover].some(i => i !== null && (e.from === i || e.to === i));
-  const fillHeight = useFillHeight(box, fillScreen, layout.height);
+  const fullscreen = useDiagramFullscreen(frame);
+  const fsHeight = useFullscreenHeight(box, fullscreen.on);
+  const fillHeight = useFillHeight(box, fillScreen && !fullscreen.on, layout.height);
   const stateOf = (e: DiagramEdge<L>): EdgeState => (hot(e) ? 'hot' : selected !== null ? 'dim' : 'plain');
   const edges = [...layout.edges].sort((a, b) => Number(hot(a)) - Number(hot(b)));
 
@@ -462,8 +464,8 @@ export function FlowDiagram<L extends GraphLink>(props: FlowDiagramProps<L>) {
           onDragStart={e => e.preventDefault()}
           // As high as the diagram at 100 %, at most 70 % of the screen; the rest is panned to. With `fillScreen` the
           // rest of the screen, at least 1.5 times that.
-          style={{ height: fillHeight ?? layout.height }}
-          className={`relative ${fillHeight === null ? 'max-h-[70svh] ' : ''}min-h-40 cursor-grab touch-pan-y overflow-clip bg-bg bg-[radial-gradient(var(--color-line)_1px,transparent_1px)] bg-size-[24px_24px] select-none data-panning:cursor-grabbing data-panning:**:cursor-grabbing`}
+          style={{ height: fsHeight ?? fillHeight ?? layout.height }}
+          className={`relative ${fillHeight === null && fsHeight === null ? 'max-h-[70svh] ' : ''}min-h-40 cursor-grab touch-pan-y overflow-clip bg-bg bg-[radial-gradient(var(--color-line)_1px,transparent_1px)] bg-size-[24px_24px] select-none data-panning:cursor-grabbing data-panning:**:cursor-grabbing`}
         >
           <div
             ref={canvas}
@@ -552,6 +554,8 @@ export function FlowDiagram<L extends GraphLink>(props: FlowDiagramProps<L>) {
           onFit={() => show(fitView(contentSize(), boxSize()), 'fit')}
           onActual={() => zoomBy(1 / store.get().view.k)}
           onMore={() => { const { view, box: size } = store.get(); show({ ...view, x: view.x - size.width * 0.8 }); }}
+          fullscreen={fullscreen.on}
+          onFullscreen={fullscreen.toggle}
         />
       </div>
       {footer}
@@ -568,8 +572,9 @@ const VIEW_KEY = 'flex h-8 min-w-8 items-center justify-center gap-1.5 px-1.5 fo
  * What lies over the view: a fade on each side the diagram continues, the "more →" chip, and the zoom plate in the
  * top right corner (−, the zoom in % that resets to 100 %, +, Fit). Renders on its own as the view moves.
  */
-function ViewChrome({ store, moreLabel, onZoom, onFit, onActual, onMore }: {
+function ViewChrome({ store, moreLabel, onZoom, onFit, onActual, onMore, fullscreen, onFullscreen }: {
   store: ViewStore; moreLabel?: string; onZoom(factor: number): void; onFit(): void; onActual(): void; onMore(): void;
+  fullscreen: boolean; onFullscreen(): void;
 }) {
   const { t } = useTranslation();
   const { view, content, box } = useSyncExternalStore(store.subscribe, store.get);
@@ -609,6 +614,16 @@ function ViewChrome({ store, moreLabel, onZoom, onFit, onActual, onMore }: {
         <button type="button" title={t('planner.diagram.view.fitHint')} onClick={onFit} className={`${VIEW_KEY} text-sm! tracking-wider uppercase max-[899px]:text-base!`}>
           <FitIcon />
           <span className="max-sm:sr-only">{t('planner.diagram.view.fit')}</span>
+        </button>
+        <button
+          type="button"
+          aria-pressed={fullscreen}
+          aria-label={t(fullscreen ? 'planner.diagram.view.exitFullscreen' : 'planner.diagram.view.fullscreen')}
+          title={t(fullscreen ? 'planner.diagram.view.exitFullscreen' : 'planner.diagram.view.fullscreen')}
+          onClick={onFullscreen}
+          className={VIEW_KEY}
+        >
+          {fullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
         </button>
       </div>
     </>
@@ -651,5 +666,74 @@ function useFillHeight(box: { current: HTMLElement | null }, on: boolean, conten
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, [box, on, content]);
+  return height;
+}
+
+/** The element shown full screen: the caller's `[data-fullscreen-root]` around the diagram (so its panel shows too), else the diagram. */
+function fullscreenTarget(frame: HTMLElement): HTMLElement {
+  return frame.closest<HTMLElement>('[data-fullscreen-root]') ?? frame.parentElement ?? frame;
+}
+
+/**
+ * Full screen for the diagram and its panel: the browser's Fullscreen API where it exists (Escape leaves it), else a
+ * fixed overlay over the page (`data-fullscreen` on the target, styled in theme.css; Escape leaves it too).
+ */
+function useDiagramFullscreen(frame: { current: HTMLElement | null }): { on: boolean; toggle(): void } {
+  const [on, setOn] = useState(false);
+  const overlay = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const onChange = (): void => {
+      const el = frame.current ? fullscreenTarget(frame.current) : null;
+      setOn(el !== null && document.fullscreenElement === el);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, [frame]);
+  const leaveOverlay = useCallback((): void => {
+    overlay.current?.removeAttribute('data-fullscreen');
+    overlay.current = null;
+    setOn(false);
+  }, []);
+  useEffect(() => {
+    if (!on || !overlay.current) return;
+    const onKey = (e: globalThis.KeyboardEvent): void => {
+      if (e.key === 'Escape' && !e.defaultPrevented) leaveOverlay();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [on, leaveOverlay]);
+  useEffect(() => () => { overlay.current?.removeAttribute('data-fullscreen'); }, []);
+  const toggle = useCallback((): void => {
+    const el = frame.current ? fullscreenTarget(frame.current) : null;
+    if (!el) return;
+    if (on) {
+      if (document.fullscreenElement) void document.exitFullscreen();
+      else leaveOverlay();
+      return;
+    }
+    if (typeof el.requestFullscreen === 'function' && document.fullscreenEnabled !== false) {
+      el.requestFullscreen().catch(() => { overlay.current = el; el.setAttribute('data-fullscreen', ''); setOn(true); });
+    } else {
+      overlay.current = el;
+      el.setAttribute('data-fullscreen', '');
+      setOn(true);
+    }
+  }, [frame, on, leaveOverlay]);
+  return { on, toggle };
+}
+
+/** In full screen the diagram takes the screen below its top edge (less a margin); null otherwise. */
+function useFullscreenHeight(box: { current: HTMLElement | null }, on: boolean): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!on || !box.current) { setHeight(null); return; }
+    const el = box.current;
+    const measure = (): void => setHeight(Math.max(240, Math.round(window.innerHeight - el.getBoundingClientRect().top - 12)));
+    // Twice: the target grows to the screen a frame after the state changes.
+    measure();
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener('resize', measure);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); };
+  }, [box, on]);
   return height;
 }

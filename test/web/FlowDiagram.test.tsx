@@ -161,6 +161,21 @@ describe('FlowDiagram as a map', () => {
     expect(view().y + size.height * k).toBeLessThanOrEqual(BOX.height);
   });
 
+  it('shows the marked block full screen (an overlay without the Fullscreen API) and leaves it with the key or Escape', async () => {
+    const { container, key } = setup();
+    // The caller marks the block that goes full screen; here the diagram's own wrapper stands in for it.
+    const root = container.firstElementChild as HTMLElement;
+    root.setAttribute('data-fullscreen-root', '');
+    await userEvent.click(key('Full screen'));
+    expect(root).toHaveAttribute('data-fullscreen');
+    expect(key('Exit full screen')).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.keyboard('{Escape}');
+    expect(root).not.toHaveAttribute('data-fullscreen');
+    await userEvent.click(key('Full screen'));
+    await userEvent.click(key('Exit full screen'));
+    expect(root).not.toHaveAttribute('data-fullscreen');
+  });
+
   it('zooms in on a double click on the canvas, not on a node', () => {
     const { view, box, node } = setup();
     fireEvent.doubleClick(node('a'), { clientX: 50, clientY: 50 });

@@ -355,7 +355,7 @@ function LineView({ worldId, line: full, analysis, names, phone, direction, reci
   };
 
   return (
-    <div className="flex min-w-0 flex-col">
+    <div data-fullscreen-root="" className="flex min-w-0 flex-col">
       {(sentence || hasPassThrough || big) && (
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-3 py-1.5">
           {sentence ? (

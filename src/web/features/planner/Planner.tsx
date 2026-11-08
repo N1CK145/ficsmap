@@ -157,7 +157,7 @@ function Steps({ steps, index, lang, minerId, defaultPurity, limits }: StepsProp
     </span>
   );
   return (
-    <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+    <div data-fullscreen-root="" className="flex flex-col gap-4 xl:flex-row xl:items-start">
       {/* Full width like the diagram (tool pages use the whole width); the step panel docks beside it. */}
       <Window level={3} title={t('planner.steps')} actions={actions} className="min-w-0 flex-1" bodyClassName="">
         {view === 'diagram' ? (

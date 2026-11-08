@@ -801,7 +801,9 @@
         "zoomOut": "Verkleinern",
         "reset": "{percent} %, zurück auf 100 %",
         "fit": "Einpassen",
-        "fitHint": "Das ganze Diagramm zeigen"
+        "fitHint": "Das ganze Diagramm zeigen",
+        "fullscreen": "Vollbild",
+        "exitFullscreen": "Vollbild beenden"
       }
     },
     "panel": {
