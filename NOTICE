@@ -45,8 +45,8 @@ Third-party code and tools
   https://github.com/PaulLeCam/react-leaflet
   React bindings for Leaflet.
 
-- Barlow Condensed font via @fontsource/barlow-condensed (SIL Open Font
-  License 1.1)
+- Barlow and Barlow Condensed fonts via @fontsource/barlow and
+  @fontsource/barlow-condensed (SIL Open Font License 1.1)
   https://github.com/fontsource/font-files
 
 All other npm dependencies are used under their own licences. See each
