@@ -5,7 +5,7 @@ import {
   bandPattern, drawCrate, drawMarkerPin, drawPlate, drawReasonGlyph, drawStationSymbol, drawVehicleArrow, fitText, lighten,
   overlaps, plateRect, readFactoryPalette, shade, type FactoryPalette, type PlateLine, type Rect,
 } from './draw.js';
-import { buildingLook, CLOSE_FROM, detailAt, GLYPH_MIN_PX, PRODUCT_PIN_ZOOM, pxPerMapUnit, scaledLineWidth } from './lod.js';
+import { buildingLook, CLOSE_FROM, detailAt, GLYPH_MIN_PX, LINES_FROM, PRODUCT_PIN_ZOOM, pxPerMapUnit, scaledLineWidth } from './lod.js';
 import { greyPicture } from './pictures.js';
 import { chevronsAlong, type EdgeLoad, type LineEdgeGeom, type LineGeom } from './lineView.js';
 import type { Scene, SceneBuilding, SceneStation, SceneVehicle } from './scene.js';
@@ -41,7 +41,10 @@ export interface FrameLine {
 
 /** What one frame draws; the React layer keeps it current. */
 export interface FactoryFrame {
+  /** What is drawn: the snapshot's scene, or with a height range only what lies in it (`filterScene`). */
   scene: Scene | null;
+  /** With a height range and "Darunter blass zeigen": what lies wholly below it, drawn as faint outlines. */
+  below?: Scene | null;
   layers: Readonly<Record<FactoryLayer, boolean>>;
   colorMode: ColorMode;
   diff: DiffOverlay | null;
@@ -92,6 +95,8 @@ const CLOSE_HATCH = 0.35;
 const CLOSE_TINT = 0.35;
 /** Close up: a problem machine's border in CSS px (a healthy one keeps a thin edge). */
 const CLOSE_BORDER_PX = 3;
+/** What lies below a height range ("Darunter blass zeigen"): its outlines at this opacity. */
+const BELOW_ALPHA = 0.45;
 /** A lower floor of a stack is drawn shrunk to this share around its centre, and this faint. */
 const UNDER_INSET = 0.8;
 const UNDER_ALPHA = 0.35;
@@ -429,6 +434,14 @@ export class FactoryCanvasLayer extends L.Layer {
       }
     }
 
+    // Below a height range, for orientation: faint outlines over the range's floor plan (which would hide them) and
+    // under everything else.
+    if (f.below) {
+      mapSpace();
+      this.drawBelow(ctx, pathsOf(f.below).chunks.filter(inView), f.layers, p, s, zoom, d.outlines, d.dots, fade);
+      ctx.globalAlpha = fade;
+    }
+
     // Belts, pipes, hypertubes; roads and rails with the roads layer.
     const lineOn = (k: LineKind) => (k === 'road' || k === 'rail' ? L_.roads : L_.lines && d.lines);
     mapSpace();
@@ -743,6 +756,46 @@ export class FactoryCanvasLayer extends L.Layer {
     ctx.globalAlpha = 1;
     this.lastDrawMs = performance.now() - t0;
     if (pulsing) this.redraw();
+  }
+
+  /**
+   * What lies below the height range as faint outlines in the muted text colour (drawn in map space): the floor plan
+   * (a faint fill zoomed out, where outlines would be a blur), belts and pipes as hairlines, building bodies as outlines
+   * (not as dots zoomed out). Nothing of it is picked.
+   */
+  private drawBelow(
+    ctx: CanvasRenderingContext2D, chunks: Chunk[], layers: Readonly<Record<FactoryLayer, boolean>>, p: FactoryPalette, s: number,
+    zoom: number, outlines: boolean, dots: boolean, fade: number,
+  ): void {
+    ctx.save();
+    ctx.strokeStyle = p.muted;
+    ctx.fillStyle = p.muted;
+    ctx.lineWidth = 1 / s;
+    if (layers.floor) {
+      for (const c of chunks) {
+        if (!c.floor) continue;
+        if (outlines) {
+          ctx.globalAlpha = BELOW_ALPHA * 0.8 * fade;
+          ctx.stroke(c.floor);
+        } else {
+          ctx.globalAlpha = BELOW_ALPHA * 0.35 * fade;
+          ctx.fill(c.floor);
+        }
+      }
+    }
+    if (layers.lines && zoom >= LINES_FROM) {
+      ctx.globalAlpha = BELOW_ALPHA * 0.8 * fade;
+      for (const c of chunks) {
+        for (const [key, path] of c.lines) if (!key.startsWith('road') && !key.startsWith('rail')) ctx.stroke(path);
+      }
+    }
+    if (layers.buildings && !dots) {
+      ctx.globalAlpha = BELOW_ALPHA * fade;
+      for (const c of chunks) {
+        for (const [key, path] of c.fills) if (key.startsWith('k:')) ctx.stroke(path);
+      }
+    }
+    ctx.restore();
   }
 
   /**

@@ -1551,7 +1551,10 @@
     },
     "highlight": {
       "count": "{count, plural, one {{n} Gebäude markiert} other {{n} Gebäude markiert}}",
-      "clear": "Markierung aufheben"
+      "clear": "Markierung aufheben",
+      "outside": "{count, plural, one {{n} markiertes Gebäude liegt} other {{n} markierte Gebäude liegen}} außerhalb des Höhenbereichs",
+      "showOutside": "Anzeigen",
+      "showOutsideHint": "Den Höhenbereich so erweitern, dass alle markierten Gebäude zu sehen sind"
     },
     "lines": {
       "title": "Produktionsstränge",
@@ -1585,7 +1588,24 @@
       "less": "Weniger zeigen",
       "onMap": "Auf der Karte"
     },
-    "cargoMore": "{count, plural, one {+# weiterer} other {+# weitere}}"
+    "cargoMore": "{count, plural, one {+# weiterer} other {+# weitere}}",
+    "height": {
+      "title": "Höhe",
+      "all": "alle Höhen",
+      "range": "{lo}–{hi} m",
+      "rangeWords": "{lo} bis {hi} m",
+      "one": "{value} m",
+      "upTo": "bis {value} m",
+      "atLeast": "ab {value} m",
+      "reset": "Alle",
+      "lower": "Untere Grenze der Höhe",
+      "upper": "Obere Grenze der Höhe",
+      "from": "von {value} m",
+      "to": "bis {value} m",
+      "keys": "Pfeiltasten: 1 m, Bild auf und Bild ab: zur nächsten Etage, Pos1 und Ende: ganz nach unten und oben.",
+      "below": "Darunter blass zeigen",
+      "count": "{shown} von {total} Gebäuden in diesem Bereich"
+    }
   },
   "saveWatcher": {
     "title": "Automatischer Upload",

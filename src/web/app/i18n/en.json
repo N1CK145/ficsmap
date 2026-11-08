@@ -1551,7 +1551,10 @@
     },
     "highlight": {
       "count": "{count, plural, one {{n} building marked} other {{n} buildings marked}}",
-      "clear": "Clear the marking"
+      "clear": "Clear the marking",
+      "outside": "{count, plural, one {{n} marked building lies} other {{n} marked buildings lie}} outside the height range",
+      "showOutside": "Show",
+      "showOutsideHint": "Widen the height range so all marked buildings show"
     },
     "lines": {
       "title": "Production lines",
@@ -1585,7 +1588,24 @@
       "less": "Show less",
       "onMap": "On the map"
     },
-    "cargoMore": "{count, plural, one {+# more} other {+# more}}"
+    "cargoMore": "{count, plural, one {+# more} other {+# more}}",
+    "height": {
+      "title": "Height",
+      "all": "all heights",
+      "range": "{lo}–{hi} m",
+      "rangeWords": "{lo} to {hi} m",
+      "one": "{value} m",
+      "upTo": "up to {value} m",
+      "atLeast": "{value} m and up",
+      "reset": "All",
+      "lower": "Lower height limit",
+      "upper": "Upper height limit",
+      "from": "from {value} m",
+      "to": "to {value} m",
+      "keys": "Arrow keys: 1 m, Page Up and Page Down: to the next floor, Home and End: all the way down and up.",
+      "below": "Show what lies below faintly",
+      "count": "{shown} of {total} buildings in this range"
+    }
   },
   "saveWatcher": {
     "title": "Automatic upload",

@@ -1,7 +1,7 @@
 import type { BuildingIndex } from '../../../../shared/buildings.js';
 import type { FactoryDiff } from '../../../../shared/factory/analysis.js';
 import type { FactorySnapshot } from '../../../../shared/factory/snapshot.js';
-import { floorRect, placeBuilding, rectCorners, toMapUnits, type MapTransform, type Scene, type SceneBuilding, type SceneLine } from './scene.js';
+import { floorRect, placeBuilding, rectCorners, toMapUnits, type MapTransform, type Scene, type SceneBuilding, type SceneLine, zRangeOf } from './scene.js';
 import { lineStyle } from './style.js';
 
 /**
@@ -91,7 +91,7 @@ export function placeDiff(
       pts[j] = x; pts[j + 1] = y;
       minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
     }
-    linesRemoved.push({ id: s.id, cls: s.cls, style, pts, minX, minY, maxX, maxY });
+    linesRemoved.push({ id: s.id, cls: s.cls, style, pts, minX, minY, maxX, maxY, ...zRangeOf(s.pts) });
   }
   const removedIds = new Set(fd?.removed ?? []);
   return {

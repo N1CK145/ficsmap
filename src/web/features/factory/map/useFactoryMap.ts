@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { requestDetailZoom } from '../../map/zoom.js';
 import { usePanelsCollapsed } from '../../worlds/SidebarPanelView.js';
 import { useFactoryView } from '../view.js';
+import type { HeightRange } from './height.js';
 
 /**
  * The factory map's own state (the snapshot choice, comparison and highlight are shared with the Fabrik page in
@@ -23,7 +24,12 @@ export interface FactoryMapView {
   layers: Record<FactoryLayer, boolean>;
   colorMode: ColorMode;
   compareMode: CompareMode;
+  /** With a height range: draw what lies below it as faint outlines ("Darunter blass zeigen"). */
+  heightBelow: boolean;
 }
+
+/** A world's height range as remembered: the range in whole metres and the save session it was chosen for. */
+export interface StoredHeight extends HeightRange { session: string }
 
 export type FactorySelection =
   | { kind: 'building'; id: string }
@@ -42,6 +48,8 @@ interface FactoryMapState extends FactoryMapView {
   pendingFocus: boolean;
   /** Where the focus goes back when the info window closes (the button that opened it), or null. */
   returnFocus: HTMLElement | null;
+  /** The height range per world id (`height.ts`), remembered per device; none: everything shows. */
+  heights: Readonly<Record<string, StoredHeight>>;
   /** The last `useFactoryView.highlightSeq` the map fitted to. */
   fittedSeq: number;
   /** Bumped by "Go to the changes": the map fits to the area of changes `changeArea`. */
@@ -76,6 +84,9 @@ interface FactoryMapState extends FactoryMapView {
   toggleLayer(l: FactoryLayer): void;
   setColorMode(m: ColorMode): void;
   setCompareMode(m: CompareMode): void;
+  /** Sets a world's height range (null: all heights) for the shown save's session. */
+  setHeight(worldId: string, range: HeightRange | null, session?: string): void;
+  setHeightBelow(on: boolean): void;
   select(s: FactorySelection | null, opts?: SelectOptions): void;
   focusHandled(): void;
   setFittedSeq(seq: number): void;
@@ -108,6 +119,7 @@ export const DEFAULT_VIEW: FactoryMapView = {
   layers: { floor: true, buildings: true, lines: true, power: false, roads: true, markers: true, crates: true, fog: false },
   colorMode: 'productivity',
   compareMode: 'previous',
+  heightBelow: false,
 };
 
 /** The remembered view, keeping only valid fields. */
@@ -137,12 +149,45 @@ export function loadFactoryMapView(): FactoryMapView {
   }
   if (d.v === VERSION && COLOR_MODES.includes(d.colorMode as ColorMode)) view.colorMode = d.colorMode as ColorMode;
   if (d.compareMode === 'previous' || d.compareMode === 'chosen') view.compareMode = d.compareMode;
+  if (typeof d.heightBelow === 'boolean') view.heightBelow = d.heightBelow;
   return view;
 }
 
 function save(v: FactoryMapView): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ v: VERSION, visible: v.visible, layers: v.layers, colorMode: v.colorMode, compareMode: v.compareMode }));
+    localStorage.setItem(KEY, JSON.stringify({
+      v: VERSION, visible: v.visible, layers: v.layers, colorMode: v.colorMode, compareMode: v.compareMode, heightBelow: v.heightBelow,
+    }));
+  } catch {
+    // Not remembering is fine.
+  }
+}
+
+/** Where the height ranges are remembered: `{ v: 1, worlds: { [worldId]: { lo, hi, session } } }`. */
+export const HEIGHT_KEY = 'ficsmap:factoryMap:height';
+
+/** The remembered height ranges per world, keeping only valid entries. */
+export function loadHeights(): Record<string, StoredHeight> {
+  const out: Record<string, StoredHeight> = {};
+  try {
+    const data: unknown = JSON.parse(localStorage.getItem(HEIGHT_KEY) ?? 'null');
+    const worlds = data && typeof data === 'object' ? (data as { v?: unknown; worlds?: unknown }).worlds : null;
+    if ((data as { v?: unknown } | null)?.v !== 1 || !worlds || typeof worlds !== 'object') return out;
+    for (const [id, r] of Object.entries(worlds as Record<string, unknown>)) {
+      const { lo, hi, session } = (r ?? {}) as Record<string, unknown>;
+      if (Number.isInteger(lo) && Number.isInteger(hi) && (lo as number) <= (hi as number) && typeof session === 'string') {
+        out[id] = { lo: lo as number, hi: hi as number, session };
+      }
+    }
+  } catch {
+    // Blocked or broken storage: nothing remembered.
+  }
+  return out;
+}
+
+function saveHeights(heights: Readonly<Record<string, StoredHeight>>): void {
+  try {
+    localStorage.setItem(HEIGHT_KEY, JSON.stringify({ v: 1, worlds: heights }));
   } catch {
     // Not remembering is fine.
   }
@@ -172,6 +217,7 @@ export const useFactoryMap = create<FactoryMapState>()((set, get) => {
     selection: null,
     pendingFocus: false,
     returnFocus: null,
+    heights: loadHeights(),
     fittedSeq: 0,
     fitChangesSeq: 0,
     changeArea: -1,
@@ -185,6 +231,17 @@ export const useFactoryMap = create<FactoryMapState>()((set, get) => {
     toggleLayer: l => update({ layers: { ...get().layers, [l]: !get().layers[l] } }),
     setColorMode: colorMode => update({ colorMode }),
     setCompareMode: compareMode => update({ compareMode }),
+    setHeight: (worldId, range, session = '') => {
+      const was = get().heights[worldId];
+      if (!range && !was) return;
+      if (range && was && was.lo === range.lo && was.hi === range.hi && was.session === session) return;
+      const heights = { ...get().heights };
+      if (range) heights[worldId] = { lo: range.lo, hi: range.hi, session };
+      else delete heights[worldId];
+      set({ heights });
+      saveHeights(heights);
+    },
+    setHeightBelow: heightBelow => update({ heightBelow }),
     select: (selection, opts = {}) => {
       const was = get();
       if (selection === null) { set({ selection, pendingFocus: false }); return; }
