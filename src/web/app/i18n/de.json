@@ -273,6 +273,10 @@
   },
   "map": {
     "attribution": "Karte © Coffee Stain Studios",
+    "collectibles": {
+      "control": "Sammelobjekte",
+      "hint": "Sammelobjekte zeigen: Elektroschnecken, Somersloops, Mercer-Sphären und Festplatten"
+    },
     "zoomIn": "Vergrößern",
     "zoomOut": "Verkleinern"
   },

@@ -46,6 +46,8 @@ export const HeightIcon = (p: IconProps) => (
     <circle cx="8.2" cy="8.2" r="0.6" fill="currentColor" />
   </Icon>
 );
+/** A sparkle with a small one beside it: the collectibles layer (slugs, Somersloops, Mercer spheres, hard drives). */
+export const CollectiblesIcon = (p: IconProps) => <Icon {...p}><path d="M7 3.5Q7.6 8.4 12.5 9 7.6 9.6 7 14.5 6.4 9.6 1.5 9 6.4 8.4 7 3.5zM12.5 1.5v4M10.5 3.5h4" /></Icon>;
 /** A folded map: the map tab. */
 export const MapIcon = (p: IconProps) => <Icon {...p}><path d="M1.5 3.75L5.5 2.25l5 2 4-1.5v10l-4 1.5-5-2-4 1.5zM5.5 2.25v10M10.5 4.25v10" /></Icon>;
 /** An ore lump on a node: the resource node layer. */

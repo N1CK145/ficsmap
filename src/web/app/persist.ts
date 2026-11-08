@@ -161,6 +161,17 @@ export function savePodChecklistCollapsed(collapsed: boolean): void {
   else remove(POD_CHECKLIST_COLLAPSED_KEY);
 }
 
+const MARKERS_KEY = 'ficsmap:collectibles';
+
+/** Whether the collectible markers are shown on the map (per device); shown unless switched off. */
+export function loadMarkersVisible(): boolean {
+  return read(MARKERS_KEY) !== '0';
+}
+
+export function saveMarkersVisible(visible: boolean): void {
+  write(MARKERS_KEY, visible ? '1' : '0');
+}
+
 const RESOURCE_NODES_KEY = 'ficsmap:resourceNodes';
 
 /**

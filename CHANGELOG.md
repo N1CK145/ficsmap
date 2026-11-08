@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Map: the collectibles (power slugs, Somersloops, Mercer spheres, hard drives) are a layer of their own, "Collectibles", the first of the map's switches (also in the section menu on narrow screens and phones). Switched off, the map draws no collectible markers and clicks and hover find none; the progress panel, the type filters, the list view, the item panel and the search keep working. On by default and remembered on the device. Anything that is about a marker switches it back on: choosing a type, an item, a biome, a cave or a crash site in the search, "Show on map", selecting an item (list view, nearby items, the conflict review, [Next stop ›]), opening a route and editing one. Picking a vehicle route does not, it takes points anywhere.
 - Automatic upload, Linux: the world settings show how to run the watcher only while Satisfactory runs, with the line for Steam's launch options (it starts the watcher with a clean environment, logs to `~/ficsmap/watch.log` and stops it a minute after the game exits).
 
 ### Fixed

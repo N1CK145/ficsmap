@@ -273,6 +273,10 @@
   },
   "map": {
     "attribution": "Map © Coffee Stain Studios",
+    "collectibles": {
+      "control": "Collectibles",
+      "hint": "Show the collectibles: power slugs, Somersloops, Mercer spheres and hard drives"
+    },
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out"
   },
