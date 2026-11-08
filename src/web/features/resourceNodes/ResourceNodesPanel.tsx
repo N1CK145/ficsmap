@@ -14,10 +14,10 @@ import { useNodeFilter, useNodeLayer, useWorldNodes } from './useResourceNodes.j
 const ROW = 'flex h-8 w-full items-center gap-2 chamfer px-2 text-left text-sm select-none focus-ring hover:bg-raised';
 
 /**
- * The Resource nodes panel: the layer switch, the filters by resource (Alt-click: only this one, each with the
- * resource's picture) and by purity (in its colour, with the miners' rates on such a node) with their counts, and
- * what the last save import changed. With extractors from a save import also a filter for nodes with or without one,
- * and how many of each building stand on nodes with how many Power Shards.
+ * The Resource nodes panel: the layer switch, right under it the filter by purity (in its colour, with the miners'
+ * rates on such a node), then by resource (each with the resource's picture and an "only" button, Alt-click works
+ * too), all with their counts, and what the last save import changed. With extractors from a save import also a
+ * filter for nodes with or without one, and how many of each building stand on nodes with how many Power Shards.
  */
 export function ResourceNodesPanel({ worldId }: { worldId: string }) {
   const { t } = useTranslation();
@@ -51,6 +51,26 @@ export function ResourceNodesPanel({ worldId }: { worldId: string }) {
         <span className={visible ? 'text-accent' : 'text-muted'}>{t(visible ? 'resourceNodes.on' : 'resourceNodes.off')}</span>
       </button>
 
+      <div>
+        <div id={purityLabel} className="mb-1 text-xs text-muted">{t('resourceNodes.purityLabel')}</div>
+        <ul aria-labelledby={purityLabel} className="flex flex-col">
+          {PURITIES.map(p => {
+            const on = filter.purities.has(p);
+            const rate = rates.purity(p);
+            return (
+              <li key={p}>
+                <button type="button" aria-pressed={on} title={rate?.hint} onClick={() => togglePurity(p)} className={`${ROW} ${on ? 'text-fg' : 'text-muted'}`}>
+                  <PurityDot purity={p} className={on ? '' : 'opacity-40'} />
+                  <span className={`min-w-0 flex-1 truncate ${on ? PURITY_TEXT[p] : ''}`}>{t(`resourceNodes.purity.${p}`)}</span>
+                  {rate && <span className="shrink-0 text-xs text-muted tabular-nums" data-testid="purity-rate">{rate.range}</span>}
+                  <span className="shrink-0 font-display tabular-nums">{t('resourceNodes.count', { count: counts.byPurity[p] })}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
       {changed > 0 && <p className="text-xs text-muted">{t('resourceNodes.changedNote', { count: changed })}</p>}
       {changed === 0 && isRandomized(settings) && (
         <p role="note" className="chamfer border border-conflict px-2 py-1 text-xs">
@@ -70,38 +90,25 @@ export function ResourceNodesPanel({ worldId }: { worldId: string }) {
           <ul aria-labelledby={resLabel} className="flex flex-col">
             {resources.map(id => {
               const on = !filter.hiddenResources.has(id);
+              const name = labelOf(id).name;
+              const onlyThis = resources.every(r => (r === id) !== filter.hiddenResources.has(r));
               return (
-                <li key={id}>
-                  <button type="button" aria-pressed={on} title={t('resourceNodes.resourceHint')} onClick={e => onResource(e, id)} className={`${ROW} ${on ? 'text-fg' : 'text-muted'}`}>
+                <li key={id} className="flex items-center gap-1">
+                  <button type="button" aria-pressed={on} title={t('resourceNodes.resourceHint')} onClick={e => onResource(e, id)} className={`${ROW} min-w-0 flex-1 ${on ? 'text-fg' : 'text-muted'}`}>
                     <span className={`inline-flex ${on ? '' : 'opacity-40'}`}><ResourceIcon id={id} token={resourceToken(id)} /></span>
-                    <span className="min-w-0 flex-1 truncate">{labelOf(id).name}</span>
+                    <span className="min-w-0 flex-1 truncate">{name}</span>
                     <span className="shrink-0 font-display tabular-nums">{t('resourceNodes.count', { count: counts.byResource.get(id) ?? 0 })}</span>
+                  </button>
+                  <button type="button" aria-pressed={onlyThis} aria-label={t('resourceNodes.onlyLabel', { resource: name })} title={t('resourceNodes.onlyLabel', { resource: name })}
+                    onClick={() => showOnlyResource(id, resources)}
+                    className={`h-8 shrink-0 chamfer px-2 text-xs select-none focus-ring hover:bg-raised hover:text-fg ${onlyThis ? 'text-accent' : 'text-muted'}`}>
+                    {t('resourceNodes.only')}
                   </button>
                 </li>
               );
             })}
           </ul>
         </IconsContext.Provider>
-      </div>
-
-      <div>
-        <div id={purityLabel} className="mb-1 text-xs text-muted">{t('resourceNodes.purityLabel')}</div>
-        <ul aria-labelledby={purityLabel} className="flex flex-col">
-          {PURITIES.map(p => {
-            const on = filter.purities.has(p);
-            const rate = rates.purity(p);
-            return (
-              <li key={p}>
-                <button type="button" aria-pressed={on} title={rate?.hint} onClick={() => togglePurity(p)} className={`${ROW} ${on ? 'text-fg' : 'text-muted'}`}>
-                  <PurityDot purity={p} className={on ? '' : 'opacity-40'} />
-                  <span className={`min-w-0 flex-1 truncate ${on ? PURITY_TEXT[p] : ''}`}>{t(`resourceNodes.purity.${p}`)}</span>
-                  {rate && <span className="shrink-0 text-xs text-muted tabular-nums" data-testid="purity-rate">{rate.range}</span>}
-                  <span className="shrink-0 font-display tabular-nums">{t('resourceNodes.count', { count: counts.byPurity[p] })}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
       </div>
 
       {summary && filter.occupancy && (

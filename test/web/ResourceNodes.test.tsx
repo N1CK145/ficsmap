@@ -3,24 +3,34 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import L from 'leaflet';
 import { MapContainer, useMap } from 'react-leaflet';
+import { MemoryRouter } from 'react-router';
 import type { MeDto, ResourceNodesDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
 import { worldToLatLng } from '../../src/shared/geo.js';
 import type { GameExtractor, RecipeData } from '../../src/shared/recipes.js';
-import { PURITIES, type ResourceNodesFile } from '../../src/shared/resourceNodes.js';
+import { PURITIES, readResourceNodes, type ResourceNodesFile } from '../../src/shared/resourceNodes.js';
 import type { WorldCtx } from '../../src/web/app/feature.js';
+import { FeaturesProvider } from '../../src/web/app/FeaturesContext.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { loadResourceNodeView } from '../../src/web/app/persist.js';
 import { queryKeys } from '../../src/web/app/queryKeys.js';
+import { useUiStore } from '../../src/web/app/store.js';
+import { clickClaimed } from '../../src/web/features/map/clickClaims.js';
+import { MarkerLayer } from '../../src/web/features/map/MarkerLayer.js';
+import { prepare, rank } from '../../src/web/features/search/match.js';
+import { searchFeature } from '../../src/web/features/search/index.js';
+import { SearchBox } from '../../src/web/features/search/SearchBox.js';
+import { ROUTE_PANE_Z } from '../../src/web/features/vehicleCalc/VehicleRouteLayer.js';
 import {
   contrastOn, drawExtractor, drawNode, luminance, nodeRadius, nodeSize, ringColor, type DrawNode, type NodePalette,
 } from '../../src/web/features/resourceNodes/drawNode.js';
 import { resourceNodesFeature } from '../../src/web/features/resourceNodes/index.js';
-import { NodeCanvasLayer } from '../../src/web/features/resourceNodes/NodeCanvasLayer.js';
+import { NODE_PANE, NODE_PANE_Z, NodeCanvasLayer } from '../../src/web/features/resourceNodes/NodeCanvasLayer.js';
 import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
 import { extractorTag, ResourceNodeLayer } from '../../src/web/features/resourceNodes/ResourceNodeLayer.js';
 import { ResourceNodesPanel } from '../../src/web/features/resourceNodes/ResourceNodesPanel.js';
 import { sortResources } from '../../src/web/features/resourceNodes/resourceStyle.js';
+import { resourceNodeEntries, resourceNodesSearch } from '../../src/web/features/resourceNodes/search.js';
 import { useNodeLayer } from '../../src/web/features/resourceNodes/useResourceNodes.js';
 import { stubFetch, type StubReply } from './fetchStub.js';
 
@@ -88,7 +98,8 @@ function setup(opts: { file?: boolean; overrides?: ResourceNodesDto; routes?: Re
 }
 
 const resetLayer = (visible = false) => useNodeLayer.setState({ visible, hiddenResources: [], purities: ['impure', 'normal', 'pure'], occupancy: 'all' });
-const row = (name: RegExp) => screen.getByRole('button', { name });
+/** A filter row by its name; the resource rows' "only" buttons ("Show only Iron Ore") are not rows. */
+const row = (name: RegExp) => screen.getAllByRole('button', { name }).find(b => !/^Show only/.test(b.getAttribute('aria-label') ?? ''))!;
 
 beforeAll(() => { initI18n(['en']); });
 beforeEach(() => {
@@ -133,7 +144,7 @@ describe('ResourceNodesPanel', () => {
     const user = userEvent.setup();
     const { wrap } = setup();
     wrap(<ResourceNodesPanel worldId={W} />);
-    await user.click(await screen.findByRole('button', { name: /Iron Ore/ }));
+    await user.click(await screen.findByRole('button', { name: /^Iron Ore/ }));
     expect(row(/Iron Ore/)).toHaveAttribute('aria-pressed', 'false');
     // Purity counts now leave out iron; resource counts are unchanged.
     expect(row(/Impure\s*0/)).toBeInTheDocument();
@@ -149,13 +160,33 @@ describe('ResourceNodesPanel', () => {
     const { wrap } = setup();
     wrap(<ResourceNodesPanel worldId={W} />);
     await user.keyboard('{Alt>}');
-    await user.click(await screen.findByRole('button', { name: /Water/ }));
+    await user.click(await screen.findByRole('button', { name: /^Water/ }));
     await user.keyboard('{/Alt}');
     expect(row(/Water/)).toHaveAttribute('aria-pressed', 'true');
     expect(row(/Iron Ore/)).toHaveAttribute('aria-pressed', 'false');
     await user.click(screen.getByRole('button', { name: 'None' }));
     expect(row(/Water/)).toHaveAttribute('aria-pressed', 'false');
     await user.click(screen.getByRole('button', { name: 'All' }));
+    expect(row(/Iron Ore/)).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('puts the purity filter right under the switch, above the resources, with a visible "only" on every resource', async () => {
+    const user = userEvent.setup();
+    const { wrap } = setup();
+    const { container } = wrap(<ResourceNodesPanel worldId={W} />);
+    await screen.findAllByRole('button', { name: /Iron Ore/ });
+    const names = within(container).getAllByRole('button').map(b => b.getAttribute('aria-label') ?? b.textContent);
+    expect(names.slice(0, 6)).toEqual(['Show on mapOff', 'Impure1', 'Normal1', 'Pure2', 'All', 'None']);
+    expect(names).toContain('Show only Iron Ore');
+    const only = screen.getByRole('button', { name: 'Show only Water' });
+    expect(only).toHaveTextContent('only');
+    expect(only).toHaveAttribute('aria-pressed', 'false');
+    await user.click(only);
+    expect(row(/Water/)).toHaveAttribute('aria-pressed', 'true');
+    expect(row(/Iron Ore/)).toHaveAttribute('aria-pressed', 'false');
+    expect(only).toHaveAttribute('aria-pressed', 'true');
+    // Again: every resource again.
+    await user.click(only);
     expect(row(/Iron Ore/)).toHaveAttribute('aria-pressed', 'true');
   });
 
@@ -308,6 +339,29 @@ describe('ResourceNodeLayer', () => {
     expect(list.getAllByText(/Clock speed/)).toHaveLength(1);
   });
 
+  it('draws above the collectible markers (below the vehicle route) and keeps clicks on its nodes from them', async () => {
+    const { ctx, wrap } = setup();
+    resetLayer(true);
+    const { container } = wrap(
+      <MapContainer crs={L.CRS.Simple} center={[-128, 128]} zoom={4} style={{ width: 512, height: 512 }}>
+        <ResourceNodeLayer ctx={ctx} />
+        <Grab />
+      </MapContainer>,
+    );
+    await waitFor(() => expect(container.querySelector('.leaflet-ficsmap-resource-nodes-pane canvas')).not.toBeNull());
+    act(() => { new MarkerLayer(() => []).addTo(map!); });
+    const z = (pane: string) => Number(map!.getPane(pane)!.style.zIndex);
+    expect(z(NODE_PANE)).toBe(NODE_PANE_Z);
+    expect(z(NODE_PANE)).toBeGreaterThan(z('ficsmap-markers'));
+    expect(z(NODE_PANE)).toBeLessThan(ROUTE_PANE_Z);
+    expect(map!.getPane(NODE_PANE)!.style.pointerEvents).toBe('none');
+    // N1 at the centre: a click there is the node's, not a marker's under it; elsewhere the markers get it.
+    await waitFor(() => expect(clickClaimed(256, 256)).toBe(true));
+    expect(clickClaimed(20, 20)).toBe(false);
+    act(() => { resetLayer(false); });
+    expect(clickClaimed(256, 256)).toBe(false);
+  });
+
   it('fetches nothing while switched off', () => {
     const { ctx, wrap, calls } = setup();
     wrap(
@@ -349,6 +403,7 @@ describe('purity colours, resource pictures and extraction rates', () => {
   it('panel: resource rows show the resource picture, or the colour swatch where the dataset has none', async () => {
     const { wrap } = setup({ routes: EXTRAS });
     wrap(<ResourceNodesPanel worldId={W} />);
+    await screen.findAllByRole('button', { name: /Iron Ore/ });
     await waitFor(() => expect(row(/Iron Ore/).querySelector('img')).not.toBeNull());
     expect(row(/Iron Ore/).querySelector('img')).toHaveAttribute('src', '/data/test/icons/items/64/Desc_OreIron_C.webp');
     expect(row(/Water/).querySelector('img')).toBeNull();
@@ -383,7 +438,8 @@ describe('purity colours, resource pictures and extraction rates', () => {
   it('info box: picture, purity in its colour with the rates per miner, and the placed miner\'s rate at its clock speed', async () => {
     const { ctx, wrap } = setup({ routes: EXTRAS, overrides: { overrides: [['N1', null, 'pure']], settings: null, extractors: [['N1', 'miner2', 1.5, 1]] } });
     const info = await clickNode(ctx, wrap, [50_000, 50_000], 'node-rates');
-    expect(info.getByTestId('node-rates')).toHaveTextContent('· 120/min (Mk.1) · 240 (Mk.2) · 480 (Mk.3)');
+    // On a line of its own, so a wrap never starts it with a separator; no-break spaces before the inner ones.
+    expect(info.getByTestId('node-rates').textContent).toBe('120/min (Mk.1)\u00a0· 240 (Mk.2)\u00a0· 480 (Mk.3)');
     expect(info.getByText('Pure')).toHaveClass('text-purity-pure');
     expect(info.getByTestId('node-purity').querySelector('svg')).toHaveClass('text-purity-pure');
     expect(info.getByTestId('extractor-rate')).toHaveTextContent('Extracts 360/min');
@@ -398,7 +454,7 @@ describe('purity colours, resource pictures and extraction rates', () => {
       });
       const info = await clickNode(ctx, wrap, [80_500, 80_000], 'extractor-rate');
       expect(info.getByText('Rein')).toHaveClass('text-purity-pure');
-      expect(info.getByTestId('node-rates')).toHaveTextContent('· 120 m³/min (Quellenextraktor)');
+      expect(info.getByTestId('node-rates')).toHaveTextContent(/^120 m³\/min \(Quellenextraktor\)$/);
       expect(info.getByTestId('extractor-rate')).toHaveTextContent('Fördert 180 m³/min (Quellenkompressor bei 150 %)');
       // Water has no picture in this dataset: the swatch instead.
       expect(screen.getByTestId('node-info').querySelector('img')).toBeNull();
@@ -618,5 +674,72 @@ describe('resource order and the feature module', () => {
     const spy = vi.spyOn(client, 'invalidateQueries');
     resourceNodesFeature.sseHandlers!.import!({ type: 'import', rev: 2 }, ctx);
     expect(spy).toHaveBeenCalledWith({ queryKey: queryKeys.nodeOverrides(W) });
+  });
+});
+
+describe('resource nodes in the header search', () => {
+  afterEach(() => { initI18n(['en']); });
+
+  it('has an entry per resource with its purities counted, pure first, and one per resource and purity', () => {
+    const entries = resourceNodeEntries(readResourceNodes(FILE), FILE, initI18n(['de']));
+    expect(entries.map(e => [e.label, e.detail, e.kindKey])).toEqual([
+      ['Eisenerz', '1 rein · 1 unrein', 'search.kind.resource'],
+      ['Eisenerz · Rein', '1 Vorkommen', 'search.kind.resource'],
+      ['Eisenerz · Unrein', '1 Vorkommen', 'search.kind.resource'],
+      // A well counts its extraction points, not its centre.
+      ['Wasser', '1 rein', 'search.kind.resource'],
+      ['Wasser · Rein', '1 Vorkommen', 'search.kind.resource'],
+      // Unknown to this version: the dataset's English name.
+      ['Unobtainium', '1 normal', 'search.kind.resource'],
+      ['Unobtainium · Normal', '1 Vorkommen', 'search.kind.resource'],
+    ]);
+    const iron = entries[0]!;
+    expect(iron.terms).toEqual(['Iron Ore', 'Eisenerz', 'Desc_OreIron_C']);
+    expect([...iron.actors!].sort()).toEqual(['N1', 'N2']);
+    expect(entries[1]!.terms).toEqual(['Iron Ore · Pure', 'Eisenerz · Rein']);
+    expect(entries[1]!.actors).toEqual(['N2']);
+    // "eisen" finds the resource first, then its purities; "eisen rein" or "iron pure" the pure ones alone.
+    const prepared = prepare(entries);
+    expect(rank(prepared, 'eisen').map(r => r.entry.label)).toEqual(['Eisenerz', 'Eisenerz · Rein', 'Eisenerz · Unrein']);
+    expect(rank(prepared, 'eisen rein').map(r => r.entry.label)).toEqual(['Eisenerz · Rein']);
+    expect(rank(prepared, 'iron pure').map(r => r.entry.label)).toEqual(['Eisenerz · Rein']);
+    // Pure before the others whatever the alphabet says.
+    const withNormal = readResourceNodes({ ...FILE, nodes: [...FILE.nodes, ['N4', 'node', 'Desc_OreIron_C', 'normal', 0, 0, 0]] });
+    expect(rank(prepare(resourceNodeEntries(withNormal, FILE, initI18n(['de']))), 'eisen').map(r => r.entry.label))
+      .toEqual(['Eisenerz', 'Eisenerz · Rein', 'Eisenerz · Normal', 'Eisenerz · Unrein']);
+    expect(resourceNodesFeature.searchProviders).toEqual([resourceNodesSearch]);
+  });
+
+  it('switches the layer on with only that resource (and purity) when chosen, and fades the collectibles', async () => {
+    initI18n(['de']);
+    const { ctx } = setup();
+    useUiStore.getState().enterWorld(W);
+    useNodeLayer.setState({ purities: ['normal'], hiddenResources: ['Desc_Water_C'] });
+    render(
+      <QueryClientProvider client={ctx.queryClient}>
+        <FeaturesProvider features={[resourceNodesFeature, searchFeature]}>
+          <MemoryRouter initialEntries={[`/w/${W}`]}><SearchBox ctx={ctx} /></MemoryRouter>
+        </FeaturesProvider>
+      </QueryClientProvider>,
+    );
+    const user = userEvent.setup();
+    const input = screen.getByRole('combobox', { name: 'Suche' });
+    await user.type(input, 'eisen');
+    const options = () => within(screen.getByRole('listbox', { hidden: true })).queryAllByRole('option').map(o => o.textContent);
+    await waitFor(() => expect(options()).toEqual([
+      'Eisenerz1 rein · 1 unreinRohstoffvorkommen', 'Eisenerz · Rein1 VorkommenRohstoffvorkommen', 'Eisenerz · Unrein1 VorkommenRohstoffvorkommen',
+    ]));
+    await user.keyboard('{Enter}');
+    expect(useNodeLayer.getState()).toMatchObject({ visible: true, hiddenResources: ['Desc_Water_C', 'Desc_Unobtainium_C'], purities: PURITIES });
+    // The nodes are the entry's items: no collectible matches, so every collectible fades.
+    expect([...useUiStore.getState().searchHighlight!].sort()).toEqual(['N1', 'N2']);
+
+    await user.clear(input);
+    await user.type(input, 'eisen rein');
+    await waitFor(() => expect(options()).toEqual(['Eisenerz · Rein1 VorkommenRohstoffvorkommen']));
+    await user.keyboard('{Enter}');
+    expect(useNodeLayer.getState()).toMatchObject({ visible: true, hiddenResources: ['Desc_Water_C', 'Desc_Unobtainium_C'], purities: ['pure'] });
+    expect([...useUiStore.getState().searchHighlight!]).toEqual(['N2']);
+    expect(loadResourceNodeView()).toMatchObject({ visible: true, purities: ['pure'] });
   });
 });

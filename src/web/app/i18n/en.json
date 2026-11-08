@@ -125,7 +125,9 @@
     "off": "Off",
     "none": "This map dataset has no resource nodes.",
     "resource": "Resource",
-    "resourceHint": "Click to show or hide · Alt-click to show only this resource",
+    "resourceHint": "Click to show or hide · Alt-click or “only”: show only this resource",
+    "only": "only",
+    "onlyLabel": "Show only {resource}",
     "all": "All",
     "noneShown": "None",
     "purityLabel": "Purity",
@@ -235,6 +237,15 @@
       "Desc_Water_C": "H₂O",
       "Desc_NitrogenGas_C": "N₂",
       "Geyser": "Gy"
+    },
+    "search": {
+      "purity": {
+        "pure": "{count, number} pure",
+        "normal": "{count, number} normal",
+        "impure": "{count, number} impure"
+      },
+      "nodes": "{count, plural, one {# node} other {# nodes}}",
+      "withPurity": "{resource} · {purity}"
     }
   },
   "marks": {
@@ -763,14 +774,15 @@
     "routeInfo": {
       "title": "Route on the map",
       "straight": "Straight line",
-      "climb": "Height difference A → B",
-      "length3d": "3D length",
+      "climb": "Height difference",
       "metres": "{value} m",
       "loading": "…",
-      "unknown": "unknown",
-      "note": "Exact for drones. Roads are longer: type the real length if you know it. Drag A or B on the map to move them.",
-      "typed": "You typed the length, so moving A or B does not change it.",
-      "useStraight": "Use the straight line"
+      "useStraight": "Use the straight line ({value} m)",
+      "adjust": {
+        "road": "Roads are longer: adjust the value.",
+        "freightCar": "Rails are longer: adjust the value.",
+        "drone": "Drones fly the straight line."
+      }
     },
     "capacity": {
       "both": "{stacks, plural, one {# stack} other {# stacks}} or {m3, number} m³"
@@ -839,8 +851,9 @@
       "perFreightCar": "Per freight car",
       "roundTrip": "Round trip",
       "oneWay": "{time} one way",
-      "fuel": "Fuel per round trip",
-      "fuelPerMinute": "{value} per minute",
+      "fuel": "Fuel",
+      "fuelPerTrip": "per trip",
+      "fuelPerMinute": "{value}/min",
       "load": "Load per trip: {load} · includes {stop} loading and unloading",
       "fuelNote": {
         "autopilot": "Fuel is an estimate from the game's use per metre driven; the Tractor and the Explorer burn more uphill.",
@@ -850,17 +863,23 @@
         "route": "Pick the route on the map or type its length to see the result.",
         "speed": "Enter the average speed to see the result.",
         "stop": "Enter the load and unload time to see the result."
+      },
+      "straightLine": "Straight line",
+      "spoken": {
+        "fuel": "{vehicle}: {rate}, round trip {time}, {fuel} {fuelName} per trip",
+        "plain": "{vehicle}: {rate}, round trip {time}"
       }
     },
     "compare": {
       "title": "All fuels compared",
-      "bySpeed": "Fastest first. Used: fuel per round trip.",
-      "sameSpeed": "The trip takes as long with every fuel. Least used first.",
+      "bySpeed": "Yours on top, then the fastest first. Used: fuel per trip.",
+      "sameSpeed": "The trip takes as long with every fuel. Yours on top, then the most economical first.",
       "roundTrip": "Round trip",
       "used": "Used",
-      "perTrip": "Per round trip",
-      "perMinute": "Per minute",
-      "stacks": "Stacks/min"
+      "perMinute": "Used per minute",
+      "stacks": "Stacks/min",
+      "fastest": "Fastest: {fuel}",
+      "cheapest": "Most economical: {fuel}"
     },
     "fleet": {
       "question": {
@@ -874,11 +893,15 @@
       },
       "utilisation": "Utilisation",
       "percent": "{share, number, percent}",
-      "capacity": "They move up to",
+      "capacity": "Together up to",
       "fuel": "Fuel for all",
-      "fuelTotal": "{value} {fuel}/min",
+      "fuelTotal": "{value}/min",
       "missing": "Enter a target throughput.",
-      "freightCarNote": "Counts freight cars. Cars in the same train share one round trip; locomotives are not counted."
+      "freightCarNote": "Counts freight cars. Cars in the same train share one round trip; locomotives are not counted.",
+      "spoken": {
+        "vehicles": "{count, plural, one {# vehicle} other {# vehicles}} needed, utilisation {share, number, percent}, together up to {capacity}",
+        "freightCars": "{count, plural, one {# freight car} other {# freight cars}} needed, utilisation {share, number, percent}, together up to {capacity}"
+      }
     }
   },
   "search": {
@@ -904,7 +927,8 @@
       "cave": "Cave",
       "crashSite": "Crash site",
       "machine": "Machine",
-      "vehicle": "Vehicle"
+      "vehicle": "Vehicle",
+      "resource": "Resource node"
     }
   },
   "tools": {

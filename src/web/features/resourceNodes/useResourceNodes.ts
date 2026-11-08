@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { create } from 'zustand';
 import type { ResourceNodesDto } from '../../../shared/api.js';
 import {
-  applyOverrides, extractorsByNode, readResourceNodes,
+  applyOverrides, extractorsByNode, PURITIES, readResourceNodes,
   type ExtractorInfo, type NodeFilter, type Occupancy, type Purity, type ResourceNode, type ResourceNodesFile,
 } from '../../../shared/resourceNodes.js';
 import { api, ApiClientError } from '../../app/api.js';
@@ -73,6 +73,8 @@ interface NodeLayerState extends ResourceNodeView {
   /** Shows only this resource (or all again when it already is the only one shown among `all`). */
   showOnlyResource(id: string, all: readonly string[]): void;
   setAllResources(shown: boolean, all: readonly string[]): void;
+  /** Switches the layer on with only this resource of `all`, of one purity or of every purity (a search result). */
+  showResource(id: string, all: readonly string[], purity: Purity | null): void;
   togglePurity(p: Purity): void;
   setOccupancy(o: Occupancy): void;
 }
@@ -99,6 +101,7 @@ export const useNodeLayer = create<NodeLayerState>()((set, get) => {
       update({ hiddenResources: onlyThis ? [] : all.filter(r => r !== id) });
     },
     setAllResources: (shown, all) => update({ hiddenResources: shown ? [] : [...all] }),
+    showResource: (id, all, purity) => update({ visible: true, hiddenResources: all.filter(r => r !== id), purities: purity ? [purity] : [...PURITIES] }),
     togglePurity: p => {
       const on = get().purities;
       update({ purities: on.includes(p) ? on.filter(x => x !== p) : [...on, p] });

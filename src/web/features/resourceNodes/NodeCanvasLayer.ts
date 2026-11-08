@@ -4,9 +4,12 @@ import { drawNode, nodeRadius, nodeSize, type DrawNode, type NodePalette } from 
 import { nodeImage, onNodeImageLoad } from './nodeImages.js';
 import { PURITY_TOKENS, RESOURCE_TOKENS } from './resourceStyle.js';
 
-const PANE = 'ficsmap-resource-nodes';
-/** Above the caves (350, entrances 420), below the collectible markers (450). */
-const PANE_Z = '430';
+export const NODE_PANE = 'ficsmap-resource-nodes';
+/**
+ * Above the caves (350, entrances 420) and the collectible markers (450): the pane exists only while the layer is
+ * switched on, and then the nodes are what the user looks for. Below the vehicle route's line (460).
+ */
+export const NODE_PANE_Z = 455;
 const CULL_PX = 24;
 /** Pick radius beyond the drawn disk, so small dots stay easy to hit. */
 const PICK_SLACK = 6;
@@ -39,8 +42,8 @@ export class NodeCanvasLayer extends L.Layer {
   }
 
   override onAdd(map: L.Map): this {
-    const pane = map.getPane(PANE) ?? map.createPane(PANE);
-    pane.style.zIndex = PANE_Z;
+    const pane = map.getPane(NODE_PANE) ?? map.createPane(NODE_PANE);
+    pane.style.zIndex = String(NODE_PANE_Z);
     pane.style.pointerEvents = 'none';
     this.canvas = L.DomUtil.create('canvas', 'leaflet-zoom-animated', pane);
     this.unsubscribeImages = onNodeImageLoad(() => this.redraw());

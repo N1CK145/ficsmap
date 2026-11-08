@@ -8,6 +8,7 @@ import { pressurizerClock } from '../../../shared/nodeRates.js';
 import { filterNodes, type ExtractorInfo, type ResourceNode } from '../../../shared/resourceNodes.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { IconsContext, useItemIcons } from '../machineWiki/icons.js';
+import { markerClickClaims } from '../map/clickClaims.js';
 import { useRecipes } from '../planner/useRecipes.js';
 import { NodeCanvasLayer } from './NodeCanvasLayer.js';
 import type { DrawExtractor, DrawNode } from './drawNode.js';
@@ -24,9 +25,10 @@ const BOX_OFFSET = 14;
 
 /**
  * The resource nodes on the map while the layer is switched on, filtered by resource and purity, each as the game's
- * picture of its resource in a ring of its purity's colour (pictures and recipe data load with the layer). Hovering a
- * node shows its resource, purity with the extraction rates, and position; a click (or tap) pins that box until a
- * click elsewhere or Escape.
+ * picture of its resource in a ring of its purity's colour (pictures and recipe data load with the layer), drawn
+ * above the collectible markers. Hovering a node shows its resource, purity with the extraction rates, and position;
+ * a click (or tap) pins that box until a click elsewhere or Escape. A click on a node is the node's: it does not also
+ * select a collectible under it (`markerClickClaims`).
  */
 export function ResourceNodeLayer({ ctx }: { ctx: WorldCtx }) {
   const map = useMap();
@@ -99,6 +101,8 @@ export function ResourceNodeLayer({ ctx }: { ctx: WorldCtx }) {
     };
     const onClick = (e: L.LeafletMouseEvent) => setPinned(layer.pick(e.containerPoint.x, e.containerPoint.y));
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPinned(null); };
+    const claim = (x: number, y: number) => layer.pick(x, y) !== null;
+    markerClickClaims.add(claim);
     map.on('mousemove', onMove);
     map.on('mouseout', onOut);
     map.on('click', onClick);
@@ -108,6 +112,7 @@ export function ResourceNodeLayer({ ctx }: { ctx: WorldCtx }) {
       map.off('mouseout', onOut);
       map.off('click', onClick);
       document.removeEventListener('keydown', onKey);
+      markerClickClaims.delete(claim);
       cancelAnimationFrame(frame);
       container.classList.remove(HOVER_CLASS);
       layer.remove();
@@ -187,12 +192,13 @@ function NodeInfo({ node, extractors, pressurizer, label, rates, pinned, ctx }: 
       </div>
       <div className="text-muted">{t(`resourceNodes.kinds.${node.kind}`)}</div>
       {node.purity !== null && (
-        <div className="flex flex-wrap items-center gap-x-1.5" data-testid="node-purity">
+        <div className="flex items-center gap-x-1.5" data-testid="node-purity">
           <PurityDot purity={node.purity} />
           <span className={`font-semibold ${PURITY_TEXT[node.purity]}`}>{t(`resourceNodes.purity.${node.purity}`)}</span>
-          {rateText !== null && <span className="tabular-nums" data-testid="node-rates">· {rateText}</span>}
         </div>
       )}
+      {/* A line of its own: wrapped after the purity it would start with a stray separator. */}
+      {node.purity !== null && rateText !== null && <div className="tabular-nums" data-testid="node-rates">{rateText}</div>}
       <div className="tabular-nums">{t('item.coords', { x: m(node.x), y: m(node.y), z: m(node.z) })}</div>
       {node.original && (
         <div className="mt-1 border-t border-line pt-1 text-muted">
