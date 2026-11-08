@@ -1,6 +1,6 @@
 import { gzipSync } from 'node:zlib';
 import { QueryClient } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import L from 'leaflet';
 import { MapContainer, useMap } from 'react-leaflet';
@@ -14,11 +14,14 @@ import { initI18n } from '../../src/web/app/i18n/index.js';
 import { useUiStore } from '../../src/web/app/store.js';
 import { PICK_MODE, pickRouteMode, vehicleCalcFeature, vehicleCalcTool } from '../../src/web/features/vehicleCalc/index.js';
 import { PickReturn } from '../../src/web/features/vehicleCalc/PickReturn.js';
+import { loadVehicleCalc } from '../../src/web/app/persist.js';
+import { durationParts, formatFuel } from '../../src/web/features/vehicleCalc/format.js';
 import { EMPTY_FORM, useVehicleCalc } from '../../src/web/features/vehicleCalc/useVehicleCalc.js';
 import { ROUTE_PANE, VehicleRouteLayer } from '../../src/web/features/vehicleCalc/VehicleRouteLayer.js';
 import { MarkerLayer } from '../../src/web/features/map/MarkerLayer.js';
-import { findItem, VEHICLE_PICTURES } from '../../src/web/features/vehicleCalc/VehicleCalculator.js';
+import { findItem, pinSelected, VEHICLE_PICTURES, type FuelRow } from '../../src/web/features/vehicleCalc/VehicleCalculator.js';
 import { stubFetch } from './fetchStub.js';
+import { MOBILE, stubMatchMedia } from './matchMedia.js';
 import { renderWorldPages } from './worldPages.js';
 
 const W = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
@@ -69,20 +72,32 @@ async function open() {
   return screen.findByRole('main', { name: 'Vehicle calculator' });
 }
 
-/** The result: what one vehicle does on the route. */
-const result = (name = 'Result') => screen.getByRole('status', { name });
+/** The result window: what one vehicle does on the route. */
+const result = (name = 'Result') => screen.getByRole('region', { name });
 /** A figure of the result by its label: its value and the line under it, joined by " | ". */
 function stat(label: string, name = 'Result'): string {
   const dt = within(result(name)).getByText(label, { selector: 'dt' });
   return [...dt.parentElement!.querySelectorAll('dd')].map(d => d.textContent).join(' | ');
 }
+/** The answer to "how many vehicles do I need". */
+const fleetAnswer = () => screen.getByTestId('fleet-answer');
+/** What the live regions say (the sentence for screen readers, once the input settled). */
+const spoken = () => screen.getAllByRole('status').map(s => s.textContent).filter(Boolean);
+/** The folded section with this title. */
+const fold = (title: string) => screen.getByText(title, { selector: 'summary *' }).closest('details')!;
 /** Opens a folded section by its summary. */
 const unfold = (text: RegExp | string) => user().click(screen.getByText(text, { selector: 'summary, summary *' }));
+/** The rate on each vehicle card, by vehicle. */
+const cardRates = () => Object.fromEntries(screen.getAllByRole('radio').map(r => [r.getAttribute('value'), r.closest('label')!.querySelector('[data-testid="card-rate"]')?.textContent ?? null]));
+/** The rows of a table: header cell, then the cells. */
+const tableRows = (table: HTMLElement) => within(table).getAllByRole('row').slice(1)
+  .map(r => [within(r).getByRole('rowheader').textContent, ...within(r).getAllByRole('cell').map(c => c.textContent)]);
 
 describe('vehicle calculator', () => {
   beforeEach(() => {
     initI18n(['en']);
-    useVehicleCalc.setState({ form: EMPTY_FORM });
+    localStorage.clear();
+    useVehicleCalc.setState({ worldId: W, form: EMPTY_FORM, route: null, lengthFromRoute: false });
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -121,24 +136,56 @@ describe('vehicle calculator', () => {
     const u = user();
     // 1800 m at 90 km/h: 144 s there and back + 16 s = 160 s; 48 stacks per trip = 18 stacks/min per truck
     await u.type(route, '1800');
-    expect(result()).toHaveTextContent(/^Truck1,800 mPackaged Fuel/);
+    // The assumption in the title bar; which vehicle, length and fuel (for narrow pages, where the inputs are not beside it).
+    expect(within(result()).getByText('90 km/h')).toBeInTheDocument();
+    expect(screen.getByTestId('result-for')).toHaveTextContent(/^Truck1,800 mPackaged Fuel$/);
+    expect(screen.getByTestId('result-for')).toHaveClass('lg:hidden');
     expect(stat('Per vehicle')).toBe('18 stacks/min');
     expect(stat('Round trip')).toBe('2 min 40 s | 1 min 12 s one way');
     // 2 x 1800 m x 5 MJ = 18 000 MJ = 24 Packaged Fuel per round trip of 160 s, 9 per minute
-    expect(stat('Fuel per round trip')).toBe('24 | 9 per minute');
+    expect(stat('Fuel')).toBe('24 per trip | 9/min');
     expect(result()).toHaveTextContent('Load per trip: 48 stacks · includes 16 s loading and unloading');
     expect(result()).toHaveTextContent('Fuel is an estimate');
+    // The visible result is no live region; one sentence is announced once the input settled.
+    expect(result().closest('[role="status"]')).toBeNull();
+    await waitFor(() => expect(spoken()).toContain('Truck: 18 stacks/min, round trip 2 min 40 s, 24 Packaged Fuel per trip'));
 
-    // Every fuel compared: the trip takes as long with each, so only the fuel differs; least used first.
+    // Every fuel compared, folded in the result: the trip takes as long with each, so only the fuel use per minute
+    // differs. Closed for a wheeled vehicle, its summary names the most economical; the selected fuel on top.
+    const compare = fold('All fuels compared');
+    expect(compare).not.toHaveAttribute('open');
+    expect(compare.querySelector('summary')).toHaveTextContent('All fuels comparedMost economical: Battery');
+    await unfold('All fuels compared');
     const table = within(page).getByRole('table', { name: 'All fuels compared' });
-    const rows = within(table).getAllByRole('row').slice(1);
-    expect(rows.map(r => [within(r).getByRole('rowheader').textContent, ...within(r).getAllByRole('cell').map(c => c.textContent)])).toEqual([
-      ['Battery', '3', '1.13'], ['Packaged Fuel', '24', '9'], ['Coal', '60', '22.5'],
-    ]);
+    expect(within(table).getAllByRole('columnheader').map(c => c.textContent)).toEqual(['Fuel', 'Used per minute']);
+    // 3 Batteries or 60 Coal per round trip of 160 s.
+    expect(tableRows(table)).toEqual([['Packaged Fuel', '9'], ['Battery', '1.1'], ['Coal', '22.5']]);
     expect(within(table).getByRole('row', { current: true })).toHaveTextContent('Packaged Fuel');
     await u.selectOptions(within(page).getByRole('combobox', { name: 'Fuel' }), 'Desc_Coal_C');
-    expect(stat('Fuel per round trip')).toBe('60 | 22.5 per minute');
+    expect(stat('Fuel')).toBe('60 per trip | 22.5/min');
+    expect(tableRows(table)).toEqual([['Coal', '22.5'], ['Battery', '1.1'], ['Packaged Fuel', '9']]);
     expect(within(table).getByRole('row', { current: true })).toHaveTextContent('Coal');
+  });
+
+  it('shows on every vehicle card what it moves per minute once the route length is known, so the cards compare them', async () => {
+    setup('present');
+    const page = await open();
+    const u = user();
+    const vehicles = within(page).getByRole('radiogroup', { name: 'Vehicle' });
+    expect(cardRates()).toEqual({ tractor: null, truck: null, fluidTruck: null, drone: null, freightCar: null });
+    await u.type(within(page).getByLabelText('Route length (one way)'), '1800');
+    // Each with its own speed, stop time and (drone) fuel: the Tractor at 19.6 m/s (199.7 s a round trip), the Fluid
+    // Truck in m³, the drone at 50 m/s with Packaged Fuel (174 s). The freight car has no speed in the game data.
+    expect(cardRates()).toEqual({ tractor: '7.5 stacks/min', truck: '18 stacks/min', fluidTruck: '1,185.2 m³/min', drone: '3.1 stacks/min', freightCar: null });
+    expect(within(vehicles).getByRole('radio', { name: 'Truck' })).toHaveAccessibleDescription('48 stacks 18 stacks/min');
+    // A typed speed counts for its vehicle only.
+    await unfold('More settings');
+    await u.clear(within(page).getByLabelText('Average speed'));
+    await u.type(within(page).getByLabelText('Average speed'), '45');
+    expect(cardRates()).toMatchObject({ truck: '9.5 stacks/min', tractor: '7.5 stacks/min' });
+    // A vehicle that cannot carry the item shows no rate.
+    await u.type(within(page).getByLabelText('Item (optional)'), 'Water');
+    expect(cardRates()).toMatchObject({ truck: null, fluidTruck: '1,185.2 m³/min' });
   });
 
   it('answers how many vehicles a target needs, folded away until asked', async () => {
@@ -151,13 +198,15 @@ describe('vehicle calculator', () => {
     await unfold('How many vehicles do I need?');
     expect(fleet).toHaveAttribute('open');
     expect(within(fleet).getByText('stacks/min')).toBeInTheDocument();
-    expect(result('How many vehicles do I need?')).toHaveTextContent('Enter a target throughput.');
+    expect(fleetAnswer()).toHaveTextContent('Enter a target throughput.');
     await u.type(within(fleet).getByLabelText('Target throughput'), '40');
-    const answer = result('How many vehicles do I need?');
+    const answer = fleetAnswer();
     expect(answer).toHaveTextContent('Vehicles needed3');
     expect(answer).toHaveTextContent('Utilisation74%');
-    expect(answer).toHaveTextContent('They move up to54 stacks/min');
-    expect(answer).toHaveTextContent('Fuel for all27 Packaged Fuel/min');
+    expect(answer).toHaveTextContent('Together up to54 stacks/min');
+    expect(answer).toHaveTextContent('Fuel for all27/min');
+    expect(within(answer).getByTitle('Packaged Fuel')).toBeInTheDocument();
+    await waitFor(() => expect(spoken()).toContain('3 vehicles needed, utilisation 74%, together up to 54 stacks/min'));
   });
 
   it('keeps speed and stop time under more settings, with the game values and a way back to them', async () => {
@@ -222,12 +271,13 @@ describe('vehicle calculator', () => {
     await u.type(within(page).getByLabelText('Route length (one way)'), '1000');
     // 2 x 1000 m at 50 m/s = 40 s + 102 s; 24 000 + 12 000 MJ = 48 Packaged Fuel per round trip of 142 s
     expect(stat('Round trip')).toBe('2 min 22 s | 20 s one way');
-    expect(stat('Fuel per round trip')).toBe('48 | 20.28 per minute');
+    expect(stat('Fuel')).toBe('48 per trip | 20.3/min');
     expect(stat('Per vehicle')).toBe('3.8 stacks/min');
     expect(result()).toHaveTextContent('Drone fuel use as measured by players.');
+    expect(within(result()).getByText('180 km/h')).toBeInTheDocument();
     await u.selectOptions(fuel, 'Desc_Battery_C');
     expect(within(page).getByLabelText('Average speed')).toHaveValue(270);
-    expect(stat('Fuel per round trip')).toBe('6 | 2.8 per minute');
+    expect(stat('Fuel')).toBe('6 per trip | 2.8/min');
     // The wheeled vehicles keep their own fuel.
     await u.click(within(page).getByRole('radio', { name: 'Truck' }));
     expect(within(page).getByRole('combobox', { name: 'Fuel' })).toHaveValue('Desc_Fuel_C');
@@ -245,7 +295,7 @@ describe('vehicle calculator', () => {
     expect(result()).toHaveTextContent('Load per trip: 9,600 items');
     await unfold('How many vehicles do I need?');
     await u.type(within(page).getByLabelText('Target throughput'), '7200');
-    expect(result('How many vehicles do I need?')).toHaveTextContent('They move up to7,200 items/min (36 stacks/min)');
+    expect(fleetAnswer()).toHaveTextContent('Together up to7,200 items/min (36 stacks/min)');
   });
 
   it('asks for the speed where the game data has none, and gives fluids in m³', async () => {
@@ -274,7 +324,7 @@ describe('vehicle calculator', () => {
     await u.type(within(page).getByLabelText('Target throughput'), '1000');
     const fleet = within(page).getByText('How many freight cars do I need?', { selector: 'summary *' }).closest('details')!;
     expect(within(fleet).getByText('m³/min')).toBeInTheDocument();
-    expect(result('How many freight cars do I need?')).toHaveTextContent('Freight cars needed2');
+    expect(fleetAnswer()).toHaveTextContent('Freight cars needed2');
     expect(within(page).getByText(/Counts freight cars/)).toBeInTheDocument();
   });
 
@@ -326,6 +376,64 @@ describe('vehicle calculator', () => {
 
   it('names a picture for every vehicle', () => {
     for (const v of DATA.vehicles) expect(VEHICLE_PICTURES[v.id]).toMatch(/^Desc_\w+_C$/);
+  });
+
+  it('announces one sentence once the input settled, not every keystroke, and keeps the hidden radios inside their cards', async () => {
+    setup('present');
+    const page = await open();
+    const missing = 'Pick the route on the map or type its length to see the result.';
+    expect(spoken()).toEqual([missing]);
+    await user().type(within(page).getByLabelText('Route length (one way)'), '1800');
+    // Typed just now: "1", "18", "180" were never announced, and "1800" not yet.
+    expect(spoken()).toEqual([missing]);
+    await waitFor(() => expect(spoken()).toEqual(['Truck: 18 stacks/min, round trip 2 min 40 s, 24 Packaged Fuel per trip']));
+    // Absolutely positioned (sr-only) elements inside a positioned box, so they cannot stretch the scrolling page.
+    for (const radio of within(page).getAllByRole('radio')) expect(radio.closest('label')).toHaveClass('relative');
+    for (const status of screen.getAllByRole('status')) expect(status.parentElement).toHaveClass('relative');
+  });
+
+  it('remembers the calculator per world on this device, also over a reload', async () => {
+    useVehicleCalc.setState({ worldId: null });
+    setup('present');
+    const page = await open();
+    const u = user();
+    await u.type(within(page).getByLabelText('Route length (one way)'), '1800');
+    await u.click(within(page).getByRole('radio', { name: 'Drone' }));
+    await u.selectOptions(within(page).getByRole('combobox', { name: 'Fuel' }), 'Desc_Battery_C');
+    act(() => useVehicleCalc.getState().setForm({ target: '30' }));
+    expect(loadVehicleCalc(W)).toMatchObject({ form: { route: '1800', vehicle: 'drone', droneFuel: 'Desc_Battery_C', target: '30' }, route: null });
+
+    // Another world starts empty and keeps its own.
+    act(() => useVehicleCalc.getState().enterWorld('other'));
+    expect(useVehicleCalc.getState().form).toEqual(EMPTY_FORM);
+    act(() => useVehicleCalc.getState().setForm({ route: '50' }));
+    expect(loadVehicleCalc('other')?.form.route).toBe('50');
+    expect(loadVehicleCalc(W)?.form.route).toBe('1800');
+
+    // A reload: the store starts empty, the page brings this world's state back.
+    cleanup();
+    useVehicleCalc.setState({ worldId: null, form: EMPTY_FORM, route: null, lengthFromRoute: false });
+    setup('present');
+    const again = await open();
+    expect(await within(again).findByLabelText('Route length (one way)')).toHaveValue(1800);
+    expect(within(again).getByRole('radio', { name: 'Drone' })).toBeChecked();
+    expect(within(again).getByRole('combobox', { name: 'Fuel' })).toHaveValue('Desc_Battery_C');
+    expect(fold('How many vehicles do I need?')).toHaveAttribute('open');
+  });
+
+  it('formats fuel by size and durations in whole seconds', () => {
+    expect([18.45, 1, 0.92, 0.0185, 0.0099, 0].map(v => formatFuel(v, 'de'))).toEqual(['18,5', '1', '0,92', '0,019', '< 0,01', '0']);
+    expect(formatFuel(1234.56, 'en')).toBe('1,234.6');
+    expect(durationParts(55.4)).toEqual({ s: 55 });
+    expect(durationParts(59.6)).toEqual({ m: 1, s: 0 });
+    expect(durationParts(127.2)).toEqual({ m: 2, s: 7 });
+  });
+
+  it('pins the selected fuel on top of the comparison', () => {
+    const row = (id: string): FuelRow => ({ fuel: { id, name: { en: id, de: id }, energyMJ: 1 }, roundTripSeconds: 1, perTrip: 1, stacksPerMinute: null });
+    const rows = [row('a'), row('b'), row('c')];
+    expect(pinSelected(rows, 'c').map(r => r.fuel.id)).toEqual(['c', 'a', 'b']);
+    expect(pinSelected(rows, 'x').map(r => r.fuel.id)).toEqual(['a', 'b', 'c']);
   });
 });
 
@@ -382,8 +490,9 @@ const routeInfo = () => screen.getByRole('region', { name: 'Strecke auf der Kart
 describe('vehicle calculator: route on the map', () => {
   beforeEach(() => {
     initI18n(['de']);
+    localStorage.clear();
     useUiStore.getState().enterWorld(W);
-    useVehicleCalc.setState({ form: EMPTY_FORM, route: null, pickedStart: null, lengthFromRoute: false, returnRequest: false });
+    useVehicleCalc.setState({ worldId: W, form: EMPTY_FORM, route: null, pickedStart: null, lengthFromRoute: false, returnRequest: false });
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -422,18 +531,22 @@ describe('vehicle calculator: route on the map', () => {
     expect(useVehicleCalc.getState().returnRequest).toBe(false);
     expect(useVehicleCalc.getState().route).toEqual({ start: { x: 30_000, y: 30_000 }, end: { x: 30_000, y: 10_000 } });
     expect(routeInput()).toHaveValue(200);
-    expect(routeInfo()).toHaveTextContent('Luftlinie200 m');
-    // From -12.3 m up to 45.7 m.
-    await waitFor(() => expect(routeInfo()).toHaveTextContent('Höhenunterschied A → B+58 m'));
-    expect(routeInfo()).toHaveTextContent('3D-Länge208 m');
-    expect(routeInfo()).toHaveTextContent('Für Drohnen genau. Straßen sind länger');
+    // One line: the straight line and the height difference, from -12.3 m up to 45.7 m; no 3D length (the model uses none).
+    expect(routeInfo()).toHaveTextContent(/^ABLuftlinie200 m/);
+    await waitFor(() => expect(routeInfo()).toHaveTextContent(/^ABLuftlinie200 mHöhenunterschied\+58 mNeu wählen$/));
+    expect(within(routeInfo()).getByRole('button', { name: 'Punkte entfernen' })).toBeInTheDocument();
+    // The length field keeps the value, with one short hint for wheeled vehicles.
+    expect(routeInput()).toHaveAccessibleDescription('m Straßen sind länger: Wert anpassen.');
 
     // One truck on 200 m at 90 km/h: 8 s one way, 16 s there and back plus 16 s at the stations, 48 stacks a trip.
-    expect(screen.getByRole('status', { name: 'Ergebnis' })).toHaveTextContent(/^Lkw200 mAbgefüllter Treibstoff/);
+    expect(within(result('Ergebnis')).getByText('Luftlinie · 90 km/h')).toBeInTheDocument();
+    expect(screen.getByTestId('result-for')).toHaveTextContent(/^Lkw200 mAbgefüllter Treibstoff$/);
     expect(stat('Pro Fahrzeug', 'Ergebnis')).toBe('90 Stapel/min');
     expect(stat('Hin und zurück', 'Ergebnis')).toBe('32 s | Hinweg 8 s');
     // 2 x 200 m x 5 MJ = 2000 MJ = 2.67 Packaged Fuel per round trip.
-    expect(stat('Treibstoff hin und zurück', 'Ergebnis')).toBe('2,67 | 5 pro Minute');
+    expect(stat('Treibstoff', 'Ergebnis')).toBe('2,7 je Fahrt | 5/min');
+    await user().click(screen.getByRole('radio', { name: 'Drohne' }));
+    expect(routeInput()).toHaveAccessibleDescription('m Drohnen fliegen die Luftlinie.');
   });
 
   it('follows moved points until the length is typed, and can take the straight line again', async () => {
@@ -446,16 +559,21 @@ describe('vehicle calculator: route on the map', () => {
     act(() => useVehicleCalc.getState().moveRoutePoint('end', { x: 30_000, y: 40_000 }));
     expect(routeInput()).toHaveValue(500);
 
+    expect(within(result('Ergebnis')).getByText('Luftlinie · 90 km/h')).toBeInTheDocument();
+
     const u = user();
     await u.clear(routeInput());
     await u.type(routeInput(), '650');
-    expect(routeInfo()).toHaveTextContent('Die Länge ist eingetippt');
+    // Typed: the straight line is offered back, and the result no longer assumes it.
+    expect(within(page).getByRole('button', { name: 'Luftlinie übernehmen (500 m)' })).toBeInTheDocument();
+    expect(routeInput()).not.toHaveAccessibleDescription(/Straßen/);
+    expect(within(result('Ergebnis')).getByText('90 km/h')).toBeInTheDocument();
     act(() => useVehicleCalc.getState().moveRoutePoint('end', { x: 60_000, y: 80_000 }));
     expect(routeInput()).toHaveValue(650);
     expect(routeInfo()).toHaveTextContent('Luftlinie1.000 m');
-    await u.click(within(page).getByRole('button', { name: 'Luftlinie übernehmen' }));
+    await u.click(within(page).getByRole('button', { name: 'Luftlinie übernehmen (1.000 m)' }));
     expect(routeInput()).toHaveValue(1000);
-    expect(routeInfo()).not.toHaveTextContent('Die Länge ist eingetippt');
+    expect(within(page).queryByRole('button', { name: /Luftlinie übernehmen/ })).toBeNull();
 
     // Clearing the points keeps the length.
     await u.click(within(page).getByRole('button', { name: 'Punkte entfernen' }));
@@ -488,6 +606,17 @@ describe('vehicle calculator: route on the map', () => {
     expect(useUiStore.getState().interactionMode).toBe('inspect');
     expect(await calculator()).toBeInTheDocument();
     expect(useVehicleCalc.getState().route).toEqual(before);
+  });
+
+  it('uses the plate button on the banner and 44 px buttons on a phone', async () => {
+    stubMatchMedia({ [MOBILE]: true });
+    setupPicking();
+    useVehicleCalc.setState({ route: { start: { x: 0, y: 0 }, end: { x: 10_000, y: 0 } }, lengthFromRoute: true, form: { ...EMPTY_FORM, route: '100' } });
+    const page = await openDe();
+    expect(within(routeInfo()).getByRole('button', { name: 'Neu wählen' })).toHaveClass('h-11', 'chamfer');
+    expect(within(routeInfo()).getByRole('button', { name: 'Punkte entfernen' })).toHaveClass('size-11');
+    await user().click(within(page).getByRole('button', { name: 'Neu wählen' }));
+    expect(screen.getByRole('button', { name: 'Abbrechen' })).toHaveClass('h-11', 'chamfer');
   });
 
   it('ends picking when the calculator page is opened again (tool or Back), and stays on the map when another mode takes over', async () => {
@@ -534,28 +663,39 @@ describe('vehicle calculator: route on the map', () => {
     const u = user();
     await u.click(within(page).getByRole('radio', { name: 'Drohne' }));
     await u.type(routeInput(), '1000');
+    // Open at first for the drone: the fuel changes its speed. The summary names the fastest.
+    const compare = fold('Alle Treibstoffe im Vergleich');
+    expect(compare).toHaveAttribute('open');
+    expect(compare.querySelector('summary')).toHaveTextContent('Schnellster: Batterie');
     const table = within(page).getByRole('table', { name: 'Alle Treibstoffe im Vergleich' });
-    expect(within(page).getByText('Schnellster zuerst. Verbrauch: Treibstoff pro Fahrt hin und zurück.')).toBeInTheDocument();
+    expect(within(page).getByText('Deiner oben, darunter der schnellste zuerst. Verbrauch: Treibstoff je Fahrt.')).toBeInTheDocument();
     expect(within(table).getAllByRole('columnheader').map(c => c.textContent)).toEqual(['Treibstoff', 'Hin und zurück', 'Verbrauch', 'Stapel/min']);
-    const rows = within(table).getAllByRole('row').slice(1);
-    // Fastest first. Battery: 75 m/s, 128.7 s round trip, 6 Batteries, 9 stacks = 4.2 stacks/min. All of it, nothing cut.
-    expect(rows.map(r => within(r).getByRole('rowheader').textContent)).toEqual(['Batterie', 'Abgefüllter Treibstoff']);
-    expect(within(rows[0]!).getAllByRole('cell').map(c => c.textContent)).toEqual(['2 min 9 s', '6', '4,2']);
-    expect(within(rows[1]!).getAllByRole('cell').map(c => c.textContent)).toEqual(['2 min 22 s', '48', '3,8']);
+    // The selected fuel on top, then the fastest. Battery: 75 m/s, 128.7 s round trip, 6 Batteries, 9 stacks = 4.2 stacks/min.
+    expect(tableRows(table)).toEqual([['Abgefüllter Treibstoff', '2 min 22 s', '48', '3,8'], ['Batterie', '2 min 9 s', '6', '4,2']]);
     expect(within(table).getByRole('row', { current: true })).toHaveTextContent('Abgefüllter Treibstoff');
     expect(stat('Hin und zurück', 'Ergebnis')).toBe('2 min 22 s | Hinweg 20 s');
 
     await u.selectOptions(within(page).getByRole('combobox', { name: 'Treibstoff' }), 'Desc_Battery_C');
+    expect(tableRows(table).map(r => r[0])).toEqual(['Batterie', 'Abgefüllter Treibstoff']);
     expect(within(table).getByRole('row', { current: true })).toHaveTextContent('Batterie');
-    expect(stat('Hin und zurück', 'Ergebnis')).toBe('2 min 9 s | Hinweg 13,3 s');
+    // Whole seconds: 13.3 s one way.
+    expect(stat('Hin und zurück', 'Ergebnis')).toBe('2 min 9 s | Hinweg 13 s');
+
+    // Switching to a wheeled vehicle closes it (the fuel does not change its speed), back to the drone opens it.
+    await u.click(within(page).getByRole('radio', { name: 'Lkw' }));
+    expect(fold('Alle Treibstoffe im Vergleich')).not.toHaveAttribute('open');
+    expect(fold('Alle Treibstoffe im Vergleich').querySelector('summary')).toHaveTextContent('Sparsamster: Batterie');
+    await u.click(within(page).getByRole('radio', { name: 'Drohne' }));
+    expect(fold('Alle Treibstoffe im Vergleich')).toHaveAttribute('open');
   });
 });
 
 describe('vehicle route layer', () => {
   beforeEach(() => {
     initI18n(['de']);
+    localStorage.clear();
     useUiStore.getState().enterWorld(W);
-    useVehicleCalc.setState({ form: EMPTY_FORM, route: null, pickedStart: null, lengthFromRoute: false });
+    useVehicleCalc.setState({ worldId: W, form: EMPTY_FORM, route: null, pickedStart: null, lengthFromRoute: false });
   });
 
   function renderLayer() {

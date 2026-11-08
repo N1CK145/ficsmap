@@ -1,8 +1,8 @@
-import { useId, useMemo, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  calculate, DEFAULT_FUEL, defaultSpeed, loadFor, oneWaySeconds, tripsByFuel, vehicleFuels,
-  type CalcResult, type FuelInput, type Load, type TransportData, type TransportFuel, type TransportItem, type TransportVehicle, type TripInput,
+  calculate, oneWaySeconds, tripsByFuel, vehicleFuels,
+  type CalcResult, type Load, type TransportData, type TransportFuel, type TransportItem, type TransportVehicle, type TripInput,
   type VehicleId,
 } from '../../../shared/transport.js';
 import { Button } from '../../components/Button.js';
@@ -13,6 +13,9 @@ import { CloseIcon } from '../../components/icons.js';
 import { StatList, StatRow, StatTile, TileValue } from '../../components/StatRow.js';
 import { Window, WINDOW_FRAME } from '../../components/Window.js';
 import { GameIcon } from '../machineWiki/icons.js';
+import {
+  cardRates, durationParts, formatFuel, formatRate, kmh, num, oneVehicle, round1, vehicleSetup, type CardRate,
+} from './format.js';
 import type { CalcForm } from './useVehicleCalc.js';
 
 /** The game's descriptor class of each vehicle, for its picture (dataset part `icons`). */
@@ -25,11 +28,9 @@ export const VEHICLE_PICTURES: Record<VehicleId, string> = {
   freightCar: 'Desc_FreightWagon_C',
 };
 
-/** "" or a non-number is NaN, so `calculate` rejects it. */
-const num = (s: string) => (s.trim() === '' ? Number.NaN : Number(s));
-/** One decimal at most, for display and for the defaults put into the inputs. */
-const round1 = (n: number) => Math.round(n * 10) / 10;
-const kmh = (mps: number) => round1(mps * 3.6);
+/** How long the screen reader's summary waits for the input to settle before it is announced. */
+const ANNOUNCE_DELAY_MS = 500;
+
 const atLeastZero = (n: number) => Number.isFinite(n) && n >= 0;
 
 /** A copy of the typed values per vehicle without the one of `id`, so it gets its game value again. */
@@ -39,21 +40,11 @@ function without(values: Partial<Record<VehicleId, string>>, id: VehicleId): Par
   return copy;
 }
 
-export function defaultStop(v: TransportVehicle): string {
-  return v.stopSeconds === null ? '' : String(round1(v.stopSeconds));
-}
-
 /** The item whose name (current language, or English) matches the typed text, ignoring case. */
 export function findItem(items: readonly TransportItem[], text: string, lang: 'en' | 'de'): TransportItem | null {
   const q = text.trim().toLocaleLowerCase();
   if (q === '') return null;
   return items.find(i => i.name[lang].toLocaleLowerCase() === q) ?? items.find(i => i.name.en.toLocaleLowerCase() === q) ?? null;
-}
-
-/** The selected fuel, else Packaged Fuel, else the first; null for data without fuels. */
-export function findFuel(fuels: readonly TransportFuel[] | undefined, id: string): TransportFuel | null {
-  if (!fuels?.length) return null;
-  return fuels.find(f => f.id === id) ?? fuels.find(f => f.id === DEFAULT_FUEL) ?? fuels[0]!;
 }
 
 /** One vehicle on the route with one fuel (see `fuelRows`). */
@@ -90,29 +81,46 @@ export function fuelRows(vehicle: TransportVehicle, fuels: readonly TransportFue
     .sort((a, b) => a.perTrip - b.perTrip || a.fuel.name[lang].localeCompare(b.fuel.name[lang], lang));
 }
 
-/** Numbers in the UI language: `digits` decimals at most; fuel amounts below 1 with three significant digits instead. */
-function useNumbers() {
-  const { i18n } = useTranslation();
-  return useMemo(() => {
-    const locale = i18n.language;
-    const plain = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
-    const fuel = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
-    const small = new Intl.NumberFormat(locale, { maximumSignificantDigits: 3 });
-    return {
-      n: (v: number) => plain.format(v),
-      fuel: (v: number) => (v >= 1 ? fuel.format(v) : small.format(v)),
-    };
-  }, [i18n.language]);
+/** The rows with the selected fuel first, the others in their order. */
+export function pinSelected(rows: readonly FuelRow[], selected: string | null): FuelRow[] {
+  const pinned = rows.find(r => r.fuel.id === selected);
+  return pinned ? [pinned, ...rows.filter(r => r !== pinned)] : [...rows];
 }
 
-/** A duration: seconds under a minute, else minutes and whole seconds. */
-function useDuration() {
-  const { t } = useTranslation();
-  return (seconds: number) => {
-    if (seconds < 60) return t('vehicleCalc.duration.seconds', { s: round1(seconds) });
-    const total = Math.round(seconds);
-    return t('vehicleCalc.duration.minutes', { m: Math.floor(total / 60), s: total % 60 });
-  };
+/** Numbers in the UI language (see `format.ts`): rates with one decimal, fuel amounts by size, whole-second durations. */
+function useFormat() {
+  const { t, i18n } = useTranslation();
+  return useMemo(() => {
+    const locale = i18n.language;
+    return {
+      rate: (v: number) => formatRate(v, locale),
+      fuel: (v: number) => formatFuel(v, locale),
+      duration: (seconds: number) => {
+        const p = durationParts(seconds);
+        return p.m === undefined ? t('vehicleCalc.duration.seconds', { s: p.s }) : t('vehicleCalc.duration.minutes', { m: p.m, s: p.s });
+      },
+    };
+  }, [t, i18n.language]);
+}
+
+/** `text` once it has stayed the same for `ms`: what a live region announces, so typing is not read out per key. */
+function useSettled(text: string, ms = ANNOUNCE_DELAY_MS): string {
+  const [settled, setSettled] = useState(text);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(text), ms);
+    return () => clearTimeout(timer);
+  }, [text, ms]);
+  return settled;
+}
+
+/** A status region only screen readers get, announcing `text` once it settled. Inside a positioned box, so it stays put. */
+function Announce({ text }: { text: string }) {
+  const settled = useSettled(text);
+  return (
+    <div className="relative">
+      <p role="status" className="sr-only">{settled}</p>
+    </div>
+  );
 }
 
 /**
@@ -141,22 +149,35 @@ function ValueField({ label, value, onChange, unit, hint, reset }: {
   );
 }
 
+/** The straight line of the route picked on the map, for the length field and the result's assumption. */
+export interface StraightLine {
+  /** Its length in whole metres. */
+  metres: number;
+  /** The length field follows it (not typed since the pick). */
+  following: boolean;
+  /** Sets the length to the straight line again. */
+  onApply(): void;
+}
+
 /**
  * The vehicle calculator, one flow from top to bottom (on a wide page the result beside it): 1 the route (picked on
- * the map with `picker`, or its length typed), 2 the vehicle (cards with the game's pictures), 3 the fuel, and more
- * settings folded away (item, speed, stop time). The result leads with what one vehicle does on the route: stacks per
- * minute, the round trip and the fuel it burns; under it every fuel compared and "how many vehicles do I need".
- * Pure maths in `shared/transport.ts`.
+ * the map with `picker`, or its length typed), 2 the vehicle (cards with the game's pictures; once the route length is
+ * known each card says what that vehicle moves per minute, so the cards compare them), 3 the fuel, and more settings
+ * folded away (item, speed, stop time). The result leads with what one vehicle does on the route: stacks per minute,
+ * the round trip and the fuel it burns; folded inside it every fuel compared and "how many vehicles do I need".
+ * Pure maths in `shared/transport.ts`, the inputs in effect in `format.ts`.
  */
-export function VehicleCalculator({ data, form, onChange, picker }: {
+export function VehicleCalculator({ data, form, onChange, picker, straightLine = null }: {
   data: TransportData; form: CalcForm; onChange(patch: Partial<CalcForm>): void;
   /** Step 1, above the route length: picking the route on the map (RoutePicker). */
   picker?: ReactNode;
+  /** The picked route's straight line, while there is one. */
+  straightLine?: StraightLine | null;
 }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === 'de' ? 'de' : 'en';
   const ids = { fuelSelect: useId(), fuelHint: useId(), item: useId(), items: useId(), itemHint: useId(), radio: useId() };
-  const nums = useNumbers();
+  const fmt = useFormat();
 
   const vehicle = data.vehicles.find(v => v.id === form.vehicle) ?? data.vehicles[0];
   const item = findItem(data.items, form.item, lang);
@@ -166,25 +187,17 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
     () => (vehicle ? vehicleFuels(data.fuels ?? [], vehicle) : []).sort((a, b) => a.name[lang].localeCompare(b.name[lang], lang)),
     [data.fuels, vehicle, lang],
   );
-  const speedTyped = vehicle ? form.speed[vehicle.id] !== undefined : false;
-  const stopTyped = vehicle ? form.stop[vehicle.id] !== undefined : false;
-  const moreOpen = form.item !== '' || speedTyped || stopTyped;
+  const rates = useMemo(() => cardRates(data, form, item), [data, form, item]);
   if (!vehicle) return <p>{t('vehicleCalc.unavailable')}</p>;
 
-  // The drone keeps its own fuel choice: it takes fewer fuels, and its speed depends on the fuel.
-  const fuelField = vehicle.fuel?.fuels ? 'droneFuel' : 'fuel';
-  const fuel = vehicle.fuel ? findFuel(sortedFuels, form[fuelField]) : null;
-  const speedDefault = defaultSpeed(vehicle, fuel?.id ?? null);
-  const speedGame = speedDefault ? String(kmh(speedDefault.mps)) : '';
-  const speed = form.speed[vehicle.id] ?? speedGame;
-  const stopGame = defaultStop(vehicle);
-  const stop = form.stop[vehicle.id] ?? stopGame;
-  const load = loadFor(vehicle, item);
-  const trip: TripInput = { routeMeters: num(form.route), speedKmh: num(speed), stopSeconds: num(stop) };
-  const fuelInput: FuelInput | undefined = fuel && vehicle.fuel ? { perMetreMJ: vehicle.fuel.perMetreMJ, perTripMJ: vehicle.fuel.perTripMJ, energyMJ: fuel.energyMJ } : undefined;
+  const setup = vehicleSetup(vehicle, data, form, item);
+  const { fuelField, fuel, speedDefault, speedGame, speed, stopGame, stop, load, trip } = setup;
+  const speedTyped = form.speed[vehicle.id] !== undefined;
+  const stopTyped = form.stop[vehicle.id] !== undefined;
+  const moreOpen = form.item !== '' || speedTyped || stopTyped;
   // One vehicle on the route, and as many as the target needs.
-  const one = load ? calculate(trip, load, { kind: 'rate', vehicles: 1 }, fuelInput) : null;
-  const fleet = load && one ? calculate(trip, load, { kind: 'vehicles', targetPerMinute: num(form.target) }, fuelInput) : null;
+  const one = oneVehicle(setup);
+  const fleet = load && one ? calculate(trip, load, { kind: 'vehicles', targetPerMinute: num(form.target) }, setup.fuelInput) : null;
   const rows = one && load ? fuelRows(vehicle, data.fuels ?? [], trip, load, lang) : [];
   const freight = vehicle.id === 'freightCar';
   const itemTyped = form.item.trim() !== '';
@@ -201,6 +214,7 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
     if (v.slots !== null) return t('vehicleCalc.amount.stacks', { value: v.slots });
     return v.fluidCapacity !== null ? t('vehicleCalc.amount.m3', { value: v.fluidCapacity }) : '';
   };
+  const cardRate = (r: CardRate) => t(`vehicleCalc.rate.${r.unit}`, { value: round1(r.value) });
 
   const speedField = (
     <ValueField label={t('vehicleCalc.speed')} value={speed} unit={t('vehicleCalc.unit.kmh')}
@@ -209,7 +223,7 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
         limit: kmh(vehicle.straightPathSpeed ?? 0), fuel: fuel?.name[lang],
       })}
       reset={speedTyped && speedGame !== '' && speed !== speedGame ? {
-        label: t('vehicleCalc.reset', { value: `${nums.n(Number(speedGame))} ${t('vehicleCalc.unit.kmh')}` }),
+        label: t('vehicleCalc.reset', { value: `${fmt.rate(Number(speedGame))} ${t('vehicleCalc.unit.kmh')}` }),
         onReset: () => onChange({ speed: without(form.speed, vehicle.id) }),
       } : undefined} />
   );
@@ -218,15 +232,21 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
       onChange={v => onChange({ stop: { ...form.stop, [vehicle.id]: v } })}
       hint={vehicle.stopSource === null ? t('vehicleCalc.stopMissing') : t(`vehicleCalc.stopSource.${vehicle.stopSource}`)}
       reset={stopTyped && stopGame !== '' && stop !== stopGame ? {
-        label: t('vehicleCalc.reset', { value: `${nums.n(Number(stopGame))} ${t('vehicleCalc.unit.s')}` }),
+        label: t('vehicleCalc.reset', { value: `${fmt.rate(Number(stopGame))} ${t('vehicleCalc.unit.s')}` }),
         onReset: () => onChange({ stop: without(form.stop, vehicle.id) }),
       } : undefined} />
   );
   /** A typed number in the UI language for the folded section's summary; a dash while it is not a number. */
-  const shown = (v: string) => (Number.isFinite(num(v)) ? nums.n(num(v)) : '–');
+  const shown = (v: string) => (Number.isFinite(num(v)) ? fmt.rate(num(v)) : '–');
   // Without a game value the field is needed for any result, so it is not folded away.
   const speedRequired = speedDefault === null;
   const stopRequired = vehicle.stopSeconds === null;
+  // The route length: following the picked points it is their straight line, which roads and rails are not.
+  const routeFollows = straightLine?.following === true;
+  const routeHint = routeFollows ? t(`vehicleCalc.routeInfo.adjust.${vehicle.id === 'drone' ? 'drone' : freight ? 'freightCar' : 'road'}`) : undefined;
+  const routeReset = straightLine && !routeFollows && form.route !== String(straightLine.metres) ? {
+    label: t('vehicleCalc.routeInfo.useStraight', { value: fmt.rate(straightLine.metres) }), onReset: straightLine.onApply,
+  } : undefined;
 
   return (
     <form onSubmit={e => e.preventDefault()} noValidate
@@ -234,7 +254,8 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
       <div className="flex min-w-0 flex-col gap-4">
         <Step n={1} title={t('vehicleCalc.step.route')}>
           {picker}
-          <ValueField label={t('vehicleCalc.route')} value={form.route} unit={t('vehicleCalc.unit.m')} onChange={route => onChange({ route })} />
+          <ValueField label={t('vehicleCalc.route')} value={form.route} unit={t('vehicleCalc.unit.m')} onChange={route => onChange({ route })}
+            hint={routeHint} reset={routeReset} />
         </Step>
 
         <Step n={2} title={t('vehicleCalc.step.vehicle')}>
@@ -242,15 +263,22 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
             {data.vehicles.map(v => {
               const checked = v.id === vehicle.id;
               const nameId = `${ids.radio}-${v.id}`;
+              const rate = rates?.get(v.id);
               return (
+                // relative: the visually hidden radio is placed inside the card, not somewhere off the scrolling page.
                 <label key={v.id}
-                  className={`flex min-w-0 cursor-pointer flex-col items-center gap-1 chamfer border px-1 pt-2 pb-2 text-center transition-colors has-focus-visible:ring-2 has-focus-visible:ring-accent has-focus-visible:ring-offset-2 has-focus-visible:ring-offset-panel ${
+                  className={`relative flex min-w-0 cursor-pointer flex-col items-center gap-1 chamfer border px-1 pt-2 pb-2 text-center transition-colors has-focus-visible:ring-2 has-focus-visible:ring-accent has-focus-visible:ring-offset-2 has-focus-visible:ring-offset-panel ${
                     checked ? 'border-accent bg-accent/15' : 'border-line bg-bg hover:border-edge hover:bg-raised'}`}>
                   <input type="radio" name={ids.radio} value={v.id} checked={checked} onChange={() => onChange({ vehicle: v.id })}
-                    aria-labelledby={nameId} aria-describedby={`${nameId}-cap`} className="sr-only" />
+                    aria-labelledby={nameId} aria-describedby={rate ? `${nameId}-cap ${nameId}-rate` : `${nameId}-cap`} className="sr-only" />
                   <GameIcon cls={VEHICLE_PICTURES[v.id]} px={56} placeholder />
                   <span id={nameId} className={`text-sm leading-tight font-semibold ${checked ? 'text-accent' : ''}`}>{v.name[lang]}</span>
                   <span id={`${nameId}-cap`} className="text-xs leading-tight text-muted">{capacity(v)}</span>
+                  {rate && (
+                    <span id={`${nameId}-rate`} data-testid="card-rate" className={`font-display text-sm leading-tight font-semibold tabular-nums ${checked ? 'text-accent' : ''}`}>
+                      {cardRate(rate)}
+                    </span>
+                  )}
                 </label>
               );
             })}
@@ -261,7 +289,7 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
 
         <Step n={3} title={t('vehicleCalc.step.fuel')}>
           {fuel ? (
-            <div className="flex flex-col gap-1">
+            <div className="relative flex flex-col gap-1">
               <label htmlFor={ids.fuelSelect} className="sr-only">{t('vehicleCalc.fuel')}</label>
               <div className="flex items-center gap-2">
                 <GameIcon cls={fuel.id} px={36} placeholder />
@@ -313,15 +341,18 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
       </div>
 
       <div className="flex min-w-0 flex-col gap-4">
-        <ResultPanel vehicle={vehicle} fuel={fuel} route={form.route} one={one && load ? { result: one, load, oneWay: oneWaySeconds(trip), stop: trip.stopSeconds } : null}
-          missing={missing} lang={lang}>
+        <ResultPanel vehicle={vehicle} fuel={fuel} route={form.route} lang={lang} missing={missing}
+          assumption={[routeFollows ? t('vehicleCalc.result.straightLine') : null, Number.isFinite(trip.speedKmh) ? `${fmt.rate(trip.speedKmh)} ${t('vehicleCalc.unit.kmh')}` : null]
+            .filter(Boolean).join(' · ')}
+          one={one && load ? { result: one, load, oneWay: oneWaySeconds(trip), stop: trip.stopSeconds } : null}>
+          {one && load && rows.length > 0 && (
+            // Keyed by the kind of table, so switching between the drone and a wheeled vehicle opens or closes it.
+            <FuelTable key={vehicle.fuel?.fuels ? 'speed' : 'use'} rows={rows} bySpeed={vehicle.fuel?.fuels != null} selected={fuel?.id ?? null} lang={lang} />
+          )}
           {one && load && (
-            <FleetPanel fleet={fleet} load={load} target={form.target} onTarget={target => onChange({ target })} freight={freight} fuelName={fuel?.name[lang]} />
+            <FleetPanel fleet={fleet} load={load} target={form.target} onTarget={target => onChange({ target })} freight={freight} fuel={fuel} lang={lang} />
           )}
         </ResultPanel>
-        {one && load && rows.length > 0 && (
-          <FuelTable rows={rows} bySpeed={vehicle.fuel?.fuels != null} selected={fuel?.id ?? null} lang={lang} />
-        )}
       </div>
     </form>
   );
@@ -330,46 +361,58 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
 /**
  * The answer, a window: what one vehicle does on the route with the chosen fuel. Stacks per minute (m³ for fluids;
  * with an item also items), the round trip with the one-way trip, the fuel per round trip and per minute, the load per
- * trip and the stop time it includes. A status region, so changes are announced; until the input is complete it says
- * what is missing. `children` (the fleet question) goes under it.
+ * trip and the stop time it includes; the title bar names the assumption (straight line, speed). On a narrow page,
+ * where the inputs are not beside it, a line says which vehicle, length and fuel the figures are for. Not a live
+ * region itself: one sentence for screen readers is announced once the input settled. Until the input is complete it
+ * says what is missing. `children` (the fuel comparison, the fleet question) go under it, folded.
  */
-function ResultPanel({ vehicle, fuel, route, one, missing, lang, children }: {
-  vehicle: TransportVehicle; fuel: TransportFuel | null; route: string; lang: 'en' | 'de'; missing: string;
+function ResultPanel({ vehicle, fuel, route, one, missing, lang, assumption, children }: {
+  vehicle: TransportVehicle; fuel: TransportFuel | null; route: string; lang: 'en' | 'de'; missing: string; assumption: string;
   one: { result: CalcResult; load: Load; oneWay: number; stop: number } | null; children?: ReactNode;
 }) {
   const { t } = useTranslation();
-  const nums = useNumbers();
-  const duration = useDuration();
+  const fmt = useFormat();
   const freight = vehicle.id === 'freightCar';
+  const mainRate = one && (one.load.unit === 'm3'
+    ? t('vehicleCalc.rate.m3', { value: round1(one.result.perVehiclePerMinute) })
+    : t('vehicleCalc.rate.stacks', { value: round1(one.result.stacksPerVehiclePerMinute ?? 0) }));
+  const spoken = !one ? missing : one.result.fuel && fuel
+    ? t('vehicleCalc.result.spoken.fuel', {
+      vehicle: vehicle.name[lang], rate: mainRate, time: fmt.duration(one.result.roundTripSeconds), fuel: fmt.fuel(one.result.fuel.perTrip), fuelName: fuel.name[lang],
+    })
+    : t('vehicleCalc.result.spoken.plain', { vehicle: vehicle.name[lang], rate: mainRate, time: fmt.duration(one.result.roundTripSeconds) });
   return (
-    <Window level={3} title={t('vehicleCalc.result.title')} bodyClassName="flex flex-col">
-      <div role="status" aria-label={t('vehicleCalc.result.title')} className="flex flex-col gap-3 p-3">
+    <Window level={3} title={t('vehicleCalc.result.title')} subtitle={one && assumption ? assumption : undefined} bodyClassName="flex flex-col">
+      <div className="flex flex-col gap-3 p-3">
         {one ? (
           <>
-            {/* What the numbers are for: vehicle, route length and fuel; thin lines between them where they fit on one line. */}
-            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted sm:gap-x-0 sm:[&>span+span]:ml-3 sm:[&>span+span]:border-l sm:[&>span+span]:border-line sm:[&>span+span]:pl-3">
+            {/* What the numbers are for, where the inputs are not beside the result. */}
+            <p data-testid="result-for" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted lg:hidden">
               <span className="inline-flex items-center gap-1.5 font-semibold text-fg"><GameIcon cls={VEHICLE_PICTURES[vehicle.id]} px={24} />{vehicle.name[lang]}</span>
-              <span className="tabular-nums">{t('vehicleCalc.routeInfo.metres', { value: nums.n(Number(route)) })}</span>
+              <span className="tabular-nums">{t('vehicleCalc.routeInfo.metres', { value: fmt.rate(Number(route)) })}</span>
               {fuel && <span className="inline-flex items-center gap-1.5"><GameIcon cls={fuel.id} px={20} />{fuel.name[lang]}</span>}
             </p>
             <dl className={`grid grid-cols-2 gap-2 ${one.result.fuel ? 'sm:grid-cols-3' : ''}`}>
               <StatTile main className="col-span-2 sm:col-span-1" label={t(freight ? 'vehicleCalc.result.perFreightCar' : 'vehicleCalc.result.perVehicle')}
                 sub={one.load.unit === 'items' ? t('vehicleCalc.rate.itemsOnly', { value: round1(one.result.perVehiclePerMinute) }) : undefined}>
                 {one.load.unit === 'm3'
-                  ? <TileValue value={nums.n(round1(one.result.perVehiclePerMinute))} unit={t('vehicleCalc.unit.m3')} />
-                  : <TileValue value={nums.n(round1(one.result.stacksPerVehiclePerMinute ?? 0))} unit={t('vehicleCalc.unit.stacks')} />}
+                  ? <TileValue value={fmt.rate(one.result.perVehiclePerMinute)} unit={t('vehicleCalc.unit.m3')} />
+                  : <TileValue value={fmt.rate(one.result.stacksPerVehiclePerMinute ?? 0)} unit={t('vehicleCalc.unit.stacks')} />}
               </StatTile>
-              <StatTile label={t('vehicleCalc.result.roundTrip')} sub={t('vehicleCalc.result.oneWay', { time: duration(one.oneWay) })}>
-                {duration(one.result.roundTripSeconds)}
+              <StatTile label={t('vehicleCalc.result.roundTrip')} sub={t('vehicleCalc.result.oneWay', { time: fmt.duration(one.oneWay) })}>
+                {fmt.duration(one.result.roundTripSeconds)}
               </StatTile>
               {one.result.fuel && fuel && (
-                <StatTile label={t('vehicleCalc.result.fuel')} sub={t('vehicleCalc.result.fuelPerMinute', { value: nums.fuel(one.result.fuel.perVehiclePerMinute) })}>
-                  <span className="inline-flex items-center gap-2"><GameIcon cls={fuel.id} px={28} />{nums.fuel(one.result.fuel.perTrip)}</span>
+                <StatTile label={t('vehicleCalc.result.fuel')} sub={t('vehicleCalc.result.fuelPerMinute', { value: fmt.fuel(one.result.fuel.perVehiclePerMinute) })}>
+                  <span className="inline-flex flex-wrap items-center gap-x-2">
+                    <span title={fuel.name[lang]} className="inline-flex"><GameIcon cls={fuel.id} px={28} /></span>
+                    <TileValue value={fmt.fuel(one.result.fuel.perTrip)} unit={t('vehicleCalc.result.fuelPerTrip')} />
+                  </span>
                 </StatTile>
               )}
             </dl>
             <p className="text-sm text-muted">
-              {t('vehicleCalc.result.load', { load: t(`vehicleCalc.amount.${one.load.unit}`, { value: round1(one.result.perTrip) }), stop: duration(one.stop) })}
+              {t('vehicleCalc.result.load', { load: t(`vehicleCalc.amount.${one.load.unit}`, { value: round1(one.result.perTrip) }), stop: fmt.duration(one.stop) })}
             </p>
             {vehicle.fuel && <p className="text-xs text-muted">{t(`vehicleCalc.result.fuelNote.${vehicle.fuel.source}`)}</p>}
           </>
@@ -384,6 +427,7 @@ function ResultPanel({ vehicle, fuel, route, one, missing, lang, children }: {
             </dl>
           </>
         )}
+        <Announce text={spoken} />
       </div>
       {children}
     </Window>
@@ -391,64 +435,81 @@ function ResultPanel({ vehicle, fuel, route, one, missing, lang, children }: {
 }
 
 /**
- * Every fuel the vehicle takes on this route, the selected one marked. For the drone, whose speed depends on the fuel:
- * round trip, fuel and stacks per minute; for a wheeled vehicle the trip takes as long with every fuel: fuel per round
- * trip and per minute. On a phone each row breaks into two lines, the fuel's name over its numbers, so nothing is cut
- * off; the explicit roles keep it a table for screen readers while its rows are grids.
+ * Every fuel the vehicle takes on this route, folded inside the result, the selected one first and marked. For the
+ * drone, whose speed depends on the fuel (open at first, its summary names the fastest): round trip, fuel and stacks
+ * per minute, fastest first. For a wheeled vehicle the trip takes as long with every fuel (closed at first, its summary
+ * names the most economical): fuel per minute, least used first. On a phone each row breaks into two lines, the
+ * fuel's name over its numbers, so nothing is cut off; the explicit roles keep it a table for screen readers while
+ * its rows are grids.
  */
 function FuelTable({ rows, bySpeed, selected, lang }: { rows: readonly FuelRow[]; bySpeed: boolean; selected: string | null; lang: 'en' | 'de' }) {
   const { t } = useTranslation();
-  const nums = useNumbers();
-  const duration = useDuration();
-  const line = `max-sm:grid ${bySpeed ? 'max-sm:grid-cols-3' : 'max-sm:grid-cols-2'}`;
+  const fmt = useFormat();
+  const shown = pinSelected(rows, selected);
+  const best = rows[0]!;
+  // The drone's four columns do not fit a phone: there each row puts the fuel over its numbers.
+  const line = bySpeed ? 'max-sm:grid max-sm:grid-cols-3' : '';
   const cell = 'px-1.5 py-1 text-right whitespace-nowrap tabular-nums';
   const head = 'px-1.5 py-1 text-right align-bottom font-semibold';
   return (
-    <Window level={3} title={t('vehicleCalc.compare.title')} bodyClassName="flex flex-col gap-2 p-3">
+    <Fold
+      title={t('vehicleCalc.compare.title')}
+      summary={t(bySpeed ? 'vehicleCalc.compare.fastest' : 'vehicleCalc.compare.cheapest', { fuel: best.fuel.name[lang] })}
+      defaultOpen={bySpeed}
+      className="border-t border-line"
+      summaryClassName="px-3 py-1.5"
+      bodyClassName="flex flex-col gap-2 px-3 pb-3"
+    >
       <p className="text-xs text-muted">{t(bySpeed ? 'vehicleCalc.compare.bySpeed' : 'vehicleCalc.compare.sameSpeed')}</p>
       <table role="table" aria-label={t('vehicleCalc.compare.title')} className="w-full border-collapse text-sm">
         <thead role="rowgroup">
           <tr role="row" className={`border-b border-line font-display text-xs tracking-wider text-muted uppercase ${line}`}>
-            <th role="columnheader" scope="col" className="px-1.5 py-1 text-left align-bottom font-semibold max-sm:col-span-full">{t('vehicleCalc.fuel')}</th>
+            <th role="columnheader" scope="col" className={`px-1.5 py-1 text-left align-bottom font-semibold ${bySpeed ? 'max-sm:col-span-full' : ''}`}>{t('vehicleCalc.fuel')}</th>
             {bySpeed && <th role="columnheader" scope="col" className={head}>{t('vehicleCalc.compare.roundTrip')}</th>}
-            <th role="columnheader" scope="col" className={head}>{t(bySpeed ? 'vehicleCalc.compare.used' : 'vehicleCalc.compare.perTrip')}</th>
+            {bySpeed && <th role="columnheader" scope="col" className={head}>{t('vehicleCalc.compare.used')}</th>}
             <th role="columnheader" scope="col" className={head}>{bySpeed ? t('vehicleCalc.compare.stacks') : t('vehicleCalc.compare.perMinute')}</th>
           </tr>
         </thead>
         <tbody role="rowgroup">
-          {rows.map(r => {
+          {shown.map(r => {
             const current = r.fuel.id === selected;
             return (
               <tr key={r.fuel.id} role="row" aria-current={current || undefined}
                 className={`border-b border-line last:border-b-0 ${line} ${current ? 'border-l-2 border-l-accent bg-accent/15 font-semibold' : ''}`}>
-                <th role="rowheader" scope="row" className={`px-1.5 py-1 text-left max-sm:col-span-full max-sm:pb-0 ${current ? '' : 'font-normal'}`}>
+                <th role="rowheader" scope="row" className={`px-1.5 py-1 text-left ${bySpeed ? 'max-sm:col-span-full max-sm:pb-0' : ''} ${current ? '' : 'font-normal'}`}>
                   <span className="flex items-center gap-1.5"><GameIcon cls={r.fuel.id} px={20} placeholder />{r.fuel.name[lang]}</span>
                 </th>
-                {bySpeed && <td role="cell" className={cell}>{duration(r.roundTripSeconds)}</td>}
-                <td role="cell" className={cell}>{nums.fuel(r.perTrip)}</td>
-                <td role="cell" className={cell}>{bySpeed ? nums.n(round1(r.stacksPerMinute ?? 0)) : nums.fuel(r.perMinute ?? 0)}</td>
+                {bySpeed && <td role="cell" className={cell}>{fmt.duration(r.roundTripSeconds)}</td>}
+                {bySpeed && <td role="cell" className={cell}>{fmt.fuel(r.perTrip)}</td>}
+                <td role="cell" className={cell}>{bySpeed ? fmt.rate(r.stacksPerMinute ?? 0) : fmt.fuel(r.perMinute ?? 0)}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
-    </Window>
+    </Fold>
   );
 }
 
 /**
  * "How many vehicles do I need?", folded away until asked: the target throughput in the load's unit, then the vehicles
- * it takes (rounded up), their utilisation, what they move at most and the fuel they burn together.
+ * it takes (rounded up), their utilisation, what they move together at most and the fuel they burn together. The
+ * answer is announced to screen readers in one sentence once the target settled.
  */
-function FleetPanel({ fleet, load, target, onTarget, freight, fuelName }: {
-  fleet: CalcResult | null; load: Load; target: string; onTarget(v: string): void; freight: boolean; fuelName: string | undefined;
+function FleetPanel({ fleet, load, target, onTarget, freight, fuel, lang }: {
+  fleet: CalcResult | null; load: Load; target: string; onTarget(v: string): void; freight: boolean; fuel: TransportFuel | null; lang: 'en' | 'de';
 }) {
   const { t } = useTranslation();
-  const nums = useNumbers();
+  const fmt = useFormat();
   const noun = freight ? 'freightCars' : 'vehicles';
   const rate = (perMinute: number, stacks: number | null) => (load.unit === 'items'
     ? t('vehicleCalc.rate.items', { items: round1(perMinute), stacks: round1(stacks ?? 0) })
     : t(`vehicleCalc.rate.${load.unit}`, { value: round1(perMinute) }));
+  const fuelTotal = fleet?.fuel && fuel ? t('vehicleCalc.fleet.fuelTotal', { value: fmt.fuel(fleet.fuel.perMinute) }) : null;
+  const spoken = !fleet ? (target.trim() === '' ? '' : t('vehicleCalc.fleet.missing'))
+    : t(`vehicleCalc.fleet.spoken.${noun}`, {
+      count: fleet.vehicles, share: fleet.utilisation ?? 0, capacity: rate(fleet.capacityPerMinute, fleet.capacityStacksPerMinute),
+    });
   return (
     <Fold
       title={t(`vehicleCalc.fleet.question.${noun}`)}
@@ -458,18 +519,24 @@ function FleetPanel({ fleet, load, target, onTarget, freight, fuelName }: {
       bodyClassName="flex flex-col gap-3 px-3 pb-3"
     >
       <ValueField label={t('vehicleCalc.fleet.target')} value={target} unit={t(`vehicleCalc.unit.${load.unit}`)} onChange={onTarget} />
-      <div role="status" aria-label={t(`vehicleCalc.fleet.question.${noun}`)} className="text-sm">
+      <div data-testid="fleet-answer" className="text-sm">
         {fleet ? (
           <StatList>
-            <StatRow label={t(`vehicleCalc.fleet.needed.${noun}`)} value={nums.n(fleet.vehicles)} tone="accent" />
+            <StatRow label={t(`vehicleCalc.fleet.needed.${noun}`)} value={fmt.rate(fleet.vehicles)} tone="accent" />
             <StatRow label={t('vehicleCalc.fleet.utilisation')} value={t('vehicleCalc.fleet.percent', { share: fleet.utilisation ?? 0 })} />
             <StatRow label={t('vehicleCalc.fleet.capacity')} value={rate(fleet.capacityPerMinute, fleet.capacityStacksPerMinute)} />
-            {fleet.fuel && fuelName && (
-              <StatRow label={t('vehicleCalc.fleet.fuel')} value={t('vehicleCalc.fleet.fuelTotal', { value: nums.fuel(fleet.fuel.perMinute), fuel: fuelName })} />
+            {fuelTotal && fuel && (
+              <StatRow label={t('vehicleCalc.fleet.fuel')} value={(
+                <span className="inline-flex items-center gap-1.5">
+                  <span title={fuel.name[lang]} className="inline-flex"><GameIcon cls={fuel.id} px={20} /></span>
+                  {fuelTotal}
+                </span>
+              )} />
             )}
           </StatList>
         ) : <p className="text-muted">{t('vehicleCalc.fleet.missing')}</p>}
       </div>
+      <Announce text={spoken} />
       {freight && <p className="text-xs text-muted">{t('vehicleCalc.fleet.freightCarNote')}</p>}
     </Fold>
   );

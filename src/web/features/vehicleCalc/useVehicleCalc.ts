@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import { useLayoutEffect } from 'react';
 import { create } from 'zustand';
 import { DEFAULT_FUEL, type TransportData, type VehicleId } from '../../../shared/transport.js';
 import { routeLengthInput, type VehicleRoute, type WorldPoint } from '../../../shared/vehicleRoute.js';
 import { api, ApiClientError } from '../../app/api.js';
 import { worldPath } from '../../app/pages.js';
+import { loadVehicleCalc, saveVehicleCalc } from '../../app/persist.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { useUiStore, type InteractionMode } from '../../app/store.js';
 
@@ -57,6 +59,8 @@ export const VEHICLES_PAGE = 'vehicles';
 export const vehiclesPath = (worldId: string) => worldPath(worldId, VEHICLES_PAGE);
 
 interface VehicleCalcState {
+  /** The world the state belongs to (`enterWorld`); null before any. */
+  worldId: string | null;
   form: CalcForm;
   /** Start and destination picked on the map; shown on the map while set, on the calculator page or not. */
   route: VehicleRoute | null;
@@ -72,6 +76,8 @@ interface VehicleCalcState {
    * and clears it. Not set when another map mode takes over.
    */
   returnRequest: boolean;
+  /** Switches to a world's calculator as this device last left it (form, route), or an empty one. */
+  enterWorld(worldId: string): void;
   /** The form; a route length (m) set from elsewhere (e.g. a route planner) replaces the typed one: `setForm({ route })`. */
   setForm(patch: Partial<CalcForm>): void;
   /** Waits for the start and the destination on the map (PICK_MODE); the caller shows the map. */
@@ -97,16 +103,25 @@ function leavePickMode(): void {
 }
 
 /**
- * The calculator's form and the route picked on the map, kept while the calculator page is not shown (for this tab
- * only). Anything can open the calculator by navigating to `vehiclesPath(worldId)`, with a route length after
- * `setForm({ route })`.
+ * The calculator's form and the route picked on the map, per world and remembered on the device (`persist.ts`), so
+ * the page finds it again after a visit to the map or a reload. Anything can open the calculator by navigating to
+ * `vehiclesPath(worldId)`, with a route length after `setForm({ route })`.
  */
 export const useVehicleCalc = create<VehicleCalcState>()((set, get) => ({
+  worldId: null,
   form: EMPTY_FORM,
   route: null,
   pickedStart: null,
   lengthFromRoute: false,
   returnRequest: false,
+  enterWorld: worldId => {
+    if (get().worldId === worldId) return;
+    const saved = loadVehicleCalc(worldId);
+    set({
+      worldId, form: { ...EMPTY_FORM, ...saved?.form }, route: saved?.route ?? null, lengthFromRoute: saved?.lengthFromRoute ?? false,
+      pickedStart: null, returnRequest: false,
+    });
+  },
   setForm: patch => set(s => ({ form: { ...s.form, ...patch }, lengthFromRoute: 'route' in patch ? false : s.lengthFromRoute })),
   startPicking: () => {
     set({ pickedStart: null, returnRequest: false });
@@ -140,3 +155,15 @@ export const useVehicleCalc = create<VehicleCalcState>()((set, get) => ({
   applyRouteLength: () => set(s => (s.route ? { form: { ...s.form, route: routeLengthInput(s.route) }, lengthFromRoute: true } : {})),
   clearRoute: () => set({ route: null, lengthFromRoute: false }),
 }));
+
+// Remembers every change of the form or the route for the world it belongs to (entering a world only loads).
+useVehicleCalc.subscribe((s, prev) => {
+  if (s.worldId === null || s.worldId !== prev.worldId) return;
+  if (s.form === prev.form && s.route === prev.route && s.lengthFromRoute === prev.lengthFromRoute) return;
+  saveVehicleCalc(s.worldId, { form: s.form, route: s.route, lengthFromRoute: s.lengthFromRoute });
+});
+
+/** Makes the calculator's state the one of this world (the page and the route layer on the map call it). */
+export function useVehicleCalcWorld(worldId: string): void {
+  useLayoutEffect(() => useVehicleCalc.getState().enterWorld(worldId), [worldId]);
+}

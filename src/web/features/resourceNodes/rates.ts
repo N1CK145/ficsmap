@@ -32,11 +32,12 @@ export function useRateTexts(index: RecipeIndex | null | undefined): RateTexts {
       if (!index) return null;
       const rates: NodeRate[] = nodeRates(node, index);
       if (rates.length === 0) return null;
-      // The unit once, on the first entry: all extract the node's resource.
+      // The unit once, on the first entry: all extract the node's resource. A no-break space before each separator,
+      // so a wrapped line never starts with one.
       return rates.map((r, i) => t('resourceNodes.rateEntry', {
         rate: i === 0 ? unit(node.resource, formatNumber(r.rate, lang)) : formatNumber(r.rate, lang),
         name: short(r.extractor),
-      })).join(' · ');
+      })).join('\u00a0· ');
     },
     placed: (node, e, pressurizerClock) => {
       const p = index ? placedRate(node, e, index, pressurizerClock) : null;

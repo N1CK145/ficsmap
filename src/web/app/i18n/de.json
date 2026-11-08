@@ -125,7 +125,9 @@
     "off": "Aus",
     "none": "Dieser Kartendatensatz enthält keine Rohstoffvorkommen.",
     "resource": "Ressource",
-    "resourceHint": "Klicken zum Ein- oder Ausblenden · Alt-Klick, um nur diese Ressource zu zeigen",
+    "resourceHint": "Klicken zum Ein- oder Ausblenden · Alt-Klick oder „nur“: nur diese Ressource zeigen",
+    "only": "nur",
+    "onlyLabel": "Nur {resource} zeigen",
     "all": "Alle",
     "noneShown": "Keine",
     "purityLabel": "Reinheit",
@@ -235,6 +237,15 @@
       "Desc_Water_C": "H₂O",
       "Desc_NitrogenGas_C": "N₂",
       "Geyser": "Gy"
+    },
+    "search": {
+      "purity": {
+        "pure": "{count, number} rein",
+        "normal": "{count, number} normal",
+        "impure": "{count, number} unrein"
+      },
+      "nodes": "{count, plural, one {# Vorkommen} other {# Vorkommen}}",
+      "withPurity": "{resource} · {purity}"
     }
   },
   "marks": {
@@ -763,14 +774,15 @@
     "routeInfo": {
       "title": "Strecke auf der Karte",
       "straight": "Luftlinie",
-      "climb": "Höhenunterschied A → B",
-      "length3d": "3D-Länge",
+      "climb": "Höhenunterschied",
       "metres": "{value} m",
       "loading": "…",
-      "unknown": "unbekannt",
-      "note": "Für Drohnen genau. Straßen sind länger: trag die echte Länge ein, wenn du sie kennst. A und B lassen sich auf der Karte verschieben.",
-      "typed": "Die Länge ist eingetippt, verschobene Punkte ändern sie nicht.",
-      "useStraight": "Luftlinie übernehmen"
+      "useStraight": "Luftlinie übernehmen ({value} m)",
+      "adjust": {
+        "road": "Straßen sind länger: Wert anpassen.",
+        "freightCar": "Gleise sind länger: Wert anpassen.",
+        "drone": "Drohnen fliegen die Luftlinie."
+      }
     },
     "capacity": {
       "both": "{stacks, plural, one {# Stapel} other {# Stapel}} oder {m3, number} m³"
@@ -839,9 +851,10 @@
       "perFreightCar": "Pro Güterwagen",
       "roundTrip": "Hin und zurück",
       "oneWay": "Hinweg {time}",
-      "fuel": "Treibstoff hin und zurück",
-      "fuelPerMinute": "{value} pro Minute",
-      "load": "Ladung pro Fahrt: {load} · inklusive {stop} Laden und Entladen",
+      "fuel": "Treibstoff",
+      "fuelPerTrip": "je Fahrt",
+      "fuelPerMinute": "{value}/min",
+      "load": "Ladung je Fahrt: {load} · inklusive {stop} Laden und Entladen",
       "fuelNote": {
         "autopilot": "Treibstoff geschätzt aus dem Verbrauch pro gefahrenem Meter laut Spieldaten; Schlepper und Explorer verbrauchen bergauf mehr.",
         "dronePort": "Treibstoffverbrauch der Drohne laut Spielertests."
@@ -850,17 +863,23 @@
         "route": "Wähle die Strecke auf der Karte oder tippe ihre Länge ein, dann steht hier das Ergebnis.",
         "speed": "Gib die Durchschnittsgeschwindigkeit ein, dann steht hier das Ergebnis.",
         "stop": "Gib die Lade- und Entladezeit ein, dann steht hier das Ergebnis."
+      },
+      "straightLine": "Luftlinie",
+      "spoken": {
+        "fuel": "{vehicle}: {rate}, hin und zurück {time}, {fuel} {fuelName} je Fahrt",
+        "plain": "{vehicle}: {rate}, hin und zurück {time}"
       }
     },
     "compare": {
       "title": "Alle Treibstoffe im Vergleich",
-      "bySpeed": "Schnellster zuerst. Verbrauch: Treibstoff pro Fahrt hin und zurück.",
-      "sameSpeed": "Die Fahrzeit ist mit jedem Treibstoff gleich. Sparsamster zuerst.",
+      "bySpeed": "Deiner oben, darunter der schnellste zuerst. Verbrauch: Treibstoff je Fahrt.",
+      "sameSpeed": "Die Fahrzeit ist mit jedem Treibstoff gleich. Deiner oben, darunter der sparsamste zuerst.",
       "roundTrip": "Hin und zurück",
       "used": "Verbrauch",
-      "perTrip": "Verbrauch hin und zurück",
-      "perMinute": "Pro Minute",
-      "stacks": "Stapel/min"
+      "perMinute": "Verbrauch pro Minute",
+      "stacks": "Stapel/min",
+      "fastest": "Schnellster: {fuel}",
+      "cheapest": "Sparsamster: {fuel}"
     },
     "fleet": {
       "question": {
@@ -874,11 +893,15 @@
       },
       "utilisation": "Auslastung",
       "percent": "{share, number, percent}",
-      "capacity": "Sie schaffen bis zu",
+      "capacity": "Zusammen bis zu",
       "fuel": "Treibstoff für alle",
-      "fuelTotal": "{value} {fuel}/min",
+      "fuelTotal": "{value}/min",
       "missing": "Gib den gewünschten Durchsatz ein.",
-      "freightCarNote": "Gezählt werden Güterwagen. Wagen im selben Zug teilen sich einen Umlauf; Lokomotiven zählen nicht mit."
+      "freightCarNote": "Gezählt werden Güterwagen. Wagen im selben Zug teilen sich einen Umlauf; Lokomotiven zählen nicht mit.",
+      "spoken": {
+        "vehicles": "{count, plural, one {# Fahrzeug} other {# Fahrzeuge}} nötig, Auslastung {share, number, percent}, zusammen bis zu {capacity}",
+        "freightCars": "{count, plural, one {# Güterwagen} other {# Güterwagen}} nötig, Auslastung {share, number, percent}, zusammen bis zu {capacity}"
+      }
     }
   },
   "search": {
@@ -904,7 +927,8 @@
       "cave": "Höhle",
       "crashSite": "Absturzort",
       "machine": "Maschine",
-      "vehicle": "Fahrzeug"
+      "vehicle": "Fahrzeug",
+      "resource": "Rohstoffvorkommen"
     }
   },
   "tools": {

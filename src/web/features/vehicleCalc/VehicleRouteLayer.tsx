@@ -7,10 +7,10 @@ import { latLngToWorld, worldToLatLng } from '../../../shared/geo.js';
 import type { VehicleRoute, WorldPoint } from '../../../shared/vehicleRoute.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { useUiStore } from '../../app/store.js';
-import { PICK_MODE, useVehicleCalc } from './useVehicleCalc.js';
+import { PICK_MODE, useVehicleCalc, useVehicleCalcWorld } from './useVehicleCalc.js';
 
 /**
- * The line's own pane: above the collectible markers' canvas (450) and the resource nodes (430), so it stays visible in
+ * The line's own pane: above the collectible markers' canvas (450) and the resource nodes (455), so it stays visible in
  * dense areas; below Leaflet's marker pane (600), where the A and B pins are. It takes no pointer events, so clicks
  * still reach the map and the markers under it.
  */
@@ -32,11 +32,12 @@ function pin(letter: 'A' | 'B'): L.DivIcon {
 /**
  * The vehicle calculator's route on the map: the start (A) and the destination (B) with the straight line between
  * them, shown while they are set (the calculator is a page of its own), above the collectible markers (`ROUTE_PANE`).
- * A and B can be dragged; the calculator follows.
+ * A and B can be dragged; the calculator follows. The route is this world's (`useVehicleCalcWorld`).
  * While points are picked (PICK_MODE) only the start picked so far is shown.
  */
 export function VehicleRouteLayer({ ctx }: { ctx: WorldCtx }) {
   const { t } = useTranslation();
+  useVehicleCalcWorld(ctx.worldId);
   const picking = useUiStore(s => s.interactionMode === PICK_MODE);
   const route = useVehicleCalc(s => s.route);
   const pickedStart = useVehicleCalc(s => s.pickedStart);

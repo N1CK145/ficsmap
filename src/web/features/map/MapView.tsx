@@ -16,6 +16,7 @@ import { useUiStore, type UiState } from '../../app/store.js';
 import { useRemotePulse } from '../live/pulse.js';
 import { hasMismatch, isCollected, useMarks, type MarksCache } from '../marks/useMarks.js';
 import { useRouteIndex } from '../routes/useRoutes.js';
+import { clickClaimed } from './clickClaims.js';
 import { IMAGE_BOUNDS } from './imageBounds.js';
 import { CONFLICT_PULSE_MS, newConflicts } from './conflictPulse.js';
 import { DOT_ZOOM, markerState, markerVisual, podBadge, type MarkerState } from './markerStyle.js';
@@ -139,7 +140,10 @@ function BannerBar({ children }: { children: ReactNode }) {
 
 interface BaseMarker { item: Item; lat: number; lng: number; type: CollectibleType }
 
-type MarkerFilters = Pick<UiState, 'typeFilter' | 'visibility' | 'biomeScope' | 'onlyConflicts' | 'selectedActor' | 'searchHighlight'>;
+type MarkerFilters = Pick<UiState, 'typeFilter' | 'visibility' | 'biomeScope' | 'onlyConflicts' | 'selectedActor' | 'searchHighlight'> & {
+  /** A mode that takes points anywhere is on: the markers fade like non-matches of a search, so its points stand out. */
+  picking: boolean;
+};
 
 /** Draw order: uncollected, collected, conflicts, search matches, then the selected marker on top. */
 function rank(m: DrawMarker): number {
@@ -169,7 +173,7 @@ function buildMarkers(
       typeEnabled: f.typeFilter.has(item.type),
       onlyConflicts: f.onlyConflicts,
       routeIndex: routeIndex.get(item.name) ?? null,
-      search: f.searchHighlight === null ? null : f.searchHighlight.has(item.name),
+      search: f.searchHighlight === null ? (f.picking ? false : null) : f.searchHighlight.has(item.name),
     });
     const pod = podBadge(item.extra?.pod);
     const m: DrawMarker = { id: item.name, lat, lng, type, visual: pod ? { ...visual, pod } : visual };
@@ -195,7 +199,7 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
   const marks = useMarks(ctx.worldId);
   const filters = useUiStore(useShallow((s): MarkerFilters => ({
     typeFilter: s.typeFilter, visibility: s.visibility, biomeScope: s.biomeScope, onlyConflicts: s.onlyConflicts, selectedActor: s.selectedActor,
-    searchHighlight: s.searchHighlight,
+    searchHighlight: s.searchHighlight, picking: modes.some(m => m.id === s.interactionMode && m.onMapClick !== undefined),
   })));
   const pulse = useRemotePulse(s => s.pulse);
   const routeIndex = useRouteIndex(ctx.worldId);
@@ -240,6 +244,8 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
         else mode.onMapClick(latLngToWorld(e.latlng.lat, e.latlng.lng, ctxRef.current.index.ds.bounds), ctxRef.current);
         return;
       }
+      // A layer drawn above the markers (resource nodes) takes clicks on what it shows while just looking around.
+      if (useUiStore.getState().interactionMode === 'inspect' && clickClaimed(e.containerPoint.x, e.containerPoint.y)) return;
       const id = pickAt(e);
       if (id === null) return;
       if (z < DOT_ZOOM) {

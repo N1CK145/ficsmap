@@ -12,7 +12,9 @@ import { initI18n } from '../../src/web/app/i18n/index.js';
 import { loadView, saveView } from '../../src/web/app/persist.js';
 import { queryKeys } from '../../src/web/app/queryKeys.js';
 import { useUiStore } from '../../src/web/app/store.js';
+import { markerClickClaims } from '../../src/web/features/map/clickClaims.js';
 import { MapView } from '../../src/web/features/map/MapView.js';
+import { MarkerLayer, type DrawMarker } from '../../src/web/features/map/MarkerLayer.js';
 import type { MarksCache } from '../../src/web/features/marks/useMarks.js';
 
 const WORLD = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
@@ -180,6 +182,45 @@ describe('MapView clicks', () => {
   it('renders the controls outside the Leaflet container', () => {
     renderMap();
     expect(probedMap!.getContainer().contains(screen.getByRole('button', { name: 'Probe control' }))).toBe(false);
+  });
+
+  it('fades the markers like non-matches of a search while a mode takes points anywhere', () => {
+    renderMap();
+    let layer: MarkerLayer | undefined;
+    probedMap!.eachLayer(l => { if (l instanceof MarkerLayer) layer = l; });
+    // The canvas layer's data, as it draws it.
+    const drawn = () => (layer as unknown as { getMarkers(): readonly DrawMarker[] }).getMarkers();
+    expect(drawn()[0]!.visual.opacity).toBe(1);
+    act(() => { useUiStore.getState().setMode('vehicle-route'); });
+    expect(drawn()[0]!.visual).toMatchObject({ opacity: 0.2, highlight: false });
+    // A mode that only takes markers (the route editor) leaves them as they are.
+    act(() => { useUiStore.getState().setMode('route'); });
+    expect(drawn()[0]!.visual.opacity).toBe(1);
+    // A search match stays highlighted while picking.
+    act(() => { useUiStore.getState().setMode('vehicle-route'); useUiStore.getState().setSearchHighlight(new Set(['S1'])); });
+    expect(drawn()[0]!.visual).toMatchObject({ opacity: 1, highlight: true });
+    act(() => { useUiStore.getState().setSearchHighlight(null); });
+  });
+
+  it('leaves a click to a layer above the markers that claims it, while just looking around', () => {
+    renderMap();
+    const map = probedMap!;
+    act(() => { map.setZoom(3); });
+    const claim = (x: number, y: number) => Math.hypot(x - 256, y - 256) < 10;
+    markerClickClaims.add(claim);
+    try {
+      clickAt(map, 256, 256);
+      expect(useUiStore.getState().selectedActor).toBeNull();
+      // Modes still get their markers.
+      act(() => { useUiStore.getState().setMode('route'); });
+      clickAt(map, 256, 256);
+      expect(onQuickClick).toHaveBeenCalledWith(expect.objectContaining({ name: 'S1' }), expect.anything());
+    } finally {
+      markerClickClaims.delete(claim);
+    }
+    act(() => { useUiStore.getState().setMode('route'); });
+    clickAt(map, 256, 256);
+    expect(useUiStore.getState().selectedActor).toBe('S1');
   });
 });
 

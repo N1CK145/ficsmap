@@ -2,7 +2,9 @@ import { COLLECTIBLE_TYPES } from '../../shared/collectibleTypes.js';
 import { isTierKey, sortTierKeys, type TierKey } from '../../shared/machines.js';
 import type { Locale } from '../../shared/i18n.js';
 import { OCCUPANCIES, PURITIES, type Occupancy, type Purity } from '../../shared/resourceNodes.js';
+import type { VehicleId } from '../../shared/transport.js';
 import type { CollectibleTypeId } from '../../shared/types.js';
+import type { VehicleRoute, WorldPoint } from '../../shared/vehicleRoute.js';
 import type { CollectedVisibility } from './store.js';
 
 /** What the map remembers per world and device (spec §10). */
@@ -207,4 +209,58 @@ export function loadMachineWikiTiers(): TierKey[] {
 export function saveMachineWikiTiers(tiers: readonly TierKey[]): void {
   if (tiers.length === 0) remove(MACHINE_WIKI_TIERS_KEY);
   else write(MACHINE_WIKI_TIERS_KEY, JSON.stringify(tiers));
+}
+
+const vehiclesKey = (worldId: string) => `ficsmap:vehicles:${worldId}`;
+const VEHICLE_IDS: ReadonlySet<string> = new Set<VehicleId>(['tractor', 'truck', 'explorer', 'fluidTruck', 'drone', 'freightCar']);
+const FORM_TEXTS = ['route', 'item', 'fuel', 'droneFuel', 'target'] as const;
+
+/** The vehicle calculator's form as typed (strings), per world and device; see `useVehicleCalc`. */
+export interface PersistedVehicleForm {
+  route: string; vehicle: VehicleId; item: string;
+  speed: Partial<Record<VehicleId, string>>; stop: Partial<Record<VehicleId, string>>;
+  fuel: string; droneFuel: string; target: string;
+}
+
+/** The vehicle calculator per world and device: the form, the route's start and destination, and whether the length follows them. */
+export interface PersistedVehicleCalc { form: Partial<PersistedVehicleForm>; route: VehicleRoute | null; lengthFromRoute: boolean }
+
+function perVehicle(v: unknown): Partial<Record<VehicleId, string>> {
+  if (v === null || typeof v !== 'object') return {};
+  return Object.fromEntries(Object.entries(v).filter(([id, s]) => VEHICLE_IDS.has(id) && typeof s === 'string'));
+}
+
+function point(v: unknown): WorldPoint | null {
+  if (v === null || typeof v !== 'object') return null;
+  const { x, y } = v as Record<string, unknown>;
+  return Number.isFinite(x) && Number.isFinite(y) ? { x: x as number, y: y as number } : null;
+}
+
+/** The stored calculator of a world, keeping only well-formed parts; null when there is none. */
+export function loadVehicleCalc(worldId: string): PersistedVehicleCalc | null {
+  const raw = read(vehiclesKey(worldId));
+  if (raw === null) return null;
+  let d: Record<string, unknown>;
+  try {
+    const data: unknown = JSON.parse(raw);
+    if (data === null || typeof data !== 'object') return null;
+    d = data as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const f = (d.form !== null && typeof d.form === 'object' ? d.form : {}) as Record<string, unknown>;
+  const form: Partial<PersistedVehicleForm> = {};
+  for (const key of FORM_TEXTS) if (typeof f[key] === 'string') form[key] = f[key];
+  if (typeof f.vehicle === 'string' && VEHICLE_IDS.has(f.vehicle)) form.vehicle = f.vehicle as VehicleId;
+  form.speed = perVehicle(f.speed);
+  form.stop = perVehicle(f.stop);
+  const r = d.route as Record<string, unknown> | null | undefined;
+  const start = r ? point(r.start) : null;
+  const end = r ? point(r.end) : null;
+  const route = start && end ? { start, end } : null;
+  return { form, route, lengthFromRoute: route !== null && d.lengthFromRoute === true };
+}
+
+export function saveVehicleCalc(worldId: string, v: PersistedVehicleCalc): void {
+  write(vehiclesKey(worldId), JSON.stringify(v));
 }
