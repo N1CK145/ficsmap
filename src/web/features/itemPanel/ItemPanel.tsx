@@ -2,7 +2,6 @@ import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { typeById } from '../../../shared/collectibleTypes.js';
 import type { Item } from '../../../shared/dataset.js';
-import { UNITS_PER_METER } from '../../../shared/geo.js';
 import { detectLocale } from '../../../shared/i18n.js';
 import { collect, type WorldCtx } from '../../app/feature.js';
 import { useFeatures } from '../../app/FeaturesContext.js';
@@ -10,6 +9,7 @@ import { shouldIgnoreGlobalKey } from '../../app/keyboard.js';
 import { useUiStore } from '../../app/store.js';
 import { Button } from '../../components/Button.js';
 import { WINDOW_FRAME, WindowTitleBar } from '../../components/Window.js';
+import { wholeMetres } from '../coords/metres.js';
 import { TypeIcon } from '../map/TypeIcon.js';
 
 /** The selected item, if it is on the map. */
@@ -38,10 +38,12 @@ export function ItemPanel({ ctx }: { ctx: WorldCtx }) {
 }
 
 /**
- * Header with ×, the actions and sections (scrolling), and the footer. Esc closes the details in the
- * inspect mode (in other modes Esc leaves the mode first; an open dialog or menu takes Esc first), and so does ×.
+ * Header with ×, the actions and sections (scrolling), and the footer: pinned under them, or with `footerScrolls` (the
+ * phone's half-height sheet) at the end of the scrolling part, so it does not take room from the sections. Esc closes
+ * the details in the inspect mode (in other modes Esc leaves the mode first; an open dialog or menu takes Esc first),
+ * and so does ×.
  */
-export function ItemDetails({ item, ctx }: { item: Item; ctx: WorldCtx }) {
+export function ItemDetails({ item, ctx, footerScrolls = false }: { item: Item; ctx: WorldCtx; footerScrolls?: boolean }) {
   const { t, i18n } = useTranslation();
   const features = useFeatures();
   const { actions, sections } = useMemo(() => ({
@@ -69,7 +71,7 @@ export function ItemDetails({ item, ctx }: { item: Item; ctx: WorldCtx }) {
         <WindowTitleBar
           icon={<TypeIcon type={type} size={24} />}
           title={t(type.labelKey)}
-          subtitle={biome ? `${biome[detectLocale([i18n.language])]} ${item.seq}` : item.seq}
+          subtitle={biome ? `${biome[detectLocale([i18n.language])]}\u00a0${item.seq}` : item.seq}
           onClose={close}
         />
       </header>
@@ -78,17 +80,17 @@ export function ItemDetails({ item, ctx }: { item: Item; ctx: WorldCtx }) {
           {actions.map(a => <a.Component key={a.id} item={item} ctx={ctx} />)}
         </div>
         {sections.filter(s => s.applies(item)).map(s => <s.Component key={s.id} item={item} ctx={ctx} />)}
+        {footerScrolls && <Footer item={item} ctx={ctx} />}
       </div>
-      <Footer item={item} ctx={ctx} />
+      {!footerScrolls && <Footer item={item} ctx={ctx} />}
     </>
   );
 }
 
-/** X/Y/Z in metres, the actor name and [Copy ID]. */
+/** X/Y/Z in whole metres and [Copy ID], which copies the actor name (its tooltip shows it). */
 function Footer({ item, ctx }: { item: Item; ctx: WorldCtx }) {
   const { t, i18n } = useTranslation();
-  const metres = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0 });
-  const m = (units: number) => metres.format(units / UNITS_PER_METER);
+  const m = wholeMetres(i18n.language);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(item.name);
@@ -98,12 +100,9 @@ function Footer({ item, ctx }: { item: Item; ctx: WorldCtx }) {
     ctx.toast.show({ message: t('item.copied') });
   };
   return (
-    <footer className="flex flex-col gap-1 border-t border-line bg-bg/50 px-3 py-2 text-sm">
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-display font-semibold tracking-wide tabular-nums">{t('item.coords', { x: m(item.x), y: m(item.y), z: m(item.z) })}</span>
-        <Button variant="ghost" size="sm" onClick={() => void copy()}>{t('item.copyId')}</Button>
-      </div>
-      <code className="truncate font-mono text-xs text-muted select-all" title={item.name}>{item.name}</code>
+    <footer className="flex items-center justify-between gap-2 border-t border-line bg-bg/50 px-3 py-2 text-sm">
+      <span className="font-display font-semibold tracking-wide tabular-nums">{t('item.coords', { x: m(item.x), y: m(item.y), z: m(item.z) })}</span>
+      <Button variant="ghost" size="sm" title={item.name} onClick={() => void copy()}>{t('item.copyId')}</Button>
     </footer>
   );
 }

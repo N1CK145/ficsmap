@@ -777,7 +777,7 @@
     },
     "routeInfo": {
       "title": "Route on the map",
-      "straight": "Straight line",
+      "straightLength": "Straight line {value} m",
       "climb": "Height difference",
       "metres": "{value} m",
       "loading": "…",
@@ -785,7 +785,8 @@
       "adjust": {
         "road": "Roads are longer: adjust the value.",
         "freightCar": "Rails are longer: adjust the value.",
-        "drone": "Drones fly the straight line."
+        "drone": "Drones fly the straight line.",
+        "droneTyped": "For ground vehicles; drones fly the straight line ({value} m)."
       }
     },
     "capacity": {
@@ -860,7 +861,8 @@
       "fuelPerMinute": "{value}/min",
       "load": "Load per trip: {load} · includes {stop} loading and unloading",
       "fuelNote": {
-        "autopilot": "Fuel is an estimate from the game's use per metre driven; the Tractor and the Explorer burn more uphill.",
+        "autopilot": "Fuel is an estimate from the game's use per metre driven.",
+        "autopilotUphill": "Fuel is an estimate from the game's use per metre driven; it burns more uphill.",
         "dronePort": "Drone fuel use as measured by players."
       },
       "missing": {
@@ -883,7 +885,7 @@
       "perMinute": "Used per minute",
       "stacks": "Stacks/min",
       "fastest": "Fastest: {fuel}",
-      "cheapest": "Most economical: {fuel}"
+      "yours": "{fuel} · {value}/min"
     },
     "fleet": {
       "question": {

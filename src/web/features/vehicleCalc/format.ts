@@ -54,6 +54,9 @@ export function defaultStop(v: TransportVehicle): string {
   return v.stopSeconds === null ? '' : String(round1(v.stopSeconds));
 }
 
+/** The drone flies the straight line: with a route picked on the map it takes that length, not the typed one. */
+export const fliesStraight = (v: TransportVehicle) => v.id === 'drone';
+
 /** What one vehicle runs with: the inputs in effect (typed, else the game's values) for the form. */
 export interface VehicleSetup {
   /** Which form field holds its fuel: the drone keeps its own (it takes fewer fuels, its speed depends on it). */
@@ -68,11 +71,19 @@ export interface VehicleSetup {
   stop: string;
   /** What it carries of the item (null: it cannot carry the item). */
   load: Load | null;
+  /** The picked route's straight line (whole metres) where it is the route length instead of the typed one (the drone); else null. */
+  straightLine: number | null;
   trip: TripInput;
   fuelInput?: FuelInput;
 }
 
-export function vehicleSetup(vehicle: TransportVehicle, data: TransportData, form: CalcForm, item: TransportItem | null): VehicleSetup {
+/**
+ * One vehicle with the form's inputs in effect. `straightLine`, the picked route's straight line in whole metres (null
+ * without a picked route), is the drone's route length; wheeled vehicles and the freight car take the typed one.
+ */
+export function vehicleSetup(
+  vehicle: TransportVehicle, data: TransportData, form: CalcForm, item: TransportItem | null, straightLine: number | null = null,
+): VehicleSetup {
   const fuelField = vehicle.fuel?.fuels ? 'droneFuel' : 'fuel';
   const fuel = vehicle.fuel ? findFuel(vehicleFuels(data.fuels ?? [], vehicle), form[fuelField]) : null;
   const speedDefault = defaultSpeed(vehicle, fuel?.id ?? null);
@@ -80,13 +91,20 @@ export function vehicleSetup(vehicle: TransportVehicle, data: TransportData, for
   const speed = form.speed[vehicle.id] ?? speedGame;
   const stopGame = defaultStop(vehicle);
   const stop = form.stop[vehicle.id] ?? stopGame;
+  const straight = straightLine !== null && fliesStraight(vehicle) ? straightLine : null;
   const setup: VehicleSetup = {
     fuelField, fuel, speedDefault, speedGame, speed, stopGame, stop,
     load: loadFor(vehicle, item),
-    trip: { routeMeters: num(form.route), speedKmh: num(speed), stopSeconds: num(stop) },
+    straightLine: straight,
+    trip: { routeMeters: straight ?? num(form.route), speedKmh: num(speed), stopSeconds: num(stop) },
   };
   if (fuel && vehicle.fuel) setup.fuelInput = { perMetreMJ: vehicle.fuel.perMetreMJ, perTripMJ: vehicle.fuel.perTripMJ, energyMJ: fuel.energyMJ };
   return setup;
+}
+
+/** The straight line (m) the vehicle flies in place of a different typed length (the drone on a picked route), else null. */
+export function straightInstead(setup: VehicleSetup, form: CalcForm): number | null {
+  return setup.straightLine !== null && setup.straightLine !== num(form.route) ? setup.straightLine : null;
 }
 
 /** One vehicle of the setup on the route; null while the input is incomplete or it cannot carry the item. */
@@ -95,23 +113,33 @@ export function oneVehicle(setup: VehicleSetup): CalcResult | null {
 }
 
 /** The main figure of one vehicle: stacks per minute, or m³ per minute for a fluid load. */
-export interface CardRate { value: number; unit: 'stacks' | 'm3' }
+export interface CardRate {
+  value: number; unit: 'stacks' | 'm3';
+  /** The straight line (m) it flies when that is not the typed length (the drone on a picked route). */
+  straightLine?: number;
+}
+
+/** A vehicle card's figure: whole numbers from 100 up ("1,389"), one decimal below ("21.1"). */
+export const cardValue = (n: number) => (n >= 100 ? Math.round(n) : round1(n));
 
 /**
- * Every vehicle on the route with its own inputs in effect (speed, stop time and, for the drone, fuel), so the vehicle
- * cards compare them: stacks (or m³) per minute. Null until a route length above 0 is entered; a vehicle without a
- * result (no speed, cannot carry the item) is missing.
+ * Every vehicle on the route with its own inputs in effect (speed, stop time and, for the drone, fuel and the picked
+ * route's straight line, see `vehicleSetup`), so the vehicle cards compare them: stacks (or m³) per minute. A vehicle
+ * without a route length above 0 or without a result (no speed, cannot carry the item) is missing.
  */
-export function cardRates(data: TransportData, form: CalcForm, item: TransportItem | null): Map<VehicleId, CardRate> | null {
-  if (!(num(form.route) > 0)) return null;
+export function cardRates(data: TransportData, form: CalcForm, item: TransportItem | null, straightLine: number | null = null): Map<VehicleId, CardRate> {
   const out = new Map<VehicleId, CardRate>();
   for (const v of data.vehicles) {
-    const setup = vehicleSetup(v, data, form, item);
+    const setup = vehicleSetup(v, data, form, item, straightLine);
+    if (!(setup.trip.routeMeters > 0)) continue;
     const r = oneVehicle(setup);
     if (!r || !setup.load) continue;
-    out.set(v.id, setup.load.unit === 'm3'
+    const rate: CardRate = setup.load.unit === 'm3'
       ? { value: r.perVehiclePerMinute, unit: 'm3' }
-      : { value: r.stacksPerVehiclePerMinute ?? 0, unit: 'stacks' });
+      : { value: r.stacksPerVehiclePerMinute ?? 0, unit: 'stacks' };
+    const straight = straightInstead(setup, form);
+    if (straight !== null) rate.straightLine = straight;
+    out.set(v.id, rate);
   }
   return out;
 }

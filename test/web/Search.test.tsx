@@ -90,8 +90,8 @@ describe('search providers', () => {
     expect(sloops.actors).toEqual(['BP_WAT139', 'BP_WAT13']);
     expect(sloops.detail).toBe('2 auf der Karte');
     const sphere = entries.find(e => e.id === 'item:BP_WAT2_X')!;
-    expect(sphere.label).toBe('Mercer-Sphäre · Dünenwüste 2');
-    expect(sphere.terms).toEqual(['BP_WAT2_X', 'BP_MercerShrine_A', 'Mercer Sphere · Dune Desert 2', 'Mercer-Sphäre · Dünenwüste 2']);
+    expect(sphere.label).toBe('Mercer-Sphäre · Dünenwüste\u00a02');
+    expect(sphere.terms).toEqual(['BP_WAT2_X', 'BP_MercerShrine_A', 'Mercer Sphere · Dune Desert\u00a02', 'Mercer-Sphäre · Dünenwüste\u00a02']);
     // The ID is found, not shown: the label says what and where.
     expect(sphere.detail).toBeUndefined();
     expect(entries.find(e => e.id === 'type:slug_blue')!.terms).toContain('Blue Power Slugs');
@@ -156,12 +156,12 @@ describe('SearchBox', () => {
     const { input } = renderSearch();
     await userEvent.type(input, 'bp_wat13');
     // The results show what and where; the ID they were found by is not repeated.
-    expect(options().slice(0, 2)).toEqual(['Somersloop · Swamp 1Item', 'Somersloop · Dune Desert 1Item']);
+    expect(options().slice(0, 2)).toEqual(['Somersloop · Swamp\u00a01Item', 'Somersloop · Dune Desert\u00a01Item']);
     await userEvent.keyboard('{Enter}');
     expect(useUiStore.getState().selectedActor).toBe('BP_WAT13');
     expect(useUiStore.getState().focusRequest).toEqual({ actor: 'BP_WAT13' });
     expect(highlight()).toEqual(['BP_WAT13']);
-    expect(input).toHaveValue('Somersloop · Swamp 1');
+    expect(input).toHaveValue('Somersloop · Swamp\u00a01');
     expect(input).toHaveAttribute('aria-expanded', 'false');
   });
 
@@ -309,7 +309,7 @@ describe('SearchBox', () => {
     expect(useUiStore.getState().selectedActor).toBe('BP_WAT13');
     expect(screen.queryByRole('combobox')).toBeNull();
     act(() => { fireEvent.keyDown(window, { key: '/' }); });
-    expect(screen.getByRole('combobox')).toHaveValue('Somersloop · Swamp 1');
+    expect(screen.getByRole('combobox')).toHaveValue('Somersloop · Swamp\u00a01');
   });
 
   function renderMobile() {

@@ -137,12 +137,12 @@ describe('RouteEditor', () => {
     useRouteDraft.getState().load(r);
     act(() => { useUiStore.getState().setMode('route'); });
     renderEditor(client);
-    expect(rowLabels()[0]).toContain('Grass Fields 1');
+    expect(rowLabels()[0]).toContain('Grass Fields\u00a01');
     vi.mocked(optimizeRoute).mockReturnValueOnce([...STOPS].reverse());
     await userEvent.click(screen.getByRole('button', { name: 'Optimize order' }));
     expect(optimizeRoute).toHaveBeenCalledOnce();
-    expect(rowLabels()[0]).toContain('Grass Fields 7');
-    expect(rowLabels()[6]).toContain('Grass Fields 1');
+    expect(rowLabels()[0]).toContain('Grass Fields\u00a07');
+    expect(rowLabels()[6]).toContain('Grass Fields\u00a01');
   });
 
   it('drags a row onto another; dragstart sets text/plain data so Firefox starts the drag', () => {
@@ -157,8 +157,8 @@ describe('RouteEditor', () => {
     expect(dataTransfer.effectAllowed).toBe('move');
     fireEvent.dragOver(rows[2]!, { dataTransfer });
     fireEvent.drop(rows[2]!, { dataTransfer });
-    expect(rowLabels()[0]).toContain('Grass Fields 2');
-    expect(rowLabels()[2]).toContain('Grass Fields 1');
+    expect(rowLabels()[0]).toContain('Grass Fields\u00a02');
+    expect(rowLabels()[2]).toContain('Grass Fields\u00a01');
   });
 
   it('moves a focused row with Alt+↓ and then offers to optimise again', async () => {
@@ -169,8 +169,8 @@ describe('RouteEditor', () => {
     const first = within(screen.getByRole('list', { name: 'Stops' })).getAllByRole('listitem')[0]!;
     first.focus();
     await userEvent.keyboard('{Alt>}{ArrowDown}{/Alt}');
-    expect(rowLabels()[0]).toContain('Grass Fields 2');
-    expect(rowLabels()[1]).toContain('Grass Fields 1');
+    expect(rowLabels()[0]).toContain('Grass Fields\u00a02');
+    expect(rowLabels()[1]).toContain('Grass Fields\u00a01');
     expect(screen.getByText(/Order changed/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Optimize again' })).toBeInTheDocument();
   });
@@ -238,10 +238,10 @@ describe('RouteEditor on mobile', () => {
     expect(within(rows[6]!).getByRole('button', { name: 'Move down' })).toBeDisabled();
     for (const name of ['Move up', 'Move down', 'Remove stop']) expect(within(rows[1]!).getByRole('button', { name })).toHaveClass('size-11');
     await userEvent.click(within(rows[0]!).getByRole('button', { name: 'Move down' }));
-    expect(rowLabels()[0]).toContain('Grass Fields 2');
-    expect(rowLabels()[1]).toContain('Grass Fields 1');
+    expect(rowLabels()[0]).toContain('Grass Fields\u00a02');
+    expect(rowLabels()[1]).toContain('Grass Fields\u00a01');
     await userEvent.click(within(within(screen.getByRole('list', { name: 'Stops' })).getAllByRole('listitem')[1]!).getByRole('button', { name: 'Move up' }));
-    expect(rowLabels()[0]).toContain('Grass Fields 1');
+    expect(rowLabels()[0]).toContain('Grass Fields\u00a01');
   });
 
   it('leaves [Next stop ›] to the sticky button at the bottom of the sheet', async () => {

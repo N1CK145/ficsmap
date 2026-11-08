@@ -2,9 +2,10 @@ import type { LatLng, LeafletMouseEvent } from 'leaflet';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMap } from 'react-leaflet';
-import { latLngToWorld, UNITS_PER_METER } from '../../../shared/geo.js';
+import { latLngToWorld } from '../../../shared/geo.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { useIsMobile } from '../../app/useMediaQuery.js';
+import { wholeMetres } from './metres.js';
 import { useHeights } from './useHeights.js';
 
 /**
@@ -44,8 +45,7 @@ export function CoordsReadout({ ctx }: { ctx: WorldCtx }) {
 
   if (mobile || !pos) return null;
   // Whole metres, as the item panel shows an item's position.
-  const metres = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0 });
-  const m = (units: number) => metres.format(units / UNITS_PER_METER);
+  const m = wholeMetres(i18n.language);
   const z = available === false ? null : heightAt(pos.x, pos.y);
   return (
     <div

@@ -55,25 +55,25 @@ describe('ListView', () => {
     renderList(marks({ S1: {} }));
     expect(screen.getByRole('table', { name: 'Collectibles' })).toBeInTheDocument();
     expect(screen.getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Type', 'Item', 'Biome', 'Status', 'Last changed by', 'Show on map']);
-    const box = screen.getByRole('checkbox', { name: 'Somersloop · Grass Fields 1' });
+    const box = screen.getByRole('checkbox', { name: 'Somersloop · Grass Fields\u00a01' });
     expect(box).toBeChecked();
-    expect(screen.getByRole('checkbox', { name: 'Somersloop · Grass Fields 2' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Somersloop · Grass Fields\u00a02' })).not.toBeChecked();
     const row = box.closest('tr') as HTMLElement;
     expect(cell(row, 2)).toHaveTextContent('Grass Fields');
     expect(cell(row, 4)).toHaveTextContent('Anna');
-    expect(cell(screen.getByRole('checkbox', { name: 'Somersloop · Grass Fields 2' }).closest('tr') as HTMLElement, 4)).toHaveTextContent('—');
+    expect(cell(screen.getByRole('checkbox', { name: 'Somersloop · Grass Fields\u00a02' }).closest('tr') as HTMLElement, 4)).toHaveTextContent('—');
   });
 
   it('toggling the checkbox sets the mark', async () => {
     const { calls } = stubFetch({ [`PUT /api/worlds/${W}/marks/S2`]: { body: { rev: 2 } } });
     renderList(marks({}));
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Somersloop · Grass Fields 2' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Somersloop · Grass Fields\u00a02' }));
     expect(calls).toContainEqual({ method: 'PUT', path: `/api/worlds/${W}/marks/S2`, body: { collected: true } });
   });
 
   it('marks a conflict with "!" and a screen reader text', () => {
     renderList(marks({ S1: { mismatch: true } }));
-    const row = screen.getByRole('checkbox', { name: 'Somersloop · Grass Fields 1' }).closest('tr') as HTMLElement;
+    const row = screen.getByRole('checkbox', { name: 'Somersloop · Grass Fields\u00a01' }).closest('tr') as HTMLElement;
     expect(cell(row, 3)).toHaveTextContent('!');
     expect(within(row).getByText('Conflict')).toHaveClass('sr-only');
   });
@@ -85,18 +85,18 @@ describe('ListView', () => {
 
     const ui = useUiStore;
     act(() => ui.getState().showOnlyType('somersloop'));
-    expect(labels()).toEqual(['Somersloop · Grass Fields 1', 'Somersloop · Grass Fields 2']);
+    expect(labels()).toEqual(['Somersloop · Grass Fields\u00a01', 'Somersloop · Grass Fields\u00a02']);
     act(() => ui.getState().setVisibility('hide')); // collected S1 hidden, conflict S2 stays
-    expect(labels()).toEqual(['Somersloop · Grass Fields 2']);
+    expect(labels()).toEqual(['Somersloop · Grass Fields\u00a02']);
     act(() => { ui.getState().setVisibility('dim'); ui.getState().setTypeFilter(['somersloop', 'mercer_sphere', 'hard_drive']); ui.getState().setBiomeScope(1); });
-    expect(labels()).toEqual(['Mercer Sphere · Swamp 1', 'Hard Drive · Swamp 1']);
+    expect(labels()).toEqual(['Mercer Sphere · Swamp\u00a01', 'Hard Drive · Swamp\u00a01']);
     act(() => { ui.getState().setBiomeScope(null); ui.getState().setOnlyConflicts(true); });
-    expect(labels()).toEqual(['Somersloop · Grass Fields 2']);
+    expect(labels()).toEqual(['Somersloop · Grass Fields\u00a02']);
   });
 
   it('Show on map switches the main view and selects the item', async () => {
     renderList(marks({}));
-    const row = screen.getByRole('checkbox', { name: 'Mercer Sphere · Swamp 1' }).closest('tr') as HTMLElement;
+    const row = screen.getByRole('checkbox', { name: 'Mercer Sphere · Swamp\u00a01' }).closest('tr') as HTMLElement;
     useUiStore.getState().setMainView('list');
     await userEvent.click(within(row).getByRole('button', { name: /^Show on map/ }));
     expect(useUiStore.getState().mainView).toBe('map');
@@ -109,7 +109,7 @@ describe('ListView', () => {
 
   it('Show on map asks the map to focus the item', async () => {
     renderList(marks({}));
-    await userEvent.click(within(screen.getByRole('checkbox', { name: 'Mercer Sphere · Swamp 1' }).closest('tr') as HTMLElement).getByRole('button', { name: /^Show on map/ }));
+    await userEvent.click(within(screen.getByRole('checkbox', { name: 'Mercer Sphere · Swamp\u00a01' }).closest('tr') as HTMLElement).getByRole('button', { name: /^Show on map/ }));
     expect(useUiStore.getState().focusRequest?.actor).toBe('M1');
   });
 });

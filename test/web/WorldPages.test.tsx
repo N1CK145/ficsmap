@@ -194,7 +194,7 @@ describe('world pages', () => {
     const back = await screen.findByRole('main', { name: VEHICLES });
     expect(router.state.location.pathname).toBe(`/w/${W}/vehicles`);
     expect(within(back).getByLabelText('Route length (one way)')).toHaveValue(500);
-    expect(within(back).getByRole('region', { name: 'Route on the map' })).toHaveTextContent('Straight line500 m');
+    expect(within(back).getByRole('region', { name: 'Route on the map' })).toHaveTextContent(/^ABPick again$/);
     // The pick was a detour of the page: Back leads to where the page was opened from, the map without the pick mode.
     await act(() => router.navigate(-1));
     expect(router.state.location.pathname).toBe(`/w/${W}`);
