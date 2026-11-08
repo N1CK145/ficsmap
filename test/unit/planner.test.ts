@@ -1,6 +1,6 @@
 import {
-  choiceKey, choiceOptions, clockLimits, defaultChoice, MAX_SHARDS, parseChoiceKey, plan, shardsFor, solveLinear, stronglyConnected,
-  type PlanInput, type PlanResult, type PlanSettings,
+  choiceKey, choiceOptions, clockLimits, defaultChoice, evenClock, MAX_SHARDS, offeredChoice, parseChoiceKey, plan, shardsFor, solveLinear,
+  stronglyConnected, type PlanInput, type PlanResult, type PlanSettings,
 } from '../../src/shared/planner.js';
 import { indexRecipes } from '../../src/shared/recipes.js';
 import { EXP, RECIPE_DATA as DATA } from '../fixtures/recipeData.js';
@@ -226,7 +226,8 @@ describe('planner', () => {
 
   it('offers the choices in order and round-trips their keys', () => {
     expect(choiceOptions(IDX, 'plate').map(choiceKey)).toEqual(['recipe:R_Plate', 'recipe:R_PlateAlt', 'external']);
-    expect(choiceOptions(IDX, 'ore').map(choiceKey)).toEqual(['extract', 'external']);
+    // Every miner is an option of its own, by tier; the miner setting is the default, not an option.
+    expect(choiceOptions(IDX, 'ore').map(choiceKey)).toEqual(['extract:mk1', 'extract:mk2', 'external']);
     expect(choiceOptions(IDX, 'water').map(choiceKey)).toEqual(['extract:pump', 'extract:well', 'external']);
     expect(defaultChoice(IDX, 'water')).toEqual({ kind: 'extract', extractor: 'pump' });
     expect(defaultChoice(IDX, 'ore')).toEqual({ kind: 'extract' });
@@ -236,6 +237,50 @@ describe('planner', () => {
       expect(parseChoiceKey(choiceKey(c))).toEqual(c);
     }
     expect(parseChoiceKey('bogus')).toBeUndefined();
+  });
+
+  it('runs a step on another miner than the setting, and names the setting\'s miner for the default', () => {
+    const r = ok({ targets: [{ item: 'plate', rate: 60 }], choices: { ore: { kind: 'extract', extractor: 'mk2' } } });
+    // 90 ore/min: Mk.2 makes 120/min per building
+    expect(step(r, 'ore')).toMatchObject({ choice: { kind: 'extract', extractor: 'mk2' }, building: 'mk2', machinesCeil: 1 });
+    expect(step(r, 'ore').machines).toBeCloseTo(0.75);
+    expect(r.totals.raw).toEqual([{ item: 'ore', rate: 90, extractor: 'mk2', machines: 0.75, machinesCeil: 1 }]);
+    // Without a choice the step follows the setting.
+    expect(step(ok({ targets: [{ item: 'plate', rate: 60 }], settings: { ...S, miner: 'mk2' } }), 'ore').building).toBe('mk2');
+    expect(offeredChoice(IDX, 'ore', defaultChoice(IDX, 'ore'), S)).toEqual({ kind: 'extract', extractor: 'mk1' });
+    expect(offeredChoice(IDX, 'ore', defaultChoice(IDX, 'ore'), { miner: 'mk2' })).toEqual({ kind: 'extract', extractor: 'mk2' });
+    // A miner the data does not have: the lowest tier.
+    expect(offeredChoice(IDX, 'ore', { kind: 'extract' }, { miner: 'mk9' })).toEqual({ kind: 'extract', extractor: 'mk1' });
+    expect(offeredChoice(IDX, 'plate', { kind: 'recipe', recipe: 'R_Plate' }, S)).toEqual({ kind: 'recipe', recipe: 'R_Plate' });
+    // A miner choice for an item no miner takes falls back to the default.
+    expect(step(ok({ targets: [{ item: 'water', rate: 60 }], choices: { water: { kind: 'extract', extractor: 'mk2' } } }), 'water').building).toBe('pump');
+  });
+
+  it('counts the Power Shards of all buildings, not of resource wells\' pressurizers', () => {
+    // 25 plates/min at 150 %: 1.25 buildings -> 2 constructors with 1 shard each; ingot and ore at 100 % need none.
+    const r = ok({ targets: [{ item: 'plate', rate: 25 }, { item: 'gas', rate: 60 }], steps: { plate: { clock: 1.5 }, gas: { clock: 2 } } });
+    expect(step(r, 'plate')).toMatchObject({ machinesCeil: 1, shards: 1 });
+    expect(r.totals.shards).toBe(1);
+    const r2 = ok({ targets: [{ item: 'plate', rate: 60 }], steps: { plate: { clock: 2.5 } } });
+    expect(step(r2, 'plate')).toMatchObject({ machinesCeil: 2, shards: 3 });
+    expect(r2.totals.shards).toBe(6);
+    expect(ok({ targets: [{ item: 'plate', rate: 60 }] }).totals.shards).toBe(0);
+  });
+
+  it('finds the clock speed that makes the same with whole buildings', () => {
+    const limits = clockLimits(DATA.clock);
+    // 52.5 buildings at 100 % = 53 at 99.0566 %, rounded up to 99.06 %
+    expect(evenClock({ machines: 52.5, machinesCeil: 53, clock: 1 }, limits)).toBe(0.9906);
+    expect(evenClock({ machines: 1.5, machinesCeil: 2, clock: 2 }, limits)).toBe(1.5);
+    // Already whole, nothing built, or below the minimum clock speed: none.
+    expect(evenClock({ machines: 3, machinesCeil: 3, clock: 1 }, limits)).toBeUndefined();
+    expect(evenClock({ machines: 0, machinesCeil: 0, clock: 1 }, limits)).toBeUndefined();
+    expect(evenClock({ machines: 0.001, machinesCeil: 1, clock: 1 }, limits)).toBeUndefined();
+    // The rounded clock speed does not need another building.
+    const r = ok({ targets: [{ item: 'plate', rate: 25 }] });
+    const even = evenClock(step(r, 'plate'), limits)!;
+    expect(even).toBe(0.625);
+    expect(step(ok({ targets: [{ item: 'plate', rate: 25 }], steps: { plate: { clock: even } } }), 'plate').machinesCeil).toBe(2);
   });
 });
 

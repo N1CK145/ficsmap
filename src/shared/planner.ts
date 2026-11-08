@@ -150,6 +150,11 @@ export interface PlanTotals {
   /** Per building (machines and extractors). */
   machines: MachineTotal[];
   power: { min: number; max: number };
+  /**
+   * Power Shards in all buildings: per step its shards per building × its buildings (rounded up). Not the pressurizers
+   * of resource wells: how many wells a step needs depends on their sub-nodes (see `pressurizers`).
+   */
+  shards: number;
   /** Per resource well step: the pressurizer each of its wells needs (not counted in `power`). */
   pressurizers: { item: string; building: string; clock: number; shards: number; power: number }[];
 }
@@ -184,16 +189,35 @@ export function defaultChoice(index: RecipeIndex, item: string): Choice {
   return recipe ? { kind: 'recipe', recipe: recipe.id } : { kind: 'external' };
 }
 
-/** The options for an item, in the order offered: recipes (default first), extractors, external. */
+/**
+ * The options for an item, in the order offered: its extractors (miners by tier, then pumps and wells), each one an
+ * option of its own, then its recipes (default first), then external. The default of a solid resource, "the miner of
+ * the settings" (`{ kind: 'extract' }`), is not an option itself: `offeredChoice` names its miner.
+ */
 export function choiceOptions(index: RecipeIndex, item: string): Choice[] {
   const out: Choice[] = [];
-  const extractors = index.extractorsFor.get(item) ?? [];
-  const miner = extractors.some(e => e.kind === 'miner');
-  if (miner) out.push({ kind: 'extract' });
-  for (const e of extractors) if (e.kind !== 'miner') out.push({ kind: 'extract', extractor: e.id });
+  for (const e of index.extractorsFor.get(item) ?? []) out.push({ kind: 'extract', extractor: e.id });
   for (const r of index.producers.get(item) ?? []) out.push({ kind: 'recipe', recipe: r.id });
   out.push({ kind: 'external' });
   return out;
+}
+
+/** A choice as `choiceOptions` offers it: an extract choice that follows the miner setting names that miner. */
+export function offeredChoice(index: RecipeIndex, item: string, choice: Choice, settings: Pick<PlanSettings, 'miner'>): Choice {
+  if (choice.kind !== 'extract' || choice.extractor) return choice;
+  const extractor = resolveExtractor(index, item, choice, settings);
+  return extractor ? { kind: 'extract', extractor: extractor.id } : choice;
+}
+
+/**
+ * The same output from whole buildings: the step's rounded-up count running at a lower clock speed (1 = 100 %, rounded
+ * up to 0.01 %, so that clock speed never needs another building). Undefined when the count is whole already, for an
+ * external step, or when the clock speed would fall below the minimum.
+ */
+export function evenClock(step: Pick<PlanStep, 'machines' | 'machinesCeil' | 'clock'>, limits: ClockLimits): number | undefined {
+  if (step.machinesCeil < 1 || Math.abs(step.machines - step.machinesCeil) < 1e-6) return undefined;
+  const clock = Math.ceil(((step.clock * step.machines) / step.machinesCeil) * 1e4 - 1e-6) / 1e4;
+  return clock >= limits.min - 1e-9 ? clock : undefined;
 }
 
 /** A stable string for a choice (select values, comparisons). */
@@ -212,7 +236,7 @@ export function parseChoiceKey(key: string): Choice | undefined {
 }
 
 /** The extractor an extract choice uses, or undefined if none fits the item. */
-export function resolveExtractor(index: RecipeIndex, item: string, choice: { extractor?: string }, settings: PlanSettings): GameExtractor | undefined {
+export function resolveExtractor(index: RecipeIndex, item: string, choice: { extractor?: string }, settings: Pick<PlanSettings, 'miner'>): GameExtractor | undefined {
   const fits = index.extractorsFor.get(item) ?? [];
   if (choice.extractor) return fits.find(e => e.id === choice.extractor);
   const miner = fits.find(e => e.id === settings.miner);
@@ -507,13 +531,14 @@ function addFlow(list: Flow[], item: string, rate: number): void {
 }
 
 function totals(steps: readonly PlanStep[], surplus: Flow[]): PlanTotals {
-  const t: PlanTotals = { raw: [], external: [], byproducts: surplus, machines: [], power: { min: 0, max: 0 }, pressurizers: [] };
+  const t: PlanTotals = { raw: [], external: [], byproducts: surplus, machines: [], power: { min: 0, max: 0 }, shards: 0, pressurizers: [] };
   for (const st of steps) {
     if (st.choice.kind === 'external') addFlow(t.external, st.item, st.rate);
     if (st.extractor) {
       t.raw.push({ item: st.item, rate: st.rate, extractor: st.extractor.id, machines: st.machines, machinesCeil: st.machinesCeil });
     }
     if (st.pressurizer) t.pressurizers.push({ item: st.item, ...st.pressurizer, clock: st.clock, shards: st.shards });
+    else t.shards += st.shards * st.machinesCeil;
     if (st.building) {
       const m = t.machines.find(x => x.building === st.building);
       if (m) { m.machines += st.machines; m.machinesCeil += st.machinesCeil; }

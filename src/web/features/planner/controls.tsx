@@ -1,29 +1,26 @@
 import { useId } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { choiceKey, choiceOptions, defaultChoice, parseChoiceKey, PURITY_FACTOR, type Choice, type Flow, type PlanStep, type Purity } from '../../../shared/planner.js';
+import { choiceKey, choiceOptions, defaultChoice, offeredChoice, parseChoiceKey, PURITY_FACTOR, type Choice, type PlanStep, type Purity } from '../../../shared/planner.js';
 import type { RecipeIndex } from '../../../shared/recipes.js';
 import { FIELD_LABEL, fieldClass } from '../../components/Field.js';
-import { formatNumber, formatRate, itemName, type Lang } from './format.js';
+import { formatNumber, type Lang } from './format.js';
 import { usePlanner } from './usePlanner.js';
 
-/** Parts shared by the step list (`StepRow`) and the diagram's step panel (`StepPanel`). */
+/** Parts shared by the planner's views and the step panel (`StepPanel`). */
 
-/** Impure / Normal / Pure with their factor, for a SegmentedControl or a select. */
+/** Impure / Normal / Pure (the game's words; the factors are in the extractor settings' hint), for a SegmentedControl or a select. */
 export function usePurityOptions(): { value: Purity; label: string }[] {
   const { t } = useTranslation();
-  return (Object.keys(PURITY_FACTOR) as Purity[]).map(p => ({ value: p, label: t(`planner.purityOption.${p}`, { factor: PURITY_FACTOR[p] }) }));
+  return (Object.keys(PURITY_FACTOR) as Purity[]).map(p => ({ value: p, label: t(`planner.purityOption.${p}`) }));
 }
 
-/** The name of a choice in the "Made by" list. */
-export function useChoiceLabel(index: RecipeIndex, lang: Lang, item: string, minerId: string) {
+/** The name of a choice in the "Made by" list: the extractor, the recipe with its building, or "Supplied from outside". */
+export function useChoiceLabel(index: RecipeIndex, lang: Lang, item: string) {
   const { t } = useTranslation();
   return (c: Choice): string => {
     if (c.kind === 'external') return t('planner.option.external');
-    if (c.kind === 'extract') {
-      if (!c.extractor) return t('planner.option.miner', { name: index.extractors.get(minerId)?.name[lang] ?? '' });
-      return index.extractors.get(c.extractor)?.name[lang] ?? c.extractor;
-    }
+    if (c.kind === 'extract') return c.extractor ? index.extractors.get(c.extractor)?.name[lang] ?? c.extractor : '';
     const r = index.recipes.get(c.recipe);
     if (!r) return c.recipe;
     const args = { recipe: r.name[lang], machine: index.machines.get(r.machine)?.name[lang] ?? r.machine };
@@ -31,20 +28,26 @@ export function useChoiceLabel(index: RecipeIndex, lang: Lang, item: string, min
   };
 }
 
-/** "Made by" and the list of the item's recipes, extractors and "supplied from outside". Picking the default drops the choice. */
+/**
+ * "Made by" and the list of the item's extractors (each miner on its own), recipes and "supplied from outside". A step
+ * that follows the miner setting shows that miner; picking the default (the setting's miner for a solid resource)
+ * drops the choice, so the step follows the setting again.
+ */
 export function ChoiceSelect({ step, index, lang, minerId, className = '' }: { step: PlanStep; index: RecipeIndex; lang: Lang; minerId: string; className?: string }) {
   const { t } = useTranslation();
   const setChoice = usePlanner(s => s.setChoice);
   const id = useId();
-  const label = useChoiceLabel(index, lang, step.item, minerId);
-  const current = choiceKey(step.choice);
+  const label = useChoiceLabel(index, lang, step.item);
+  const settings = { miner: minerId };
+  const current = choiceKey(offeredChoice(index, step.item, step.choice, settings));
   const offered = choiceOptions(index, step.item);
   const options = offered.some(o => choiceKey(o) === current) ? offered : [step.choice, ...offered];
 
   function onChoose(key: string) {
     const c = parseChoiceKey(key);
     if (!c) return;
-    setChoice(step.item, choiceKey(c) === choiceKey(defaultChoice(index, step.item)) ? null : c);
+    const isDefault = choiceKey(c) === choiceKey(offeredChoice(index, step.item, defaultChoice(index, step.item), settings));
+    setChoice(step.item, isDefault ? null : c);
   }
 
   return (
@@ -55,10 +58,6 @@ export function ChoiceSelect({ step, index, lang, minerId, className = '' }: { s
       </select>
     </div>
   );
-}
-
-export function flows(index: RecipeIndex, list: readonly Flow[], lang: Lang, t: TFunction): string {
-  return list.map(f => `${formatRate(index, f.item, f.rate, lang, t)} ${itemName(index, f.item, lang)}`).join(', ');
 }
 
 export function powerText(p: { min: number; max: number }, lang: Lang, t: TFunction): string {
