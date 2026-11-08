@@ -24,8 +24,8 @@ export const pickRouteMode: MapMode = {
 };
 
 /**
- * Vehicle calculator: what one vehicle does on a route (trip times, fuel, stacks per minute), the vehicles needed for
- * a throughput, or the throughput of a number of vehicles, from the dataset's `transport.json`. A world page
+ * Vehicle calculator: what one vehicle does on a route with a fuel (stacks per minute, round trip, fuel per trip), every
+ * fuel compared, and the vehicles needed for a throughput, from the dataset's `transport.json`. A world page
  * (`/w/:id/vehicles`) at full width, reached from the tool navigation. The route length is typed or picked on the
  * map: "Pick on the map" goes to the map in PICK_MODE (the straight line between start and destination), and the
  * destination, Esc or Cancel bring the calculator page back (`PickReturn`). The picked route stays on the map.

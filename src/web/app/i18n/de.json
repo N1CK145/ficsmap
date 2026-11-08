@@ -735,16 +735,21 @@
   },
   "vehicleCalc": {
     "open": "Fahrzeuge",
-    "openHint": "Fahrzeug-Rechner: wie viele Fahrzeuge eine Strecke braucht oder wie viel sie transportieren",
+    "openHint": "Fahrzeug-Rechner: Fahrzeit, Treibstoff und Stapel pro Minute auf einer Strecke",
     "title": "Fahrzeug-Rechner",
     "unavailable": "Dieser Kartendatensatz hat keine Fahrzeugdaten. Sie kommen hinzu, wenn der Datensatz mit den Docs-Dateien des Spiels gebaut wird.",
     "failed": "Die Fahrzeugdaten konnten nicht geladen werden.",
+    "step": {
+      "route": "Strecke",
+      "vehicle": "Fahrzeug",
+      "fuel": "Treibstoff"
+    },
     "route": "Streckenlänge (einfach)",
     "pick": {
       "button": "Auf der Karte wählen",
+      "hint": "Start (A) und Ziel (B) auf der Karte wählen oder die Länge eintippen.",
       "again": "Neu wählen",
       "clear": "Punkte entfernen",
-      "hint": "Wähle Start und Ziel auf der Karte (ein Marker gibt seine Position vor); die Luftlinie dazwischen wird die Streckenlänge.",
       "start": "Fahrzeug-Rechner: Start auf der Karte wählen",
       "end": "Fahrzeug-Rechner: jetzt das Ziel wählen",
       "cancel": "Abbrechen",
@@ -754,49 +759,53 @@
     "routeInfo": {
       "title": "Strecke auf der Karte",
       "straight": "Luftlinie",
-      "climb": "Höhenunterschied (zum Ziel)",
+      "climb": "Höhenunterschied A → B",
       "length3d": "3D-Länge",
       "metres": "{value} m",
       "loading": "…",
       "unknown": "unbekannt",
-      "note": "Die Streckenlänge ist die Luftlinie zwischen den Punkten: für Drohnen genau. Fahrzeuge folgen Straßen und fahren weiter, für sie ist es eine Untergrenze; trag die echte Länge ein, wenn du sie kennst. Zieh A oder B auf der Karte, um einen Punkt zu verschieben.",
-      "typed": "Die Länge wurde eingetippt, deshalb ändern verschobene Punkte sie nicht.",
+      "note": "Für Drohnen genau. Straßen sind länger: trag die echte Länge ein, wenn du sie kennst. A und B lassen sich auf der Karte verschieben.",
+      "typed": "Die Länge ist eingetippt, verschobene Punkte ändern sie nicht.",
       "useStraight": "Luftlinie übernehmen"
     },
-    "vehicle": "Fahrzeug",
+    "capacity": {
+      "both": "{stacks, plural, one {# Stapel} other {# Stapel}} oder {m3, number} m³"
+    },
+    "fuel": "Treibstoff",
+    "fuelHint": {
+      "drone": "Die Geschwindigkeit der Drohne hängt vom Treibstoff ab."
+    },
+    "fuelNone": {
+      "freightCar": "Güterwagen brauchen keinen Treibstoff: Züge fahren mit Strom.",
+      "other": "Die Fahrzeugdaten enthalten keinen Treibstoffverbrauch."
+    },
+    "more": {
+      "title": "Weitere Einstellungen",
+      "values": "{item} · {speed} km/h · {stop} s",
+      "anyItem": "beliebiger Gegenstand"
+    },
     "item": "Gegenstand (optional)",
     "itemPlaceholder": "Beliebiger Gegenstand",
-    "itemHint": "Ohne Gegenstand wird in Stapeln pro Minute gerechnet.",
+    "itemHint": "Mit Gegenstand zeigt das Ergebnis auch Stück pro Minute.",
     "itemUnknown": "Kein Gegenstand mit diesem Namen. Wähle einen aus der Liste.",
     "itemClear": "Gegenstand entfernen",
     "cannotCarry": "{vehicle} kann {item} nicht transportieren.",
     "speed": "Durchschnittsgeschwindigkeit",
     "speedDefault": {
-      "pathLimit": "Standardwert aus den Spieldaten: das Limit des Autopiloten auf gerader Strecke ({speed, number} km/h). Der echte Schnitt ist niedriger (Kurven, Steigungen, Beschleunigung), trag deinen ein.",
-      "traction": "Standardwert aus den Spieldaten: die Geschwindigkeit, bei der die Zugkraft des Motors auf null fällt ({speed, number} km/h); das Limit des Autopiloten auf gerader Strecke ({limit, number} km/h) erreicht das Fahrzeug nicht. Der echte Schnitt ist niedriger (Kurven, Steigungen, Beschleunigung), trag deinen ein.",
-      "droneFuel": "Standardwert aus den Spieldaten: die Reisegeschwindigkeit der Drohne mit {fuel} ({speed, number} km/h). Abheben und Landen stecken in der Standzeit."
+      "pathLimit": "Spielwert: das Limit des Autopiloten auf gerader Strecke. Der echte Schnitt ist niedriger (Kurven, Steigungen).",
+      "traction": "Spielwert: hier endet die Zugkraft des Motors; das Limit des Autopiloten von {limit, number} km/h erreicht das Fahrzeug nicht. Der echte Schnitt ist niedriger (Kurven, Steigungen).",
+      "droneFuel": "Spielwert für diesen Treibstoff ({fuel})."
     },
-    "speedMissing": "Nicht in den Spieldaten. Trag die Durchschnittsgeschwindigkeit ein, die du im Spiel siehst.",
-    "stop": "Lade- und Entladezeit pro Umlauf",
+    "speedMissing": "Nicht in den Spieldaten: trag die Durchschnittsgeschwindigkeit ein, die du im Spiel siehst.",
+    "stop": "Lade- und Entladezeit",
     "stopSource": {
-      "truckStation": "Standardwert aus den Spieldaten: ein Lade-/Entladezyklus einer Lkw-Station an jedem Ende ({seconds, number} s), egal wie viel das Fahrzeug geladen hat. Das Einfahren in die Station ist nicht enthalten.",
-      "fluidTruckStation": "Standardwert aus den Spieldaten: ein Lade-/Entladezyklus einer Tanklaster-Station an jedem Ende ({seconds, number} s). Dass ein Zyklus die ganze Ladung bewegt, ist wie bei der Lkw-Station angenommen (nicht getestet). Das Einfahren in die Station ist nicht enthalten.",
-      "freightPlatform": "Standardwert aus den Spieldaten: Lade- und Entladezeit einer Frachtplattform ({seconds, number} s). Bremsen und Andocken sind nicht enthalten.",
-      "dronePort": "Standardwert aus den Spieldaten: Andocken und Abheben der Drohne an beiden Drohnenlandeplätzen ({seconds, number} s)."
+      "truckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Lkw-Station an jedem Ende.",
+      "fluidTruckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Tanklaster-Station an jedem Ende.",
+      "freightPlatform": "Beide Enden zusammen. Spielwert: Lade- und Entladezeit der Frachtplattform.",
+      "dronePort": "Beide Enden zusammen. Spielwert: Andocken und Abheben an beiden Drohnenlandeplätzen."
     },
-    "stopMissing": "Nicht in den Spieldaten. Trag ein, wie lange das Fahrzeug pro Umlauf insgesamt steht.",
-    "fuel": "Treibstoff",
-    "fuelHint": {
-      "autopilot": "Selbstfahrende Fahrzeuge verbrauchen {perMetre, number} MJ pro gefahrenem Meter, hin und zurück (Spieldaten: Energie pro cm, als MJ gelesen). Dieser Treibstoff hat {energy, number} MJ pro Stück. Schlepper und Explorer verbrauchen bergauf mehr, das ist nicht berücksichtigt; das Ergebnis ist also geschätzt.",
-      "dronePort": "Ein Umlauf kostet {trip, number} MJ für Abheben und Landen plus {perMetre, number} MJ pro geflogenem Meter, hin und zurück (Spieldaten des Drohnenlandeplatzes, in MJ laut Spielertests). Dieser Treibstoff hat {energy, number} MJ pro Stück."
-    },
-    "goal": "Berechnen",
-    "goalVehicles": "Nötige Fahrzeuge",
-    "goalRate": "Durchsatz",
-    "target": "Gewünschter Durchsatz",
-    "count": "Anzahl Fahrzeuge",
-    "countFreightCars": "Anzahl Güterwagen",
-    "freightCarNote": "Gezählt werden Güterwagen. Wagen im selben Zug teilen sich einen Umlauf; Lokomotiven zählen nicht mit.",
+    "stopMissing": "Nicht in den Spieldaten: trag ein, wie lange das Fahrzeug pro Fahrt hin und zurück an beiden Enden zusammen steht.",
+    "reset": "Spielwert übernehmen ({value})",
     "unit": {
       "m": "m",
       "kmh": "km/h",
@@ -816,43 +825,56 @@
       "stacks": "{value, plural, one {# Stapel} other {# Stapel}}",
       "m3": "{value, number} m³"
     },
-    "trip": {
-      "title": {
-        "vehicles": "Ein Fahrzeug auf dieser Strecke",
-        "freightCars": "Ein Güterwagen auf dieser Strecke"
-      },
-      "oneWay": "Fahrt (einfach)",
-      "roundTrip": "Umlauf mit Standzeit",
-      "moves": "Transportiert",
-      "fuel": "Treibstoff pro Umlauf",
-      "fuelValue": "{value, number} {fuel}",
-      "fuelPerMinute": "{value, number} pro Minute",
-      "incomplete": "Wähle die Strecke auf der Karte oder gib ihre Länge ein, dazu Geschwindigkeit und Standzeit, um eine Fahrt zu sehen."
-    },
     "duration": {
       "seconds": "{s, number} s",
       "minutes": "{m, number} min {s, number} s"
     },
-    "fuelTable": {
-      "caption": "Die Geschwindigkeit der Drohne hängt vom Treibstoff ab. Mit jedem Treibstoff, bei seiner Geschwindigkeit laut Spieldaten:",
-      "speed": "Geschwindigkeit",
-      "kmh": "{value, number} km/h"
-    },
     "result": {
       "title": "Ergebnis",
-      "incomplete": "Gib Streckenlänge, Geschwindigkeit, Standzeit und Ziel ein, um ein Ergebnis zu sehen.",
+      "perVehicle": "Pro Fahrzeug",
+      "perFreightCar": "Pro Güterwagen",
+      "roundTrip": "Hin und zurück",
+      "oneWay": "Hinweg {time}",
+      "fuel": "Treibstoff hin und zurück",
+      "fuelPerMinute": "{value} pro Minute",
+      "load": "Ladung pro Fahrt: {load} · inklusive {stop} Laden und Entladen",
+      "fuelNote": {
+        "autopilot": "Treibstoff geschätzt aus dem Verbrauch pro gefahrenem Meter laut Spieldaten; Schlepper und Explorer verbrauchen bergauf mehr.",
+        "dronePort": "Treibstoffverbrauch der Drohne laut Spielertests."
+      },
+      "missing": {
+        "route": "Wähle die Strecke auf der Karte oder tippe ihre Länge ein, dann steht hier das Ergebnis.",
+        "speed": "Gib die Durchschnittsgeschwindigkeit ein, dann steht hier das Ergebnis.",
+        "stop": "Gib die Lade- und Entladezeit ein, dann steht hier das Ergebnis."
+      }
+    },
+    "compare": {
+      "title": "Alle Treibstoffe im Vergleich",
+      "bySpeed": "Schnellster zuerst. Verbrauch: Treibstoff pro Fahrt hin und zurück.",
+      "sameSpeed": "Die Fahrzeit ist mit jedem Treibstoff gleich. Sparsamster zuerst.",
+      "roundTrip": "Hin und zurück",
+      "used": "Verbrauch",
+      "perTrip": "Verbrauch hin und zurück",
+      "perMinute": "Pro Minute",
+      "stacks": "Stapel/min"
+    },
+    "fleet": {
+      "question": {
+        "vehicles": "Wie viele Fahrzeuge brauche ich?",
+        "freightCars": "Wie viele Güterwagen brauche ich?"
+      },
+      "target": "Gewünschter Durchsatz",
       "needed": {
         "vehicles": "Nötige Fahrzeuge",
         "freightCars": "Nötige Güterwagen"
       },
-      "countValue": "{count, number}",
       "utilisation": "Auslastung",
       "percent": "{share, number, percent}",
       "capacity": "Sie schaffen bis zu",
-      "throughput": "Durchsatz",
-      "perTrip": "Ladung pro Fahrt",
-      "fuel": "Treibstoff (geschätzt)",
-      "fuelTotal": "{value, number} {fuel}/min"
+      "fuel": "Treibstoff für alle",
+      "fuelTotal": "{value} {fuel}/min",
+      "missing": "Gib den gewünschten Durchsatz ein.",
+      "freightCarNote": "Gezählt werden Güterwagen. Wagen im selben Zug teilen sich einen Umlauf; Lokomotiven zählen nicht mit."
     }
   },
   "search": {

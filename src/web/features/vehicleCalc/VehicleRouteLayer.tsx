@@ -2,16 +2,26 @@ import './vehicleRoute.css';
 import L, { type LatLngTuple, type LeafletEvent } from 'leaflet';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Marker, Polyline } from 'react-leaflet';
+import { Marker, Pane, Polyline } from 'react-leaflet';
 import { latLngToWorld, worldToLatLng } from '../../../shared/geo.js';
 import type { VehicleRoute, WorldPoint } from '../../../shared/vehicleRoute.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { useUiStore } from '../../app/store.js';
 import { PICK_MODE, useVehicleCalc } from './useVehicleCalc.js';
 
-/** The vehicles' colour (as in the machine wiki), read once from the CSS token so no colour is written down here. */
-function readColour(): string {
-  return getComputedStyle(document.documentElement).getPropertyValue('--color-cat-vehicles').trim() || 'currentColor';
+/**
+ * The line's own pane: above the collectible markers' canvas (450) and the resource nodes (430), so it stays visible in
+ * dense areas; below Leaflet's marker pane (600), where the A and B pins are. It takes no pointer events, so clicks
+ * still reach the map and the markers under it.
+ */
+export const ROUTE_PANE = 'ficsmap-vehicle-route';
+export const ROUTE_PANE_Z = 460;
+
+/** The vehicles' colour (as in the machine wiki) and the background for the line's casing, read from the CSS tokens. */
+function readColours(): { line: string; casing: string } {
+  const style = getComputedStyle(document.documentElement);
+  const token = (name: string) => style.getPropertyValue(name).trim() || 'currentColor';
+  return { line: token('--color-cat-vehicles'), casing: token('--color-bg') };
 }
 
 /** A round pin with a letter; 44 px around it is the touch target for dragging (vehicleRoute.css). */
@@ -21,7 +31,8 @@ function pin(letter: 'A' | 'B'): L.DivIcon {
 
 /**
  * The vehicle calculator's route on the map: the start (A) and the destination (B) with the straight line between
- * them, shown while they are set (the calculator is a page of its own). A and B can be dragged; the calculator follows.
+ * them, shown while they are set (the calculator is a page of its own), above the collectible markers (`ROUTE_PANE`).
+ * A and B can be dragged; the calculator follows.
  * While points are picked (PICK_MODE) only the start picked so far is shown.
  */
 export function VehicleRouteLayer({ ctx }: { ctx: WorldCtx }) {
@@ -29,7 +40,7 @@ export function VehicleRouteLayer({ ctx }: { ctx: WorldCtx }) {
   const picking = useUiStore(s => s.interactionMode === PICK_MODE);
   const route = useVehicleCalc(s => s.route);
   const pickedStart = useVehicleCalc(s => s.pickedStart);
-  const colour = useMemo(readColour, []);
+  const colours = useMemo(readColours, []);
   const icons = useMemo(() => ({ start: pin('A'), end: pin('B') }), []);
   const bounds = ctx.index.ds.bounds;
   const at = (p: WorldPoint): LatLngTuple => worldToLatLng(p.x, p.y, bounds);
@@ -49,7 +60,11 @@ export function VehicleRouteLayer({ ctx }: { ctx: WorldCtx }) {
   if (!route) return null;
   return (
     <>
-      <Polyline positions={[at(route.start), at(route.end)]} interactive={false} pathOptions={{ color: colour, weight: 3, opacity: 0.95 }} />
+      <Pane name={ROUTE_PANE} style={{ zIndex: ROUTE_PANE_Z, pointerEvents: 'none' }}>
+        {/* A dark casing under the line, so it reads over the coloured markers. */}
+        <Polyline positions={[at(route.start), at(route.end)]} interactive={false} pathOptions={{ color: colours.casing, weight: 8, opacity: 0.75 }} />
+        <Polyline positions={[at(route.start), at(route.end)]} interactive={false} pathOptions={{ color: colours.line, weight: 4, opacity: 1 }} />
+      </Pane>
       <Marker position={at(route.start)} icon={icons.start} draggable keyboard={false} title={t('vehicleCalc.pick.startPoint')}
         eventHandlers={handlers.start} />
       <Marker position={at(route.end)} icon={icons.end} draggable keyboard={false} title={t('vehicleCalc.pick.endPoint')}

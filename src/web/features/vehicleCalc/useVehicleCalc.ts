@@ -28,25 +28,24 @@ export function useTransportData(version: string, enabled = true): { data: Trans
   return { data: q.data, failed: q.isError };
 }
 
-export type CalcGoal = 'vehicles' | 'rate';
-
 /** The form as typed (strings, so a half-typed number stays as it is). Speed and stop time per vehicle. */
 export interface CalcForm {
   route: string;
   vehicle: VehicleId;
   item: string;
+  /** Typed speeds (km/h); a vehicle without one uses its game value. */
   speed: Partial<Record<VehicleId, string>>;
+  /** Typed stop times (s); a vehicle without one uses its game value. */
   stop: Partial<Record<VehicleId, string>>;
   /** Fuel item class of the wheeled vehicles. */
   fuel: string;
   /** Fuel item class of the drone (it takes fewer fuels, and its speed depends on the fuel). */
   droneFuel: string;
-  goal: CalcGoal;
+  /** Throughput (in the load's unit per minute) for "how many vehicles do I need". */
   target: string;
-  count: string;
 }
 
-export const EMPTY_FORM: CalcForm = { route: '', vehicle: 'truck', item: '', speed: {}, stop: {}, fuel: DEFAULT_FUEL, droneFuel: DEFAULT_FUEL, goal: 'vehicles', target: '', count: '' };
+export const EMPTY_FORM: CalcForm = { route: '', vehicle: 'truck', item: '', speed: {}, stop: {}, fuel: DEFAULT_FUEL, droneFuel: DEFAULT_FUEL, target: '' };
 
 /** The map mode in which clicks on the map pick the route's start and destination. */
 export const PICK_MODE = 'vehicle-route' satisfies InteractionMode;
