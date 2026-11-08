@@ -1008,30 +1008,33 @@
       "noPower": "Kein Strom",
       "noRecipe": "Kein Rezept",
       "noFuel": "Kein Treibstoff",
-      "starved": "Eingang fehlt",
-      "blocked": "Ausgang voll",
-      "unknown": "Läuft zeitweise"
+      "starved": "Mangel",
+      "blocked": "Stau",
+      "unknown": "Läuft zeitweise",
+      "surplus": "Überschuss"
     },
     "reasonHint": {
-      "paused": "Von einem Spieler pausiert (Standby).",
+      "paused": "Von einem Spieler pausiert (Standby). Zählt nicht als ineffizient und nicht als Verlust.",
       "noPower": "Nicht an ein Stromnetz mit Generator angeschlossen, oder die Sicherung ist ausgelöst.",
       "noRecipe": "Kein Rezept eingestellt.",
       "noFuel": "Der Generator hat keinen Treibstoff mehr.",
-      "starved": "Ein Eingang war leer: Es kommen zu wenig Zutaten an.",
-      "blocked": "Der Ausgang war voll: Das Förderband oder Rohr nimmt weniger ab, als sie herstellt. Bei Extraktoren die einzig mögliche Ursache.",
-      "unknown": "Sie lief beim Speichern, aber nicht während der ganzen letzten Messung (5 min): meist ungleichmäßiger Nachschub."
+      "starved": "Mangel: Ein Eingang war leer, es kommen zu wenig Zutaten an.",
+      "blocked": "Stau: Der Ausgang war voll, das Förderband oder Rohr nimmt weniger ab, als sie herstellt.",
+      "unknown": "Sie lief beim Speichern, aber nicht während der ganzen letzten Messung (5 min): meist ungleichmäßiger Nachschub.",
+      "surplus": "Überschuss: Der Extraktor fördert mehr, als abgenommen wird (Ausgang voll). Zählt nicht als ineffizient."
     },
     "band": {
-      "idle": "Stehen (< 1 %)",
-      "throttled": "Gedrosselt (1–90 %)",
+      "idle": "Steht (< 1 %)",
+      "throttled": "Teillast (1–90 %)",
       "high": "Fast voll (90–99 %)",
       "full": "Voll (≥ 99 %)"
     },
     "bandCount": {
       "idle": "{count, number} stehen",
-      "throttled": "{count, number} gedrosselt",
+      "throttled": "{count, number} Teillast",
       "high": "{count, number} fast voll",
-      "full": "{count, number} voll"
+      "full": "{count, number} voll",
+      "paused": "{count, number} pausiert"
     },
     "timeline": {
       "title": "Zeitstrahl",
@@ -1041,9 +1044,9 @@
       "olderShort": "Älter",
       "newer": "Neuerer Spielstand",
       "newerShort": "Neuer",
-      "point": "{date}: {buildings} Gebäude, Produktivität {productivity}",
+      "point": "{date}: {buildings} Gebäude, Ø Produktivität {productivity}",
       "comparedMark": "Vergleich",
-      "tooltip": "{buildings} Gebäude · {machines} Maschinen · Ø {productivity}",
+      "tooltip": "{buildings} Gebäude · {machines} Maschinen · Ø Produktivität {productivity}",
       "compare": "Vergleichen mit",
       "compareWith": "Spielstand zum Vergleich",
       "comparedLegend": "Vergleichsstand"
@@ -1053,26 +1056,54 @@
       "machines": "Maschinen",
       "inefficient": "{count, number} ineffizient",
       "avg": "Ø Produktivität",
-      "avgHint": "gewichtet nach Taktrate",
-      "idle": "Stehen",
-      "idleHint": "unter 1 %",
-      "throttled": "Gedrosselt",
+      "avgHint": "Mittel aller Maschinen",
+      "idle": "Stillstand",
+      "idleHint": "unter 1 %, ohne pausierte",
+      "throttled": "Teillast",
       "throttledHint": "1–90 %",
       "power": "Strom",
-      "powerHint": "erzeugt, von {value} möglich",
-      "since": "{delta} seit {date}"
+      "powerHint": "Kapazität der Generatoren",
+      "since": "{delta} seit {date}",
+      "inefficientPaused": "{count, number} ineffizient, {paused, number} pausiert"
     },
     "items": {
       "title": "Ineffiziente Gegenstände",
-      "subtitle": "{losing, plural, =0 {Alle Gegenstände laufen voll} one {# Gegenstand unter Soll} other {# Gegenstände unter Soll}}{full, plural, =0 {} other {, # laufen voll}}",
+      "subtitle": "{losing, plural, =0 {Alle Gegenstände laufen voll} one {# Gegenstand unter Soll} other {# Gegenstände unter Soll}}{shortage, plural, =0 {} other {, davon # mit Mangel}}{full, plural, =0 {} other {, # laufen voll}}",
       "none": "Alle Maschinen stellen her, was sie sollen. Nichts geht verloren.",
       "item": "Gegenstand",
       "nominal": "Soll/min",
       "actual": "Ist/min",
       "lost": "Verlust/min",
       "machines": "Maschinen",
-      "reason": "Hauptgrund",
-      "machineSummary": "{losing, number} von {total, number} Maschinen verlieren Produktion"
+      "reason": "Lage",
+      "machineSummary": "{losing, number} von {total, number} Maschinen verlieren Produktion",
+      "group": {
+        "shortage": "Mangel: zu wenig Zutaten, zuerst beheben",
+        "rest": "Stau und weitere Verluste",
+        "surplus": "Überschuss: Extraktoren fördern mehr, als abgenommen wird (nicht ineffizient)"
+      },
+      "noConsumer": "kein Abnehmer",
+      "noConsumerHint": "Keine Maschine in dieser Fabrik verarbeitet diesen Gegenstand, und keine Ladestation hält ihn.",
+      "consumers": "Abnehmer",
+      "consumersNone": "Keine Maschine in dieser Fabrik verarbeitet {item}.",
+      "loadedAt": "{count, plural, one {Liegt an # Ladestation} other {Liegt an # Ladestationen}}",
+      "consumerGroup": "{name} {count, number}",
+      "reasonCount": "{count, number} {reason}",
+      "fine": "{count, number} voll",
+      "transport": "Transport dazwischen begrenzt: Die Hersteller stauen sich, während Abnehmer auf Nachschub warten. Förderbänder, Rohre oder Fahrzeuge dazwischen schaffen zu wenig.",
+      "endsHere": {
+        "noConsumer": "Stau endet hier: Kein Abnehmer in dieser Fabrik.",
+        "transport": "Stau endet hier: Der Transport zu den Abnehmern schafft zu wenig.",
+        "demand": "Stau endet hier: Die Abnehmer laufen und brauchen nicht mehr."
+      },
+      "jamEnds": "Stau endet bei",
+      "why": {
+        "noConsumer": "kein Abnehmer",
+        "transport": "Transport begrenzt",
+        "demand": "Abnehmer brauchen nicht mehr"
+      },
+      "makers": "Hersteller",
+      "outputOf": "Ist {actual} von {nominal}"
     },
     "machines": {
       "title": "Maschinen",
@@ -1094,10 +1125,12 @@
       },
       "listLabel": "{count, plural, one {# Maschine} other {# Maschinen}}",
       "noMatch": "Keine Maschine passt zum Filter.",
-      "allFine": "Keine Maschine ist ineffizient."
+      "allFine": "Keine Maschine ist ineffizient.",
+      "inefficientCount": "{count, number} ineffizient",
+      "filtered": "Maschinen: {filter}"
     },
     "routes": {
-      "title": "Routen",
+      "title": "Stationen und Fahrzeuge",
       "subtitle": "{stations, plural, one {# Station} other {# Stationen}}, {vehicles, plural, one {# Fahrzeug} other {# Fahrzeuge}}, {moved} entladen",
       "none": "Dieser Spielstand hat keine Stationen oder Fahrzeuge.",
       "stations": "Stationen",
@@ -1105,7 +1138,7 @@
       "mode": "Modus",
       "vehicles": "Fahrzeuge",
       "perMin": "Gegenstände/min",
-      "interval": "Abstand",
+      "interval": "Intervall",
       "perDock": "Pro Halt",
       "near": "bei {biome}",
       "items": "{value} Stück",
@@ -1122,7 +1155,23 @@
       "unloads": "entlädt {value}",
       "stops": "Halte von {name}",
       "unknownStop": "Wegpunkt",
-      "noRoute": "Keine Route eingestellt."
+      "noRoute": "Keine Route eingestellt.",
+      "intervalHint": "Zeit zwischen zwei Halten irgendeines Fahrzeugs; darunter je Fahrzeug",
+      "intervalEach": "Intervall je Fahrzeug {time}",
+      "fill": "Füllung {value}",
+      "fillApprox": "Füllung ≈ {value}",
+      "fillHint": "Gegenstände je Halt im Verhältnis zum Laderaum (Stapel × Stapelgröße der geladenen Gegenstände)",
+      "cargo": "Ladung",
+      "cargoNone": "leer",
+      "problem": {
+        "noVehicles": "Kein Fahrzeug hält hier",
+        "nothingMoved": "Fahrzeuge halten, bewegen nichts"
+      },
+      "problems": "{count, plural, one {# Station mit Problem} other {# Stationen mit Problem}}",
+      "emptyLegs": "Leerfahrt bei {stations}",
+      "fuelNamed": "{fuel}: {amount, number} im Tank",
+      "noFuelNamed": "{fuel}: kein Treibstoff",
+      "carries": "Hat geladen"
     },
     "changes": {
       "title": "Änderungen",
@@ -1133,9 +1182,8 @@
       "moreClasses": "{count, plural, one {# weitere Art} other {# weitere Arten}}",
       "items": "Gegenstände: Verlust geändert",
       "noItems": "Bei keinem Gegenstand hat sich der Verlust geändert.",
-      "lossFromTo": "Verlust {from} → {to}",
-      "moreLoss": "+{value} Verlust",
-      "lessLoss": "−{value} Verlust",
+      "moreLoss": "mehr Verlust",
+      "lessLoss": "weniger Verlust",
       "worse": "Schlechter ({count, number})",
       "better": "Besser ({count, number})",
       "noMachines": "Keine.",
@@ -1143,7 +1191,10 @@
       "removed": "−{count, number}",
       "addedHint": "gebaut",
       "removedHint": "abgerissen",
-      "to": "auf"
+      "to": "auf",
+      "logistics": "Logistik",
+      "logisticsHint": "Förderbänder, Förderlifte, Förderbandsplitter, Förderband-Fusionatoren, Stützen, Pipeline-Kreuzungen, Strommasten und Hypertubes",
+      "logisticsCount": "{count, plural, one {# Art} other {# Arten}}"
     },
     "empty": {
       "title": "Noch keine Fabrikdaten",
@@ -1152,6 +1203,19 @@
       "import": "Spielstand importieren",
       "older": "Ältere Spielstände hinzufügen",
       "member": "{owner} besitzt diese Welt und kann Spielstände importieren. Dann erscheint die Fabrik hier."
+    },
+    "state": {
+      "paused": "Pausiert"
+    },
+    "machine": {
+      "purity": "Vorkommen {purity}",
+      "belt": "{belt} ({rate})",
+      "hint": {
+        "beltLimits": "{belt} begrenzt auf {rate}",
+        "beltBehind": "Vermutlich {belt} dahinter ({rate})",
+        "noBelt": "Kein Förderband angeschlossen",
+        "overclockUseless": "Übertakten bringt nichts ({shards, plural, one {# Energiefragment} other {# Energiefragmente}} frei)"
+      }
     }
   },
   "factoryMap": {

@@ -24,6 +24,8 @@ const Id = z.string().min(1).max(256);
 const Num = z.number();
 const Count = z.number().int().min(0);
 const Flat = (max: number) => z.array(Num).max(max);
+/** Items per class in an inventory (stations, vehicles). */
+const Cargo = z.array(z.object({ item: Cls, count: Count })).max(64);
 
 const Production = z.object({
   recipe: Cls.optional(),
@@ -63,6 +65,7 @@ const Station = z.object({
     capacityStacks: Num.optional(),
     capacityFluid: Num.optional(),
   })).max(1000),
+  cargo: Cargo.optional(),
 });
 
 const Vehicle = z.object({
@@ -73,6 +76,8 @@ const Vehicle = z.object({
   autopilot: z.boolean(),
   fuel: z.object({ item: Cls, amount: Num.optional() }).optional(),
   route: z.array(Id).max(1000),
+  cargo: Cargo.optional(),
+  slots: Count.max(10_000).optional(),
 });
 
 const Marker = z.object({

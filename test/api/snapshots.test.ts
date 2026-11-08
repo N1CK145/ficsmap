@@ -25,8 +25,9 @@ function snapshot(saveTime = 1_000, sessionName = 'Letz Fetz'): FactorySnapshot 
     splines: [{ id: 'Build_ConveyorBeltMk1_C_6', cls: 'Build_ConveyorBeltMk1_C', pts: [0, 0, 0, 100, 0, 0] }],
     powerLines: [0, 0, 0, 1, 1, 1],
     pathNetworks: [],
-    stations: [],
-    vehicles: [],
+    // cargo (added to format 1 later) must survive the schema
+    stations: [{ id: 'Build_TruckStation_C_7', cls: 'Build_TruckStation_C', x: 0, y: 0, z: 0, yaw: 0, loading: true, traffic: [], cargo: [{ item: 'Desc_Cement_C', count: 35 }] }],
+    vehicles: [{ id: 'BP_Tractor_C_8', cls: 'BP_Tractor_C', x: 0, y: 0, z: 0, yaw: 0, autopilot: true, route: [], cargo: [{ item: 'Desc_SteelPipe_C', count: 108 }], slots: 25 }],
     markers: [{ name: 'Base', x: 1, y: 2, z: 3, kind: 'MapMarker', iconId: 1, color: '#ff8800', scale: 1 }],
     crates: [],
   };

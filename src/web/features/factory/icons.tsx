@@ -25,6 +25,8 @@ export const REASON_PATHS: Record<Reason, string> = {
   starved: 'M2 8h6M5.5 5.5L8 8l-2.5 2.5M10 3.5h3.5v9H10',
   // the output is full: a filled box with a stop bar
   blocked: 'M2.5 3.5h7v9h-7zM2.5 8h7M12.5 3v10',
+  // more than is taken off: a full box with an arrow rising out of it
+  surplus: 'M2.5 8.5h11v5h-11zM8 6.5V1.5M5.5 4L8 1.5 10.5 4',
   noPower: 'M9 1.5L3.5 9H8l-1 5.5L12.5 7H8z',
   noFuel: 'M8 2s4 4.5 4 7.5a4 4 0 01-8 0C4 6.5 8 2 8 2zM3 13L13 3',
   paused: 'M5.5 3.5v9M10.5 3.5v9',

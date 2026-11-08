@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { create } from 'zustand';
-import type { Band, Reason } from '../../../shared/factory/analysis.js';
+import type { MachineState, Reason } from '../../../shared/factory/analysis.js';
 import type { SnapshotSummary } from '../../../shared/factory/snapshot.js';
 import { useSnapshotList } from './api.js';
 import { useFactoryView } from './view.js';
@@ -56,12 +56,13 @@ interface FactoryPageState {
   /** Filters of the machine list. */
   cls: string | null;
   reason: Reason | null;
-  band: Band | null;
+  /** A band or paused. */
+  state: MachineState | null;
   sort: MachineSort;
   /** Items whose machines are unfolded in "Inefficient items". */
   expanded: string[];
   enterWorld(worldId: string): void;
-  setFilter(patch: Partial<Pick<FactoryPageState, 'cls' | 'reason' | 'band'>>): void;
+  setFilter(patch: Partial<Pick<FactoryPageState, 'cls' | 'reason' | 'state'>>): void;
   clearFilters(): void;
   setSort(sort: MachineSort): void;
   toggleItem(item: string): void;
@@ -72,15 +73,15 @@ export const useFactoryPage = create<FactoryPageState>()((set, get) => ({
   worldId: null,
   cls: null,
   reason: null,
-  band: null,
+  state: null,
   sort: 'productivity',
   expanded: [],
   enterWorld: worldId => {
     if (get().worldId === worldId) return;
-    set({ worldId, cls: null, reason: null, band: null, sort: 'productivity', expanded: [] });
+    set({ worldId, cls: null, reason: null, state: null, sort: 'productivity', expanded: [] });
   },
   setFilter: patch => set(patch),
-  clearFilters: () => set({ cls: null, reason: null, band: null }),
+  clearFilters: () => set({ cls: null, reason: null, state: null }),
   setSort: sort => set({ sort }),
   toggleItem: item => set(s => ({ expanded: s.expanded.includes(item) ? s.expanded.filter(i => i !== item) : [...s.expanded, item] })),
 }));

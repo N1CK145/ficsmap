@@ -35,7 +35,7 @@ const RECIPES: RecipeData = {
     { id: 'Recipe_IngotIron_C', name: { en: 'Iron Ingot', de: 'Eisenbarren' }, alternate: false, machine: 'Build_SmelterMk1_C', duration: 2,
       ingredients: [], products: [{ item: 'Desc_IronIngot_C', amount: 1 }] },
     { id: 'Recipe_IronPlate_C', name: { en: 'Iron Plate', de: 'Eisenplatte' }, alternate: false, machine: 'Build_ConstructorMk1_C', duration: 6,
-      ingredients: [], products: [{ item: 'Desc_IronPlate_C', amount: 2 }] },
+      ingredients: [{ item: 'Desc_IronIngot_C', amount: 3 }], products: [{ item: 'Desc_IronPlate_C', amount: 2 }] },
   ],
   machines: [
     { id: 'Build_SmelterMk1_C', name: { en: 'Smelter', de: 'Schmelzofen' }, power: 4, powerExponent: 1.3 },
@@ -57,9 +57,14 @@ const NEW = snap(2_000, [
   b('smelter', 'Build_SmelterMk1_C', { clock: 1, recipe: 'Recipe_IngotIron_C', productivity: 0.25, issues: ['blocked'] }),
   b('plate', 'Build_ConstructorMk1_C', { clock: 1, recipe: 'Recipe_IronPlate_C', productivity: 0, issues: ['starved'] }),
   b('plate2', 'Build_ConstructorMk1_C', { clock: 1, recipe: 'Recipe_IronPlate_C', productivity: 1 }),
+  b('paused', 'Build_ConstructorMk1_C', { clock: 1, recipe: 'Recipe_IronPlate_C', productivity: 0, paused: true }),
 ], {
-  stations: [{ id: 'st1', cls: 'Build_TruckStation_C', x: 0, y: 0, z: 0, yaw: 0, loading: true, traffic: [{ vehicle: 'tr1', avgSecBetweenDocks: 120, avgItemsPerDock: 200, capacityStacks: 25 }] }],
-  vehicles: [{ id: 'tr1', cls: 'BP_Tractor_C', x: 0, y: 0, z: 0, yaw: 0, autopilot: true, route: ['st1'] }],
+  stations: [
+    { id: 'st1', cls: 'Build_TruckStation_C', x: 0, y: 0, z: 0, yaw: 0, loading: true, traffic: [{ vehicle: 'tr1', avgSecBetweenDocks: 120, avgItemsPerDock: 200, capacityStacks: 25 }],
+      cargo: [{ item: 'Desc_IronPlate_C', count: 50 }] },
+    { id: 'st2', cls: 'Build_TruckStation_C', x: 0, y: 0, z: 0, yaw: 0, loading: false, traffic: [] },
+  ],
+  vehicles: [{ id: 'tr1', cls: 'BP_Tractor_C', x: 0, y: 0, z: 0, yaw: 0, autopilot: true, route: ['st1'], fuel: { item: 'Desc_IronIngot_C', amount: 5 }, cargo: [{ item: 'Desc_IronPlate_C', count: 100 }] }],
 });
 
 function setup({ list = [makeSummary(2, 2_000, 'Alpha'), makeSummary(1, 1_000, 'Alpha')], world = WORLD } = {}) {
@@ -93,30 +98,40 @@ describe('factory page', () => {
     expect(points).toHaveLength(2);
     expect(points[1]).toHaveAttribute('aria-checked', 'true');
     const kpis = await within(main).findByLabelText('Factory figures');
-    expect(within(kpis).getByText('Machines').nextElementSibling).toHaveTextContent(/^3$/);
-    expect(within(kpis).getByText('Standing').nextElementSibling).toHaveTextContent(/^1 33 %$/);
-    // weighted by clock speed: (0.25 + 0 + 1) / 3
-    expect(within(kpis).getByText('Ø Productivity').nextElementSibling).toHaveTextContent('42 %');
+    expect(within(kpis).getByText('Machines').nextElementSibling).toHaveTextContent(/^4$/);
+    expect(kpis).toHaveTextContent('2 inefficient, 1 paused');
+    // Paused machines are not "stopped".
+    expect(within(kpis).getByText('Stopped').nextElementSibling).toHaveTextContent(/^1 25 %$/);
+    // The plain mean of the machines, as on the timeline: (0.25 + 0 + 1 + 0) / 4
+    expect(within(kpis).getByText('Ø Productivity').nextElementSibling).toHaveTextContent('31 %');
   });
 
-  it('lists the items by lost output and unfolds an item into its machines; "On the map" highlights them and goes to the map', async () => {
+  it('lists shortages first, unfolds an item into its cause and machines; "On the map" highlights them and goes to the map', async () => {
     const { router } = setup();
     const main = await page();
     const items = await within(main).findByRole('region', { name: 'Inefficient items' });
     const rows = within(items).getAllByRole('row').slice(1);
-    // Iron Ingot: 30/min nominal, 7.5 actual, 22.5 lost; Iron Plate: 40 nominal, 20 actual, 20 lost.
-    expect(rows[0]).toHaveTextContent('Iron Ingot');
-    expect(rows[0]).toHaveTextContent('30.0/min');
-    expect(rows[0]).toHaveTextContent('7.5/min');
-    expect(rows[0]).toHaveTextContent('22.5/min');
-    expect(rows[0]).toHaveTextContent('Output full');
+    // Group heading, Iron Plate (40 nominal, 20 actual, 20 lost; the paused one is not counted), group heading, Iron Ingot.
+    expect(rows[0]).toHaveTextContent('Shortage: too few ingredients');
     expect(rows[1]).toHaveTextContent('Iron Plate');
-    expect(rows[1]).toHaveTextContent('Input missing');
+    expect(rows[1]).toHaveTextContent('40.0/min');
+    expect(rows[1]).toHaveTextContent('Shortage');
+    expect(rows[1]).not.toHaveTextContent('no consumer'); // it waits at a loading station
+    expect(rows[2]).toHaveTextContent('Backed up and other losses');
+    // Iron Ingot: 30/min nominal, 7.5 actual, 22.5 lost
+    expect(rows[3]).toHaveTextContent('Iron Ingot');
+    expect(rows[3]).toHaveTextContent('30.0/min');
+    expect(rows[3]).toHaveTextContent('7.5/min');
+    expect(rows[3]).toHaveTextContent('22.5/min');
+    expect(rows[3]).toHaveTextContent('Backed up');
 
-    const toggle = within(rows[0]!).getByRole('button', { name: /Iron Ingot/ });
+    const toggle = within(rows[3]!).getByRole('button', { name: /Iron Ingot/ });
     await user().click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     const machines = document.getElementById(toggle.getAttribute('aria-controls')!)!;
+    // The cause across the chain: its makers back up while the plate constructors starve.
+    expect(machines).toHaveTextContent('Transport in between is the limit');
+    expect(machines).toHaveTextContent('Iron Plate 3 (1 Paused, 1 Shortage, 1 full)');
     expect(machines).toHaveTextContent('Smelter');
     expect(machines).toHaveTextContent('25 %');
     await user().click(within(machines).getByRole('button', { name: 'Show Smelter on the map' }));
@@ -146,7 +161,7 @@ describe('factory page', () => {
     await user().click(within(main).getByRole('checkbox', { name: 'Compare with' }));
     expect(useFactoryView.getState().compareId).toBe(1);
     const changes = await within(main).findByRole('region', { name: 'Changes' });
-    expect(changes).toHaveTextContent('1 built, 0 torn down');
+    expect(changes).toHaveTextContent('2 built, 0 torn down');
     expect(within(changes).getByRole('heading', { name: 'Worse (2)' })).toBeInTheDocument();
     expect(within(main).getByLabelText('Factory figures')).toHaveTextContent('+1 since');
     await user().click(within(main).getByRole('checkbox', { name: 'Compare with' }));
@@ -158,29 +173,43 @@ describe('factory page', () => {
     setup();
     const main = await page();
     const machines = await within(main).findByRole('region', { name: 'Machines' });
-    const list = () => within(machines).getByRole('region', { name: /Inefficient machines/ });
+    const list = () => within(machines).getByRole('region', { name: /^(Inefficient machines|Machines: )/ });
     expect(within(list()).getAllByRole('listitem')).toHaveLength(2);
-    await user().click(within(within(machines).getByRole('group', { name: 'Filter' })).getByRole('button', { name: /Input missing/ }));
+    const filters = () => within(machines).getByRole('group', { name: 'Filter' });
+    await user().click(within(filters()).getByRole('button', { name: /Shortage/ }));
     expect(within(list()).getAllByRole('listitem')).toHaveLength(1);
     expect(list()).toHaveTextContent('Constructor');
+    await user().click(within(machines).getByRole('button', { name: 'Clear filter' }));
+    // Paused is a state of its own, not inefficient.
+    await user().click(within(filters()).getByRole('button', { name: /Paused\s*1/ }));
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(1);
     await user().click(within(machines).getByRole('button', { name: 'Clear filter' }));
     await user().click(within(machines).getByRole('button', { name: /^Smelter/ }));
     expect(useFactoryPage.getState().cls).toBe('Build_SmelterMk1_C');
     expect(within(list()).getAllByRole('listitem')).toHaveLength(1);
     expect(list()).toHaveTextContent('Smelter');
+    // The chips count within the class.
+    expect(within(filters()).getByRole('button', { name: /Backed up\s*1/ })).toBeInTheDocument();
+    expect(within(filters()).queryByRole('button', { name: /Shortage/ })).toBeNull();
   });
 
-  it('shows stations with their throughput and vehicles with their route', async () => {
+  it('shows stations (problems first) with their throughput and vehicles with their cargo and route', async () => {
     setup();
     const main = await page();
-    const routes = await within(main).findByRole('region', { name: 'Routes' });
-    const row = within(routes).getAllByRole('row')[1]!;
+    const routes = await within(main).findByRole('region', { name: 'Stations and vehicles' });
+    const rows = within(routes).getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Truck Station 2');
+    expect(rows[1]).toHaveTextContent('No vehicle stops here');
+    const row = rows[2]!;
     expect(row).toHaveTextContent('Truck Station 1');
     expect(row).toHaveTextContent('near Grass Fields');
     expect(row).toHaveTextContent('Loading');
     expect(row).toHaveTextContent('100.0/min'); // 200 per dock every 120 s
     expect(row).toHaveTextContent('2 min 0 s');
+    expect(within(row).getAllByRole('cell')[2]).toHaveTextContent('Iron Plate');
     expect(within(routes).getByRole('list', { name: 'Stops of Tractor 1' })).toHaveTextContent('Truck Station 1');
+    expect(routes).toHaveTextContent('Iron Ingot: 5 in the tank');
+    expect(routes).toHaveTextContent(/Carries:\s*Iron Plate 100/);
   });
 
   it('without snapshots explains how to get them and opens the import dialog (owner)', async () => {
@@ -206,7 +235,8 @@ describe('factory page', () => {
     const items = await within(main).findByRole('region', { name: 'Ineffiziente Gegenstände' });
     expect(within(items).getByRole('columnheader', { name: 'Gegenstand' })).toBeInTheDocument();
     expect(items).toHaveTextContent('Eisenbarren');
-    expect(items).toHaveTextContent('Ausgang voll');
+    expect(items).toHaveTextContent('Stau');
+    expect(items).toHaveTextContent('Mangel');
     expect(within(main).getByRole('checkbox', { name: 'Vergleichen mit' })).toBeInTheDocument();
   });
 });

@@ -4,7 +4,7 @@ import { flatPolyline, roundUnit, sampleSpline, simplify, toWorld, yawOf, type S
 import { encodeGreyPng, toBase64 } from './png.js';
 import {
   FACTORY_SNAPSHOT_VERSION, type FactorySnapshot, type SnapshotBuilding, type SnapshotMarker, type SnapshotProduction,
-  type SnapshotSpline, type SnapshotStation, type SnapshotVehicle,
+  type SnapshotCargo, type SnapshotSpline, type SnapshotStation, type SnapshotVehicle,
 } from './snapshot.js';
 
 /*
@@ -145,6 +145,16 @@ function slots(inv: FactoryObject | undefined): Slot[] {
   }
   return out;
 }
+
+/** The items in an inventory summed per class, most first (empty slots left out). */
+export function cargoOf(inv: FactoryObject | undefined): SnapshotCargo[] {
+  const per = new Map<string, number>();
+  for (const s of slots(inv)) if (s.item && s.count > 0) per.set(s.item, (per.get(s.item) ?? 0) + s.count);
+  return [...per].map(([item, count]) => ({ item, count })).sort((a, b) => b.count - a.count || a.item.localeCompare(b.item)).slice(0, MAX_CARGO);
+}
+
+/** Length cap of a cargo list (the server's schema enforces it too). */
+const MAX_CARGO = 64;
 
 function countItems(inv: FactoryObject | undefined, cls: string): number {
   return slots(inv).reduce((n, s) => n + (s.item === cls ? s.count : 0), 0);
@@ -559,6 +569,10 @@ function readStationsAndVehicles(
         s.traffic.push(entry);
       }
     }
+    // The station's storage is its component `inventory` (truck stations, checked in 1.2 saves); other kinds may name it
+    // differently, then there is no cargo.
+    const cargo = cargoOf(byName.get(`${o.instanceName}.inventory`) ?? byName.get(`${o.instanceName}.Inventory`));
+    if (cargo.length > 0) s.cargo = cargo;
     snap.stations.push(s);
   }
 
@@ -610,6 +624,13 @@ function readStationsAndVehicles(
     const fuelType = className(ref(ident?.properties?.mFuelTypeDescriptor));
     if (fuelSlot?.item) v.fuel = { item: fuelSlot.item, amount: fuelSlot.count };
     else if (fuelSlot && fuelType) v.fuel = { item: fuelType, amount: 0 };
+    const storage = byName.get(`${o.instanceName}.StorageInventory`);
+    if (storage) {
+      const cargo = cargoOf(storage);
+      if (cargo.length > 0) v.cargo = cargo;
+      const n = slots(storage).length;
+      if (n > 0) v.slots = n;
+    }
     snap.vehicles.push(v);
   }
 }

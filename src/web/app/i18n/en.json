@@ -1008,30 +1008,33 @@
       "noPower": "No power",
       "noRecipe": "No recipe",
       "noFuel": "No fuel",
-      "starved": "Input missing",
-      "blocked": "Output full",
-      "unknown": "Runs intermittently"
+      "starved": "Shortage",
+      "blocked": "Backed up",
+      "unknown": "Runs intermittently",
+      "surplus": "Surplus"
     },
     "reasonHint": {
-      "paused": "Paused by a player (standby).",
+      "paused": "Paused by a player (standby). Not counted as inefficient or as a loss.",
       "noPower": "Not connected to a power grid with a generator, or the fuse has blown.",
       "noRecipe": "No recipe set.",
       "noFuel": "The generator has no fuel left.",
-      "starved": "An input slot was empty: not enough ingredients arrive.",
-      "blocked": "The output was full: the belt or pipe takes less than it makes. For extractors the only possible cause.",
-      "unknown": "It was running when saved, but not for the whole last measurement (5 min): usually an uneven supply."
+      "starved": "Shortage: an input slot was empty, not enough ingredients arrive.",
+      "blocked": "Backed up: the output was full, the belt or pipe takes less than it makes.",
+      "unknown": "It was running when saved, but not for the whole last measurement (5 min): usually an uneven supply.",
+      "surplus": "Surplus: the extractor makes more than is taken off (output full). Does not count as inefficient."
     },
     "band": {
-      "idle": "Standing (< 1 %)",
-      "throttled": "Throttled (1–90 %)",
+      "idle": "Stopped (< 1 %)",
+      "throttled": "Part load (1–90 %)",
       "high": "Nearly full (90–99 %)",
       "full": "Full (≥ 99 %)"
     },
     "bandCount": {
-      "idle": "{count, number} standing",
-      "throttled": "{count, number} throttled",
+      "idle": "{count, number} stopped",
+      "throttled": "{count, number} part load",
       "high": "{count, number} nearly full",
-      "full": "{count, number} full"
+      "full": "{count, number} full",
+      "paused": "{count, number} paused"
     },
     "timeline": {
       "title": "Timeline",
@@ -1041,9 +1044,9 @@
       "olderShort": "Older",
       "newer": "Newer save",
       "newerShort": "Newer",
-      "point": "{date}: {buildings} buildings, productivity {productivity}",
+      "point": "{date}: {buildings} buildings, Ø productivity {productivity}",
       "comparedMark": "compared",
-      "tooltip": "{buildings} buildings · {machines} machines · Ø {productivity}",
+      "tooltip": "{buildings} buildings · {machines} machines · Ø productivity {productivity}",
       "compare": "Compare with",
       "compareWith": "Save to compare with",
       "comparedLegend": "compared save"
@@ -1053,26 +1056,54 @@
       "machines": "Machines",
       "inefficient": "{count, number} inefficient",
       "avg": "Ø Productivity",
-      "avgHint": "weighted by clock speed",
-      "idle": "Standing",
-      "idleHint": "below 1 %",
-      "throttled": "Throttled",
+      "avgHint": "mean of all machines",
+      "idle": "Stopped",
+      "idleHint": "below 1 %, paused ones not counted",
+      "throttled": "Part load",
       "throttledHint": "1–90 %",
       "power": "Power",
-      "powerHint": "generated, of {value} possible",
-      "since": "{delta} since {date}"
+      "powerHint": "generator capacity",
+      "since": "{delta} since {date}",
+      "inefficientPaused": "{count, number} inefficient, {paused, number} paused"
     },
     "items": {
       "title": "Inefficient items",
-      "subtitle": "{losing, plural, =0 {Every item runs at full rate} one {# item below its rate} other {# items below their rate}}{full, plural, =0 {} other {, # at full rate}}",
+      "subtitle": "{losing, plural, =0 {Every item runs at full rate} one {# item below its rate} other {# items below their rate}}{shortage, plural, =0 {} other {, # of them short}}{full, plural, =0 {} other {, # at full rate}}",
       "none": "Every machine makes what it should. Nothing is lost.",
       "item": "Item",
       "nominal": "Target/min",
       "actual": "Actual/min",
       "lost": "Lost/min",
       "machines": "Machines",
-      "reason": "Main reason",
-      "machineSummary": "{losing, number} of {total, number} machines lose output"
+      "reason": "Situation",
+      "machineSummary": "{losing, number} of {total, number} machines lose output",
+      "group": {
+        "shortage": "Shortage: too few ingredients, fix these first",
+        "rest": "Backed up and other losses",
+        "surplus": "Surplus: extractors make more than is taken off (not inefficient)"
+      },
+      "noConsumer": "no consumer",
+      "noConsumerHint": "No machine in this factory uses this item, and no loading station holds it.",
+      "consumers": "Consumers",
+      "consumersNone": "No machine in this factory uses {item}.",
+      "loadedAt": "{count, plural, one {Waits at # loading station} other {Waits at # loading stations}}",
+      "consumerGroup": "{name} {count, number}",
+      "reasonCount": "{count, number} {reason}",
+      "fine": "{count, number} full",
+      "transport": "Transport in between is the limit: the makers back up while consumers wait for supply. The belts, pipes or vehicles in between carry too little.",
+      "endsHere": {
+        "noConsumer": "The jam ends here: no consumer in this factory.",
+        "transport": "The jam ends here: the transport to the consumers carries too little.",
+        "demand": "The jam ends here: the consumers run and need no more."
+      },
+      "jamEnds": "The jam ends at",
+      "why": {
+        "noConsumer": "no consumer",
+        "transport": "transport limited",
+        "demand": "consumers need no more"
+      },
+      "makers": "Makers",
+      "outputOf": "Actual {actual} of {nominal}"
     },
     "machines": {
       "title": "Machines",
@@ -1094,10 +1125,12 @@
       },
       "listLabel": "{count, plural, one {# machine} other {# machines}}",
       "noMatch": "No machine matches the filter.",
-      "allFine": "No machine is inefficient."
+      "allFine": "No machine is inefficient.",
+      "inefficientCount": "{count, number} inefficient",
+      "filtered": "Machines: {filter}"
     },
     "routes": {
-      "title": "Routes",
+      "title": "Stations and vehicles",
       "subtitle": "{stations, plural, one {# station} other {# stations}}, {vehicles, plural, one {# vehicle} other {# vehicles}}, {moved} unloaded",
       "none": "This save has no stations or vehicles.",
       "stations": "Stations",
@@ -1109,7 +1142,7 @@
       "perDock": "Per stop",
       "near": "near {biome}",
       "items": "{value} items",
-      "hold": "hold {stacks, number} stacks",
+      "hold": "Hold {stacks, number} stacks",
       "loading": "Loading",
       "unloading": "Unloading",
       "vehicleList": "Vehicles",
@@ -1122,7 +1155,23 @@
       "unloads": "unloads {value}",
       "stops": "Stops of {name}",
       "unknownStop": "Waypoint",
-      "noRoute": "No route set."
+      "noRoute": "No route set.",
+      "intervalHint": "Time between two stops of any vehicle; below it per vehicle",
+      "intervalEach": "Interval per vehicle {time}",
+      "fill": "Fill {value}",
+      "fillApprox": "Fill ≈ {value}",
+      "fillHint": "Items per stop against the hold (stacks × stack size of the items carried)",
+      "cargo": "Cargo",
+      "cargoNone": "empty",
+      "problem": {
+        "noVehicles": "No vehicle stops here",
+        "nothingMoved": "Vehicles stop but move nothing"
+      },
+      "problems": "{count, plural, one {# station with a problem} other {# stations with a problem}}",
+      "emptyLegs": "Empty leg at {stations}",
+      "fuelNamed": "{fuel}: {amount, number} in the tank",
+      "noFuelNamed": "{fuel}: no fuel",
+      "carries": "Carries"
     },
     "changes": {
       "title": "Changes",
@@ -1133,9 +1182,8 @@
       "moreClasses": "{count, plural, one {# more type} other {# more types}}",
       "items": "Items: loss changed",
       "noItems": "No item's loss changed.",
-      "lossFromTo": "Loss {from} → {to}",
-      "moreLoss": "+{value} lost",
-      "lessLoss": "−{value} lost",
+      "moreLoss": "more loss",
+      "lessLoss": "less loss",
       "worse": "Worse ({count, number})",
       "better": "Better ({count, number})",
       "noMachines": "None.",
@@ -1143,7 +1191,10 @@
       "removed": "−{count, number}",
       "addedHint": "built",
       "removedHint": "torn down",
-      "to": "to"
+      "to": "to",
+      "logistics": "Logistics",
+      "logisticsHint": "Belts, lifts, splitters, mergers, supports, pipeline junctions, power poles and hypertubes",
+      "logisticsCount": "{count, plural, one {# type} other {# types}}"
     },
     "empty": {
       "title": "No factory data yet",
@@ -1152,6 +1203,19 @@
       "import": "Import save",
       "older": "Add older saves",
       "member": "{owner} owns this world and can import saves. Then the factory shows here."
+    },
+    "state": {
+      "paused": "Paused"
+    },
+    "machine": {
+      "purity": "{purity} node",
+      "belt": "{belt} ({rate})",
+      "hint": {
+        "beltLimits": "{belt} limits it to {rate}",
+        "beltBehind": "Probably a {belt} further on ({rate})",
+        "noBelt": "No conveyor belt attached",
+        "overclockUseless": "Overclocking does nothing ({shards, plural, one {# Power Shard} other {# Power Shards}} to spare)"
+      }
     }
   },
   "factoryMap": {

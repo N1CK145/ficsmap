@@ -116,12 +116,12 @@ describe('factory map: panel', () => {
     const user = userEvent.setup();
     wrap(<FactoryPanel worldId={W} />);
     const legend = await screen.findByTestId('factory-legend');
-    const throttled = await within(legend).findByRole('button', { name: /Throttled/ });
+    const throttled = await within(legend).findByRole('button', { name: /Part load/ });
     expect(throttled).toHaveTextContent('2');
     await user.click(throttled);
     expect([...useFactoryView.getState().highlight].sort()).toEqual(['a', 'b']);
     expect(useFactoryView.getState().highlightSeq).toBe(1);
-    const blocked = within(legend).getByRole('button', { name: /Output full/ });
+    const blocked = within(legend).getByRole('button', { name: /Backed up/ });
     expect(blocked).toHaveTextContent('1');
   });
 
