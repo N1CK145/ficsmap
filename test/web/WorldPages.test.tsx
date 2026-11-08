@@ -47,7 +47,7 @@ const TRANSPORT: TransportData = {
   fuels: [],
 };
 const PAGES = [
-  { tool: 'Planner', heading: 'Production planner', path: 'planner' },
+  { tool: 'Planner', heading: 'Planner', path: 'planner' },
   { tool: 'Vehicles', heading: 'Vehicle calculator', path: 'vehicles' },
   { tool: 'Machines', heading: 'Machines and vehicles', path: 'wiki' },
 ];
@@ -122,11 +122,11 @@ describe('world pages', () => {
 
   it('goes between pages and back with the browser history', async () => {
     const router = renderAt(`/w/${W}/planner`);
-    expect(await screen.findByRole('heading', { name: 'Production planner' })).toHaveFocus();
+    expect(await screen.findByRole('heading', { name: 'Planner' })).toHaveFocus();
     await act(() => router.navigate(`/w/${W}/vehicles`));
     expect(await screen.findByRole('heading', { name: 'Vehicle calculator' })).toHaveFocus();
     await act(() => router.navigate(-1));
-    expect(await screen.findByRole('heading', { name: 'Production planner' })).toHaveFocus();
+    expect(await screen.findByRole('heading', { name: 'Planner' })).toHaveFocus();
   });
 
   it('opens a wiki entry from its URL, and the browser goes back between entries', async () => {
@@ -142,7 +142,7 @@ describe('world pages', () => {
 
   it('goes back to the map for a map result of the search, and to the wiki for a machine', async () => {
     const router = renderAt(`/w/${W}/planner`);
-    await screen.findByRole('main', { name: 'Production planner' });
+    await screen.findByRole('main', { name: 'Planner' });
     const search = header().getByRole('combobox', { name: 'Search' });
     await userEvent.type(search, 'constructor');
     expect(await screen.findByRole('option', { name: /Constructor/ })).toBeInTheDocument();
@@ -193,7 +193,7 @@ describe('world pages', () => {
     await userEvent.click(header().getByRole('button', { name: 'Tools' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Planner' }));
     expect(router.state.location.pathname).toBe(`/w/${W}/planner`);
-    expect(screen.getByRole('main', { name: 'Production planner' })).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'Planner' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Panels' })).toBeNull();
     expect(header().getByRole('button', { name: 'Search' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('link', { name: 'Back to the map' }));

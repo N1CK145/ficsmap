@@ -10,9 +10,10 @@ import type { Flow } from '../../../shared/planner.js';
  * targets); steps without inputs move to the top row. An edge spanning several rows gets a lane in each row
  * it passes, so it runs between the nodes there instead of through them. Nodes and lanes are ordered per row
  * by the barycenter of their neighbours (sweeps in both directions, keeping the order with the fewest
- * crossings), then placed horizontally as close to their neighbours as the order allows. The rate labels sit
- * on a straight piece above the arrowhead; several labels at one side of a node are staggered in height, and
- * the space between two rows grows with them.
+ * crossings), then placed horizontally as close to their neighbours as the order allows. A row is as high as
+ * its tallest node (`heights`, measured by the page, else `nodeHeight`), so the edges of a row start and end
+ * on one line. The rate labels sit on a straight piece above the arrowhead; several labels at one side of a
+ * node are staggered in height, and the space between two rows grows with them.
  */
 
 /** What the layout needs of a plan step; a `PlanStep` fits. */
@@ -27,7 +28,10 @@ export interface DiagramStep {
 
 export interface DiagramOptions {
   nodeWidth: number;
+  /** Height of a node without an entry in `heights`. */
   nodeHeight: number;
+  /** Per item the height its node needs; a row takes the largest of its nodes. */
+  heights?: ReadonlyMap<string, number>;
   /** Horizontal space between two nodes of a row. */
   columnGap: number;
   /** Vertical room for the curves between two rows, on top of the room the labels take. */
@@ -46,8 +50,8 @@ export interface DiagramOptions {
 }
 
 export const DIAGRAM_DEFAULTS: Readonly<DiagramOptions> = {
-  nodeWidth: 208, nodeHeight: 156, columnGap: 48, rowGap: 40, laneWidth: 6, laneGap: 12, portGap: 96,
-  labelWidth: 96, labelHeight: 18, padding: 16, sweeps: 4,
+  nodeWidth: 224, nodeHeight: 72, columnGap: 32, rowGap: 28, laneWidth: 6, laneGap: 12, portGap: 112,
+  labelWidth: 104, labelHeight: 20, padding: 16, sweeps: 4,
 };
 
 /** Room for the arrowhead between a node and the label next to it. */
@@ -68,6 +72,7 @@ export interface DiagramNode {
   x: number;
   y: number;
   width: number;
+  /** The height of its row. */
   height: number;
 }
 
@@ -350,14 +355,19 @@ export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<Di
   const nodesIn = (r: number) => byRow[r]!.filter(s => slots[s]!.node);
   const needTop = (r: number) => Math.max(0, ...nodesIn(r).map(s => room(s, 't')));
   const needBottom = (r: number) => Math.max(0, ...nodesIn(r).map(s => room(s, 'b')));
+  const height = new Array<number>(rows).fill(0);
+  for (const s of steps) {
+    const r = rowOf.get(s.item)!;
+    height[r] = Math.max(height[r]!, o.heights?.get(s.item) ?? o.nodeHeight);
+  }
   const top: number[] = [];
   for (let r = 0; r < rows; r++) {
     top.push(r === 0
       ? needTop(0) + (arcsIn.has(0) ? o.rowGap : 0)
-      : top[r - 1]! + o.nodeHeight + needBottom(r - 1) + o.rowGap + needTop(r));
+      : top[r - 1]! + height[r - 1]! + needBottom(r - 1) + o.rowGap + needTop(r));
   }
   const topOf = (s: number) => top[slots[s]!.row]!;
-  const bottomOf = (s: number) => topOf(s) + o.nodeHeight;
+  const bottomOf = (s: number) => topOf(s) + height[slots[s]!.row]!;
 
   const edges = links.map((l, k) => {
     const chain = chains[k]!;
@@ -408,7 +418,7 @@ export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<Di
   const move = (p: Point): Point => ({ x: p.x + dx, y: p.y + dy });
 
   const nodes: DiagramNode[] = byRow.flatMap((row, r) => row.filter(s => slots[s]!.node).map((s, order) => ({
-    item: slots[s]!.node!, row: r, order, x: x[s]! - o.nodeWidth / 2 + dx, y: topOf(s) + dy, width: o.nodeWidth, height: o.nodeHeight,
+    item: slots[s]!.node!, row: r, order, x: x[s]! - o.nodeWidth / 2 + dx, y: topOf(s) + dy, width: o.nodeWidth, height: height[r]!,
   })));
   const out: DiagramEdge[] = edges.map(e => {
     const points = e.points.map(move);

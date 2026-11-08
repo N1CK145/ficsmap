@@ -612,7 +612,7 @@
   "planner": {
     "button": "Planer",
     "hint": "Produktionsplaner: von den benötigten Gegenständen bis zu Minern und Pumpen",
-    "title": "Produktionsplaner",
+    "title": "Planer",
     "loadFailed": "Die Rezeptdaten konnten nicht geladen werden.",
     "noData": "Dieser Datensatz hat keine Rezeptdaten (recipes.json). Baue den Datensatz mit --docs, um den Planer zu nutzen.",
     "needs": "Was brauchst du?",
@@ -629,7 +629,6 @@
     "steps": "Produktionsschritte",
     "howMade": "Hergestellt mit",
     "option": {
-      "miner": "{name} (Miner-Einstellung)",
       "recipe": "{recipe} ({machine})",
       "byproduct": "{recipe} ({machine}, Nebenprodukt)",
       "external": "Von außen geliefert"
@@ -637,7 +636,6 @@
     "exact": "genau {value}",
     "power": "{value} MW",
     "powerRange": "{min}–{max} MW",
-    "inputs": "Ein",
     "byproducts": "Nebenprodukte",
     "forYou": "{value} davon für dich, der Rest geht in andere Schritte",
     "external": "Von außen geliefert, nicht Teil dieses Plans.",
@@ -649,7 +647,6 @@
     "buildings": "Gebäude",
     "totalPower": "Strom",
     "none": "Keine",
-    "roundedNote": "Gebäude sind je Schritt aufgerundet; der Strom gilt für die genaue Anzahl.",
     "wellNote": "{item}: ein {name} je Rohstoffquelle, {power} MW bei {clock, number} %{shards, plural, =0 {} one {, # Energiefragment} other {, # Energiefragmente}}; nicht im Strom eingerechnet.",
     "error": {
       "cycle": "Diese Rezepte bilden einen Kreislauf, der mindestens so viel verbraucht, wie er herstellt: {items}. Wähle für eines davon ein anderes Rezept oder lass eines von außen liefern.",
@@ -667,11 +664,11 @@
     },
     "purity": "Reinheit des Rohstoffvorkommens",
     "purityOption": {
-      "impure": "Unrein ×{factor, number}",
-      "normal": "Normal ×{factor, number}",
-      "pure": "Rein ×{factor, number}"
+      "impure": "Unrein",
+      "normal": "Normal",
+      "pure": "Rein"
     },
-    "purityHint": "Faktoren aus dem Satisfactory-Wiki (nicht in den Spieldaten). Für Miner, Ölpumpen und Quellenextraktoren; jeder Schritt kann eine eigene haben.",
+    "purityHint": "Unrein ×{impure, number}, normal ×{normal, number}, rein ×{pure, number}: Faktoren aus dem Satisfactory-Wiki (nicht in den Spieldaten). Für Miner, Ölpumpen und Quellenextraktoren; jeder Schritt kann eine eigene haben.",
     "clockHint": "{min, number} % bis {max, number} %. Über 100 % braucht jedes Gebäude ein Energiefragment je {per, number} % (höchstens {slots, number}). Bei einer Rohstoffquelle ist es die Taktrate ihres Quellenkompressors.",
     "stepClock": "Taktrate",
     "shards": "{count, plural, one {# Energiefragment} other {# Energiefragmente}} je Gebäude",
@@ -688,7 +685,7 @@
     },
     "diagram": {
       "label": "Produktionskette",
-      "hint": "Rohstoffe oben, deine Gegenstände unten, Mengen pro Minute. Wähle einen Schritt, um Rezept, Taktrate oder Reinheit zu ändern; die Pfeiltasten wechseln zwischen den Schritten.",
+      "hint": "Rohstoffe oben, deine Gegenstände unten, Mengen pro Minute. Wähle einen Schritt, um Rezept, Taktrate oder Reinheit zu ändern; die Pfeiltasten wechseln zwischen den Schritten, Escape schließt den Schritt.",
       "wanted": "gewünscht: {value}",
       "alt": "Alternativ",
       "alternate": "{recipe} (Alternativrezept)",
@@ -704,14 +701,15 @@
         "input": "Material pro Minute",
         "byproduct": "Nebenprodukt",
         "loop": "Kreislauf",
-        "wanted": "Gewünschter Gegenstand",
         "external": "Von außen geliefert",
         "shard": "Energiefragment"
       },
       "machines": "{count}× {name}",
       "makes": "stellt {value} her",
       "needs": "braucht {list}",
-      "wantedBadge": "Gewünscht"
+      "wantedBadge": "Gewünscht",
+      "fit": "Einpassen",
+      "actualSize": "Originalgröße"
     },
     "panel": {
       "recipe": "Rezept",
@@ -719,23 +717,29 @@
       "input": "Eingang",
       "output": "Ausgang",
       "node": "Rohstoffvorkommen",
-      "extraction": "Förderrate",
+      "extraction": "Extraktionsrate",
       "perBuilding": "{value} je Gebäude",
       "cycle": "{value} s je Zyklus",
       "clock": "Taktrate",
       "clockSlider": "Taktrate-Regler (%)",
       "shards": "Energiefragmente",
       "shardSlots": "{used, number} von {total, number} Plätzen für Energiefragmente belegt",
-      "sloops": "Somersloop",
-      "sloopSlots": "{count, plural, one {# Platz für Somersloops} other {# Plätze für Somersloops}}, im Plan nicht berücksichtigt",
       "pressurizerPower": "{name}: {value} MW je Rohstoffquelle, nicht in den Summen enthalten",
-      "notModelled": "Im Plan nicht berücksichtigt"
+      "purity": "Reinheit",
+      "even": "{count}× bei {clock} %"
     },
-    "gameModeNote": "Für den Standard-Spielmodus; Einstellungen des Spielmodus (Rezeptkosten, Stromverbrauch, zufällige Reinheit der Rohstoffvorkommen) werden nicht berücksichtigt.",
+    "gameModeNote": "Die Zahlen gelten für den Standard-Spielmodus; Einstellungen des Spielmodus (Rezeptkosten, Stromverbrauch, zufällige Reinheit der Rohstoffvorkommen) werden nicht berücksichtigt.",
     "lastWorking": "Unten steht der letzte gültige Plan; korrigiere den Wert, dann wird er aktualisiert.",
     "variableShort": "schwankt während jedes Zyklus",
-    "empty": "Wähle einen Gegenstand und wie viele pro Minute: Hier stehen dann Rohstoffe, Gebäude und Strom, darunter die Produktionskette.",
-    "example": "Beispiel: {item}, {rate}"
+    "empty": "Wähle einen Gegenstand und wie viele pro Minute: Hier stehen dann Strom und Rohstoffe, darunter die Produktionskette.",
+    "example": "Beispiel: {item}, {rate}",
+    "resetDone": "Plan geleert.",
+    "undo": "Rückgängig",
+    "status": "{power} MW, {buildings, plural, one {# Gebäude} other {# Gebäude}}",
+    "list": {
+      "item": "Gegenstand",
+      "rate": "Pro Minute"
+    }
   },
   "vehicleCalc": {
     "open": "Fahrzeuge",

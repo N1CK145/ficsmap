@@ -194,6 +194,22 @@ describe('planner diagram layout', () => {
     }
   });
 
+  it('makes a row as high as its tallest node, so the edges start and end on one line', () => {
+    const steps = [step('T', 0, [['A', 1], ['B', 1]]), step('A', 1), step('B', 1)];
+    const plain = layoutDiagram(steps);
+    expect(plain.nodes.map(n => n.height)).toEqual([DIAGRAM_DEFAULTS.nodeHeight, DIAGRAM_DEFAULTS.nodeHeight, DIAGRAM_DEFAULTS.nodeHeight]);
+    const l = layoutDiagram(steps, { heights: new Map([['A', 100], ['T', 60]]) });
+    const [a, b, t] = [node(l, 'A'), node(l, 'B'), node(l, 'T')];
+    // B has no measured height: the row's tallest counts for both.
+    expect([a.height, b.height, t.height]).toEqual([100, 100, 60]);
+    expect(t.y - (a.y + a.height)).toBe(plain.nodes.find(n => n.item === 'T')!.y - (node(plain, 'A').y + DIAGRAM_DEFAULTS.nodeHeight));
+    for (const e of l.edges) {
+      expect(e.points[0]!.y).toBe(a.y + 100);
+      expect(e.points.at(-1)!.y).toBe(t.y);
+    }
+    expect(l.height).toBe(Math.ceil(t.y + 60 + DIAGRAM_DEFAULTS.padding));
+  });
+
   it('is deterministic and handles an empty plan', () => {
     const input = { targets: [{ item: 'plate', rate: 60 }, { item: 'glow', rate: 2 }] };
     expect(layoutDiagram(planSteps(input))).toEqual(layoutDiagram(planSteps(input)));

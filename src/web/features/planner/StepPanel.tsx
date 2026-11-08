@@ -1,6 +1,6 @@
-import { useContext, useId, type CSSProperties, type ReactNode } from 'react';
+import { useContext, useId, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MAX_SHARDS, type ClockLimits, type Flow, type PlanStep, type Purity } from '../../../shared/planner.js';
+import { evenClock, MAX_SHARDS, type ClockLimits, type Flow, type PlanStep, type Purity } from '../../../shared/planner.js';
 import type { RecipeIndex } from '../../../shared/recipes.js';
 import { Badge } from '../../components/Badge.js';
 import { FIELD_LABEL, fieldClass, NumberField } from '../../components/Field.js';
@@ -10,22 +10,15 @@ import { Window } from '../../components/Window.js';
 import { IconsContext, GameIcon } from '../machineWiki/icons.js';
 import { buildingName, ChoiceSelect, powerText, usePurityOptions } from './controls.js';
 import { formatNumber, formatRate, itemName, type Lang } from './format.js';
-import { Picture, SHARD_CLASS, SOMERSLOOP_CLASS, stepPicture } from './pictures.js';
+import { Picture, SHARD_CLASS, StepPicture } from './pictures.js';
 import { usePlanner } from './usePlanner.js';
-
-/** "Alternate: Cast Screw" -> "Cast Screw"; the badge says it is an alternate. */
-const ALT_PREFIX = /^[^:]{1,16}:\s+/;
 
 export interface StepPanelProps {
   step: PlanStep;
   index: RecipeIndex;
   lang: Lang;
   minerId: string;
-  /** The extractors' clock speed from the settings (placeholder of an extractor's field). */
-  defaultClock: string;
   limits: ClockLimits;
-  /** Somersloop slots of the step's building (machine data); left out when unknown or none. */
-  sloops?: number;
   /** The × in the title bar, with its accessible name. */
   onClose(): void;
   closeLabel: string;
@@ -34,24 +27,20 @@ export interface StepPanelProps {
 }
 
 /**
- * The selected step of the diagram as the game's machine window (`Window`): the building's picture, "4× Constructor"
- * and what it makes in the title bar, then the recipe and its picker, the inputs, the production cycle and the
- * outputs, the clock speed with its slider, the Power Shard slots it needs (and the Somersloop slots, which the plan
- * does not use) and the power. Extractors show their node purity instead of inputs.
+ * A selected step as the game's machine window (`Window`): the building's picture (the product pinned to it), "4×
+ * Constructor" and what it makes in the title bar, then "Made by", the inputs, the production cycle and the outputs,
+ * the clock speed with its slider (the exact count and the clock speed for whole buildings under it), the Power Shard
+ * slots it needs and the power. Extractors show their node purity instead of inputs.
  */
-export function StepPanel({ step, index, lang, minerId, defaultClock, limits, sloops, onClose, closeLabel, className = '' }: StepPanelProps) {
+export function StepPanel({ step, index, lang, minerId, limits, onClose, closeLabel, className = '' }: StepPanelProps) {
   const { t } = useTranslation();
   const name = itemName(index, step.item, lang);
   const external = step.choice.kind === 'external';
   const covered = !external && step.machines < 1e-9;
   const rate = (item: string, value: number) => formatRate(index, item, value, lang, t);
-  const picture = stepPicture(step);
-  const exact = !external && !covered && Math.abs(step.machines - step.machinesCeil) > 1e-6
-    ? t('planner.exact', { value: formatNumber(step.machines, lang, 3) }) : undefined;
   const title = external ? t('planner.option.external')
     : covered ? t('planner.diagram.covered')
     : t('planner.diagram.machines', { count: step.machinesCeil, name: buildingName(step, index, lang) ?? '' });
-  const recipe = step.recipe;
   const pressurizer = step.pressurizer ? index.data.wellPressurizer : undefined;
   const badges = (step.targetRate > 0 || step.cycle) && (
     <span className="flex shrink-0 flex-col items-end gap-1">
@@ -65,8 +54,8 @@ export function StepPanel({ step, index, lang, minerId, defaultClock, limits, sl
       as="div"
       level={3}
       title={title}
-      subtitle={<>{name} · <span className="tabular-nums">{rate(step.item, covered ? step.fromByproducts : step.rate)}</span>{exact && <> · {exact}</>}</>}
-      icon={<Picture cls={picture.cls} px={40} dashed={picture.dashed} />}
+      subtitle={<>{name} · <span className="tabular-nums">{rate(step.item, covered ? step.fromByproducts : step.rate)}</span></>}
+      icon={<StepPicture step={step} px={40} pin={18} />}
       actions={badges || undefined}
       onClose={onClose}
       closeLabel={closeLabel}
@@ -74,19 +63,11 @@ export function StepPanel({ step, index, lang, minerId, defaultClock, limits, sl
       bodyClassName="flex flex-col gap-4 overflow-y-auto p-3"
     >
       <Section title={t('planner.panel.recipe')}>
-        {recipe && (
-          <p className="mb-2 flex flex-wrap items-center gap-2">
-            <span className="font-semibold">{recipe.alternate ? recipe.name[lang].replace(ALT_PREFIX, '') : recipe.name[lang]}</span>
-            {recipe.alternate && <Badge tone="accent">{t('planner.diagram.alt')}</Badge>}
-          </p>
-        )}
         <ChoiceSelect step={step} index={index} lang={lang} minerId={minerId} />
       </Section>
 
       {!external && !covered && <Production step={step} index={index} lang={lang} />}
-      {!external && (
-        <ClockSection step={step} index={index} lang={lang} defaultClock={defaultClock} limits={limits} sloops={covered ? undefined : sloops} />
-      )}
+      {!external && <ClockSection step={step} index={index} lang={lang} limits={limits} />}
 
       <Notes>
         {step.targetRate > 0 && step.targetRate < step.rate - 1e-9 && t('planner.forYou', { value: rate(step.item, step.targetRate) })}
@@ -142,7 +123,7 @@ function Production({ step, index, lang }: { step: PlanStep; index: RecipeIndex;
     left = (
       <div className="min-w-0">
         <p className={SLOT_LABEL}>{t('planner.panel.node')}</p>
-        <label htmlFor={purityId} className={`mb-1 block ${FIELD_LABEL}`}>{t('planner.purity')}</label>
+        <label htmlFor={purityId} className={`mb-1 block ${FIELD_LABEL}`}>{t('planner.panel.purity')}</label>
         <select
           id={purityId}
           value={step.purity}
@@ -190,27 +171,38 @@ function Slot({ flow, index, lang, per }: { flow: Flow; index: RecipeIndex; lang
     <li className="flex min-w-0 items-center gap-2 chamfer border border-line bg-bg p-1.5">
       <Picture cls={flow.item} px={32} />
       <span className="min-w-0 flex-1 leading-5">
-        <span className="block truncate text-sm" title={name}>{name}</span>
+        <span className="block text-sm break-words">{name}</span>
         <span className="block font-display text-base font-semibold tabular-nums">{formatRate(index, flow.item, flow.rate, lang, t)}</span>
-        <span className="block truncate text-xs tabular-nums text-muted" title={per}>{per}</span>
+        <span className="block text-xs text-muted tabular-nums">{per}</span>
       </span>
     </li>
   );
 }
 
-/** The clock speed as slider and field, the Power Shard slots it fills, the Somersloop slots and the power. */
-function ClockSection({ step, index, lang, defaultClock, limits, sloops }: {
-  step: PlanStep; index: RecipeIndex; lang: Lang; defaultClock: string; limits: ClockLimits; sloops?: number;
-}) {
+/**
+ * The clock speed as slider and field (the field shows the clock speed in effect; while typing, what is typed), the
+ * exact count with the clock speed for whole buildings, the Power Shard slots it fills and the power.
+ */
+function ClockSection({ step, index, lang, limits }: { step: PlanStep; index: RecipeIndex; lang: Lang; limits: ClockLimits }) {
   const { t } = useTranslation();
   const setStep = usePlanner(s => s.setStep);
   const input = usePlanner(s => s.steps[step.item]);
+  const [draft, setDraft] = useState<string | null>(null);
   const min = limits.min * 100;
   const max = limits.max * 100;
   const clock = step.clock * 100;
   const pressurizer = step.pressurizer ? index.data.wellPressurizer : undefined;
   const per = step.machines > 1e-9 ? { min: step.power.min / step.machines, max: step.power.max / step.machines } : undefined;
   const shardsLabel = pressurizer ? `${t('planner.panel.shards')} (${pressurizer.name[lang]})` : t('planner.panel.shards');
+  const exact = step.machines > 1e-9 && Math.abs(step.machines - step.machinesCeil) > 1e-6 ? step.machines : undefined;
+  const even = exact !== undefined ? evenClock(step, limits) : undefined;
+  // A clock speed out of range keeps the last working plan: the field then shows what was entered, to correct it.
+  const value = draft ?? input?.clock ?? String(Math.round(clock * 1e4) / 1e4);
+
+  function onType(text: string) {
+    setDraft(text);
+    setStep(step.item, { clock: text });
+  }
 
   return (
     <Section title={t('planner.panel.clock')}>
@@ -223,7 +215,7 @@ function ClockSection({ step, index, lang, defaultClock, limits, sloops }: {
           value={Math.min(max, Math.max(min, Math.round(clock)))}
           aria-label={t('planner.panel.clockSlider')}
           aria-valuetext={`${formatNumber(clock, lang)} %`}
-          onChange={e => setStep(step.item, { clock: e.target.value })}
+          onChange={e => { setDraft(null); setStep(step.item, { clock: e.target.value }); }}
           className="h-10 min-w-0 flex-1 accent-accent focus-ring"
         />
         <NumberField
@@ -233,24 +225,21 @@ function ClockSection({ step, index, lang, defaultClock, limits, sloops }: {
           min={min}
           max={max}
           step="any"
-          value={input?.clock ?? ''}
-          placeholder={step.extractor ? defaultClock : '100'}
-          onChange={e => setStep(step.item, { clock: e.target.value })}
+          value={value}
+          onChange={e => onType(e.target.value)}
+          onBlur={() => setDraft(null)}
           className="w-28 shrink-0"
         />
       </div>
-      <div className="flex flex-wrap gap-x-6 gap-y-3">
-        <div>
-          <p className={SLOT_LABEL}>{shardsLabel}</p>
-          <ShardSlots used={step.shards} label={t('planner.panel.shardSlots', { used: step.shards, total: MAX_SHARDS })} />
-        </div>
-        {sloops !== undefined && sloops > 0 && (
-          <div>
-            <p className={SLOT_LABEL}>{t('planner.panel.sloops')}</p>
-            <SloopSlots count={sloops} label={t('planner.panel.sloopSlots', { count: sloops })} />
-            <p aria-hidden="true" className="mt-1 text-xs text-muted">{t('planner.panel.notModelled')}</p>
-          </div>
-        )}
+      {exact !== undefined && (
+        <p className="text-sm text-muted tabular-nums">
+          {t('planner.exact', { value: formatNumber(exact, lang, 3) })}
+          {even !== undefined && <> · {t('planner.panel.even', { count: step.machinesCeil, clock: formatNumber(even * 100, lang, 2) })}</>}
+        </p>
+      )}
+      <div>
+        <p className={SLOT_LABEL}>{shardsLabel}</p>
+        <ShardSlots used={step.shards} label={t('planner.panel.shardSlots', { used: step.shards, total: MAX_SHARDS })} />
       </div>
       {pressurizer ? (
         <p className="text-sm">
@@ -281,19 +270,6 @@ function ShardSlots({ used, label }: { used: number; label: string }) {
       {Array.from({ length: MAX_SHARDS }, (_, i) => (
         <span key={i} data-filled={i < used} className={`${SLOT} ${i < used ? 'border-shard' : 'border-dashed border-edge'}`}>
           {i < used && (icons?.has(SHARD_CLASS) ? <GameIcon cls={SHARD_CLASS} px={28} /> : <span aria-hidden="true" className="text-lg text-shard">◆</span>)}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-/** The building's Somersloop slots, shown as not used: the plan does not model production amplification. */
-function SloopSlots({ count, label }: { count: number; label: string }) {
-  return (
-    <span role="img" aria-label={label} title={label} className="flex gap-1.5">
-      {Array.from({ length: count }, (_, i) => (
-        <span key={i} className={`${SLOT} border-dashed border-edge opacity-50`}>
-          <GameIcon cls={SOMERSLOOP_CLASS} px={28} className="grayscale" />
         </span>
       ))}
     </span>

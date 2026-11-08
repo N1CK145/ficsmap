@@ -612,7 +612,7 @@
   "planner": {
     "button": "Planner",
     "hint": "Production planner: from the items you need down to miners and pumps",
-    "title": "Production planner",
+    "title": "Planner",
     "loadFailed": "The recipe data could not be loaded.",
     "noData": "This dataset has no recipe data (recipes.json). Build the dataset with --docs to use the planner.",
     "needs": "What do you need?",
@@ -629,7 +629,6 @@
     "steps": "Production steps",
     "howMade": "Made by",
     "option": {
-      "miner": "{name} (miner setting)",
       "recipe": "{recipe} ({machine})",
       "byproduct": "{recipe} ({machine}, by-product)",
       "external": "Supplied from outside"
@@ -637,7 +636,6 @@
     "exact": "exact {value}",
     "power": "{value} MW",
     "powerRange": "{min}–{max} MW",
-    "inputs": "In",
     "byproducts": "By-products",
     "forYou": "{value} of it for you, the rest goes into other steps",
     "external": "Supplied from outside, not made in this plan.",
@@ -649,7 +647,6 @@
     "buildings": "Buildings",
     "totalPower": "Power",
     "none": "None",
-    "roundedNote": "Buildings are rounded up per step; power is for the exact number.",
     "wellNote": "{item}: one {name} per resource well, {power} MW at {clock, number} %{shards, plural, =0 {} one {, # Power Shard} other {, # Power Shards}}; not included in the power.",
     "error": {
       "cycle": "These recipes form a loop that uses up at least as much as it makes: {items}. Choose another recipe for one of them, or have one supplied from outside.",
@@ -667,11 +664,11 @@
     },
     "purity": "Node purity",
     "purityOption": {
-      "impure": "Impure ×{factor, number}",
-      "normal": "Normal ×{factor, number}",
-      "pure": "Pure ×{factor, number}"
+      "impure": "Impure",
+      "normal": "Normal",
+      "pure": "Pure"
     },
-    "purityHint": "Factors from the Satisfactory wiki (not in the game data). For miners, oil extractors and resource well extractors; each step can have its own.",
+    "purityHint": "Impure ×{impure, number}, normal ×{normal, number}, pure ×{pure, number}: factors from the Satisfactory wiki (not in the game data). For miners, oil extractors and resource well extractors; each step can have its own.",
     "clockHint": "{min, number} % to {max, number} %. Above 100 % each building needs a Power Shard per {per, number} % (up to {slots, number}). For a resource well it is the clock speed of its pressurizer.",
     "stepClock": "Clock speed",
     "shards": "{count, plural, one {# Power Shard} other {# Power Shards}} per building",
@@ -688,7 +685,7 @@
     },
     "diagram": {
       "label": "Production chain",
-      "hint": "Raw resources at the top, your items at the bottom, rates per minute. Select a step to change its recipe, clock speed or purity; the arrow keys move between the steps.",
+      "hint": "Raw resources at the top, your items at the bottom, rates per minute. Select a step to change its recipe, clock speed or purity; the arrow keys move between the steps, Escape closes the step.",
       "wanted": "wanted: {value}",
       "alt": "Alternate",
       "alternate": "{recipe} (alternate recipe)",
@@ -704,14 +701,15 @@
         "input": "Material per minute",
         "byproduct": "By-product",
         "loop": "Loop",
-        "wanted": "Wanted item",
         "external": "Supplied from outside",
         "shard": "Power Shard"
       },
       "machines": "{count}× {name}",
       "makes": "makes {value}",
       "needs": "needs {list}",
-      "wantedBadge": "Wanted"
+      "wantedBadge": "Wanted",
+      "fit": "Fit to width",
+      "actualSize": "Actual size"
     },
     "panel": {
       "recipe": "Recipe",
@@ -726,16 +724,22 @@
       "clockSlider": "Clock speed slider (%)",
       "shards": "Power Shards",
       "shardSlots": "{used, number} of {total, number} Power Shard slots used",
-      "sloops": "Somersloop",
-      "sloopSlots": "{count, plural, one {# Somersloop slot} other {# Somersloop slots}}, not included in the plan",
       "pressurizerPower": "{name}: {value} MW per resource well, not included in the totals",
-      "notModelled": "Not included in the plan"
+      "purity": "Purity",
+      "even": "{count}× at {clock} %"
     },
-    "gameModeNote": "For the default game mode; game mode settings (recipe costs, power use, randomised node purity) are not taken into account.",
+    "gameModeNote": "The numbers are for the default game mode; game mode settings (recipe costs, power use, randomised node purity) are not taken into account.",
     "lastWorking": "Below is the last plan that worked; correct the value and it updates.",
     "variableShort": "varies during each cycle",
-    "empty": "Pick an item and how many per minute: here you then see the raw resources, buildings and power, below them the production chain.",
-    "example": "Example: {item}, {rate}"
+    "empty": "Pick an item and how many per minute: here you then see the power and the raw resources, below them the production chain.",
+    "example": "Example: {item}, {rate}",
+    "resetDone": "Plan cleared.",
+    "undo": "Undo",
+    "status": "{power} MW, {buildings, plural, one {# building} other {# buildings}}",
+    "list": {
+      "item": "Item",
+      "rate": "Per minute"
+    }
   },
   "vehicleCalc": {
     "open": "Vehicles",

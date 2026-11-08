@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { parseChoiceKey, choiceKey, PURITY_FACTOR, type Choice, type Purity } from '../../../shared/planner.js';
+import { useIsMobile } from '../../app/useMediaQuery.js';
 
 /** One row of the planner's input: an item (null until picked) and the wanted rate as typed. */
 export interface PlannerTarget { key: number; item: string | null; rate: string }
@@ -16,17 +17,22 @@ export interface PlannerSettingsInput {
 /** Per step: clock speed in percent as typed, node purity. Missing = the default. */
 export interface PlannerStepInput { clock?: string; purity?: Purity }
 
-/** How the steps are shown: a diagram from left to right, or a list. */
+/** How the steps are shown: a diagram from top to bottom, or a list. */
 export type PlannerView = 'diagram' | 'list';
 
-export interface PlannerState {
+/** What "Start over" clears, and what its Undo puts back. */
+export interface PlannerPlan {
   targets: PlannerTarget[];
   /** Per item the chosen recipe, extractor or "external"; missing = default. */
   choices: Record<string, Choice>;
   /** Per item: its step's clock speed and purity. */
   steps: Record<string, PlannerStepInput>;
   settings: PlannerSettingsInput;
-  view: PlannerView;
+}
+
+export interface PlannerState extends PlannerPlan {
+  /** The view the user picked; null until then (`usePlannerView` then picks one by the screen width). */
+  view: PlannerView | null;
   setTarget(key: number, patch: Partial<Omit<PlannerTarget, 'key'>>): void;
   addTarget(): void;
   removeTarget(key: number): void;
@@ -35,14 +41,16 @@ export interface PlannerState {
   setStep(item: string, patch: PlannerStepInput): void;
   setSettings(patch: Partial<PlannerSettingsInput>): void;
   setView(view: PlannerView): void;
-  /** Back to an empty plan; the view stays. */
-  reset(): void;
+  /** Back to an empty plan; the view stays. Returns the plan as it was, for `restore`. */
+  reset(): PlannerPlan;
+  /** Puts back a plan `reset` returned. */
+  restore(plan: PlannerPlan): void;
 }
 
 const STORAGE_KEY = 'ficsmap:planner';
 const DEFAULT_SETTINGS: PlannerSettingsInput = { miner: null, clock: '100', purity: 'normal' };
 
-interface Persisted { targets: PlannerTarget[]; choices: Record<string, Choice>; steps: Record<string, PlannerStepInput>; settings: PlannerSettingsInput; view: PlannerView }
+interface Persisted extends PlannerPlan { view: PlannerView | null }
 
 const isStr = (v: unknown): v is string => typeof v === 'string';
 const isPurity = (v: unknown): v is Purity => isStr(v) && Object.hasOwn(PURITY_FACTOR, v);
@@ -86,7 +94,8 @@ export function loadPlanner(): Persisted | null {
       clock: isStr(s.clock) ? s.clock : DEFAULT_SETTINGS.clock,
       purity: isPurity(s.purity) ? s.purity : DEFAULT_SETTINGS.purity,
     };
-    const view: PlannerView = d.view === 'list' ? 'list' : 'diagram';
+    // `viewChoice`, not the older `view`: that one was saved also when nobody had picked a view.
+    const view: PlannerView | null = d.viewChoice === 'list' || d.viewChoice === 'diagram' ? d.viewChoice : null;
     return { targets, choices, steps, settings, view };
   } catch {
     return null;
@@ -96,7 +105,9 @@ export function loadPlanner(): Persisted | null {
 function save(s: Persisted): void {
   try {
     const choices = Object.fromEntries(Object.entries(s.choices).map(([k, c]) => [k, choiceKey(c)]));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ targets: s.targets.map(t => ({ item: t.item, rate: t.rate })), choices, steps: s.steps, settings: s.settings, view: s.view }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      targets: s.targets.map(t => ({ item: t.item, rate: t.rate })), choices, steps: s.steps, settings: s.settings, viewChoice: s.view,
+    }));
   } catch {
     // Not remembering is fine.
   }
@@ -109,7 +120,7 @@ function initial(): Persisted {
   if (stored && stored.targets.length > 0) return stored;
   return {
     targets: [emptyTarget(1)], choices: stored?.choices ?? {}, steps: stored?.steps ?? {}, settings: stored?.settings ?? { ...DEFAULT_SETTINGS },
-    view: stored?.view ?? 'diagram',
+    view: stored?.view ?? null,
   };
 }
 
@@ -150,9 +161,21 @@ export const usePlanner = create<PlannerState>()((set, get) => {
     },
     setSettings: patch => update({ settings: { ...get().settings, ...patch } }),
     setView: view => update({ view }),
-    reset: () => update({ targets: [emptyTarget(1)], choices: {}, steps: {}, settings: { ...DEFAULT_SETTINGS } }),
+    reset: () => {
+      const { targets, choices, steps, settings } = get();
+      update({ targets: [emptyTarget(1)], choices: {}, steps: {}, settings: { ...DEFAULT_SETTINGS } });
+      return { targets, choices, steps, settings };
+    },
+    restore: plan => update({ targets: plan.targets, choices: plan.choices, steps: plan.steps, settings: plan.settings }),
   };
 });
+
+/** The view in effect: the one the user picked, else the list on a phone (below 900 px) and the diagram on wider screens. */
+export function usePlannerView(): PlannerView {
+  const picked = usePlanner(s => s.view);
+  const mobile = useIsMobile();
+  return picked ?? (mobile ? 'list' : 'diagram');
+}
 
 /** "12,5" or "12.5" -> 12.5; anything else NaN. */
 export function parseNumber(text: string): number {
