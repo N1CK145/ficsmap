@@ -290,7 +290,8 @@ describe('production lines on the factory page', () => {
     expect(document.getElementById(rows[1]!.getAttribute('aria-controls')!)).toHaveTextContent('3× Constructor');
     // The diagram's zoom keys on a phone too.
     const keys = within(await section()).getByRole('group', { name: 'View' });
-    expect(within(keys).getAllByRole('button').map(b => b.textContent)).toEqual(['−', '100 %', '+', 'Fit']);
+    expect(within(keys).getAllByRole('button').map(b => b.textContent)).toEqual(['−', '100 %', '+', 'Fit', '']);
+    expect(within(keys).getByRole('button', { name: 'Full screen' })).toBeInTheDocument();
   });
 
   it('draws the line from left to right when asked, remembered apart from the planner', async () => {
