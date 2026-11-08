@@ -79,6 +79,27 @@
   --color-unlock-mam: #B084F5;
   --color-unlock-shop: #E8B931;
 
+  /* Factory map (features/factory/map/style.ts). Three hues for the machine kinds, picked from the data-viz reference
+     palette's dark steps and validated as a set (all pairs, protan/deutan ΔE ≥ 8.4, normal vision ≥ 19.8, ≥ 3:1 on bg);
+     everything else in two neutrals, so the machines stand out. Never the only cue: the machine's picture from a
+     close zoom, its name on hover, and the legend with counts in the Factory panel. */
+  --color-fac-production: #3987E5;
+  --color-fac-extraction: #199E70;
+  --color-fac-power: #C98500;
+  /* Storage, stations, the HUB and other buildings; belt and pipe attachments, poles and signs. */
+  --color-fac-building: #8B9097;
+  --color-fac-minor: #5F646B;
+  /* Foundations, ramps and walls (the floor plan), their edges. */
+  --color-fac-floor: #3A3D42;
+  --color-fac-floor-edge: #50545B;
+  /* Belts (light, wider and brighter per tier), pipes, roads. */
+  --color-fac-belt: #D8D4CC;
+  --color-fac-pipe: #7CC4E8;
+  --color-fac-road: #9C9488;
+  /* Productivity on the factory map uses the factory page's band colours (features/factory/parts.tsx BAND_FILL):
+     standing conflict, throttled accent, nearly full power, full free; a machine without productivity is fac-minor.
+     Below 90 % a hatch is the second cue, and a glyph per reason (the page's reason icons). */
+
   /* Barlow for reading (body, controls, numbers), its condensed cut for titles, headings and labels. */
   --font-sans: "Barlow", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
