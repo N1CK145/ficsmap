@@ -5,10 +5,12 @@ import { analyzeFactory, analyzeRoutes, diffFactory, type AnalysisData, type Fac
 import type { FactorySnapshot } from '../../../shared/factory/snapshot.js';
 import { descriptorClass, type MachineData } from '../../../shared/machines.js';
 import type { Names, RecipeIndex } from '../../../shared/recipes.js';
+import type { TransportData } from '../../../shared/transport.js';
 import { api, ApiClientError } from '../../app/api.js';
 import { useMachineData } from '../machineWiki/useMachineWiki.js';
 import { useRecipes } from '../planner/useRecipes.js';
 import { useWorldNodes } from '../resourceNodes/useResourceNodes.js';
+import { useTransportData } from '../vehicleCalc/useVehicleCalc.js';
 import { useSnapshot } from './api.js';
 
 /**
@@ -61,8 +63,16 @@ export function namedVariant(cls: string, buildings: BuildingIndex): string | un
   return all.length === 1 ? all[0] : undefined;
 }
 
-export function factoryLabels(recipes: RecipeIndex | null, machines: MachineData | null, buildings: BuildingIndex | null): FactoryLabels {
+/**
+ * Names and pictures from the dataset parts there are. Items: `recipes.json`, else `machines.json`, else
+ * `transport.json` (every item with a stack, also the ones no recipe makes: nuts, berries, equipment in a death
+ * crate), else the class made readable.
+ */
+export function factoryLabels(
+  recipes: RecipeIndex | null, machines: MachineData | null, buildings: BuildingIndex | null, transport: TransportData | null = null,
+): FactoryLabels {
   const wiki = new Map(machines?.machines.map(m => [m.id, m]) ?? []);
+  const stacked = new Map(transport?.items.map(i => [i.id, i]) ?? []);
   const known = (cls: string, lang: keyof Names): string | undefined => {
     const b = buildings?.get(cls);
     if (b && !b.missing?.includes('name')) return b.name[lang];
@@ -88,10 +98,10 @@ export function factoryLabels(recipes: RecipeIndex | null, machines: MachineData
       return (variant && buildings?.get(variant)?.icon) || descriptorClass(cls.replace(/^BP_/, 'Build_'));
     },
     category: cls => buildings?.get(cls)?.category,
-    item: (cls, lang) => recipes?.items.get(cls)?.name[lang] ?? machines?.items[cls]?.name[lang] ?? prettyClass(cls),
+    item: (cls, lang) => recipes?.items.get(cls)?.name[lang] ?? machines?.items[cls]?.name[lang] ?? stacked.get(cls)?.name[lang] ?? prettyClass(cls),
     isFluid: item => {
       const form = recipes?.items.get(item)?.form ?? machines?.items[item]?.form;
-      return form === 'liquid' || form === 'gas';
+      return form === 'liquid' || form === 'gas' || (form === undefined && stacked.get(item)?.fluid === true);
     },
   };
 }
@@ -111,16 +121,21 @@ export function useFactoryData(version: string, worldId: string): FactoryData | 
   const { data: machines } = useMachineData(version);
   const buildings = useBuildings(version);
   const nodes = useWorldNodes(version, worldId);
-  return useMemo(() => {
-    if (recipes === undefined) return undefined;
-    const labels = factoryLabels(recipes, machines ?? null, buildings ?? null);
-    if (recipes === null) return { analysis: null, labels };
-    const analysis: AnalysisData = { recipes };
-    if (machines) analysis.machines = new Map(machines.machines.map(m => [m.id, m]));
-    if (nodes) analysis.nodes = new Map(nodes.nodes.map(n => [n.name, n]));
-    if (buildings) analysis.buildings = buildings;
-    return { analysis, labels };
+  // Names of items no recipe has (what lies in a death crate); small, and only for the labels.
+  const { data: transport } = useTransportData(version);
+  const labels = useMemo(
+    () => (recipes === undefined ? undefined : factoryLabels(recipes, machines ?? null, buildings ?? null, transport ?? null)),
+    [recipes, machines, buildings, transport],
+  );
+  const analysis = useMemo(() => {
+    if (!recipes) return null;
+    const out: AnalysisData = { recipes };
+    if (machines) out.machines = new Map(machines.machines.map(m => [m.id, m]));
+    if (nodes) out.nodes = new Map(nodes.nodes.map(n => [n.name, n]));
+    if (buildings) out.buildings = buildings;
+    return out;
   }, [recipes, machines, buildings, nodes]);
+  return useMemo(() => (labels === undefined ? undefined : { analysis, labels }), [analysis, labels]);
 }
 
 export interface SnapshotAnalysis {

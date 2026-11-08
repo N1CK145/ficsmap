@@ -14,7 +14,7 @@ import { useItemIcons, type ItemIcons } from '../../machineWiki/icons.js';
 import { useFactoryWorld } from '../timeline.js';
 import { useFactoryView } from '../view.js';
 import { changeAreas, placeDiff } from './diff.js';
-import { isMachine, useMapData } from './mapData.js';
+import { opensPopup, useMapData } from './mapData.js';
 import { FactoryCanvasLayer, FOG_PANE, FOG_PANE_Z, type FactoryFrame, type FrameLine } from './FactoryCanvasLayer.js';
 import { pickFactory } from './pick.js';
 import { factoryPicture, onFactoryPictureLoad } from './pictures.js';
@@ -99,9 +99,9 @@ export function escapeClosesInfo(e: Pick<KeyboardEvent, 'key' | 'defaultPrevente
 
 /**
  * A click (or tap) on the map: on a building of a production line other than the chosen one it chooses that line (its
- * card opens, the line lights up), and a machine (`machine`, see `isMachine`) also opens its popup next to it, since
- * the two no longer share one window; on anything else, or again within the chosen line, it opens that building,
- * station or vehicle. A click on empty ground closes a building's window; a chosen line stays until Esc or ×.
+ * card opens, the line lights up), and a machine or storage (`machine`, see `opensPopup`) also opens its popup next to
+ * it, since the two no longer share one window; on anything else, or again within the chosen line, it opens that
+ * building, crate, station or vehicle. A click on empty ground closes a building's window; a chosen line stays until Esc or ×.
  */
 export function clickFactory(hit: FactorySelection | null, lines: ProductionLines | null | undefined, belt: string | null = null, machine = false): void {
   const fm = useFactoryMap.getState();
@@ -247,7 +247,10 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   useEffect(() => {
     if (!scene) return;
     let at: { cx: number; cy: number } | undefined;
-    if (selection) at = selection.kind === 'vehicle' ? scene.vehicleById.get(selection.id) : scene.byId.get(selection.id);
+    if (selection) {
+      at = selection.kind === 'vehicle' ? scene.vehicleById.get(selection.id)
+        : selection.kind === 'crate' ? scene.crateById.get(selection.id) : scene.byId.get(selection.id);
+    }
     else if (lineId !== null && lineAnchor !== null) {
       const l = scene.byId.has(lineAnchor) ? undefined : sceneLineById(scene).get(lineAnchor);
       at = scene.byId.get(lineAnchor) ?? (l ? { cx: (l.minX + l.maxX) / 2, cy: (l.minY + l.maxY) / 2 } : undefined);
@@ -360,7 +363,7 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
       if (useUiStore.getState().interactionMode !== 'inspect') return;
       const hit = at(e.containerPoint);
       if (hit && actor !== null) useUiStore.getState().select(null);
-      const machine = !!sceneRef.current && isMachine({ scene: sceneRef.current, analysis: analysisRef.current }, hit);
+      const machine = !!sceneRef.current && opensPopup({ scene: sceneRef.current, analysis: analysisRef.current }, hit);
       clickFactory(hit, linesRef.current, hit ? null : beltAt(e.containerPoint), machine);
     };
     const onDragStart = () => { dragging = true; onOut(); };

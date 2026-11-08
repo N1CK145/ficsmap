@@ -1,6 +1,6 @@
 import { footprintRect, type BuildingEntry, type BuildingIndex, type FootprintBox } from '../../../../shared/buildings.js';
 import type {
-  FactorySnapshot, SnapshotBuilding, SnapshotMarker, SnapshotStation, SnapshotVehicle,
+  FactorySnapshot, SnapshotBuilding, SnapshotCrate, SnapshotMarker, SnapshotStation, SnapshotVehicle,
 } from '../../../../shared/factory/snapshot.js';
 import type { WorldBounds } from '../../../../shared/types.js';
 import {
@@ -139,6 +139,8 @@ export interface SceneVehicle {
 
 export interface ScenePoint { cx: number; cy: number }
 
+export interface SceneCrate extends ScenePoint { id: string; kind: string; c: SnapshotCrate }
+
 export interface Scene {
   snapshot: FactorySnapshot;
   t: MapTransform;
@@ -154,7 +156,9 @@ export interface Scene {
   vehicles: SceneVehicle[];
   vehicleById: Map<string, SceneVehicle>;
   markers: (ScenePoint & { m: SnapshotMarker })[];
-  crates: (ScenePoint & { kind: string })[];
+  /** Crates with an id (the save's, else `crate-<index>` for older snapshots). */
+  crates: SceneCrate[];
+  crateById: Map<string, SceneCrate>;
   /** Hit-test grid over the buildings (`GRID` map units per cell). */
   grid: Map<number, number[]>;
   /** The area with anything built, map units; null when empty. */
@@ -296,6 +300,8 @@ export function buildScene(
 
   stackUnder(buildings, grid, t);
 
+  const crates = snapshot.crates.map((c, i): SceneCrate => ({ id: c.id ?? `crate-${i}`, kind: c.kind, c, cx: t.x(c.x), cy: t.y(c.y) }));
+
   const all: number[] = [];
   for (const sb of buildings) all.push(sb.minX, sb.minY, sb.maxX, sb.maxY);
   for (let i = 0; i < floor.length; i++) all.push(floor[i]!);
@@ -309,7 +315,7 @@ export function buildScene(
     stations, stationById: new Map(stations.map(s => [s.s.id, s])),
     vehicles, vehicleById: new Map(vehicles.map(v => [v.v.id, v])),
     markers: snapshot.markers.map(m => ({ m, cx: t.x(m.x), cy: t.y(m.y) })),
-    crates: snapshot.crates.map(c => ({ kind: c.kind, cx: t.x(c.x), cy: t.y(c.y) })),
+    crates, crateById: new Map(crates.map(c => [c.id, c])),
     grid, extent,
   };
 }

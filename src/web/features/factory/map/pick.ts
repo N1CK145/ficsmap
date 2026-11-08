@@ -7,8 +7,8 @@ export const SYMBOL_HIT_PX = 12;
 
 /**
  * What is under a map point (map units, `s` CSS px per map unit) among the shown layers: a vehicle, then a station
- * symbol, then the smallest building whose outline holds the point (zoomed out, with a few px of slack around its dot).
- * Stations are buildings, so a station is picked as its building.
+ * symbol, then a crate, then the smallest building whose outline holds the point (zoomed out, with a few px of slack
+ * around its dot). Stations are buildings, so a station is picked as its building.
  */
 export function pickFactory(
   scene: Scene, layers: Readonly<Record<FactoryLayer, boolean>>, mx: number, my: number, s: number, zoom: number,
@@ -23,6 +23,14 @@ export function pickFactory(
     for (const st of scene.stations) {
       const d = Math.hypot(st.cx - mx, st.cy - my);
       if (d < bestD) { bestD = d; best = { kind: 'building', id: st.s.id }; }
+    }
+    if (best) return best;
+  }
+  if (layers.crates) {
+    let best: FactorySelection | null = null, bestD = r;
+    for (const c of scene.crates) {
+      const d = Math.hypot(c.cx - mx, c.cy - my);
+      if (d <= bestD) { bestD = d; best = { kind: 'crate', id: c.id }; }
     }
     if (best) return best;
   }

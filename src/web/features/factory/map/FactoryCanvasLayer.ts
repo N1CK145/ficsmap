@@ -737,7 +737,7 @@ export class FactoryCanvasLayer extends L.Layer {
       for (const c of scene.crates) {
         const x = sx(c.cx), y = sy(c.cy);
         if (!onScreen(x, y)) continue;
-        drawCrate(ctx, x, y, p);
+        drawCrate(ctx, x, y, p, f.selected === c.id ? 'selected' : f.hover === c.id ? 'hover' : undefined);
       }
     }
     ctx.globalAlpha = 1;

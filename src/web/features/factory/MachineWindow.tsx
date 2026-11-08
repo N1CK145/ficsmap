@@ -2,7 +2,9 @@ import type { ReactNode, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { starvesFor, type AnalysisData, type ItemRate, type MachineFlow, type MachineHint } from '../../../shared/factory/analysis.js';
 import type { LineHint } from '../../../shared/factory/lines.js';
+import { countOf, filledSlots } from '../../../shared/factory/inventory.js';
 import { machineDetail, type FuelRate, type MachineDetail } from '../../../shared/factory/machineDetail.js';
+import type { SnapshotBuilding, SnapshotInventory } from '../../../shared/factory/snapshot.js';
 import { clockLimits, MAX_SHARDS } from '../../../shared/planner.js';
 import { Badge, type BadgeTone } from '../../components/Badge.js';
 import { StatList, StatRow } from '../../components/StatRow.js';
@@ -14,6 +16,7 @@ import { PinnedPicture } from '../planner/pictures.js';
 import { PurityDot } from '../resourceNodes/PurityPips.js';
 import type { FactoryLabels } from './data.js';
 import type { FactoryFormat } from './format.js';
+import { slotAmount, SlotCount } from './Inventory.js';
 import { HINT_TONE, hintText, ReasonBadge, STATE_FILL, STATE_TEXT } from './parts.js';
 
 /** How the game would sum up a machine: running, part load, standing, paused. */
@@ -41,23 +44,38 @@ export interface MachineWindowProps {
   titleRef?: Ref<HTMLHeadingElement>;
   /** First in the body (the map's "New since" and productivity change). */
   top?: ReactNode;
+  /** The machine's building in the snapshot: what lies in its slots (`in`, `out`, `fuel`). */
+  building?: SnapshotBuilding;
+  /** The snapshot carries inventories (`meta.inventories`): a slot without anything is then empty, not unknown. */
+  inventories?: boolean;
   className?: string;
+}
+
+/** What lies in a machine's slots, when the snapshot knows it. */
+interface Loaded {
+  in?: SnapshotInventory;
+  out?: SnapshotInventory;
+  fuel?: SnapshotInventory;
+  /** The snapshot carries inventories at all. */
+  known: boolean;
 }
 
 /**
  * One machine of a snapshot as the game's machine window: its picture with the product pinned to it and its name in
  * the title bar; the status (productivity, running / part load / standing / paused, the reasons in words); the
- * recipe; production with the inputs, one cycle and the outputs, each "actual of nominal" per minute (an extractor's
- * node and purity instead of inputs, a generator's fuels and its power instead); the clock speed with its Power Shard
+ * recipe; production with the inputs, one cycle and the outputs, each "actual of nominal" per minute and what lay in
+ * its slots when saved on the picture ("47", from `building`) (an extractor's node and purity instead of inputs, a
+ * generator's fuels with the loaded one and its power instead); the clock speed with its Power Shard
  * and Somersloop slots; the power it draws or makes; the page's hints and the belt at its output. Every figure comes
  * from the analysis (`MachineFlow`) and the game data (`machineDetail`); read-only.
  */
-export function MachineWindow({ m, data, labels, fmt, hints = m.hints, onClose, titleRef, top, className = '' }: MachineWindowProps) {
+export function MachineWindow({ m, data, labels, fmt, hints = m.hints, onClose, titleRef, top, building, inventories = false, className = '' }: MachineWindowProps) {
   const { t } = useTranslation();
   const name = labels.building(m.cls, fmt.lang);
   const detail = machineDetail(m, data);
   const main = m.outputs[0];
   const recipe = m.recipe ? data.recipes.recipes.get(m.recipe) : undefined;
+  const loaded: Loaded = { in: building?.in, out: building?.out, fuel: building?.fuel, known: inventories && !!building };
   const subtitle = main ? <>{labels.item(main.item, fmt.lang)} · <span className="tabular-nums">{fmt.rate(main.actual, labels.isFluid(main.item))}</span></> : undefined;
   return (
     <Window
@@ -83,7 +101,7 @@ export function MachineWindow({ m, data, labels, fmt, hints = m.hints, onClose, 
           </p>
         </MachineSection>
       )}
-      <Production m={m} detail={detail} labels={labels} fmt={fmt} />
+      <Production m={m} detail={detail} labels={labels} fmt={fmt} loaded={loaded} />
       <Clock m={m} detail={detail} fmt={fmt} most={clockLimits(data.recipes.data.clock).max} />
       <Power m={m} detail={detail} fmt={fmt} />
       <Hints m={m} hints={hints} labels={labels} fmt={fmt} />
@@ -126,12 +144,20 @@ function rateSlot(r: ItemRate, labels: FactoryLabels, fmt: FactoryFormat, t: (k:
   return { value: fmt.rate(r.actual, fluid), sub: t('factory.machineWindow.of', { value: fmt.rate(r.nominal, fluid) }) };
 }
 
+/** What lies in a slot as the picture's count and its words for screen readers; nothing when the save did not say. */
+function slotProps(inv: SnapshotInventory | undefined, item: string, loaded: Loaded, labels: FactoryLabels, fmt: FactoryFormat, t: (k: string, o?: Record<string, unknown>) => string) {
+  if (!loaded.known) return {};
+  const n = countOf(inv, item);
+  const amount = slotAmount(item, n, labels, fmt);
+  return { count: n > 0 ? amount : undefined, countLabel: t('factory.inventory.inSlot', { amount }) };
+}
+
 /**
  * Inputs → cycle → outputs. Manufacturers: the recipe's inputs (one it lacks marked "Missing"), the cycle filling up
  * while it produces, the outputs. Extractors: the node with its purity, the outputs. Generators: the fuels it can burn
- * (one at a time), its power.
+ * (one at a time) with the one loaded, its power. Each slot shows what lay in it when saved.
  */
-function Production({ m, detail, labels, fmt }: { m: MachineFlow; detail: MachineDetail; labels: FactoryLabels; fmt: FactoryFormat }) {
+function Production({ m, detail, labels, fmt, loaded }: { m: MachineFlow; detail: MachineDetail; labels: FactoryLabels; fmt: FactoryFormat; loaded: Loaded }) {
   const { t } = useTranslation();
   const lacking = (item: string) => m.starvedFor !== undefined && starvesFor(m, item);
   const producing = !m.paused && m.band !== 'idle';
@@ -147,7 +173,7 @@ function Production({ m, detail, labels, fmt }: { m: MachineFlow; detail: Machin
           {detail.inputs.map(r => (
             <ItemSlot
               key={r.item} item={r.item} name={labels.item(r.item, fmt.lang)} {...rateSlot(r, labels, fmt, t)}
-              tone={lacking(r.item) ? 'danger' : 'default'}
+              tone={lacking(r.item) ? 'danger' : 'default'} {...slotProps(loaded.in, r.item, loaded, labels, fmt, t)}
               note={lacking(r.item) ? <> <span className="text-xs font-semibold text-conflict">· {t('factory.machineWindow.missing')}</span></> : undefined}
             />
           ))}
@@ -176,7 +202,7 @@ function Production({ m, detail, labels, fmt }: { m: MachineFlow; detail: Machin
     );
     cycle = <CycleBar caption={t('planner.panel.extraction')} />;
   } else if (m.kind === 'generator') {
-    left = detail.fuels.length > 0 && <Fuels fuels={detail.fuels} labels={labels} fmt={fmt} />;
+    left = (detail.fuels.length > 0 || loaded.fuel) && <Fuels fuels={detail.fuels} labels={labels} fmt={fmt} loaded={loaded} />;
     cycle = <CycleBar />;
     right = m.power && (
       <SlotColumn label={t('planner.panel.output')}>
@@ -199,7 +225,9 @@ function Production({ m, detail, labels, fmt }: { m: MachineFlow; detail: Machin
     right = (
       <SlotColumn label={t('planner.panel.output')}>
         <ul className="flex flex-col gap-1.5">
-          {outputs.map(r => <ItemSlot key={r.item} item={r.item} name={labels.item(r.item, fmt.lang)} {...rateSlot(r, labels, fmt, t)} />)}
+          {outputs.map(r => (
+            <ItemSlot key={r.item} item={r.item} name={labels.item(r.item, fmt.lang)} {...rateSlot(r, labels, fmt, t)} {...slotProps(loaded.out, r.item, loaded, labels, fmt, t)} />
+          ))}
         </ul>
       </SlotColumn>
     );
@@ -216,27 +244,53 @@ function Production({ m, detail, labels, fmt }: { m: MachineFlow; detail: Machin
   );
 }
 
-/** A generator's fuels: it burns one of them; each with what it takes per minute at its clock speed. */
-function Fuels({ fuels, labels, fmt }: { fuels: readonly FuelRate[]; labels: FactoryLabels; fmt: FactoryFormat }) {
+/**
+ * A generator's fuels: it burns one of them; each with what it takes per minute at its clock speed. The one in its fuel
+ * slot is marked "Loaded" with the count on its picture (also when the game data does not list it), the supplement
+ * (water) with what is in its slot; with inventories known and nothing loaded, "No fuel loaded".
+ */
+function Fuels({ fuels, labels, fmt, loaded }: { fuels: readonly FuelRate[]; labels: FactoryLabels; fmt: FactoryFormat; loaded: Loaded }) {
   const { t } = useTranslation();
+  const inSlot = new Map<string, number>();
+  for (const s of loaded.fuel ? filledSlots(loaded.fuel) : []) inSlot.set(s.item, (inSlot.get(s.item) ?? 0) + s.count);
+  const supplements = new Set(fuels.map(f => f.supplement?.item).filter((i): i is string => !!i));
+  // What lies in the fuel slot but is no listed fuel (nor a supplement): shown too, so the window says what is loaded.
+  const extra = [...inSlot.keys()].filter(i => !fuels.some(f => f.item === i) && !supplements.has(i));
+  const rows: FuelRate[] = [...fuels, ...extra.map(item => ({ item }))];
+  const fuelLoaded = rows.some(f => (inSlot.get(f.item) ?? 0) > 0);
   return (
     <SlotColumn label={t('factory.machineWindow.fuels')}>
       <ul className="flex flex-col gap-1" data-testid="machine-fuels">
-        {fuels.map(f => (
-          <li key={f.item} className="flex min-w-0 items-center gap-2 chamfer border border-line bg-bg p-1 text-sm">
-            <GameIcon cls={f.item} px={24} placeholder />
-            <span className="min-w-0 flex-1 leading-5">
-              <span className="block break-words">{labels.item(f.item, fmt.lang)}</span>
-              {f.perMinute !== undefined && <span className="block text-xs text-muted tabular-nums">{fmt.rate(f.perMinute, labels.isFluid(f.item))}</span>}
-              {f.supplement && (
-                <span className="block text-xs text-muted tabular-nums">
-                  {t('factory.machineWindow.supplement', { item: labels.item(f.supplement.item, fmt.lang), rate: fmt.rate(f.supplement.amount, labels.isFluid(f.supplement.item)) })}
-                </span>
-              )}
-            </span>
-          </li>
-        ))}
+        {rows.map(f => {
+          const n = inSlot.get(f.item) ?? 0;
+          const sup = f.supplement ? inSlot.get(f.supplement.item) ?? 0 : 0;
+          return (
+            <li key={f.item} data-fuel={f.item} data-loaded={n > 0 || undefined}
+              className={`flex min-w-0 items-center gap-2 chamfer border bg-bg p-1 text-sm ${n > 0 ? 'border-accent' : 'border-line'}`}>
+              <span className="relative shrink-0">
+                <GameIcon cls={f.item} px={24} placeholder />
+                {n > 0 && <SlotCount>{slotAmount(f.item, n, labels, fmt)}</SlotCount>}
+              </span>
+              <span className="min-w-0 flex-1 leading-5">
+                <span className="block break-words">{labels.item(f.item, fmt.lang)}</span>
+                {n > 0 && (
+                  <span className="block text-xs font-semibold text-accent tabular-nums max-[899px]:text-sm">
+                    {t('factory.machineWindow.loaded', { amount: slotAmount(f.item, n, labels, fmt) })}
+                  </span>
+                )}
+                {f.perMinute !== undefined && <span className="block text-xs text-muted tabular-nums">{fmt.rate(f.perMinute, labels.isFluid(f.item))}</span>}
+                {f.supplement && (
+                  <span className="block text-xs text-muted tabular-nums">
+                    {t('factory.machineWindow.supplement', { item: labels.item(f.supplement.item, fmt.lang), rate: fmt.rate(f.supplement.amount, labels.isFluid(f.supplement.item)) })}
+                    {sup > 0 && n > 0 && ` · ${t('factory.machineWindow.loaded', { amount: slotAmount(f.supplement.item, sup, labels, fmt) })}`}
+                  </span>
+                )}
+              </span>
+            </li>
+          );
+        })}
       </ul>
+      {loaded.known && !fuelLoaded && <p className="mt-1 text-sm font-medium text-conflict" data-testid="machine-no-fuel">{t('factory.machineWindow.noFuelLoaded')}</p>}
     </SlotColumn>
   );
 }

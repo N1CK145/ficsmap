@@ -27,7 +27,9 @@ export interface FactoryMapView {
 
 export type FactorySelection =
   | { kind: 'building'; id: string }
-  | { kind: 'vehicle'; id: string };
+  | { kind: 'vehicle'; id: string }
+  /** A crate (`SceneCrate.id`): opens its contents in the storage popup. */
+  | { kind: 'crate'; id: string };
 
 /** How a selection was made: from a button (focus moves to the info window and returns to `opener` on close). */
 export interface SelectOptions {

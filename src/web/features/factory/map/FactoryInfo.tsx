@@ -12,8 +12,9 @@ import { Window } from '../../../components/Window.js';
 import { GameIcon, IconsContext, useItemIcons } from '../../machineWiki/icons.js';
 import type { FactoryLabels } from '../data.js';
 import { useFactoryFormat, type FactoryFormat } from '../format.js';
+import { InventoryView } from '../Inventory.js';
 import { ProductivityBar, ReasonBadge, stateKey } from '../parts.js';
-import { isMachine, useMapData, type MapData } from './mapData.js';
+import { opensPopup, useMapData, type MapData } from './mapData.js';
 import { buildingName, langOf, stationName, vehicleName, type Lang } from './names.js';
 import type { Scene, SceneBuilding, SceneStation, SceneVehicle } from './scene.js';
 import { productivityOf } from './style.js';
@@ -38,8 +39,8 @@ const LIST_ROW = `${LIST_BASE} items-center gap-2`;
  * name and picture, then what the game would show, in the factory page's words and figures. A machine opens in its own
  * popup instead (`MapMachinePopup`; the line's card stays meanwhile). A building: a sign's text, whether it stands on a
  * node, and without recipe data what the save says of its production. A station: mode, items per minute, the time
- * between docks, what lies in it and its vehicles (how full they are). A vehicle: autopilot, fuel, what it moves and
- * holds, empty legs and its route (drawn on the map). With changes marked, whether it is new and how its productivity
+ * between docks, what lies in it (slot by slot as a grid when the snapshot has it) and its vehicles (how full they are).
+ * A vehicle: autopilot, fuel, what it moves and holds (as a grid too), empty legs and its route (drawn on the map). With changes marked, whether it is new and how its productivity
  * changed. Esc or × closes it.
  */
 export function FactoryInfo({ ctx }: { ctx: WorldCtx }) {
@@ -64,9 +65,9 @@ function InfoWindow({ ctx, onLineChosen }: { ctx: WorldCtx; onLineChosen: (text:
   const pendingFocus = useFactoryMap(s => s.pendingFocus);
   const version = ctx.me.datasetVersion;
   const data = useMapData(ctx.worldId, version, ctx.index.ds.bounds, true);
-  // A machine opens in its own popup (`MapMachinePopup`): the window shows the line's card meanwhile, if one is chosen
-  // (on phones nothing: the popup's sheet takes that place).
-  const machine = isMachine(data, selected);
+  // A machine, storage or crate opens in its own popup (`MapMachinePopup`): the window shows the line's card meanwhile,
+  // if one is chosen (on phones nothing: the popup's sheet takes that place).
+  const machine = opensPopup(data, selected);
   const selection = machine ? null : selected;
   const icons = useItemIcons(version);
   const fmt = useFactoryFormat();
@@ -157,7 +158,7 @@ function InfoWindow({ ctx, onLineChosen }: { ctx: WorldCtx; onLineChosen: (text:
     icon = v.entry?.icon;
     kindName = t('factoryMap.vehicle.kind');
     body = <VehicleBody v={v} scene={scene} lang={lang} fmt={fmt} labels={data.labels} />;
-  } else {
+  } else if (selection.kind === 'building') {
     const sb = scene.byId.get(selection.id);
     if (!sb) return null;
     const st = scene.stationById.get(selection.id);
@@ -181,6 +182,9 @@ function InfoWindow({ ctx, onLineChosen }: { ctx: WorldCtx; onLineChosen: (text:
         </>
       );
     }
+  } else {
+    // Crates always open in the popup.
+    return null;
   }
   // On phones a sheet above the timeline's place and the bottom sheet's peek (`PHONE_BOTTOM_PX`); a line's card folded
   // at most `PEEK_SHARE` of the map's height.
@@ -336,8 +340,9 @@ function StationBody({ st, scene, lang, fmt, labels }: { st: SceneStation; scene
         {(flow.combinedInterval ?? flow.interval) !== null && (
           <StatRow label={t('factoryMap.station.interval')} value={t('factoryMap.station.every', { time: fmt.duration((flow.combinedInterval ?? flow.interval)!) })} />
         )}
-        {flow.cargo && <CargoRow label={t('factoryMap.station.cargo')} cargo={flow.cargo} labels={labels} fmt={fmt} />}
+        {flow.cargo && !(st.s.inv && labels) && <CargoRow label={t('factoryMap.station.cargo')} cargo={flow.cargo} labels={labels} fmt={fmt} />}
       </StatList>
+      {st.s.inv && labels && <InventoryView inv={st.s.inv} labels={labels} fmt={fmt} px={24} level={3} />}
       <p className={`text-sm ${st.state === 'active' ? 'text-muted' : 'text-conflict'}`} data-testid="station-state">{t(`factoryMap.station.state.${st.state}`)}</p>
       {st.low && <p className="text-sm text-accent" data-testid="station-low">{t('factory.routes.problem.lowThroughput')}</p>}
       {flow.visits.length > 0 && (
@@ -385,8 +390,9 @@ function VehicleBody({ v, scene, lang, fmt, labels }: { v: SceneVehicle; scene: 
         {flow.loadedPerMin !== null && <StatRow label={t('factoryMap.vehicle.loads')} value={fmt.rate(flow.loadedPerMin)} />}
         {flow.unloadedPerMin !== null && <StatRow label={t('factoryMap.vehicle.unloads')} value={fmt.rate(flow.unloadedPerMin)} />}
         {flow.roundTrip !== null && <StatRow label={t('factoryMap.vehicle.roundTrip')} value={fmt.duration(flow.roundTrip)} />}
-        {flow.cargo && <CargoRow label={t('factoryMap.vehicle.cargo')} cargo={flow.cargo} labels={labels} fmt={fmt} />}
+        {flow.cargo && !(v.v.inv && labels) && <CargoRow label={t('factoryMap.vehicle.cargo')} cargo={flow.cargo} labels={labels} fmt={fmt} />}
       </StatList>
+      {v.v.inv && labels && <InventoryView inv={v.v.inv} labels={labels} fmt={fmt} px={24} level={3} />}
       {flow.emptyLegs && flow.emptyLegs.length > 0 && (
         <p className="text-sm text-conflict">{t('factory.routes.emptyLegs', { stations: flow.emptyLegs.map(id => stationName(scene, id, lang)).join(', ') })}</p>
       )}
