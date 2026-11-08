@@ -1,6 +1,6 @@
 import {
   choiceKey, choiceOptions, clockLimits, defaultChoice, evenClock, MAX_SHARDS, offeredChoice, parseChoiceKey, plan, shardsFor, solveLinear,
-  stronglyConnected, type PlanInput, type PlanResult, type PlanSettings,
+  stepUtilisation, stronglyConnected, utilisationBand, type PlanInput, type PlanResult, type PlanSettings,
 } from '../../src/shared/planner.js';
 import { indexRecipes } from '../../src/shared/recipes.js';
 import { EXP, RECIPE_DATA as DATA } from '../fixtures/recipeData.js';
@@ -299,5 +299,27 @@ describe('planner helpers', () => {
     const n = 20_000;
     const edges = Array.from({ length: n }, (_, i) => (i + 1 < n ? [i + 1] : []));
     expect(stronglyConnected(n, edges)).toHaveLength(n);
+  });
+});
+
+describe('step utilisation', () => {
+  it('is the exact count over the built one, 1 for a whole count', () => {
+    expect(stepUtilisation({ machines: 52.5, machinesCeil: 53 })).toBeCloseTo(0.99057, 4);
+    expect(stepUtilisation({ machines: 1.5, machinesCeil: 2 })).toBe(0.75);
+    expect(stepUtilisation({ machines: 3, machinesCeil: 3 })).toBe(1);
+    // Float noise within the rounding of the built count is whole.
+    expect(stepUtilisation({ machines: 3 + 4e-7, machinesCeil: 3 })).toBe(1);
+    expect(stepUtilisation({ machines: 2.9999996, machinesCeil: 3 })).toBe(1);
+    expect(stepUtilisation({ machines: 2.99, machinesCeil: 3 })).toBeLessThan(1);
+    // No buildings: supplied from outside, covered by by-products.
+    expect(stepUtilisation({ machines: 0, machinesCeil: 0 })).toBeUndefined();
+  });
+
+  it('is full only at 100 %, nearly full from 90 %, part load below', () => {
+    expect(utilisationBand(1)).toBe('full');
+    expect(utilisationBand(0.9999)).toBe('high');
+    expect(utilisationBand(0.9)).toBe('high');
+    expect(utilisationBand(0.8999)).toBe('throttled');
+    expect(utilisationBand(0.1)).toBe('throttled');
   });
 });

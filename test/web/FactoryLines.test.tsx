@@ -288,8 +288,23 @@ describe('production lines on the factory page', () => {
     await user().click(rows[1]!);
     expect(rows[1]).toHaveAttribute('aria-expanded', 'true');
     expect(document.getElementById(rows[1]!.getAttribute('aria-controls')!)).toHaveTextContent('3× Constructor');
-    // "Fit to width" on a phone too (doing nothing while the diagram fits).
-    expect(within(await section()).getByRole('button', { name: 'Fit to width' })).toBeInTheDocument();
+    // The diagram's zoom keys on a phone too.
+    const keys = within(await section()).getByRole('group', { name: 'View' });
+    expect(within(keys).getAllByRole('button').map(b => b.textContent)).toEqual(['−', '100 %', '+', 'Fit']);
+  });
+
+  it('draws the line from left to right when asked, remembered apart from the planner', async () => {
+    localStorage.removeItem('ficsmap:diagramDirection:lines');
+    localStorage.removeItem('ficsmap:diagramDirection:planner');
+    setup();
+    const sec = await section();
+    await userEvent.click(within(sec).getByRole('radio', { name: 'Left to right' }));
+    const [smelters, plates] = [await node('2× Smelter'), await node('3× Constructor')];
+    expect(parseFloat(smelters.style.left)).toBeLessThan(parseFloat(plates.style.left));
+    expect(await diagram()).toHaveAccessibleDescription(/^Inputs on the left, products on the right/);
+    expect(localStorage.getItem('ficsmap:diagramDirection:lines')).toBe('right');
+    expect(localStorage.getItem('ficsmap:diagramDirection:planner')).toBeNull();
+    localStorage.removeItem('ficsmap:diagramDirection:lines');
   });
 
   it('speaks German with the game\'s terms', async () => {

@@ -9,7 +9,8 @@ import { Window } from '../../components/Window.js';
 import { buildingName, ChoiceSelect, powerText, usePurityOptions } from './controls.js';
 import { formatNumber, formatRate, itemName, type Lang } from './format.js';
 import { CycleBar, ItemSlot, MachineSection as Section, productionGrid, SLOT_LABEL, ShardSlots, SlotColumn } from './machineParts.js';
-import { StepPicture } from './pictures.js';
+import { Picture, SHARD_CLASS, StepPicture, UseMark } from './pictures.js';
+import { stepUse } from './stepText.js';
 import { usePlanner } from './usePlanner.js';
 
 export interface StepPanelProps {
@@ -160,6 +161,7 @@ function ClockSection({ step, index, lang, limits }: { step: PlanStep; index: Re
   const shardsLabel = pressurizer ? `${t('planner.panel.shards')} (${pressurizer.name[lang]})` : t('planner.panel.shards');
   const exact = step.machines > 1e-9 && Math.abs(step.machines - step.machinesCeil) > 1e-6 ? step.machines : undefined;
   const even = exact !== undefined ? evenClock(step, limits) : undefined;
+  const use = stepUse(step, lang, t);
   // A clock speed out of range keeps the last working plan: the field then shows what was entered, to correct it.
   const value = draft ?? input?.clock ?? String(Math.round(clock * 1e4) / 1e4);
 
@@ -195,6 +197,12 @@ function ClockSection({ step, index, lang, limits }: { step: PlanStep; index: Re
           className="w-28 shrink-0"
         />
       </div>
+      {use && (
+        <p className="flex items-center gap-2 text-sm text-muted">
+          {t('planner.use.label')}
+          <UseMark use={use} className="text-base" />
+        </p>
+      )}
       {exact !== undefined && (
         <p className="text-sm text-muted tabular-nums">
           {t('planner.exact', { value: formatNumber(exact, lang, 3) })}

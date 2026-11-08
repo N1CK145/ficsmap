@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import type { PlanStep, Purity } from '../../../shared/planner.js';
+import { stepUtilisation, utilisationBand, type PlanStep, type Purity } from '../../../shared/planner.js';
 import type { RecipeIndex } from '../../../shared/recipes.js';
 import type { BadgeTone } from '../../components/Badge.js';
 import { buildingName } from './controls.js';
@@ -26,9 +26,29 @@ export interface StepText {
   wanted?: string;
   /** Loop badge. */
   loop?: { text: string; long: string };
+  /** How fully its buildings are used ("99.1 %", band by `utilisationBand`); none for a step without buildings. */
+  use?: StepUse;
   badges: StepBadge[];
   /** Everything above as one sentence (the accessible name of a node). */
   label: string;
+}
+
+export interface StepUse {
+  value: number;
+  band: ReturnType<typeof utilisationBand>;
+  /** "100 %", "99.1 %": never 100 % unless it is. */
+  text: string;
+  /** "Buildings used to 99.1 %". */
+  long: string;
+}
+
+/** A step's building use as text, or undefined for a step without buildings. */
+export function stepUse(step: Pick<PlanStep, 'machines' | 'machinesCeil'>, lang: Lang, t: TFunction): StepUse | undefined {
+  const value = stepUtilisation(step);
+  if (value === undefined) return undefined;
+  const band = utilisationBand(value);
+  const shown = formatNumber(band === 'full' ? 100 : Math.min(99.9, Math.round(value * 1000) / 10), lang, 1);
+  return { value, band, text: `${shown} %`, long: t('planner.use.long', { value: shown }) };
 }
 
 /**
@@ -79,6 +99,7 @@ export function stepText(step: PlanStep, index: RecipeIndex, lang: Lang, t: TFun
     badges.push({ text: t('planner.diagram.byproducts'), long: t('planner.fromByproducts', { value: rate(step.item, step.fromByproducts) }), tone: 'success' });
   }
 
+  const use = external ? undefined : stepUse(step, lang, t);
   const loop = step.cycle ? { text: t('planner.cycle'), long: t('planner.cycleHint') } : undefined;
   const third = step.auto === 'loop' ? how?.text : byproducts.map(b => `+ ${b.name} · ${b.amount}`).join(', ') || undefined;
   const wanted = step.targetRate > 0 ? rate(step.item, step.targetRate) : undefined;
@@ -87,6 +108,7 @@ export function stepText(step: PlanStep, index: RecipeIndex, lang: Lang, t: TFun
   const label = [
     wanted ? `${name} (${t('planner.diagram.wanted', { value: wanted })})` : name,
     exact ? `${made} (${exact})` : made,
+    use?.long,
     external || covered ? amount : t('planner.diagram.makes', { value: amount }),
     byproducts.length > 0 ? `${t('planner.byproducts')}: ${byproducts.map(b => `${b.amount} ${b.name}`).join(', ')}` : undefined,
     how?.long,
@@ -94,5 +116,5 @@ export function stepText(step: PlanStep, index: RecipeIndex, lang: Lang, t: TFun
     ...badges.flatMap(b => b.parts ?? [b.long]),
     needs.length > 0 ? t('planner.diagram.needs', { list: needs.join(', ') }) : undefined,
   ].filter(Boolean).join('; ');
-  return { name, made, exact, amount, third, wanted, loop, badges, label };
+  return { name, made, exact, amount, third, wanted, loop, use, badges, label };
 }

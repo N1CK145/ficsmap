@@ -3,11 +3,11 @@ import { useTranslation } from 'react-i18next';
 import type { PlanStep, Purity } from '../../../shared/planner.js';
 import type { RecipeIndex } from '../../../shared/recipes.js';
 import { GameIcon } from '../machineWiki/icons.js';
-import { diagramLinks, diagramRows, type DiagramLink } from './diagramLayout.js';
+import { diagramLinks, diagramRows, type DiagramDirection, type DiagramLink } from './diagramLayout.js';
 import { FlowDiagram, type FlowMarker } from './FlowDiagram.js';
 import { formatRate, type Lang } from './format.js';
-import { StepBadges, StepPicture } from './pictures.js';
-import { stepText, type StepText } from './stepText.js';
+import { StepBadges, StepPicture, USE_STRIP, UseMark, UseStrip } from './pictures.js';
+import { stepText, type StepText, type StepUse } from './stepText.js';
 
 type EdgeStyle = 'input' | 'byproduct' | 'loop';
 const EDGE_STYLES: readonly EdgeStyle[] = ['input', 'byproduct', 'loop'];
@@ -41,10 +41,8 @@ export interface PlanDiagramProps {
   nodeId(item: string): string;
   /** The node purity of the settings: a node shows its purity only when it differs. */
   defaultPurity: Purity;
-  /** Scaled down to the width of its box ("Fit to width"). */
-  fit: boolean;
-  /** Whether the diagram is wider than its box (then "Fit to width" is offered). */
-  onOverflow(wider: boolean): void;
+  /** Top to bottom (raw resources at the top) or left to right (raw resources on the left). */
+  direction: DiagramDirection;
 }
 
 /**
@@ -53,11 +51,11 @@ export interface PlanDiagramProps {
  * Constructor", the item and its rate, and badges where there is something to say; each row is as high as its tallest
  * node (measured after rendering). Under them an SVG with the edges and HTML rate labels with the item's picture; the
  * edges of the selected or hovered node stand out. One tab stop; the arrow keys move between nodes (left and right in a
- * row, up and down to the nearest node of the next row). Centred in its box on a dotted canvas; a wider diagram starts
- * with whole nodes of its top row in view (`initialScroll`), with a fade on each side it continues, or is scaled to the
- * box (`fit`). A legend only for by-products, loops, items supplied from outside and Power Shards.
+ * row, up and down to the nearest node of the next row). Panned and zoomed like a map (`FlowDiagram`); a wider diagram
+ * opens with whole nodes of its top row in view. A legend only for by-products, loops, items supplied from outside and
+ * Power Shards.
  */
-export function PlanDiagram({ steps, index, lang, selected, onSelect, onDismiss, editorId, nodeId, defaultPurity, fit, onOverflow }: PlanDiagramProps) {
+export function PlanDiagram({ steps, index, lang, selected, onSelect, onDismiss, editorId, nodeId, defaultPurity, direction }: PlanDiagramProps) {
   const { t } = useTranslation();
   const stepOf = useMemo(() => new Map(steps.map(s => [s.item, s])), [steps]);
   const nodes = useMemo(() => {
@@ -65,20 +63,20 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, onDismiss,
     return steps.map(s => ({ id: s.item, row: rowOf.get(s.item)! }));
   }, [steps]);
   const links = useMemo(() => diagramLinks(steps), [steps]);
+  const options = useMemo(() => ({ direction }), [direction]);
   const texts = new Map(steps.map(s => [s.item, stepText(s, index, lang, t, defaultPurity)]));
   return (
     <FlowDiagram
       nodes={nodes}
       links={links}
+      options={options}
       label={t('planner.diagram.label')}
-      hint={t('planner.diagram.hint')}
+      hint={t(direction === 'right' ? 'planner.diagram.hintRight' : 'planner.diagram.hint')}
       selected={selected}
       onSelect={onSelect}
       onDismiss={onDismiss}
       editorId={editorId}
       nodeId={nodeId}
-      fit={fit}
-      onOverflow={onOverflow}
       nodeLabel={item => texts.get(item)!.label}
       nodeChrome={item => chrome((stepOf.get(item)?.targetRate ?? 0) > 0)}
       nodeClassName={(item, isSelected) => {
@@ -86,7 +84,15 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, onDismiss,
         return `px-2 py-1.5 ${isSelected ? 'border-accent bg-raised' : 'border-edge bg-panel hover:border-muted hover:bg-raised'} ${
           step.targetRate > 0 ? 'border-b-4 border-b-accent' : ''} ${step.choice.kind === 'external' ? 'border-dashed' : ''}`;
       }}
-      renderNode={(item, contentRef) => <NodeCard step={stepOf.get(item)!} text={texts.get(item)!} contentRef={contentRef} />}
+      renderNode={(item, contentRef) => {
+        const text = texts.get(item)!;
+        return (
+          <>
+            {text.use && <UseStrip use={text.use} />}
+            <NodeCard step={stepOf.get(item)!} text={text} contentRef={contentRef} />
+          </>
+        );
+      }}
       markers={MARKERS}
       edgeKey={e => `${e.kind}:${e.from}:${e.to}`}
       edgeLook={(e, state) => {
@@ -106,7 +112,7 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, onDismiss,
           </>
         );
       }}
-      footer={<Legend steps={steps} links={links} />}
+      footer={<Legend steps={steps} links={links} uses={[...texts.values()].flatMap(x => (x.use ? [x.use] : []))} />}
     />
   );
 }
@@ -125,6 +131,7 @@ function NodeCard({ step, text, contentRef }: { step: PlanStep; text: StepText; 
         <span className="text-sm leading-[18px] break-words">{text.name}</span>
         <span className="mt-0.5 flex flex-wrap items-center gap-1">
           <span className="mr-0.5 font-display text-base leading-5 font-semibold tabular-nums">{text.amount}</span>
+          {text.use && <UseMark use={text.use} className="mr-0.5 text-sm leading-5" />}
           <StepBadges text={text} />
         </span>
         {text.third && <span className="mt-0.5 text-xs leading-4 break-words text-muted">{text.third}</span>}
@@ -133,13 +140,19 @@ function NodeCard({ step, text, contentRef }: { step: PlanStep; text: StepText; 
   );
 }
 
-/** What the special lines and marks of this plan mean; only when it has by-products, loops, items supplied from outside or Power Shards. */
-function Legend({ steps, links }: { steps: readonly PlanStep[]; links: readonly DiagramLink[] }) {
+const USE_BANDS: readonly StepUse['band'][] = ['full', 'high', 'throttled'];
+
+/**
+ * What the special lines and marks of this plan mean; only when it has by-products, loops, items supplied from outside,
+ * Power Shards or steps whose buildings are not all fully used (then the use bands it has).
+ */
+function Legend({ steps, links, uses }: { steps: readonly PlanStep[]; links: readonly DiagramLink[]; uses: readonly StepUse[] }) {
   const { t } = useTranslation();
   const styles = EDGE_STYLES.filter(k => links.some(e => styleOf(e) === k));
   const external = steps.some(s => s.choice.kind === 'external');
   const shards = steps.some(s => s.shards > 0);
-  if (!external && !shards && !styles.some(k => k !== 'input')) return null;
+  const bands = uses.some(u => u.band !== 'full') ? USE_BANDS.filter(b => uses.some(u => u.band === b)) : [];
+  if (!external && !shards && bands.length === 0 && !styles.some(k => k !== 'input')) return null;
   return (
     <ul aria-label={t('planner.diagram.legend.label')} className="flex flex-wrap gap-x-4 gap-y-1 border-t border-line px-3 py-2 text-xs text-muted">
       {styles.map(k => (
@@ -156,6 +169,12 @@ function Legend({ steps, links }: { steps: readonly PlanStep[]; links: readonly 
           {t('planner.diagram.legend.external')}
         </li>
       )}
+      {bands.map(b => (
+        <li key={b} className="flex items-center gap-1.5">
+          <span aria-hidden="true" className={`h-3 w-1 shrink-0 ${USE_STRIP[b]}`} />
+          {t(`planner.use.${b}`)}
+        </li>
+      ))}
       {shards && (
         <li className="flex items-center gap-1.5">
           <span aria-hidden="true" className="text-shard">◆</span>

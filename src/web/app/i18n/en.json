@@ -766,6 +766,7 @@
     "diagram": {
       "label": "Production chain",
       "hint": "Raw resources at the top, your items at the bottom, rates per minute. Select a step to change its recipe, clock speed or purity; the arrow keys move between the steps, Escape closes the step.",
+      "hintRight": "Raw resources on the left, your items on the right, rates per minute. Select a step to change its recipe, clock speed or purity; the arrow keys move between the steps, Escape closes the step.",
       "wanted": "wanted: {value}",
       "alt": "Alternate",
       "alternate": "{recipe} (alternate recipe)",
@@ -788,8 +789,20 @@
       "makes": "makes {value}",
       "needs": "needs {list}",
       "wantedBadge": "Wanted",
-      "fit": "Fit to width",
-      "actualSize": "Actual size"
+      "direction": {
+        "label": "Direction",
+        "down": "Top to bottom",
+        "right": "Left to right"
+      },
+      "view": {
+        "label": "View",
+        "hint": "Drag to move the view, the mouse wheel or two fingers zoom; Shift and the arrow keys move it, + and − zoom, 0 shows 100 %.",
+        "zoomIn": "Zoom in",
+        "zoomOut": "Zoom out",
+        "reset": "{percent} %, back to 100 %",
+        "fit": "Fit",
+        "fitHint": "Show the whole diagram"
+      }
     },
     "panel": {
       "recipe": "Recipe",
@@ -806,7 +819,14 @@
       "shardSlots": "{used, number} of {total, number} Power Shard slots used",
       "pressurizerPower": "{name}: {value} MW per resource well, not included in the totals",
       "purity": "Purity",
-      "even": "{count}× at {clock} %"
+      "even": "{count}× at {clock} % clock would be 100 %"
+    },
+    "use": {
+      "label": "Building use",
+      "long": "Buildings used to {value} %",
+      "full": "All buildings fully used (100 %)",
+      "high": "Nearly full (≥ 90 %)",
+      "throttled": "Part load (< 90 %)"
     },
     "gameModeNote": "The numbers are for the default game mode; game mode settings (recipe costs, power use, randomised node purity) are not taken into account.",
     "lastWorking": "Below is the last plan that worked; correct the value and it updates.",
@@ -1143,7 +1163,8 @@
       },
       "diagram": {
         "label": "Production line {name}",
-        "hint": "Inputs at the top, products at the bottom; on each belt or pipeline the flow per minute and its capacity. Select a group to see its machines; the arrow keys move between the groups, Escape closes the group."
+        "hint": "Inputs at the top, products at the bottom; on each belt or pipeline the flow per minute and its capacity. Select a group to see its machines; the arrow keys move between the groups, Escape closes the group.",
+        "hintRight": "Inputs on the left, products on the right; on each belt or pipeline the flow per minute and its capacity. Select a group to see its machines; the arrow keys move between the groups, Escape closes the group."
       },
       "legend": {
         "load": "Thicker = fuller belt or pipeline",

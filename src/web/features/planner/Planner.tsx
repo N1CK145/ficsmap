@@ -6,7 +6,6 @@ import { clockLimits, MAX_SHARDS, plan, PURITY_FACTOR, type ClockLimits, type Pl
 import { miners as minersOf, type RecipeIndex } from '../../../shared/recipes.js';
 import { worldPath } from '../../app/pages.js';
 import { useUiStore } from '../../app/store.js';
-import { useMediaQuery } from '../../app/useMediaQuery.js';
 import { Button } from '../../components/Button.js';
 import { FIELD_LABEL, NumberField } from '../../components/Field.js';
 import { Fold } from '../../components/Fold.js';
@@ -21,6 +20,7 @@ import { GameIcon, IconsContext, useItemIcons } from '../machineWiki/icons.js';
 import { prefersReducedMotion } from '../map/motion.js';
 import { useNodeLayer, useResourceNodeFile } from '../resourceNodes/useResourceNodes.js';
 import { powerValue, usePurityOptions } from './controls.js';
+import { DirectionSwitch, useDiagramDirection } from './direction.js';
 import { formatNumber, formatRate, itemName, langOf, type Lang } from './format.js';
 import { ItemPicker } from './ItemPicker.js';
 import { PlanDiagram } from './PlanDiagram.js';
@@ -34,8 +34,6 @@ export const EXAMPLE = { item: 'Desc_IronPlateReinforced_C', rate: '5' } as cons
 
 /** From here (Tailwind's `xl`) a selected step's machine window docks beside the steps. */
 const DOCKED_QUERY = '(min-width: 1280px)';
-/** A phone (below Tailwind's `sm`): the diagram is not fitted to the width there. */
-const PHONE_QUERY = '(max-width: 639px)';
 
 /** What the planner needs of its world: the dataset version, the map's path for "Show on map", the toast for "Start over"'s Undo. */
 export interface PlannerProps { version: string; worldId: string; toast: ToastApi }
@@ -122,17 +120,15 @@ interface StepsProps {
 /**
  * The plan's steps in a window, as a diagram or as a table (the switch in its title bar); a node or a row opens its
  * machine window, beside them on a wide page, else below them (scrolled into view). Closing it (×, Escape) puts the
- * focus back on the node or row. A diagram wider than its window offers "Fit to width" in the title bar, except on a
- * phone (below 640 px).
+ * focus back on the node or row. The diagram pans and zooms like a map, with its own zoom keys; it runs top to bottom
+ * or left to right (`DirectionSwitch`, remembered on the device).
  */
 function Steps({ steps, index, lang, minerId, defaultPurity, limits }: StepsProps) {
   const { t } = useTranslation();
   const view = usePlannerView();
+  const [direction, setDirection] = useDiagramDirection('planner');
   const setView = usePlanner(s => s.setView);
-  const phone = useMediaQuery(PHONE_QUERY);
   const [selected, setSelected] = useState<string | null>(null);
-  const [fit, setFit] = useState(false);
-  const [wider, setWider] = useState(false);
   const editorId = useId();
   const nodePrefix = useId();
   const nodeId = (item: string) => `${nodePrefix}${item}`;
@@ -154,13 +150,9 @@ function Steps({ steps, index, lang, minerId, defaultPurity, limits }: StepsProp
     { value: 'diagram', label: viewLabel(<FlowIcon />, t('planner.viewOption.diagram')) },
     { value: 'list', label: viewLabel(<MenuIcon />, t('planner.viewOption.list')) },
   ];
-  // Not on a phone: fitted there, the text would be a few pixels high.
-  const fitting = fit && !phone;
   const actions = (
     <span className="flex flex-wrap items-center justify-end gap-2">
-      {view === 'diagram' && !phone && (wider || fit) && (
-        <Button size="sm" variant="ghost" onClick={() => setFit(f => !f)}>{fit ? t('planner.diagram.actualSize') : t('planner.diagram.fit')}</Button>
-      )}
+      {view === 'diagram' && <DirectionSwitch value={direction} onChange={setDirection} />}
       <SegmentedControl label={t('planner.view')} options={views} value={view} onChange={setView} />
     </span>
   );
@@ -171,7 +163,7 @@ function Steps({ steps, index, lang, minerId, defaultPurity, limits }: StepsProp
         {view === 'diagram' ? (
           <PlanDiagram
             steps={steps} index={index} lang={lang} selected={step ? step.item : null} defaultPurity={defaultPurity}
-            onSelect={onSelect} onDismiss={() => setSelected(null)} editorId={editorId} nodeId={nodeId} fit={fitting} onOverflow={setWider}
+            onSelect={onSelect} onDismiss={() => setSelected(null)} editorId={editorId} nodeId={nodeId} direction={direction}
           />
         ) : (
           <StepList
