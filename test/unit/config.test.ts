@@ -42,6 +42,31 @@ describe('loadConfig', () => {
   });
   it('fails when no dataset version can be determined', () => {
     const { DATASET_VERSION: _omit, ...env } = base;
-    expect(() => loadConfig({ ...env, DATASET_DIR: 'test/fixtures' })).toThrow(/DATASET_VERSION/);
+    expect(() => loadConfig({ ...env, DATASET_DIR: 'test/fixtures' })).toThrow(/No dataset/);
+  });
+  const datasets = (...names: string[]): string => {
+    const dir = mkdtempSync(join(tmpdir(), 'ficsmap-ds-'));
+    for (const n of names) {
+      mkdirSync(join(dir, n));
+      writeFileSync(join(dir, n, 'collectibles.min.json'), '{}');
+    }
+    return dir;
+  };
+  it('picks the newest game version when DATASET_VERSION is unset or latest', () => {
+    const { DATASET_VERSION: _omit, ...env } = base;
+    const dir = datasets('1.2.4.1', '1.2.10.0', '1.2.5.0');
+    expect(loadConfig({ ...env, DATASET_DIR: dir }).datasetVersion).toBe('1.2.10.0');
+    expect(loadConfig({ ...env, DATASET_DIR: dir, DATASET_VERSION: 'latest' }).datasetVersion).toBe('1.2.10.0');
+  });
+  it('ignores folders not named like a version when choosing the latest', () => {
+    const { DATASET_VERSION: _omit, ...env } = base;
+    expect(loadConfig({ ...env, DATASET_DIR: datasets('1.2.4.1', 'test') }).datasetVersion).toBe('1.2.4.1');
+  });
+  it('fails when several datasets have no version names', () => {
+    const { DATASET_VERSION: _omit, ...env } = base;
+    expect(() => loadConfig({ ...env, DATASET_DIR: datasets('a', 'b'), DATASET_VERSION: 'latest' })).toThrow(/cannot choose/);
+  });
+  it('a named DATASET_VERSION wins', () => {
+    expect(loadConfig({ ...base, DATASET_DIR: datasets('1.2.4.1', '1.2.5.0'), DATASET_VERSION: '1.2.4.1' }).datasetVersion).toBe('1.2.4.1');
   });
 });
