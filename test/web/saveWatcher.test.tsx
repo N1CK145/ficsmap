@@ -22,15 +22,15 @@ const EVIL = `it's "$(rm -rf ~)" \`x\` $HOME ‘q’ ; echo pwned # @@TOKEN@@`;
 
 const cfg = (over: Partial<WatchConfig> = {}): WatchConfig => ({
   serverUrl: 'https://ficsmap.example', worldId: W, token: TOKEN, saveDir: '/srv/saves', sessionFilter: 'Letz Fetz',
-  pollSeconds: 30, mode: 'newest', ...over,
+  pollSeconds: 30, intervalMinutes: 30, mode: 'newest', ...over,
 });
 
 /** What bash makes of the settings block of a rendered script (only the assignments run). */
 function bashValues(script: string): Record<string, string> {
   const settings = script.slice(script.indexOf('# --- Settings'), script.indexOf('# --- End of settings'));
-  const out = execFileSync('bash', ['-c', `${settings}\nprintf '%s\\0' "$SERVER_URL" "$WORLD_ID" "$UPLOAD_TOKEN" "$SAVE_DIR" "$SESSION_FILTER" "$POLL_SECONDS" "$UPLOAD_MODE" "$STATE_DIR"`], { encoding: 'utf8' });
-  const [server, world, token, saveDir, session, poll, mode, state] = out.split('\0');
-  return { server: server!, world: world!, token: token!, saveDir: saveDir!, session: session!, poll: poll!, mode: mode!, state: state! };
+  const out = execFileSync('bash', ['-c', `${settings}\nprintf '%s\\0' "$SERVER_URL" "$WORLD_ID" "$UPLOAD_TOKEN" "$SAVE_DIR" "$SESSION_FILTER" "$POLL_SECONDS" "$UPLOAD_INTERVAL_MINUTES" "$UPLOAD_MODE" "$STATE_DIR"`], { encoding: 'utf8' });
+  const [server, world, token, saveDir, session, poll, interval, mode, state] = out.split('\0');
+  return { server: server!, world: world!, token: token!, saveDir: saveDir!, session: session!, poll: poll!, interval: interval!, mode: mode!, state: state! };
 }
 
 /** The entries of a stored zip: name → text. */
@@ -64,8 +64,16 @@ describe('save watcher script generator', () => {
 
   it('bash reads every value back exactly, however hostile', () => {
     const v = bashValues(renderBash(cfg({ saveDir: EVIL, sessionFilter: EVIL })));
-    expect(v).toEqual({ server: 'https://ficsmap.example', world: W, token: TOKEN, saveDir: EVIL, session: EVIL, poll: '30', mode: 'newest', state: '' });
+    expect(v).toEqual({ server: 'https://ficsmap.example', world: W, token: TOKEN, saveDir: EVIL, session: EVIL, poll: '30', interval: '30', mode: 'newest', state: '' });
     expect(bashValues(renderBash(cfg(), { docker: true }))).toMatchObject({ saveDir: '/saves', state: '/state' });
+    expect(bashValues(renderBash(cfg({ intervalMinutes: 0 })))).toMatchObject({ interval: '0' });
+    expect(bashValues(renderBash(cfg({ intervalMinutes: 1440 })))).toMatchObject({ interval: '1440' });
+  });
+
+  it('renders bash scripts that parse (bash -n), for bash and for Docker', () => {
+    for (const script of [renderBash(cfg({ saveDir: EVIL, sessionFilter: EVIL })), renderBash(cfg({ intervalMinutes: 0 }), { docker: true })]) {
+      expect(() => execFileSync('bash', ['-n'], { input: script, encoding: 'utf8' })).not.toThrow();
+    }
   });
 
   it('renders every placeholder, and only known ones', () => {
@@ -80,14 +88,18 @@ describe('save watcher script generator', () => {
     expect(ps).toContain(`$SaveDir = '%LOCALAPPDATA%\\FactoryGame\\Saved\\SaveGames'`);
     expect(ps).toContain(`$SessionFilter = 'O''Brien'`);
     expect(ps).toContain(`$UploadToken = '${TOKEN}'`);
+    expect(ps).toContain('$UploadIntervalMinutes = 30\r\n');
+    expect(renderPowerShell(cfg({ intervalMinutes: 0 }))).toContain('$UploadIntervalMinutes = 0\r\n');
     expect(ps).not.toMatch(/[^\r]\n/);
     expect(ps).not.toMatch(/Invoke-Expression|iex /i);
   });
 
   it('refuses settings it cannot render safely', () => {
     expect(configProblems(cfg())).toEqual([]);
-    expect(configProblems(cfg({ token: 'nope', saveDir: 'a\nb', sessionFilter: 'x\u0000', pollSeconds: 2, serverUrl: 'https://x.test/#>' })))
-      .toEqual(['serverUrl', 'token', 'saveDir', 'sessionFilter', 'pollSeconds']);
+    expect(configProblems(cfg({ token: 'nope', saveDir: 'a\nb', sessionFilter: 'x\u0000', pollSeconds: 2, serverUrl: 'https://x.test/#>', intervalMinutes: -1 })))
+      .toEqual(['serverUrl', 'token', 'saveDir', 'sessionFilter', 'pollSeconds', 'intervalMinutes']);
+    for (const bad of [1441, 1.5, Number.NaN]) expect(configProblems(cfg({ intervalMinutes: bad }))).toEqual(['intervalMinutes']);
+    for (const ok of [0, 1, 1440]) expect(configProblems(cfg({ intervalMinutes: ok }))).toEqual([]);
     expect(() => renderBash(cfg({ saveDir: '' }))).toThrow(/saveDir/);
   });
 
@@ -180,12 +192,22 @@ describe('SaveWatcherSection', () => {
 
     // The session of the world's last import is the default filter.
     expect(screen.getByRole('textbox', { name: 'Session name' })).toHaveValue('Letz Fetz');
+    // The upload interval: 30 minutes by default, 0 to 1440.
+    const interval = screen.getByLabelText('At most one upload every');
+    expect(interval).toHaveValue(30);
+    await userEvent.clear(interval);
+    await userEvent.type(interval, '1441');
+    expect(download).toBeDisabled();
+    expect(screen.getByText('At most one upload every 0 to 1440 minutes.')).toBeInTheDocument();
+    await userEvent.clear(interval);
+    await userEvent.type(interval, '45');
     await userEvent.click(download);
     expect(blobs).toHaveLength(1);
     const text = await blobs[0]!.text();
     expect(text).toContain(`$UploadToken = '${TOKEN}'`);
     expect(text).toContain(`$ServerUrl = '${window.location.origin}'`);
     expect(text).toContain(`$SessionFilter = 'Letz Fetz'`);
+    expect(text).toContain('$UploadIntervalMinutes = 45');
   });
 
   it('switching the platform swaps the default folder, the file and the run instructions', async () => {

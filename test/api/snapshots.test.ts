@@ -196,6 +196,46 @@ describe('factory snapshots api', () => {
     expect((await upload(owner, snapshot(10_000))).statusCode).toBe(201);
   });
 
+  describe('thinning (retention)', () => {
+    const DAY = 86_400_000;
+    const T = Date.UTC(2026, 10, 8, 12, 30);
+    const saveTimes = async (get: (cookie: string) => Promise<{ json(): unknown }>, cookie: string) =>
+      ((await get(cookie)).json() as { saveTime: number }[]).map(s => s.saveTime);
+
+    it('a newer save thins the older ones of the same hour in the same request, with one snapshots event', async () => {
+      const { owner, world, events, upload, get } = await setup();
+      const old = T - 5 * DAY; // 12:30, five days before T
+      for (const t of [old - 20 * 60_000, old - 10 * 60_000, old]) expect((await upload(owner, snapshot(t))).statusCode).toBe(201);
+      // All three are the newest's last two days: kept.
+      expect(await saveTimes(get, owner)).toEqual([old, old - 10 * 60_000, old - 20 * 60_000]);
+      events.length = 0;
+      expect((await upload(owner, snapshot(T))).statusCode).toBe(201);
+      // Now five days old: only the newest of the 12:00 hour stays.
+      expect(await saveTimes(get, owner)).toEqual([T, old]);
+      expect(events).toEqual([[world.id, { type: 'snapshots', rev: 4 }]]);
+    });
+
+    it('an old save whose hour has a newer one is thinned at once; another session is not thinned against it', async () => {
+      const { owner, upload, get } = await setup();
+      await upload(owner, snapshot(T));
+      await upload(owner, snapshot(T - 5 * DAY));
+      const res = await upload(owner, snapshot(T - 5 * DAY - 10 * 60_000));
+      expect(res.statusCode).toBe(201);
+      expect(await saveTimes(get, owner)).toEqual([T, T - 5 * DAY]);
+      expect((await upload(owner, snapshot(T - 5 * DAY - 10 * 60_000, 'Other'))).statusCode).toBe(201);
+      expect(await saveTimes(get, owner)).toEqual([T, T - 5 * DAY, T - 5 * DAY - 10 * 60_000]);
+    });
+
+    it('keeps the snapshot of the last import', async () => {
+      const { owner, world, deps, upload, get } = await setup();
+      const imported = T - 5 * DAY - 10 * 60_000;
+      deps.db.prepare('UPDATE worlds SET last_import_meta = ? WHERE id = ?')
+        .run(JSON.stringify({ fileName: 'x.sav', sessionName: 'Letz Fetz', saveTime: imported, build: 1 }), world.id);
+      for (const t of [T, T - 5 * DAY, imported, imported - 5 * 60_000]) await upload(owner, snapshot(t));
+      expect(await saveTimes(get, owner)).toEqual([T, T - 5 * DAY, imported]);
+    });
+  });
+
   it('the 121st upload in an hour gives 429', async () => {
     const { owner, upload } = await setup();
     const body = gzipSync(JSON.stringify(snapshot()));

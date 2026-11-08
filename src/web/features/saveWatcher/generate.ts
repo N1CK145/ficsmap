@@ -26,12 +26,21 @@ export interface WatchConfig {
   /** Only saves whose file name starts with `<sessionFilter>_`; empty: every save. */
   sessionFilter: string;
   pollSeconds: number;
+  /**
+   * At most one accepted upload per this many minutes (0: no limit). A save that comes in sooner waits; when the time
+   * is up, the newest waiting save is uploaded and the ones in between are skipped.
+   */
+  intervalMinutes: number;
   mode: UploadMode;
 }
 
 export const POLL_MIN = 5;
 export const POLL_MAX = 3600;
 export const POLL_DEFAULT = 30;
+/** Upload interval in minutes; 0 turns the limit off. */
+export const INTERVAL_MIN = 0;
+export const INTERVAL_MAX = 1440;
+export const INTERVAL_DEFAULT = 30;
 /** Folder of the zip for Docker, the image and container name. */
 export const DOCKER_NAME = 'ficsmap-watch';
 
@@ -43,7 +52,7 @@ const ORIGIN_RE = /^https?:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?$|^https?:\/\/\[[0-9A
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CONTROL_RE = /[\u0000-\u001f\u007f]/;
 
-export type ConfigProblem = 'serverUrl' | 'worldId' | 'token' | 'saveDir' | 'sessionFilter' | 'pollSeconds';
+export type ConfigProblem = 'serverUrl' | 'worldId' | 'token' | 'saveDir' | 'sessionFilter' | 'pollSeconds' | 'intervalMinutes';
 
 /** What is wrong with a config (empty when it can be rendered). */
 export function configProblems(c: WatchConfig): ConfigProblem[] {
@@ -54,6 +63,7 @@ export function configProblems(c: WatchConfig): ConfigProblem[] {
   if (c.saveDir.trim() === '' || CONTROL_RE.test(c.saveDir) || c.saveDir.length > 1024) out.push('saveDir');
   if (CONTROL_RE.test(c.sessionFilter) || c.sessionFilter.length > 255) out.push('sessionFilter');
   if (!Number.isInteger(c.pollSeconds) || c.pollSeconds < POLL_MIN || c.pollSeconds > POLL_MAX) out.push('pollSeconds');
+  if (!Number.isInteger(c.intervalMinutes) || c.intervalMinutes < INTERVAL_MIN || c.intervalMinutes > INTERVAL_MAX) out.push('intervalMinutes');
   return out;
 }
 
@@ -103,6 +113,7 @@ export function renderBash(c: WatchConfig, opts: { docker?: boolean; now?: Date 
     SAVE_DIR: shQuote(docker ? CONTAINER_SAVES : c.saveDir.trim()),
     SESSION: shQuote(c.sessionFilter),
     POLL_SECONDS: String(c.pollSeconds),
+    INTERVAL_MINUTES: String(c.intervalMinutes),
     MODE: shQuote(c.mode),
     STATE_DIR: shQuote(docker ? CONTAINER_STATE : ''),
   });
@@ -119,6 +130,7 @@ export function renderPowerShell(c: WatchConfig, opts: { now?: Date } = {}): str
     SAVE_DIR: psQuote(c.saveDir.trim()),
     SESSION: psQuote(c.sessionFilter),
     POLL_SECONDS: String(c.pollSeconds),
+    INTERVAL_MINUTES: String(c.intervalMinutes),
     MODE: psQuote(c.mode),
     STATE_DIR: psQuote(''),
   }).replaceAll('\n', '\r\n');

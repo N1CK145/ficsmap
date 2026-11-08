@@ -161,8 +161,11 @@ export interface SaveUploadResultDto {
   /** Only for `imported`: as `ImportResultDto`. */
   newlyChecked?: number;
   conflicts?: number;
-  /** A factory snapshot of this save was stored. False when the save had none or the world's limit is reached. */
+  /**
+   * A factory snapshot of this save was stored (and kept). False when the save had none, the world's limit is reached
+   * or the retention rule thinned it at once (an old save whose hour, day or week has a newer one).
+   */
   snapshot: boolean;
-  /** Why no snapshot was stored, when that matters (`limit_reached`). */
+  /** Why no snapshot was stored, when that matters (`limit_reached`, `thinned`, `no_factory`, `invalid_factory`). */
   note?: string;
 }
