@@ -30,6 +30,12 @@ function snapshot(saveTime = 1_000, sessionName = 'Letz Fetz'): FactorySnapshot 
     vehicles: [{ id: 'BP_Tractor_C_8', cls: 'BP_Tractor_C', x: 0, y: 0, z: 0, yaw: 0, autopilot: true, route: [], cargo: [{ item: 'Desc_SteelPipe_C', count: 108 }], slots: 25 }],
     markers: [{ name: 'Base', x: 1, y: 2, z: 3, kind: 'MapMarker', iconId: 1, color: '#ff8800', scale: 1 }],
     crates: [],
+    // links and circuits (added to format 1 later) must survive the schema
+    links: [
+      { from: 'Build_MinerMk1_C_4', to: 'Build_SmelterMk1_C_2', fromPort: 'Output0', toPort: 'Input0', kind: 'belt', via: ['Build_ConveyorBeltMk1_C_6'], slowest: 'Build_ConveyorBeltMk1_C', items: { Desc_OreIron_C: 4 } },
+      { from: 'Build_SmelterMk1_C_2', to: 'Build_ConstructorMk1_C_1', kind: 'pipe', via: [], fluid: 'Desc_Water_C' },
+    ],
+    circuits: [{ id: 3, buildings: ['Build_ConstructorMk1_C_1', 'Build_SmelterMk1_C_2'], fuseTriggered: true }],
   };
 }
 

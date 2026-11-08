@@ -1,6 +1,7 @@
 import { readBool, saveTimeFromTicks, shortName } from '../extract.js';
 import { extractorLink, isResourceNodeType } from '../resourceNodes.js';
 import { flatPolyline, roundUnit, sampleSpline, simplify, toWorld, yawOf, type SplinePoint, type Transform, type Vec3 } from './geometry.js';
+import { readConnections } from './connections.js';
 import { encodeGreyPng, toBase64 } from './png.js';
 import {
   FACTORY_SNAPSHOT_VERSION, type FactorySnapshot, type SnapshotBuilding, type SnapshotMarker, type SnapshotProduction,
@@ -461,6 +462,9 @@ export function extractFactory(save: FactorySaveLike, opts: ExtractFactoryOption
 
   readPathNetworks(pathNodes, pathSegments, snap);
   readStationsAndVehicles(stationObjs, vehicleObjs, identifiers, trains, byName, snap);
+  const { links, circuits } = readConnections(objects, new Set(snap.buildings.map(b => b.id)));
+  snap.links = links;
+  snap.circuits = circuits;
   return snap;
 }
 
