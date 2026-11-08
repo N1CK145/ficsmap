@@ -95,6 +95,25 @@ export function saveLocale(locale: Locale): void {
   write(LOCALE_KEY, locale);
 }
 
+const PANELS_KEY = 'ficsmap:panelsCollapsed';
+
+/** Sidebar panels the user folded or unfolded (per device): panel id -> collapsed. */
+export function loadPanelsCollapsed(): Record<string, boolean> {
+  const raw = read(PANELS_KEY);
+  if (raw === null) return {};
+  try {
+    const v = JSON.parse(raw) as unknown;
+    if (!v || typeof v !== 'object') return {};
+    return Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([, c]) => typeof c === 'boolean')) as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+export function savePanelsCollapsed(state: Record<string, boolean>): void {
+  write(PANELS_KEY, JSON.stringify(state));
+}
+
 const SIDEBAR_WIDTH_KEY = 'ficsmap:sidebarWidth';
 
 /** The sidebar width the user dragged to (per device), or null for "fit the content". */

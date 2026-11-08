@@ -12,7 +12,7 @@ import { Button, buttonClass } from '../../components/Button.js';
 import { Footer } from '../../components/Footer.js';
 import { Header } from '../../components/Header.js';
 import { IconButton } from '../../components/IconButton.js';
-import { Panel } from '../../components/Panel.js';
+import { SidebarPanelView } from './SidebarPanelView.js';
 import { useToast } from '../../components/Toast.js';
 import { ImportBanner } from '../import/ImportBanner.js';
 import { ImportDialogHost } from '../import/ImportDialog.js';
@@ -204,7 +204,7 @@ function Sidebar({ id, ctx, panels }: { id: string; ctx: WorldCtx; panels: Sideb
           style={fit ? { width: 'max-content', minWidth: SIDEBAR.fitMin, maxWidth: SIDEBAR.fitMax } : undefined}
         >
           {panels.map(p => (
-            <Panel key={p.id} title={t(p.titleKey)}><p.Component worldId={ctx.worldId} /></Panel>
+            <SidebarPanelView key={p.id} panel={p} worldId={ctx.worldId} />
           ))}
         </div>
       </div>
@@ -279,7 +279,7 @@ function MobileSheets({ ctx, panels }: { ctx: WorldCtx; panels: SidebarPanel[] }
         {/* The panels stay mounted, so their state (route editor, conflict stepper) survives a resize. */}
         <div hidden={snap !== 'half'}>
           {panels.map(p => (
-            <Panel key={p.id} title={t(p.titleKey)}><p.Component worldId={ctx.worldId} /></Panel>
+            <SidebarPanelView key={p.id} panel={p} worldId={ctx.worldId} />
           ))}
         </div>
         {snap === 'full' && <ListView ctx={ctx} />}

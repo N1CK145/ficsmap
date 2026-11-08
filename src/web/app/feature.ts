@@ -20,6 +20,8 @@ export interface SidebarPanel {
   id: string; order: number; titleKey: string; Component: FC<{ worldId: string }>; visible?: (ctx: WorldCtx) => boolean;
   /** Only in the desktop sidebar, not in the mobile bottom sheet (e.g. the Map | List switch: there the sheet's full height is the list). */
   desktopOnly?: boolean;
+  /** Folded until the user opens it (every panel can be folded; the choice is remembered per device). */
+  defaultCollapsed?: boolean;
 }
 export interface MapLayer { id: string; order: number; Component: FC<{ ctx: WorldCtx }> }
 export interface MapMode {
