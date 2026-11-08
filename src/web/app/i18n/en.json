@@ -118,7 +118,7 @@
   },
   "resourceNodes": {
     "title": "Resource nodes",
-    "control": "Resources",
+    "control": "Resource nodes",
     "hint": "Show resource nodes, geysers and resource wells (from the game data and the last save import)",
     "show": "Show on map",
     "on": "On",
@@ -751,7 +751,7 @@
   "vehicleCalc": {
     "open": "Vehicles",
     "openHint": "Vehicle calculator: trip time, fuel and stacks per minute on a route",
-    "title": "Vehicle calculator",
+    "title": "Vehicles",
     "unavailable": "This map dataset has no vehicle data. It is added when the dataset is built with the game's Docs files.",
     "failed": "The vehicle data could not be loaded.",
     "step": {

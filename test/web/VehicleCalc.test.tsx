@@ -69,7 +69,7 @@ const user = () => userEvent.setup();
 
 async function open() {
   await user().click(screen.getByRole('link', { name: 'Vehicles' }));
-  return screen.findByRole('main', { name: 'Vehicle calculator' });
+  return screen.findByRole('main', { name: 'Vehicles' });
 }
 
 /** The result window: what one vehicle does on the route. */
@@ -346,7 +346,7 @@ describe('vehicle calculator', () => {
     initI18n(['de']);
     setup('present');
     await user().click(screen.getByRole('link', { name: 'Fahrzeuge' }));
-    const page = await screen.findByRole('main', { name: 'Fahrzeug-Rechner' });
+    const page = await screen.findByRole('main', { name: 'Fahrzeuge' });
     await user().type(await within(page).findByLabelText('Streckenlänge (einfach)'), '1800');
     await unfold('Weitere Einstellungen');
     await user().type(within(page).getByLabelText('Gegenstand (optional)'), 'Eisenplatte');
@@ -475,7 +475,7 @@ function setupPicking(heights = false) {
   };
 }
 
-const calculator = () => screen.findByRole('main', { name: 'Fahrzeug-Rechner' });
+const calculator = () => screen.findByRole('main', { name: 'Fahrzeuge' });
 
 async function openDe() {
   await user().click(screen.getByRole('link', { name: 'Fahrzeuge' }));

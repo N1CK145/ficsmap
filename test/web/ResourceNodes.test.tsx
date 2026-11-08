@@ -113,7 +113,7 @@ describe('resource node switch in the tool navigation', () => {
   it('toggles the layer and remembers it per device', async () => {
     const { ctx, wrap } = setup();
     wrap(<ToolButton tool={tool} ctx={ctx} />);
-    const button = await screen.findByRole('button', { name: 'Resources' });
+    const button = await screen.findByRole('button', { name: 'Resource nodes' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
     await userEvent.click(button);
     expect(button).toHaveAttribute('aria-pressed', 'true');

@@ -118,7 +118,7 @@
   },
   "resourceNodes": {
     "title": "Rohstoffvorkommen",
-    "control": "Ressourcen",
+    "control": "Rohstoffvorkommen",
     "hint": "Rohstoffvorkommen, Geysire und Rohstoffquellen zeigen (aus den Spieldaten und dem letzten Spielstand-Import)",
     "show": "Auf der Karte zeigen",
     "on": "An",
@@ -751,7 +751,7 @@
   "vehicleCalc": {
     "open": "Fahrzeuge",
     "openHint": "Fahrzeug-Rechner: Fahrzeit, Treibstoff und Stapel pro Minute auf einer Strecke",
-    "title": "Fahrzeug-Rechner",
+    "title": "Fahrzeuge",
     "unavailable": "Dieser Kartendatensatz hat keine Fahrzeugdaten. Sie kommen hinzu, wenn der Datensatz mit den Docs-Dateien des Spiels gebaut wird.",
     "failed": "Die Fahrzeugdaten konnten nicht geladen werden.",
     "step": {
