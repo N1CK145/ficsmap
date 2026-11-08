@@ -13,6 +13,8 @@ import { buildTransportData, type RawTransport } from './transport.js';
 import { RecipeBuildError, recipeSummary, writeRecipes } from './recipes.js';
 import { buildMachinesFromDocs, MachineBuildError, machineSummary, writeMachines } from './machines.js';
 import { IconBuildError, iconSummary, writeIcons } from './icons.js';
+import { BuildingBuildError, buildBuildingsFromFiles, buildingIconClasses, buildingSummaryLine, writeBuildings } from './buildings.js';
+import type { BuildingsFile } from '../src/shared/buildings.js';
 import { descriptorClass, type MachineData } from '../src/shared/machines.js';
 import { UNITS_PER_METER, type Calibration } from '../src/shared/geo.js';
 import type { CollectibleTypeId, LocalizedName, WorldBounds } from '../src/shared/types.js';
@@ -304,7 +306,8 @@ export const DATASET_PARTS = {
   transport: 'transport.json (vehicle calculator)',
   recipes: 'recipes.json (production planner)',
   machines: 'machines.json (machine and vehicle wiki)',
-  icons: 'icons/items/ (pictures of items, machines and vehicles for the wiki)',
+  icons: 'icons/items/ (pictures of items, machines, vehicles and, with buildings-raw.json, every buildable)',
+  buildings: 'buildings.json (footprints, names, categories and pictures of every buildable and vehicle, factory map)',
 } as const;
 export type DatasetPart = keyof typeof DATASET_PARTS;
 
@@ -325,7 +328,7 @@ export function missingParts(parts: ReadonlySet<DatasetPart>, inputs: Record<Dat
   return [...parts].filter(p => !inputs[p].ok).map(p => `${p}: ${inputs[p].what}`);
 }
 
-const USAGE = 'usage: npm run dataset -- --extractor <dir> --out <dir> [--only <part,...>] [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--default-world <default-world.json>] [--docs <dir>] [--transport <file>] [--icons <dir>] [--snap-m 100] [--build N]'
+const USAGE = 'usage: npm run dataset -- --extractor <dir> --out <dir> [--only <part,...>] [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--default-world <default-world.json>] [--docs <dir>] [--transport <file>] [--icons <dir>] [--buildings-raw <file>] [--snap-m 100] [--build N]'
   + `\nparts: ${Object.keys(DATASET_PARTS).join(', ')} (default: all)`;
 
 function main(): void {
@@ -363,6 +366,8 @@ function main(): void {
       transport: { type: 'string' },
       // The extractor's descriptor pictures (`--icons-out`); default: <extractor>/icons.
       icons: { type: 'string' },
+      // The extractor's buildables (`--buildings-out`); default: <extractor>/buildings-raw.json.
+      'buildings-raw': { type: 'string' },
       build: { type: 'string', default: String(DEFAULT_BUILD) },
     },
   });
@@ -385,6 +390,7 @@ function main(): void {
   const docsDir = resolve(v.docs ?? join(ext, 'docs'));
   const rawTransportPath = resolve(v.transport ?? join(ext, 'transport.json'));
   const iconsDir = resolve(v.icons ?? join(ext, 'icons'));
+  const buildingsRawPath = resolve(v['buildings-raw'] ?? join(ext, 'buildings-raw.json'));
   const mapDir = join(ext, 'map');
   const hasDocs = existsSync(join(docsDir, 'en-US.json'));
   const hasCaves = existsSync(cavesPath) && existsSync(join(geometryDir, 'index.json'));
@@ -403,6 +409,10 @@ function main(): void {
     icons: {
       ok: hasDocs && existsSync(join(iconsDir, 'index.json')),
       what: `${join(iconsDir, 'index.json')} (extractor --icons-out, or --icons) and ${join(docsDir, 'en-US.json')} (--docs)`,
+    },
+    buildings: {
+      ok: hasDocs && existsSync(buildingsRawPath),
+      what: `${buildingsRawPath} (extractor --buildings-out, or --buildings-raw) and ${join(docsDir, 'en-US.json')}, de.json (--docs)`,
     },
   };
   const missing = missingParts(parts, inputs);
@@ -512,11 +522,28 @@ function main(): void {
   }
   let machineData: MachineData | undefined;
   const machines = () => (machineData ??= buildMachinesFromDocs(docsDir));
+  // The descriptor classes the extractor has a picture of: a building gets an `icon` only when its picture exists.
+  const extractorIcons = () => existsSync(join(iconsDir, 'index.json'))
+    ? new Set(Object.keys((readJson(join(iconsDir, 'index.json')) as { icons?: Record<string, unknown> }).icons ?? {}))
+    : undefined;
+  let buildingsFile: BuildingsFile | undefined;
+  const buildings = () => (buildingsFile ??= buildBuildingsFromFiles(buildingsRawPath, docsDir, extractorIcons()));
   try {
     if (parts.has('machines')) done('machines', machineSummary(writeMachines(docsDir, out, machines())));
-    if (parts.has('icons')) done('icons', iconSummary(writeIcons(iconsDir, out, new Set(machines().machines.map(m => descriptorClass(m.id))))));
+    if (parts.has('buildings')) {
+      const { file, bytes } = writeBuildings(buildingsRawPath, docsDir, out, extractorIcons());
+      buildingsFile = file;
+      done('buildings', buildingSummaryLine(file, bytes));
+    }
+    if (parts.has('icons')) {
+      // The wiki's machines and, when the extractor's buildables are there, the picture of every building class.
+      const withBuildings = existsSync(buildingsRawPath);
+      const wanted = new Set(machines().machines.map(m => descriptorClass(m.id)));
+      if (withBuildings) for (const c of buildingIconClasses(buildings())) wanted.add(c);
+      done('icons', iconSummary(writeIcons(iconsDir, out, wanted)) + (withBuildings ? '' : `; building pictures left out (no ${buildingsRawPath})`));
+    }
   } catch (e) {
-    if (e instanceof MachineBuildError || e instanceof IconBuildError) { console.error(e.message); process.exit(1); }
+    if (e instanceof MachineBuildError || e instanceof IconBuildError || e instanceof BuildingBuildError) { console.error(e.message); process.exit(1); }
     throw e;
   }
   if (parts.has('map')) {
