@@ -14,7 +14,7 @@ import { useItemIcons, type ItemIcons } from '../../machineWiki/icons.js';
 import { useFactoryWorld } from '../timeline.js';
 import { useFactoryView } from '../view.js';
 import { changeAreas, placeDiff } from './diff.js';
-import { useMapData } from './mapData.js';
+import { isMachine, useMapData } from './mapData.js';
 import { FactoryCanvasLayer, FOG_PANE, FOG_PANE_Z, type FactoryFrame, type FrameLine } from './FactoryCanvasLayer.js';
 import { pickFactory } from './pick.js';
 import { factoryPicture, onFactoryPictureLoad } from './pictures.js';
@@ -99,10 +99,11 @@ export function escapeClosesInfo(e: Pick<KeyboardEvent, 'key' | 'defaultPrevente
 
 /**
  * A click (or tap) on the map: on a building of a production line other than the chosen one it chooses that line (its
- * card opens, the line lights up); on anything else, or again within the chosen line, it opens that building, station
- * or vehicle. A click on empty ground closes a building's window; a chosen line stays until Esc or ×.
+ * card opens, the line lights up), and a machine (`machine`, see `isMachine`) also opens its popup next to it, since
+ * the two no longer share one window; on anything else, or again within the chosen line, it opens that building,
+ * station or vehicle. A click on empty ground closes a building's window; a chosen line stays until Esc or ×.
  */
-export function clickFactory(hit: FactorySelection | null, lines: ProductionLines | null | undefined, belt: string | null = null): void {
+export function clickFactory(hit: FactorySelection | null, lines: ProductionLines | null | undefined, belt: string | null = null, machine = false): void {
   const fm = useFactoryMap.getState();
   const view = useFactoryView.getState();
   // A building, else a belt or pipe of a line (they are no building of their own).
@@ -111,6 +112,7 @@ export function clickFactory(hit: FactorySelection | null, lines: ProductionLine
   if (line && line.id !== view.lineId) {
     // The building (or belt) tapped stays the anchor: the map pans it clear of the card.
     fm.openLine(line.id, { anchor: id });
+    if (machine) fm.select(hit);
     return;
   }
   fm.select(hit);
@@ -255,7 +257,9 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     let id = requestAnimationFrame(() => {
       id = requestAnimationFrame(() => {
         if (performance.now() - lastFit.current < 1500) return;
-        const box = document.querySelector('.ficsmap-factory-info')?.getBoundingClientRect();
+        // A machine's popup is a sheet on phones (the building goes above it); next to the building elsewhere, where
+        // only the line's card on the right is in the way.
+        const box = (document.querySelector('.ficsmap-machine-sheet') ?? document.querySelector('.ficsmap-factory-info'))?.getBoundingClientRect();
         const mapBox = map.getContainer().getBoundingClientRect();
         const size = map.getSize();
         const pad = 24;
@@ -296,6 +300,8 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   const sceneRef = useRef(scene);
   const linesRef = useRef(lines);
   linesRef.current = lines;
+  const analysisRef = useRef(data.analysis);
+  analysisRef.current = data.analysis;
   const layerRef = useRef<FactoryCanvasLayer | null>(null);
 
   useEffect(() => {
@@ -354,7 +360,8 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
       if (useUiStore.getState().interactionMode !== 'inspect') return;
       const hit = at(e.containerPoint);
       if (hit && actor !== null) useUiStore.getState().select(null);
-      clickFactory(hit, linesRef.current, hit ? null : beltAt(e.containerPoint));
+      const machine = !!sceneRef.current && isMachine({ scene: sceneRef.current, analysis: analysisRef.current }, hit);
+      clickFactory(hit, linesRef.current, hit ? null : beltAt(e.containerPoint), machine);
     };
     const onDragStart = () => { dragging = true; onOut(); };
     const onDragEnd = () => { dragging = false; };

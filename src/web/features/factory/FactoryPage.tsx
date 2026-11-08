@@ -23,6 +23,7 @@ import { bottleneckText, lineHasIssue, lineName, sortLines } from './lineInfo.js
 import { LinesSection } from './LinesSection.js';
 import { BottleneckChip, LocateContext, NONE } from './parts.js';
 import { MachinesSection } from './MachinesSection.js';
+import { PageMachinePopup } from './PageMachinePopup.js';
 import { RoutesSection } from './RoutesSection.js';
 import { Timeline } from './Timeline.js';
 import { useFactoryPage, useFactoryWorld, useTimeline } from './timeline.js';
@@ -101,8 +102,9 @@ function Body({ ctx, shown, before, diff, since, fmt, data }: {
     return { floorAdded: g.floorAdded.length, floorRemoved: g.floorRemoved.length, linesAdded: g.linesAdded.size, linesRemoved: g.linesRemoved.length };
   }, [before, shown]);
   const lines = useProductionLines(shown, data.analysis) ?? null;
+  // A machine in the lists opens as the game's machine window (`PageMachinePopup`).
   return (
-    <>
+    <PageMachinePopup data={data.analysis} labels={labels} fmt={fmt} snapshotKey={shown.snapshot}>
       <Kpis totals={shown.analysis.totals} diff={diff} since={since} fmt={fmt} />
       {lines && <TopBottleneck worldId={ctx.worldId} lines={lines} labels={labels} fmt={fmt} />}
       {data.analysis && <LinesSection ctx={ctx} shown={shown} data={data.analysis} labels={labels} fmt={fmt} />}
@@ -110,7 +112,7 @@ function Body({ ctx, shown, before, diff, since, fmt, data }: {
       <ItemsSection worldId={ctx.worldId} analysis={shown.analysis} lines={lines} labels={labels} fmt={fmt} />
       <MachinesSection worldId={ctx.worldId} analysis={shown.analysis} labels={labels} fmt={fmt} recipes={data.analysis?.recipes ?? null} />
       <RoutesSection worldId={ctx.worldId} routes={shown.routes} labels={labels} fmt={fmt} index={ctx.index} lines={lines} analysis={shown.analysis} data={data.analysis} />
-    </>
+    </PageMachinePopup>
   );
 }
 

@@ -1344,6 +1344,34 @@
       "title": "Größter Engpass",
       "diagram": "Zum Diagramm",
       "map": "Auf der Karte"
+    },
+    "machineWindow": {
+      "close": "{name} schließen",
+      "open": "Maschinenfenster von {name} öffnen",
+      "status": "Status",
+      "productivity": "Produktivität",
+      "state": {
+        "running": "Läuft",
+        "partLoad": "Teillast",
+        "stopped": "Steht",
+        "paused": "Pausiert"
+      },
+      "because": "Grund",
+      "noMeasurement": "Keine Produktivität im Spielstand gemessen",
+      "alternate": "Alternativ",
+      "of": "von {value}",
+      "missing": "fehlt",
+      "power": "Strom",
+      "fuels": "Treibstoff (einer davon)",
+      "supplement": "dazu {item} {rate}",
+      "somersloops": "Somersloops",
+      "sloopSlots": "{used, number} von {total, number} Plätzen für Somersloops belegt",
+      "boost": "Produktion ×{value}",
+      "powerUse": "Stromverbrauch im Betrieb",
+      "atClock": "bei {clock} Taktrate",
+      "powerMade": "Stromerzeugung",
+      "hints": "Hinweise",
+      "belt": "Am Ausgang: {belt} ({rate})"
     }
   },
   "factoryMap": {

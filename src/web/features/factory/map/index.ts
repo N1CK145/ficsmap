@@ -6,6 +6,7 @@ import { FactoryInfo } from './FactoryInfo.js';
 import { FactoryMapLayer } from './FactoryMapLayer.js';
 import { FactoryPanel } from './FactoryPanel.js';
 import { HighlightChip } from './HighlightChip.js';
+import { MapMachinePopup } from './MapMachinePopup.js';
 import { FactoryIcon } from '../icons.js';
 import { FactoryTimeline } from './Timeline.js';
 import { FACTORY_PANEL_ID, useFactoryMap } from './useFactoryMap.js';
@@ -13,8 +14,9 @@ import { FACTORY_PANEL_ID, useFactoryMap } from './useFactoryMap.js';
 /**
  * The factory map: what the world's saves have built, drawn on the map from the stored factory snapshots (see
  * docs/architecture.md, "Factory map"). A switch in the map's tools, a sidebar panel with the layers and the legend,
- * the canvas layer, the timeline at the bottom of the map and the info window of the selected building, station or
- * vehicle. Snapshot choice, comparison and highlight are shared with the Fabrik page (`useFactoryView`).
+ * the canvas layer, the timeline at the bottom of the map, the info window of the selected building, station, vehicle
+ * or line and the machine window's popup of a selected machine. Snapshot choice, comparison and highlight are shared
+ * with the Fabrik page (`useFactoryView`).
  */
 export const factoryMapFeature: FeatureModule = {
   id: 'factoryMap',
@@ -28,5 +30,6 @@ export const factoryMapFeature: FeatureModule = {
     { id: 'factory-timeline', order: 20, Component: FactoryTimeline },
     { id: 'factory-highlight', order: 25, Component: HighlightChip },
     { id: 'factory-info', order: 30, Component: FactoryInfo },
+    { id: 'factory-machine', order: 35, Component: MapMachinePopup },
   ],
 };

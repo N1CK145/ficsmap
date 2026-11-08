@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Automatic upload, Linux: the world settings show how to run the watcher only while Satisfactory runs, with the line for Steam's launch options (it starts the watcher with a clean environment, logs to `~/ficsmap/watch.log` and stops it a minute after the game exits).
+- Factory map and Fabrik page: a machine opens as the game's machine window in a popup next to it ("Konstruktor" with its picture, productivity with Läuft / Teillast / Steht / Pausiert and the reasons in words, recipe, inputs → production cycle → outputs each "Ist von Soll" per minute with a missing input marked, an extractor's node and purity, a generator's fuels and power, clock speed with its Energiefragment and Somersloop slots, power consumption, belt and hints). On the map a click on a machine opens it beside the building (it follows the building while the map pans and stays inside the map, left of a line's card); on the Fabrik page the machine rows of the line diagram, the inefficient items and the machines open it under or beside the row. It closes on a click or tap anywhere outside it, Esc or ×; a click on another machine moves it there. On phones it is a sheet at the bottom (on the map the building is panned above it). Stations, vehicles and lines keep their windows.
+
+### Changed
+
+- Factory map: a click on a machine of another production line chooses that line and opens the machine's window at once (before, a second click was needed).
 
 ### Fixed
 

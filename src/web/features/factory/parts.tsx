@@ -1,10 +1,12 @@
 import { createContext, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
-import { BANDS, type Band, type MachineState, type Reason } from '../../../shared/factory/analysis.js';
+import { BANDS, type Band, type MachineHint, type MachineState, type Reason } from '../../../shared/factory/analysis.js';
+import type { LineHint } from '../../../shared/factory/lines.js';
 import { worldPath } from '../../app/pages.js';
 import { badgeClass, type BadgeTone } from '../../components/Badge.js';
 import { buttonClass } from '../../components/Button.js';
+import type { FactoryLabels } from './data.js';
 import type { FactoryFormat } from './format.js';
 import { LocateIcon, ReasonIcon } from './icons.js';
 import { useFactoryView } from './view.js';
@@ -101,6 +103,24 @@ export function BandBar({ bands, paused = 0, className = '' }: { bands: Record<B
       </p>
     </div>
   );
+}
+
+/** A hint's tone: a limit to fix in the accent, a guess or "just enough" muted (no warning), shards in their colour. */
+export const HINT_TONE: Record<(MachineHint | LineHint)['kind'], string> = {
+  beltLimits: 'text-accent', noBelt: 'text-accent', beltBehind: 'text-muted', overclockUseless: 'text-shard', sharedBeltFull: 'text-accent', beltExact: 'text-muted',
+};
+
+/** A hint about a machine's output, in words ("Conveyor Belt Mk.1 limits it to 60.0/min"); pipes in m³. */
+export function hintText(h: MachineHint | LineHint, labels: FactoryLabels, fmt: FactoryFormat, t: (k: string, o?: Record<string, unknown>) => string): string {
+  const belt = (cls: string, rate: number) => ({ belt: labels.building(cls, fmt.lang), rate: fmt.rate(rate, /Pipeline/.test(cls)) });
+  switch (h.kind) {
+    case 'beltLimits': return t('factory.machine.hint.beltLimits', belt(h.belt, h.rate));
+    case 'beltBehind': return t('factory.machine.hint.beltBehind', belt(h.belt, h.rate));
+    case 'noBelt': return t('factory.machine.hint.noBelt');
+    case 'overclockUseless': return t('factory.machine.hint.overclockUseless', { shards: h.shards });
+    case 'sharedBeltFull': return t('factory.machine.hint.sharedBeltFull', belt(h.belt, h.rate));
+    case 'beltExact': return t('factory.machine.hint.beltExact', belt(h.belt, h.rate));
+  }
 }
 
 // --- Tables that turn into stacked rows on a phone ----------------------------------------------------

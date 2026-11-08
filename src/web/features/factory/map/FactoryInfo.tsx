@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { MachineFlow, MachineHint } from '../../../../shared/factory/analysis.js';
 import type { SnapshotCargo } from '../../../../shared/factory/snapshot.js';
 import type { WorldCtx } from '../../../app/feature.js';
 import { useIsMobile } from '../../../app/useMediaQuery.js';
@@ -14,7 +13,7 @@ import { GameIcon, IconsContext, useItemIcons } from '../../machineWiki/icons.js
 import type { FactoryLabels } from '../data.js';
 import { useFactoryFormat, type FactoryFormat } from '../format.js';
 import { ProductivityBar, ReasonBadge, stateKey } from '../parts.js';
-import { useMapData, type MapData } from './mapData.js';
+import { isMachine, useMapData, type MapData } from './mapData.js';
 import { buildingName, langOf, stationName, vehicleName, type Lang } from './names.js';
 import type { Scene, SceneBuilding, SceneStation, SceneVehicle } from './scene.js';
 import { productivityOf } from './style.js';
@@ -34,14 +33,14 @@ const LIST_BUTTON = `${LIST_BASE} flex-col justify-center`;
 const LIST_ROW = `${LIST_BASE} items-center gap-2`;
 
 /**
- * The selected building, station or vehicle of the factory map, as a window over the right of the map like the item
- * panel (on phones as a sheet at the bottom; the map pans the building clear of it): name and picture, then what the
- * game's machine window would show, in the factory page's words and figures. A machine: productivity, what it makes
- * and loses per minute, its state and reasons, the node's purity, the belt at its output and the page's hints, recipe,
- * clock speed, Power Shards, Somersloops. A station: mode, items per minute, the time between docks, what lies in it
- * and its vehicles (how full they are). A vehicle: autopilot, fuel, what it moves and holds, empty legs and its route
- * (drawn on the map). With changes marked,
- * whether it is new and how its productivity changed. Esc or × closes it.
+ * The selected building, station or vehicle of the factory map, or the chosen production line's card, as a window over
+ * the right of the map like the item panel (on phones as a sheet at the bottom; the map pans the building clear of it):
+ * name and picture, then what the game would show, in the factory page's words and figures. A machine opens in its own
+ * popup instead (`MapMachinePopup`; the line's card stays meanwhile). A building: a sign's text, whether it stands on a
+ * node, and without recipe data what the save says of its production. A station: mode, items per minute, the time
+ * between docks, what lies in it and its vehicles (how full they are). A vehicle: autopilot, fuel, what it moves and
+ * holds, empty legs and its route (drawn on the map). With changes marked, whether it is new and how its productivity
+ * changed. Esc or × closes it.
  */
 export function FactoryInfo({ ctx }: { ctx: WorldCtx }) {
   const visible = useFactoryMap(s => s.visible);
@@ -60,11 +59,15 @@ export function FactoryInfo({ ctx }: { ctx: WorldCtx }) {
 function InfoWindow({ ctx, onLineChosen }: { ctx: WorldCtx; onLineChosen: (text: string) => void }) {
   const { t, i18n } = useTranslation();
   const lang = langOf(i18n.language);
-  const selection = useFactoryMap(s => s.selection);
+  const selected = useFactoryMap(s => s.selection);
   const lineId = useFactoryView(s => s.lineId);
   const pendingFocus = useFactoryMap(s => s.pendingFocus);
   const version = ctx.me.datasetVersion;
   const data = useMapData(ctx.worldId, version, ctx.index.ds.bounds, true);
+  // A machine opens in its own popup (`MapMachinePopup`): the window shows the line's card meanwhile, if one is chosen
+  // (on phones nothing: the popup's sheet takes that place).
+  const machine = isMachine(data, selected);
+  const selection = machine ? null : selected;
   const icons = useItemIcons(version);
   const fmt = useFactoryFormat();
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -107,18 +110,22 @@ function InfoWindow({ ctx, onLineChosen }: { ctx: WorldCtx; onLineChosen: (text:
 
   // Opened from a button: the focus moves to the title, so the window is announced and read from there.
   useEffect(() => {
-    if (!pendingFocus || !titleRef.current) return;
+    if (!pendingFocus || !titleRef.current || machine) return;
     titleRef.current.focus();
     useFactoryMap.getState().focusHandled();
-  }, [pendingFocus, selection, scene, line]);
-  // Closed: the focus goes back to the button that opened it.
+  }, [pendingFocus, selection, scene, line, machine]);
+  // Closed: the focus goes back to the button that opened it. Not when it showed nothing last (a machine's popup was
+  // open instead: the popup gives the focus back itself).
+  const showing = useRef(false);
   useEffect(() => () => {
+    if (!showing.current) return;
     const back = useFactoryMap.getState().returnFocus;
     useFactoryMap.setState({ returnFocus: null });
     if (back?.isConnected) back.focus();
   }, []);
 
-  if (!scene) return null;
+  showing.current = false;
+  if (!scene || (machine && mobile)) return null;
   const close = () => {
     useFactoryMap.getState().select(null);
     useFactoryView.getState().selectLine(null);
@@ -177,6 +184,7 @@ function InfoWindow({ ctx, onLineChosen }: { ctx: WorldCtx; onLineChosen: (text:
   }
   // On phones a sheet above the timeline's place and the bottom sheet's peek (`PHONE_BOTTOM_PX`); a line's card folded
   // at most `PEEK_SHARE` of the map's height.
+  showing.current = true;
   const phoneHeight = compact ? 'max-[899px]:max-h-[32%]' : 'max-[899px]:max-h-[min(60%,calc(100%-152px))]';
   return (
     <IconsContext.Provider value={icons}>
@@ -212,14 +220,17 @@ function InfoWindow({ ctx, onLineChosen }: { ctx: WorldCtx; onLineChosen: (text:
   );
 }
 
+/**
+ * A building that is no machine with figures (machines open as `MapMachinePopup`): signs with their text, a building
+ * on a resource node, and, without recipe data, a machine's productivity, state, reasons, recipe and clock speed as
+ * the save has them.
+ */
 function BuildingBody({ sb, data, fmt }: { sb: SceneBuilding; data: MapData; fmt: FactoryFormat }) {
   const { t } = useTranslation();
   const prod = sb.b.prod;
-  const flow: MachineFlow | undefined = data.current?.analysis.byId.get(sb.b.id);
   const isNew = data.diff?.added.includes(sb.b.id) ?? false;
   const change = data.diff ? [...data.diff.better, ...data.diff.worse].find(c => c.id === sb.b.id) : undefined;
   const compareDate = data.compare ? fmt.date(data.compare.meta.saveTime) : '';
-  const labels = data.labels;
   const productivity = prod ? productivityOf(prod) : 0;
   return (
     <>
@@ -239,25 +250,6 @@ function BuildingBody({ sb, data, fmt }: { sb: SceneBuilding; data: MapData; fmt
             <span className="text-muted">{t('factoryMap.info.productivity')}</span>
             <ProductivityBar value={productivity} band={sb.band} fmt={fmt} paused={sb.paused} />
           </div>
-          {/* What it makes and loses, right under the bar: the answer to "how bad is it". */}
-          {flow && flow.outputs.length > 0 && labels && (
-            <StatList>
-              {flow.outputs.map(o => {
-                const fluid = labels.isFluid(o.item);
-                const losing = o.lost > 0.05;
-                return (
-                  <StatRow
-                    key={o.item}
-                    icon={<GameIcon cls={o.item} px={20} placeholder />}
-                    label={labels.item(o.item, fmt.lang)}
-                    hint={losing ? <span className="text-conflict">{t('factoryMap.info.lost', { rate: fmt.rate(o.lost, fluid) })}</span> : undefined}
-                    value={t('factoryMap.info.actualOfTarget', { actual: fmt.rate(o.actual, fluid), at: fmt.rate(o.nominal, fluid) })}
-                    tone={losing ? 'danger' : 'default'}
-                  />
-                );
-              })}
-            </StatList>
-          )}
           <p className="text-xs text-muted max-[899px]:text-sm">
             {t(stateKey(sb.paused ? 'paused' : sb.band))}
             {prod.productivity === undefined && ` · ${t('factoryMap.noMeasurement')}`}
@@ -267,20 +259,11 @@ function BuildingBody({ sb, data, fmt }: { sb: SceneBuilding; data: MapData; fmt
               {sb.reasons.map(r => <ReasonBadge key={r} reason={r} />)}
             </div>
           )}
-          {/* The page's hints: the belt at an extractor's output, overclocking that brings nothing. */}
-          {flow && flow.hints.length > 0 && labels && (
-            <ul className="flex flex-col gap-1 text-sm" data-testid="factory-hints">
-              {flow.hints.map(h => <li key={h.kind} className={HINT_TONE[h.kind]}>{hintText(h, labels, fmt, t)}</li>)}
-            </ul>
-          )}
           <StatList>
-            {flow?.purity && <StatRow label={t('factoryMap.info.purity')} value={t(`resourceNodes.purity.${flow.purity}`)} />}
-            {flow?.belt && labels && <StatRow label={t('factoryMap.info.belt')} value={t('factory.machine.belt', { belt: labels.building(flow.belt.cls, fmt.lang), rate: fmt.rate(flow.belt.rate) })} />}
             {prod.recipe && <StatRow label={t('factoryMap.info.recipe')} value={recipeName(data, prod.recipe, fmt.lang)} />}
             <StatRow label={t('factoryMap.info.clock')} value={fmt.pct(prod.clock)} />
             {(prod.powerShards ?? 0) > 0 && <StatRow label={t('factoryMap.info.shards')} value={fmt.int(prod.powerShards ?? 0)} />}
             {(prod.somersloops ?? 0) > 0 && <StatRow label={t('factoryMap.info.somersloops')} value={fmt.int(prod.somersloops ?? 0)} />}
-            {flow?.power && <StatRow label={t('factoryMap.info.power')} value={t('factoryMap.info.actualOf', { actual: fmt.mw(flow.power.actual), at: fmt.mw(flow.power.nominal) })} />}
           </StatList>
         </section>
       )}
@@ -293,20 +276,6 @@ function BuildingBody({ sb, data, fmt }: { sb: SceneBuilding; data: MapData; fmt
       )}
     </>
   );
-}
-
-const HINT_TONE: Record<MachineHint['kind'], string> = {
-  beltLimits: 'text-accent', noBelt: 'text-accent', beltBehind: 'text-muted', overclockUseless: 'text-muted',
-};
-
-/** A hint in words, as the page says it ("Conveyor Belt Mk.2 limits it to 120.0/min"). */
-function hintText(h: MachineHint, labels: FactoryLabels, fmt: FactoryFormat, t: (k: string, o?: Record<string, unknown>) => string): string {
-  switch (h.kind) {
-    case 'beltLimits': return t('factory.machine.hint.beltLimits', { belt: labels.building(h.belt, fmt.lang), rate: fmt.rate(h.rate) });
-    case 'beltBehind': return t('factory.machine.hint.beltBehind', { belt: labels.building(h.belt, fmt.lang), rate: fmt.rate(h.rate) });
-    case 'noBelt': return t('factory.machine.hint.noBelt');
-    case 'overclockUseless': return t('factory.machine.hint.overclockUseless', { shards: h.shards });
-  }
 }
 
 function recipeName(data: MapData, recipe: string, lang: Lang): string {
