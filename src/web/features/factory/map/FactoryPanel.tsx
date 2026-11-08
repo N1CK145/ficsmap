@@ -16,6 +16,7 @@ import { BANDS, REASONS, type Band, type Reason } from '../../../../shared/facto
 import { stateKey } from '../parts.js';
 import { bandLook, MAP_KINDS, type MapKind } from './style.js';
 import { EmptyFactory } from './Timeline.js';
+import { LinesSection } from './LinesSection.js';
 import { FACTORY_LAYERS, useFactoryMap, type ColorMode } from './useFactoryMap.js';
 
 /** A row of the panel's lists: 32 px, 44 px (a touch target) below 900 px. */
@@ -53,8 +54,9 @@ function reasonOrder(legend: Legend): Reason[] {
 
 /**
  * The Factory panel: the factory layers' switch, the colour mode with its legend (counts; a click on a productivity
- * band or a reason outlines those machines on the map and fits to them), the layers one by one, and the stations and
- * vehicles as lists (a click selects and shows one). Without snapshots it explains how to get them.
+ * band or a reason outlines those machines on the map and fits to them), the production lines (`LinesSection`), the
+ * layers one by one, and the stations and vehicles as lists (a click selects and shows one). Without snapshots it
+ * explains how to get them.
  */
 export function FactoryPanel({ worldId }: { worldId: string }) {
   const { t } = useTranslation();
@@ -74,7 +76,7 @@ export function FactoryPanel({ worldId }: { worldId: string }) {
       {sel.selected && (
         <SaveLine saveTime={sel.selected.saveTime} buildings={sel.selected.buildings} machines={sel.selected.machines} />
       )}
-      {sel.ordered.length > 0 && visible && version !== undefined && <PanelDetails worldId={worldId} version={version} />}
+      {sel.ordered.length > 0 && visible && version !== undefined && <PanelDetails worldId={worldId} version={version} owner={owner} />}
     </div>
   );
 }
@@ -93,7 +95,7 @@ function SaveLine({ saveTime, buildings, machines }: { saveTime: number; buildin
   );
 }
 
-function PanelDetails({ worldId, version }: { worldId: string; version: string }) {
+function PanelDetails({ worldId, version, owner }: { worldId: string; version: string; owner: boolean }) {
   const { t, i18n } = useTranslation();
   const lang = langOf(i18n.language);
   const bounds = useDataset(version)?.ds.bounds;
@@ -183,6 +185,8 @@ function PanelDetails({ worldId, version }: { worldId: string; version: string }
           {t('factoryMap.clearHighlight', { count: highlightCount })}
         </Button>
       )}
+
+      <LinesSection data={data} owner={owner} version={version} />
 
       <div>
         <div id={layersLabel} className="mb-1 text-xs text-muted">{t('factoryMap.layersLabel')}</div>

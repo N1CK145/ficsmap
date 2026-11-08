@@ -7,6 +7,7 @@ import {
 } from './draw.js';
 import { buildingLook, detailAt, GLYPH_MIN_PX, PRODUCT_PIN_ZOOM, pxPerMapUnit, scaledLineWidth } from './lod.js';
 import { greyPicture } from './pictures.js';
+import { chevronsAlong, type EdgeLoad, type LineEdgeGeom, type LineGeom } from './lineView.js';
 import type { Scene, SceneBuilding, SceneStation, SceneVehicle } from './scene.js';
 import { bandLook, lineAlpha, lineWidthPx, PAUSED_LOOK, type BandLook, type BandPattern, type LineKind } from './style.js';
 import type { ColorMode, FactoryLayer } from './useFactoryMap.js';
@@ -28,6 +29,13 @@ export interface FrameRoute {
   stops: { cx: number; cy: number; label: string; zero: boolean }[];
 }
 
+/** The production line shown: hovered (a building or a row of the panel's list) or selected. */
+export interface FrameLine {
+  geom: LineGeom;
+  /** The building under the pointer, outlined a little stronger than the rest of its line. */
+  focus: string | null;
+}
+
 /** What one frame draws; the React layer keeps it current. */
 export interface FactoryFrame {
   scene: Scene | null;
@@ -41,6 +49,8 @@ export interface FactoryFrame {
   selected: string | null;
   hover: string | null;
   route: FrameRoute | null;
+  /** The production line lit up over a dimmed factory, or null. */
+  line: FrameLine | null;
   /** The building's picture at about `px` CSS px, or null (none, or not loaded yet). */
   picture(sb: SceneBuilding, px: number): HTMLImageElement | null;
   /** An item's picture (a machine's product) at about `px` CSS px, or null. */
@@ -66,6 +76,46 @@ const MINOR_PICTURE_ZOOM = 10;
 const STATION_CLUSTER_PX = 40;
 /** How long the highlight's halo pulse runs, ms. */
 const PULSE_MS = 1100;
+/** How much the factory outside a lit production line is dimmed (opacity of the `bg` veil). */
+const LINE_VEIL = 0.62;
+/** From this zoom a lit line's connections carry chevrons in the flow direction, this many CSS px apart. */
+const CHEVRON_ZOOM = 5;
+const CHEVRON_PX = 46;
+/** Width in CSS px of a lit line's connection per load; the bottleneck widest. */
+const LOAD_WIDTH: Record<EdgeLoad | 'bottleneck' | 'inner', number> = { inner: 1.75, low: 2, mid: 2.75, unknown: 2.5, saturated: 4.5, bottleneck: 5.5 };
+type PathKey = EdgeLoad | 'bottleneck' | 'inner';
+
+/** A lit line's bodies and connections as paths in map units, made once per line geometry. */
+interface LinePaths {
+  bodies: Path2D;
+  edges: Map<PathKey, Path2D>;
+}
+const linePathCache = new WeakMap<LineGeom, LinePaths>();
+
+function linePaths(g: LineGeom): LinePaths {
+  const hit = linePathCache.get(g);
+  if (hit) return hit;
+  const bodies = new Path2D();
+  for (const sb of g.buildings) addQuads(bodies, sb.hard);
+  const edges = new Map<PathKey, Path2D>();
+  if (g.inner.length > 0) {
+    const path = new Path2D();
+    for (const pts of g.inner) addPolyline(path, pts);
+    edges.set('inner', path);
+  }
+  for (const e of g.edges) {
+    const key = e.bottleneck ? 'bottleneck' : e.load;
+    const path = getOr(edges, key, () => new Path2D());
+    for (const pts of e.paths) addPolyline(path, pts);
+    for (const sb of e.lifts) addQuads(path, sb.outline);
+  }
+  const out = { bodies, edges };
+  linePathCache.set(g, out);
+  return out;
+}
+
+/** Drawn from light to heavy, so a full connection lies on top of a quiet one where they share a belt. */
+const LOAD_ORDER: PathKey[] = ['inner', 'low', 'unknown', 'mid', 'saturated', 'bottleneck'];
 
 /** The productivity fill key of a building: `p:paused`, `p:<band>` or `p:np` (no production). */
 export function prodFillKey(sb: SceneBuilding): string {
@@ -480,6 +530,10 @@ export class FactoryCanvasLayer extends L.Layer {
       }
     }
 
+    // A production line (hovered or selected): the rest dimmed, its buildings clear and outlined, its belts and pipes
+    // bold in their load's colour with the flow direction.
+    if (f.line) this.drawLine(ctx, f.line, p, zoom, s, o, view, size, mapSpace, screenSpace, d.dots);
+
     // Highlight (the Fabrik page's "On the map"): a bright edge with a soft glow and a dark casing, and one pulse.
     screenSpace();
     ctx.globalAlpha = 1;
@@ -632,6 +686,95 @@ export class FactoryCanvasLayer extends L.Layer {
     ctx.globalAlpha = 1;
     this.lastDrawMs = performance.now() - t0;
     if (pulsing) this.redraw();
+  }
+
+  /**
+   * A lit production line: a `bg` veil over everything but its buildings' bodies, its connections bold (on a dark
+   * casing) in the colour of their load (quiet `muted`, busy `fg`, full `power` and wider, the bottleneck `conflict`
+   * and widest), chevrons along them in the flow direction from `CHEVRON_ZOOM`, a glyph on full ones and the
+   * bottleneck, and an outline around each of its buildings (a ring around the machines' dots zoomed out).
+   */
+  private drawLine(
+    ctx: CanvasRenderingContext2D, fl: FrameLine, p: FactoryPalette, zoom: number, s: number, o: L.Point, view: Box,
+    size: L.Point, mapSpace: () => void, screenSpace: () => void, dots: boolean,
+  ): void {
+    const g = fl.geom;
+    const paths = linePaths(g);
+    ctx.save();
+    // The veil with the line's bodies cut out (even-odd), so they keep their colours, pictures and names.
+    mapSpace();
+    const veil = new Path2D();
+    veil.rect(view.minX, view.minY, view.maxX - view.minX, view.maxY - view.minY);
+    if (!dots) veil.addPath(paths.bodies);
+    ctx.globalAlpha = LINE_VEIL;
+    ctx.fillStyle = p.bg;
+    ctx.fill(veil, 'evenodd');
+    ctx.globalAlpha = 1;
+    // Connections: a dark casing under all, then each load's colour.
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const colour = (k: PathKey) => (k === 'bottleneck' ? p.conflict : k === 'saturated' ? p.power : k === 'low' || k === 'inner' ? p.muted : p.fg);
+    ctx.strokeStyle = p.bg;
+    ctx.globalAlpha = 0.85;
+    for (const k of LOAD_ORDER) {
+      const path = paths.edges.get(k);
+      if (!path) continue;
+      ctx.lineWidth = (LOAD_WIDTH[k] + 3) / s;
+      ctx.stroke(path);
+    }
+    ctx.globalAlpha = 1;
+    for (const k of LOAD_ORDER) {
+      const path = paths.edges.get(k);
+      if (!path) continue;
+      ctx.strokeStyle = colour(k);
+      ctx.lineWidth = LOAD_WIDTH[k] / s;
+      ctx.stroke(path);
+    }
+    screenSpace();
+    const sx = (mx: number) => o.x + mx * s, sy = (my: number) => o.y + my * s;
+    const inView = (a: Box) => a.maxX >= view.minX && a.minX <= view.maxX && a.maxY >= view.minY && a.minY <= view.maxY;
+    // Chevrons in the flow direction.
+    if (zoom >= CHEVRON_ZOOM) {
+      for (const e of g.edges) {
+        const k = e.bottleneck ? 'bottleneck' : e.load;
+        const arm = LOAD_WIDTH[k] + 2.5;
+        ctx.beginPath();
+        for (const pts of e.paths) {
+          const scr = new Float32Array(pts.length);
+          for (let i = 0; i + 1 < pts.length; i += 2) { scr[i] = sx(pts[i]!); scr[i + 1] = sy(pts[i + 1]!); }
+          for (const c of chevronsAlong(scr, CHEVRON_PX, size.x, size.y)) {
+            const ca = Math.cos(c.a), sa = Math.sin(c.a);
+            // A ">" pointing along the flow, its tip a little ahead of the point.
+            const tx = c.x + ca * arm * 0.5, ty = c.y + sa * arm * 0.5;
+            ctx.moveTo(tx - ca * arm + sa * arm * 0.8, ty - sa * arm - ca * arm * 0.8);
+            ctx.lineTo(tx, ty);
+            ctx.lineTo(tx - ca * arm - sa * arm * 0.8, ty - sa * arm + ca * arm * 0.8);
+          }
+        }
+        ctx.strokeStyle = p.bg;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        ctx.strokeStyle = colour(k);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+    // Outlines: machines clear, logistics nodes fainter; the building under the pointer a little stronger.
+    for (const sb of g.buildings) {
+      if (!inView(sb)) continue;
+      const machine = sb.b.prod !== undefined;
+      if (dots && !machine) continue;
+      const focus = sb.b.id === fl.focus;
+      this.outline(ctx, sb, s, o, p.fg, focus ? 2.5 : machine ? 1.5 : 1, dots, focus || machine ? 0.95 : 0.7, machine || focus);
+    }
+    // Glyphs on full connections and the bottleneck: "!" on red, a "full" mark (two bars) on amber.
+    for (const e of g.edges) {
+      if (!e.mid || (!e.bottleneck && e.load !== 'saturated')) continue;
+      const x = sx(e.mid.x), y = sy(e.mid.y);
+      if (x < -16 || y < -16 || x > size.x + 16 || y > size.y + 16) continue;
+      drawLoadGlyph(ctx, x, y, e, p);
+    }
+    ctx.restore();
   }
 
   /**
@@ -971,4 +1114,38 @@ export class FactoryCanvasLayer extends L.Layer {
     }
     ctx.restore();
   }
+}
+
+/** The mark on a full connection (two bars on `power`) or on the line's bottleneck ("!" on `conflict`), 8 px radius. */
+function drawLoadGlyph(ctx: CanvasRenderingContext2D, x: number, y: number, e: LineEdgeGeom, p: FactoryPalette): void {
+  const r = 8;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = e.bottleneck ? p.conflict : p.power;
+  ctx.strokeStyle = p.bg;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  ctx.fill();
+  ctx.strokeStyle = p.bg;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  if (e.bottleneck) {
+    ctx.moveTo(x, y - 4.5);
+    ctx.lineTo(x, y + 0.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y + 3.6, 1.2, 0, Math.PI * 2);
+    ctx.fillStyle = p.bg;
+    ctx.fill();
+    return;
+  }
+  // Two bars across the flow: the belt is at its limit.
+  const ca = Math.cos(e.mid?.a ?? 0), sa = Math.sin(e.mid?.a ?? 0);
+  for (const off of [-2, 2]) {
+    const cx = x + ca * off, cy = y + sa * off;
+    ctx.moveTo(cx - sa * 4, cy + ca * 4);
+    ctx.lineTo(cx + sa * 4, cy - ca * 4);
+  }
+  ctx.stroke();
 }

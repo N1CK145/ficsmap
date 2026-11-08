@@ -1420,6 +1420,36 @@
     "highlight": {
       "count": "{count, plural, one {{n} Gebäude markiert} other {{n} Gebäude markiert}}",
       "clear": "Markierung aufheben"
+    },
+    "lines": {
+      "title": "Produktionsstränge",
+      "kind": "Produktionsstrang",
+      "summary": "{count, plural, =0 {keine} one {# Strang} other {# Stränge}}{issues, plural, =0 {} other {, # mit Engpass}}",
+      "none": "In diesem Spielstand sind keine Maschinen über Förderbänder oder Pipelines verbunden.",
+      "missingShort": "Verbindungen fehlen",
+      "missing": "Verbindungen fehlen in diesem Spielstand – erneut importieren.",
+      "missingOwner": "Er wurde importiert, bevor ficsmap die Förderbänder und Pipelines zwischen den Maschinen las. Importiere ihn noch einmal, dann zeigt die Karte seine Produktionsstränge.",
+      "missingMember": "Er wurde importiert, bevor ficsmap die Förderbänder und Pipelines zwischen den Maschinen las. Der Besitzer dieser Welt kann ihn noch einmal importieren.",
+      "hasIssue": "Mit Engpass:",
+      "machinesCount": "{count, plural, one {# Maschine} other {# Maschinen}}",
+      "showAll": "Alle {count} zeigen",
+      "productivity": "Ø Produktivität",
+      "bottleneck": "Engpass:",
+      "output": "Ausstoß",
+      "machines": "Maschinen",
+      "products": "Produkte",
+      "inputs": "Zulieferung",
+      "asDiagram": "Als Diagramm",
+      "fit": "Zur Linie",
+      "partOf": "Teil des Produktionsstrangs",
+      "announce": "Produktionsstrang {name}: {count, plural, one {# Maschine} other {# Maschinen}}, Ø {pct}.",
+      "tip": "Strang {name} · {count, plural, one {# Maschine} other {# Maschinen}}",
+      "edgeFull": "{link} voll zwischen {from} und {to}",
+      "belt": "Förderband",
+      "pipe": "Pipeline",
+      "groupIssue": "{name}: {why}",
+      "groupIssueMany": "{count} × {name}: {why}",
+      "demand": "wird nicht abgenommen"
     }
   }
 }

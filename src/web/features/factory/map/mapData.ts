@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 import type { BuildingIndex } from '../../../../shared/buildings.js';
-import type { FactoryDiff } from '../../../../shared/factory/analysis.js';
+import type { AnalysisData, FactoryDiff } from '../../../../shared/factory/analysis.js';
+import { buildLines, type ProductionLines } from '../../../../shared/factory/lines.js';
 import type { FactorySnapshot } from '../../../../shared/factory/snapshot.js';
 import type { RecipeIndex } from '../../../../shared/recipes.js';
 import type { WorldBounds } from '../../../../shared/types.js';
@@ -57,6 +58,35 @@ export interface MapData {
   labels: FactoryLabels | undefined;
   /** Recipe names (null without recipe data). */
   recipes: RecipeIndex | null;
+  /**
+   * The shown snapshot's production lines: undefined while loading, null without analysis; no lines when the
+   * snapshot has no `links` (imported before connections were read, see `hasLinks`).
+   */
+  lines: ProductionLines | null | undefined;
+  /** The shown snapshot knows its belt and pipe connections (`FactorySnapshot.links`). */
+  hasLinks: boolean;
+}
+
+/**
+ * The same dataset parts: each component's `useFactoryData` makes its own `AnalysisData` (and maps of machines and
+ * nodes) from the same cached parts, so the parts that arrive later are compared by presence.
+ */
+function sameData(a: AnalysisData, b: AnalysisData): boolean {
+  return a === b || (a.recipes === b.recipes && a.buildings === b.buildings && !a.machines === !b.machines && !a.nodes === !b.nodes);
+}
+
+const linesCache = new WeakMap<FactorySnapshot, { data: AnalysisData; lines: ProductionLines }>();
+
+/**
+ * The production lines of an analysed snapshot, built once per snapshot and dataset (the map's layer, panel and info
+ * window each read them; `useProductionLines` is the same per component).
+ */
+export function linesOf(value: SnapshotAnalysis, data: AnalysisData): ProductionLines {
+  const hit = linesCache.get(value.snapshot);
+  if (hit && sameData(hit.data, data)) return hit.lines;
+  const lines = buildLines(value.snapshot, value.analysis, data);
+  linesCache.set(value.snapshot, { data, lines });
+  return lines;
 }
 
 /**
@@ -83,6 +113,12 @@ export function useMapData(worldId: string, version: string, bounds: WorldBounds
     () => (snapshot && buildings && bounds ? sceneOf(snapshot, buildings, bounds, analysis, routes) : null),
     [snapshot, buildings, bounds, analysis, routes],
   );
+  const analysisData = data?.analysis;
+  const lines = useMemo(() => {
+    if (current === null || analysisData === null) return null;
+    if (!current || !analysisData) return undefined;
+    return linesOf(current, analysisData);
+  }, [current, analysisData]);
   const geometry = useMemo(() => (snapshot && compareQ.data ? geometryDiffOf(compareQ.data, snapshot) : null), [snapshot, compareQ.data]);
   // While the next snapshot downloads, the last one stays on the map (drawn faded).
   const last = useRef<Scene | null>(null);
@@ -92,5 +128,6 @@ export function useMapData(worldId: string, version: string, bounds: WorldBounds
     sel, snapshot, loading: shown.isLoading || (compareId !== null && compareQ.isLoading),
     scene: scene ?? last.current, current, compare: compareQ.data, diff, geometry, buildings, labels: data?.labels,
     recipes: data?.analysis?.recipes ?? null,
+    lines, hasLinks: (snapshot?.links?.length ?? 0) > 0,
   };
 }

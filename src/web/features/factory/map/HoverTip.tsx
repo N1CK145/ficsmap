@@ -12,9 +12,10 @@ const OFFSET = 14;
 
 /**
  * The name of what is under the mouse, next to it: a building with its productivity and issues, a station with its
- * items per minute, a vehicle with its name. A click opens the full info (`FactoryInfo`).
+ * items per minute, a vehicle with its name; for a building of a production line the line's name and machines (`line`).
+ * A click opens the full info (`FactoryInfo`).
  */
-export function HoverTip({ scene, hit, lang }: { scene: Scene; hit: FactorySelection; lang: Lang }) {
+export function HoverTip({ scene, hit, lang, line }: { scene: Scene; hit: FactorySelection; lang: Lang; line?: string }) {
   const { t, i18n } = useTranslation();
   const map = useMap();
   const [, setTick] = useState(0);
@@ -78,6 +79,7 @@ export function HoverTip({ scene, hit, lang }: { scene: Scene; hit: FactorySelec
     >
       <div className="font-semibold">{title}</div>
       {body}
+      {line && <div className="mt-0.5 border-t border-line pt-0.5 text-muted" data-testid="factory-hover-line">{line}</div>}
     </div>
   );
 }

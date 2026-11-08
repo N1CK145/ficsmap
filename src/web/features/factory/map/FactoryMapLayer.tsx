@@ -2,6 +2,7 @@ import L from 'leaflet';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ImageOverlay, Pane, useMap } from 'react-leaflet';
+import type { ProductionLines } from '../../../../shared/factory/lines.js';
 import type { FactorySnapshot } from '../../../../shared/factory/snapshot.js';
 import type { WorldCtx } from '../../../app/feature.js';
 import { useUiStore } from '../../../app/store.js';
@@ -14,16 +15,20 @@ import { useFactoryWorld } from '../timeline.js';
 import { useFactoryView } from '../view.js';
 import { changesBox, placeDiff } from './diff.js';
 import { useMapData } from './mapData.js';
-import { FactoryCanvasLayer, FOG_PANE, FOG_PANE_Z, type FactoryFrame } from './FactoryCanvasLayer.js';
+import { FactoryCanvasLayer, FOG_PANE, FOG_PANE_Z, type FactoryFrame, type FrameLine } from './FactoryCanvasLayer.js';
 import { pickFactory } from './pick.js';
 import { factoryPicture, onFactoryPictureLoad } from './pictures.js';
 import { boundsOfIds, type Scene, type SceneStation } from './scene.js';
+import { lineById, lineGeometry, lineName, lineOf, pickLineSpline, shownLine } from './lineView.js';
+import { LINES_FROM } from './lod.js';
 import { vehicleRoute } from './routes.js';
 import { useFactoryMap, ZOOM_KEY, type FactorySelection } from './useFactoryMap.js';
 import { HoverTip } from './HoverTip.js';
 import { langOf, vehicleName } from './names.js';
 
 const HOVER_CLASS = 'ficsmap-marker-hover';
+/** Hit distance around a belt or pipe of a production line, CSS px. */
+const BELT_HIT_PX = 5;
 /** Fitting to highlighted buildings stops at this zoom (a single machine fills the view otherwise). */
 const FIT_MAX_ZOOM = 8;
 
@@ -41,6 +46,8 @@ export function FactoryMapLayer({ ctx }: { ctx: WorldCtx }) {
   const visible = useFactoryMap(s => s.visible);
   const highlightSeq = useFactoryView(s => s.highlightSeq);
   const fittedSeq = useFactoryMap(s => s.fittedSeq);
+  const lineId = useFactoryView(s => s.lineId);
+  const fittedLineId = useFactoryMap(s => s.fittedLineId);
   // Another world resets the shared choice (as on the Fabrik page).
   useFactoryWorld(ctx.worldId);
 
@@ -53,14 +60,16 @@ export function FactoryMapLayer({ ctx }: { ctx: WorldCtx }) {
   useEffect(() => {
     if (highlightSeq > fittedSeq && !visible) useFactoryMap.getState().setVisible(true);
   }, [highlightSeq, fittedSeq, visible]);
-
-  // Esc closes the info window, unless something else (a dialog, a field, the search) took the key.
+  // A production line chosen elsewhere (the line diagram's "Karte") does the same.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!useFactoryMap.getState().selection || !escapeClosesInfo(e)) return;
-      e.preventDefault();
-      useFactoryMap.getState().select(null);
-    };
+    if (lineId !== null && lineId !== fittedLineId && !visible) useFactoryMap.getState().setVisible(true);
+  }, [lineId, fittedLineId, visible]);
+
+  // Esc closes the info window, unless something else (a dialog, a field, the search) took the key: a building's
+  // window first (back to its line's card when a line is chosen), then the line.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (escapeStepsBack(e)) e.preventDefault(); };
+    document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
@@ -82,6 +91,41 @@ export function escapeClosesInfo(e: Pick<KeyboardEvent, 'key' | 'defaultPrevente
   return !target?.closest('input, select, textarea, [contenteditable="true"], dialog, [role="dialog"], [role="alertdialog"]');
 }
 
+/**
+ * A click (or tap) on the map: on a building of a production line other than the chosen one it chooses that line (its
+ * card opens, the line lights up); on anything else, or again within the chosen line, it opens that building, station
+ * or vehicle. A click on empty ground closes a building's window; a chosen line stays until Esc or ×.
+ */
+export function clickFactory(hit: FactorySelection | null, lines: ProductionLines | null | undefined, belt: string | null = null): void {
+  const fm = useFactoryMap.getState();
+  const view = useFactoryView.getState();
+  // A building, else a belt or pipe of a line (they are no building of their own).
+  const id = hit?.kind === 'building' ? hit.id : hit === null ? belt : null;
+  const line = lineOf(lines, id, view.lineId);
+  if (line && line.id !== view.lineId) {
+    fm.openLine(line.id);
+    return;
+  }
+  fm.select(hit);
+}
+
+/**
+ * Esc on the factory map: closes a building's window (back to its line's card when a line is chosen), else the chosen
+ * line. True when it did something (the caller then takes the key).
+ */
+export function escapeStepsBack(e: Pick<KeyboardEvent, 'key' | 'defaultPrevented' | 'target'>): boolean {
+  if (!useFactoryMap.getState().visible || !escapeClosesInfo(e)) return false;
+  if (useFactoryMap.getState().selection) {
+    useFactoryMap.getState().select(null);
+    return true;
+  }
+  if (useFactoryView.getState().lineId !== null) {
+    useFactoryView.getState().selectLine(null);
+    return true;
+  }
+  return false;
+}
+
 /** The factory layers while they are on (the dataset parts and snapshots load only then). */
 function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   const map = useMap();
@@ -100,9 +144,15 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   const scene = data.scene;
   const icons = useItemIcons(version, !!scene);
   const [hover, setHover] = useState<FactorySelection | null>(null);
+  /** The belt or pipe of a production line under the pointer when no building is (spline id). */
+  const [hoverBelt, setHoverBelt] = useState<string | null>(null);
   const [pulse, setPulse] = useState<number | null>(null);
   const coarse = useMediaQuery('(pointer: coarse)');
   const fitChangesSeq = useFactoryMap(s => s.fitChangesSeq);
+  const lines = data.lines;
+  const lineId = useFactoryView(s => s.lineId);
+  const fittedLineId = useFactoryMap(s => s.fittedLineId);
+  const hoverLineId = useFactoryMap(s => s.hoverLineId);
   /** When the map last fitted to something (`performance.now()`): a selection made with it needs no pan on top. */
   const lastFit = useRef(-Infinity);
 
@@ -141,6 +191,31 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     }
   }, [map, fitChangesSeq, scene, diff, mobile]);
 
+  // A production line chosen anywhere but by a click on the map (the panel's list, "Zur Linie", the line diagram's
+  // "Karte"): fit once its geometry is there.
+  useEffect(() => {
+    if (lineId === null || lineId === fittedLineId || !scene || lines === undefined) return;
+    useFactoryMap.getState().setFittedLineId(lineId);
+    const line = lines ? lineById(lines, lineId) : undefined;
+    const box = line ? lineGeometry(scene, line).box : null;
+    if (!box) return;
+    lastFit.current = performance.now();
+    fitBox(map, box, mobile, true);
+  }, [map, fittedLineId, scene, lines, lineId, mobile]);
+
+  // The line of the building under the pointer lights up (the panel's list marks its row too).
+  useEffect(() => {
+    if (hover === null && hoverBelt === null && useFactoryMap.getState().hoverLineId === null) return;
+    const id = hover?.kind === 'building' ? hover.id : hover === null ? hoverBelt : null;
+    useFactoryMap.getState().hoverLine(lineOf(lines, id, useFactoryView.getState().lineId)?.id ?? null);
+  }, [hover, hoverBelt, lines]);
+  useEffect(() => () => useFactoryMap.getState().hoverLine(null), []);
+
+  const frameLine = useMemo((): FrameLine | null => {
+    const line = scene ? shownLine(lines, hoverLineId, lineId) : undefined;
+    return scene && line ? { geom: lineGeometry(scene, line), focus: hover?.kind === 'building' ? hover.id : null } : null;
+  }, [scene, lines, hoverLineId, lineId, hover]);
+
   // A selection made anywhere stays in view: pan the map so the building is clear of the info window.
   useEffect(() => {
     if (!scene || !selection) return;
@@ -176,6 +251,7 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     selected: selection?.id ?? null,
     hover: hover?.id ?? null,
     route,
+    line: frameLine,
     picture: (sb, px) => pictureOf(icons, sb.entry?.icon, px),
     itemPicture: (item, px) => pictureOf(icons, item, px),
     label: sb => sb.entry?.name[lang] ?? sb.b.cls,
@@ -183,10 +259,12 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     vehicleLabel: v => (scene ? vehicleName(scene, v.v.id, lang) : v.v.cls),
     fontPx: coarse ? 13 : 12,
     loading: data.loading,
-  }), [scene, layers, colorMode, diff, highlight, pulse, selection, hover, route, icons, lang, t, number, coarse, data.loading]);
+  }), [scene, layers, colorMode, diff, highlight, pulse, selection, hover, route, frameLine, icons, lang, t, number, coarse, data.loading]);
 
   const frameRef = useRef(frame);
   const sceneRef = useRef(scene);
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
   const layerRef = useRef<FactoryCanvasLayer | null>(null);
 
   useEffect(() => {
@@ -202,6 +280,13 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
       const m = layer.toMapUnits(p.x, p.y);
       return sc && m ? pickFactory(sc, frameRef.current.layers, m.mx, m.my, m.s, map.getZoom()) : null;
     };
+    // A belt or pipe of a production line, where belts show.
+    const beltAt = (p: L.Point): string | null => {
+      const sc = sceneRef.current;
+      const m = layer.toMapUnits(p.x, p.y);
+      if (!sc || !m || !frameRef.current.layers.lines || map.getZoom() < LINES_FROM) return null;
+      return pickLineSpline(sc, linesRef.current, m.mx, m.my, BELT_HIT_PX / m.s);
+    };
     let frameId = 0;
     let point: L.Point | null = null;
     let dragging = false;
@@ -212,14 +297,17 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
         frameId = 0;
         if (!point || dragging) return;
         const hit = at(point);
-        container.classList.toggle(HOVER_CLASS, hit !== null);
+        const belt = hit ? null : beltAt(point);
+        container.classList.toggle(HOVER_CLASS, hit !== null || belt !== null);
         setHover(h => (h?.id === hit?.id ? h : hit));
+        setHoverBelt(belt);
       });
     };
     const onOut = () => {
       point = null;
       container.classList.remove(HOVER_CLASS);
       setHover(null);
+      setHoverBelt(null);
     };
     let actorBefore: string | null = null;
     const onPreClick = () => { actorBefore = useUiStore.getState().selectedActor; };
@@ -229,8 +317,8 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
       if (actor !== null && actor !== actorBefore) return;
       if (useUiStore.getState().interactionMode !== 'inspect') return;
       const hit = at(e.containerPoint);
-      useFactoryMap.getState().select(hit);
       if (hit && actor !== null) useUiStore.getState().select(null);
+      clickFactory(hit, linesRef.current, hit ? null : beltAt(e.containerPoint));
     };
     const onDragStart = () => { dragging = true; onOut(); };
     const onDragEnd = () => { dragging = false; };
@@ -263,11 +351,15 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     layerRef.current?.redraw();
   }, [frame, scene]);
 
+  const hoverLine = hover?.kind === 'building' ? lineOf(lines, hover.id, lineId) : undefined;
+  const hoverLineText = hoverLine && data.labels
+    ? t('factoryMap.lines.tip', { name: lineName(hoverLine, data.labels, lang), count: hoverLine.machines.length }) : undefined;
+
   if (!scene) return null;
   return (
     <>
       {layers.fog && scene.snapshot.fog && <Fog snapshot={scene.snapshot} />}
-      {hover && hover.id !== selection?.id && <HoverTip scene={scene} hit={hover} lang={lang} />}
+      {hover && hover.id !== selection?.id && <HoverTip scene={scene} hit={hover} lang={lang} line={hoverLineText} />}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MachineFlow, MachineHint } from '../../../../shared/factory/analysis.js';
 import type { SnapshotCargo } from '../../../../shared/factory/snapshot.js';
@@ -16,6 +16,10 @@ import { buildingName, langOf, stationName, vehicleName, type Lang } from './nam
 import type { Scene, SceneBuilding, SceneStation, SceneVehicle } from './scene.js';
 import { productivityOf } from './style.js';
 import { useFactoryMap } from './useFactoryMap.js';
+import { linePath } from '../lineDiagram.js';
+import { useFactoryView } from '../view.js';
+import { lineAnnouncement, LineCard, ProductPictures } from './LineCard.js';
+import { lineById, lineHas, lineName } from './lineView.js';
 
 /** A row button in the info window's lists: at least 44 px high (a touch target), its text on up to two lines. */
 const LIST_BASE = 'flex min-h-11 w-full chamfer px-1 py-1 text-left text-sm focus-ring hover:bg-raised';
@@ -35,13 +39,22 @@ const LIST_ROW = `${LIST_BASE} items-center gap-2`;
 export function FactoryInfo({ ctx }: { ctx: WorldCtx }) {
   const visible = useFactoryMap(s => s.visible);
   const selection = useFactoryMap(s => s.selection);
-  return visible && selection ? <InfoWindow ctx={ctx} /> : null;
+  const lineId = useFactoryView(s => s.lineId);
+  // Choosing a line is announced (a click on the map moves no focus); the region stays mounted so it is heard.
+  const [said, say] = useState('');
+  return (
+    <>
+      <p aria-live="polite" className="sr-only" data-testid="factory-line-announce">{visible ? said : ''}</p>
+      {visible && (selection || lineId !== null) && <InfoWindow ctx={ctx} onLineChosen={say} />}
+    </>
+  );
 }
 
-function InfoWindow({ ctx }: { ctx: WorldCtx }) {
+function InfoWindow({ ctx, onLineChosen }: { ctx: WorldCtx; onLineChosen: (text: string) => void }) {
   const { t, i18n } = useTranslation();
   const lang = langOf(i18n.language);
-  const selection = useFactoryMap(s => s.selection)!;
+  const selection = useFactoryMap(s => s.selection);
+  const lineId = useFactoryView(s => s.lineId);
   const pendingFocus = useFactoryMap(s => s.pendingFocus);
   const version = ctx.me.datasetVersion;
   const data = useMapData(ctx.worldId, version, ctx.index.ds.bounds, true);
@@ -49,13 +62,20 @@ function InfoWindow({ ctx }: { ctx: WorldCtx }) {
   const fmt = useFactoryFormat();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const scene = data.scene;
+  const line = data.lines ? lineById(data.lines, lineId) : undefined;
+  const labels = data.labels;
+
+  useEffect(() => {
+    if (line && labels) onLineChosen(lineAnnouncement(line, labels, fmt, t));
+    // Once per chosen line, not on every new analysis of it.
+  }, [line?.id, !!labels]);
 
   // Opened from a button: the focus moves to the title, so the window is announced and read from there.
   useEffect(() => {
     if (!pendingFocus || !titleRef.current) return;
     titleRef.current.focus();
     useFactoryMap.getState().focusHandled();
-  }, [pendingFocus, selection, scene]);
+  }, [pendingFocus, selection, scene, line]);
   // Closed: the focus goes back to the button that opened it.
   useEffect(() => () => {
     const back = useFactoryMap.getState().returnFocus;
@@ -64,13 +84,28 @@ function InfoWindow({ ctx }: { ctx: WorldCtx }) {
   }, []);
 
   if (!scene) return null;
-  const close = () => useFactoryMap.getState().select(null);
+  const close = () => {
+    useFactoryMap.getState().select(null);
+    useFactoryView.getState().selectLine(null);
+  };
 
   let title: string;
   let icon: string | undefined;
   let body: ReactNode;
   let kindName: string;
-  if (selection.kind === 'vehicle') {
+  if (!selection) {
+    // A production line's card.
+    if (!line || !labels) return null;
+    title = lineName(line, labels, fmt.lang);
+    kindName = t('factoryMap.lines.kind');
+    body = (
+      <LineCard
+        line={line} labels={labels} fmt={fmt}
+        onDiagram={() => ctx.navigate(linePath(ctx.worldId, line.id))}
+        onFit={() => useFactoryMap.getState().requestLineFit()}
+      />
+    );
+  } else if (selection.kind === 'vehicle') {
     const v = scene.vehicleById.get(selection.id);
     if (!v) return null;
     title = vehicleName(scene, v.v.id, lang);
@@ -85,6 +120,22 @@ function InfoWindow({ ctx }: { ctx: WorldCtx }) {
     icon = sb.entry?.icon;
     kindName = st ? t('factoryMap.station.kind') : t(`factoryMap.kindShort.${sb.kind}`);
     body = st ? <StationBody st={st} scene={scene} lang={lang} fmt={fmt} labels={data.labels} /> : <BuildingBody sb={sb} data={data} fmt={fmt} />;
+    // Part of the chosen line: the way back to its card.
+    if (line && labels && lineHas(line, sb.b.id)) {
+      body = (
+        <>
+          <button type="button" onClick={() => useFactoryMap.getState().select(null)} className={`${LIST_ROW} border border-line`} data-testid="factory-line-back">
+            <span aria-hidden="true" className="text-muted">←</span>
+            <ProductPictures line={line} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs text-muted max-[899px]:text-sm">{t('factoryMap.lines.partOf')}</span>
+              <span className="block truncate">{lineName(line, labels, fmt.lang)}</span>
+            </span>
+          </button>
+          {body}
+        </>
+      );
+    }
   }
   return (
     <IconsContext.Provider value={icons}>

@@ -1420,6 +1420,36 @@
     "highlight": {
       "count": "{count, plural, one {{n} building marked} other {{n} buildings marked}}",
       "clear": "Clear the marking"
+    },
+    "lines": {
+      "title": "Production lines",
+      "kind": "Production line",
+      "summary": "{count, plural, =0 {none} one {# line} other {# lines}}{issues, plural, =0 {} other {, # with a bottleneck}}",
+      "none": "No machines in this save are connected by conveyor belts or pipelines.",
+      "missingShort": "Connections missing",
+      "missing": "Connections are missing in this save – import it again.",
+      "missingOwner": "It was imported before ficsmap read the conveyor belts and pipelines between the machines. Import it once more and the map shows its production lines.",
+      "missingMember": "It was imported before ficsmap read the conveyor belts and pipelines between the machines. The owner of this world can import it again.",
+      "hasIssue": "With a bottleneck:",
+      "machinesCount": "{count, plural, one {# machine} other {# machines}}",
+      "showAll": "Show all {count}",
+      "productivity": "Mean productivity",
+      "bottleneck": "Bottleneck:",
+      "output": "Output",
+      "machines": "Machines",
+      "products": "Products",
+      "inputs": "Supplied",
+      "asDiagram": "As diagram",
+      "fit": "Go to line",
+      "partOf": "Part of the production line",
+      "announce": "Production line {name}: {count, plural, one {# machine} other {# machines}}, mean {pct}.",
+      "tip": "Line {name} · {count, plural, one {# machine} other {# machines}}",
+      "edgeFull": "{link} full between {from} and {to}",
+      "belt": "Conveyor belt",
+      "pipe": "Pipeline",
+      "groupIssue": "{name}: {why}",
+      "groupIssueMany": "{count} × {name}: {why}",
+      "demand": "not taken off"
     }
   }
 }

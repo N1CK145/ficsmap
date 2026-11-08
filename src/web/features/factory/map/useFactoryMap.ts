@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { requestDetailZoom } from '../../map/zoom.js';
+import { useFactoryView } from '../view.js';
 
 /**
  * The factory map's own state (the snapshot choice, comparison and highlight are shared with the Fabrik page in
@@ -44,6 +45,17 @@ interface FactoryMapState extends FactoryMapView {
   fittedSeq: number;
   /** Bumped by "Go to the changes": the map fits to the changed buildings. */
   fitChangesSeq: number;
+  /**
+   * The production line under the pointer or the focus (a building on the map, a row of the panel's list): it lights
+   * up on the map over the selected one (`useFactoryView.lineId`). Not shared with the page.
+   */
+  hoverLineId: string | null;
+  /**
+   * The production line the map last brought into view, or chose itself (a click on it: no fit there). A chosen line
+   * (`useFactoryView.lineId`, also from the line diagram's way to the map) that differs is fitted to once; null asks
+   * for a fit to the chosen line again ("Zur Linie").
+   */
+  fittedLineId: string | null;
   toggle(): void;
   setVisible(v: boolean): void;
   toggleLayer(l: FactoryLayer): void;
@@ -53,6 +65,16 @@ interface FactoryMapState extends FactoryMapView {
   focusHandled(): void;
   setFittedSeq(seq: number): void;
   requestFitChanges(): void;
+  hoverLine(id: string | null): void;
+  setFittedLineId(id: string | null): void;
+  /** Fit the map to the chosen line again. */
+  requestLineFit(): void;
+  /**
+   * Opens a production line's card in the info window (closing a building's): `useFactoryView.selectLine` plus,
+   * from a button, the focus moving to the window's title and back to `opener` on close; `reveal` fits the map to it
+   * (without, the line is where the user clicked on the map).
+   */
+  openLine(id: string, opts?: SelectOptions & { reveal?: boolean }): void;
 }
 
 const KEY = 'ficsmap:factoryMap';
@@ -126,6 +148,8 @@ export const useFactoryMap = create<FactoryMapState>()((set, get) => {
     returnFocus: null,
     fittedSeq: 0,
     fitChangesSeq: 0,
+    hoverLineId: null,
+    fittedLineId: null,
     toggle: () => update({ visible: !get().visible }),
     setVisible: visible => { if (visible !== get().visible) update({ visible }); },
     toggleLayer: l => update({ layers: { ...get().layers, [l]: !get().layers[l] } }),
@@ -142,5 +166,14 @@ export const useFactoryMap = create<FactoryMapState>()((set, get) => {
     focusHandled: () => set({ pendingFocus: false }),
     setFittedSeq: fittedSeq => set({ fittedSeq }),
     requestFitChanges: () => set({ fitChangesSeq: get().fitChangesSeq + 1 }),
+    hoverLine: hoverLineId => { if (hoverLineId !== get().hoverLineId) set({ hoverLineId }); },
+    setFittedLineId: fittedLineId => set({ fittedLineId }),
+    requestLineFit: () => set({ fittedLineId: null }),
+    openLine: (id, opts = {}) => {
+      const was = get();
+      const returnFocus = opts.focus ? (was.returnFocus ?? opts.opener ?? null) : was.returnFocus;
+      set({ selection: null, pendingFocus: opts.focus === true, returnFocus, hoverLineId: null, fittedLineId: opts.reveal ? null : id });
+      useFactoryView.getState().selectLine(id);
+    },
   };
 });
