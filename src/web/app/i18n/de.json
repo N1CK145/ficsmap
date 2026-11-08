@@ -43,6 +43,21 @@
     "signedInAs": "Angemeldet als {email} über Discord",
     "signOut": "Abmelden"
   },
+  "profile": {
+    "title": "Profil-Einstellungen",
+    "back": "Zurück",
+    "loadFailed": "Dein Profil konnte nicht geladen werden.",
+    "controls": "Steuerung",
+    "wheelSpeed": "Mausrad-Geschwindigkeit",
+    "wheelSpeedValue": "{speed, number, ::.0#}×",
+    "wheelSpeedHint": "Wie stark ein Dreh am Mausrad auf der Karte und in den Diagrammen zoomt.",
+    "wheelSpeedReset": "Standard",
+    "wheelSpeedResetLabel": "Mausrad-Geschwindigkeit auf den Standard ({speed, number, ::.0#}×) zurücksetzen",
+    "saving": "Wird gespeichert…",
+    "saved": "Gespeichert",
+    "saveFailed": "Nicht gespeichert. Die Einstellung gilt vorerst nur auf diesem Gerät.",
+    "languageHint": "Wird auf diesem Gerät gespeichert."
+  },
   "worlds": {
     "title": "Deine Welten",
     "new": "+ Neue Welt",

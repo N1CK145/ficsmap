@@ -10,7 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Map: the collectibles (power slugs, Somersloops, Mercer spheres, hard drives) are a layer of their own, "Collectibles", the first of the map's switches (also in the section menu on narrow screens and phones). Switched off, the map draws no collectible markers and clicks and hover find none; the progress panel, the type filters, the list view, the item panel and the search keep working. On by default and remembered on the device. Anything that is about a marker switches it back on: choosing a type, an item, a biome, a cave or a crash site in the search, "Show on map", selecting an item (list view, nearby items, the conflict review, [Next stop ›]), opening a route and editing one. Picking a vehicle route does not, it takes points anywhere.
+- Profile settings (`/profile`, "Profil-Einstellungen" in the account menu) with the mouse wheel speed ("Mausrad-Geschwindigkeit", 0.25× to 3×, default 1×): how far one turn of the wheel zooms the map: at 1× one notch is one zoom level, at 0.5× two notches, at 2× two levels per notch. It applies at once and is saved on the account, so it follows you to every device; a failed save keeps the value on this device and says so. The language switch is on the page too.
+- API: `GET /api/me` returns the user's preferences as `prefs`; `PATCH /api/me/prefs` changes them (60 a minute per user). Database migration 7 adds `users.prefs`.
 - Automatic upload, Linux: the world settings show how to run the watcher only while Satisfactory runs, with the line for Steam's launch options (it starts the watcher with a clean environment, logs to `~/ficsmap/watch.log` and stops it a minute after the game exits).
+
+### Changed
+
+- The map's mouse wheel zoom is ficsmap's own now: whole levels around the pointer at the chosen speed (a notch used to zoom two levels), touchpad pinch included; a touchpad fling no longer runs through every level, and the zoom is not animated when reduced motion is preferred.
 
 ### Fixed
 

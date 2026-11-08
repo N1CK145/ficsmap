@@ -11,8 +11,9 @@ import { APP_VERSION, RELEASE_URL, REPO_URL } from '../../app/version.js';
 
 /**
  * Avatar button in the header with the signed-in account, a link to the worlds (on a phone the top bar has no mark
- * inside a world), the language switch, [Sign out], and this build's version (its release page) and the source
- * repository: inside a world there is no footer, so they live here.
+ * inside a world), a link to the profile settings (`/profile`), the language switch (also on the profile page),
+ * [Sign out], and this build's version (its release page) and the source repository: inside a world there is no
+ * footer, so they live here.
  */
 export function AccountMenu() {
   const { t } = useTranslation();
@@ -71,6 +72,7 @@ export function AccountMenu() {
           <p className="font-display text-lg leading-tight font-semibold">{me.displayName}</p>
           {me.email && <p className="-mt-2 text-sm text-muted [overflow-wrap:anywhere]">{t('account.signedInAs', { email: me.email })}</p>}
           <Link to="/?list=1" onClick={() => setOpen(false)} className={buttonClass({ variant: 'secondary', size: 'sm' }, 'w-full')}>{t('worlds.title')}</Link>
+          <Link to="/profile" onClick={() => setOpen(false)} className={buttonClass({ variant: 'secondary', size: 'sm' }, 'w-full')}>{t('profile.title')}</Link>
           <div className="flex items-center justify-between gap-2 border-y border-line py-2">
             <span className="text-sm text-muted">{t('language.label')}</span>
             <LanguageSwitch />
