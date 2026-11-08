@@ -13,7 +13,7 @@ import { useTimeline, type TimelineSelection } from '../timeline.js';
 import { useFactoryView } from '../view.js';
 import { geometryDiffOf, type GeometryDiff } from './diff.js';
 import { sceneOf, type Scene } from './scene.js';
-import { useFactoryMap } from './useFactoryMap.js';
+import { useFactoryMap, type FactorySelection } from './useFactoryMap.js';
 
 /**
  * Keeps the comparison on "the save before" while that is the mode: whenever the shown snapshot changes with changes
@@ -58,6 +58,8 @@ export interface MapData {
   labels: FactoryLabels | undefined;
   /** Recipe names (null without recipe data). */
   recipes: RecipeIndex | null;
+  /** The game data of the analysis (recipes, machines, nodes): null without recipe data, undefined while it loads. */
+  analysis: AnalysisData | null | undefined;
   /**
    * The shown snapshot's production lines: undefined while loading, null without analysis; no lines when the
    * snapshot has no `links` (imported before connections were read, see `hasLinks`).
@@ -127,7 +129,17 @@ export function useMapData(worldId: string, version: string, bounds: WorldBounds
   return {
     sel, snapshot, loading: shown.isLoading || (compareId !== null && compareQ.isLoading),
     scene: scene ?? last.current, current, compare: compareQ.data, diff, geometry, buildings, labels: data?.labels,
-    recipes: data?.analysis?.recipes ?? null,
+    recipes: data?.analysis?.recipes ?? null, analysis: data?.analysis,
     lines, hasLinks: (snapshot?.links?.length ?? 0) > 0,
   };
+}
+
+/**
+ * Whether the selection is a machine (a building with production, not a station) the analysis knows or will know: it
+ * opens as the machine window's popup (`MapMachinePopup`), not in the info window. Without recipe data there are no
+ * figures for the machine window, so such a building stays in the info window.
+ */
+export function isMachine(data: Pick<MapData, 'scene' | 'analysis'>, sel: FactorySelection | null): boolean {
+  if (sel?.kind !== 'building' || !data.scene || data.analysis === null) return false;
+  return !!data.scene.byId.get(sel.id)?.b.prod && !data.scene.stationById.has(sel.id);
 }

@@ -50,7 +50,7 @@ const S2 = snap(Date.UTC(2026, 10, 5, 21), [b('a', 1), b('b', 0.3, ['blocked'])]
 const S3 = snap(Date.UTC(2026, 10, 7, 23), [b('a', 0.5, ['starved']), b('b', 0.3, ['blocked']), b('c', 0), b('d', 0, undefined, true)]);
 const LIST = [makeSummary(3, S3.meta.saveTime, 'Alpha'), makeSummary(2, S2.meta.saveTime, 'Alpha'), makeSummary(1, S1.meta.saveTime, 'Alpha')];
 
-function setup({ list = LIST, world = WORLD } = {}) {
+function setup({ list = LIST, world = WORLD, recipes = true } = {}) {
   const stub = stubFetch({
     'GET /api/me': { body: ME },
     [`GET /api/worlds/${W}`]: { body: world },
@@ -60,7 +60,7 @@ function setup({ list = LIST, world = WORLD } = {}) {
     [`GET /api/worlds/${W}/snapshots/3`]: { body: S3 },
     'GET /data/test/buildings.json': { body: BUILDINGS },
     'GET /data/test/collectibles.min.json': { body: DS },
-    'GET /data/test/recipes.json': { body: { format: 1, source: 'test', clock: { min: 0.01, perShard: 0.5 }, items: [], recipes: [], machines: [], extractors: [] } },
+    ...(recipes ? { 'GET /data/test/recipes.json': { body: { format: 1, source: 'test', clock: { min: 0.01, perShard: 0.5 }, items: [], recipes: [], machines: [], extractors: [] } } } : {}),
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ctx: WorldCtx = { worldId: W, world, me: ME, index: indexDataset(DS), queryClient: client, navigate: () => {}, toast: { show: () => {} } };
@@ -283,7 +283,8 @@ describe('factory map: marking and info window', () => {
 
   it('moves the focus to its title when opened from a button and gives it back on close', async () => {
     useFactoryMap.setState({ visible: true });
-    const { ctx, wrap } = setup();
+    // Without recipe data a machine has no figures for its machine window: it stays in the info window.
+    const { ctx, wrap } = setup({ recipes: false });
     const user = userEvent.setup();
     wrap(
       <>

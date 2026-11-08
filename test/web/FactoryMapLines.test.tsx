@@ -243,6 +243,10 @@ describe('production lines: hover and selection on the map', () => {
     expect(useFactoryMap.getState().selection).toEqual({ kind: 'building', id: 'q1' });
     expect(lineOf(shared, 'q1')?.id).toBe('c1');
     expect(lineOf(shared, 'q1', 'q1')?.id).toBe('q1');
+    // A machine of another line chooses that line and opens the machine's popup as well (they no longer share a window).
+    clickFactory({ kind: 'building', id: 's1' }, LINES, null, true);
+    expect(useFactoryView.getState().lineId).toBe('c1');
+    expect(useFactoryMap.getState().selection).toEqual({ kind: 'building', id: 's1' });
     // Without lines (an older import) a click opens the building as before.
     useFactoryView.getState().selectLine(null);
     clickFactory({ kind: 'building', id: 's2' }, null);
@@ -371,13 +375,12 @@ describe('production lines: card', () => {
     expect(navigated).toEqual([`/w/${W}/factory?line=c1`]);
     expect(useFactoryView.getState().lineId).toBe('c1');
 
-    // A building of the line opens with the way back to the line's card.
+    // A machine of the line opens in its own popup (`MapMachinePopup`): the line's card stays meanwhile.
     act(() => useFactoryMap.getState().select({ kind: 'building', id: 'c1' }));
-    const back = await screen.findByTestId('factory-line-back');
-    expect(back).toHaveTextContent('Part of the production line');
-    await user.click(back);
-    expect(useFactoryMap.getState().selection).toBeNull();
-    expect(await screen.findByTestId('factory-line-card')).toBeInTheDocument();
+    expect(screen.getByTestId('factory-line-card')).toBeInTheDocument();
+    expect(screen.queryByTestId('factory-line-back')).toBeNull();
+    act(() => useFactoryMap.getState().select(null));
+    expect(screen.getByTestId('factory-line-card')).toBeInTheDocument();
 
     // × closes the line.
     await user.click(screen.getByRole('button', { name: 'Close' }));

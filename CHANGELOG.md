@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Profile settings (`/profile`, "Profil-Einstellungen" in the account menu) with the mouse wheel speed ("Mausrad-Geschwindigkeit", 0.25× to 3×, default 1×): how far one turn of the wheel zooms the map: at 1× one notch is one zoom level, at 0.5× two notches, at 2× two levels per notch. It applies at once and is saved on the account, so it follows you to every device; a failed save keeps the value on this device and says so. The language switch is on the page too.
 - API: `GET /api/me` returns the user's preferences as `prefs`; `PATCH /api/me/prefs` changes them (60 a minute per user). Database migration 7 adds `users.prefs`.
 - Automatic upload, Linux: the world settings show how to run the watcher only while Satisfactory runs, with the line for Steam's launch options (it starts the watcher with a clean environment, logs to `~/ficsmap/watch.log` and stops it a minute after the game exits).
+- Factory map and Fabrik page: a machine opens as the game's machine window in a popup next to it ("Konstruktor" with its picture, productivity with Läuft / Teillast / Steht / Pausiert and the reasons in words, recipe, inputs → production cycle → outputs each "Ist von Soll" per minute with a missing input marked, an extractor's node and purity, a generator's fuels and power, clock speed with its Energiefragment and Somersloop slots, power consumption, belt and hints). On the map a click on a machine opens it beside the building (it follows the building while the map pans and stays inside the map, left of a line's card); on the Fabrik page the machine rows of the line diagram, the inefficient items and the machines open it under or beside the row. It closes on a click or tap anywhere outside it, Esc or ×; a click on another machine moves it there. On phones it is a sheet at the bottom (on the map the building is panned above it). Stations, vehicles and lines keep their windows.
+
+### Changed
+
+- Factory map: a click on a machine of another production line chooses that line and opens the machine's window at once (before, a second click was needed).
 
 ### Changed
 

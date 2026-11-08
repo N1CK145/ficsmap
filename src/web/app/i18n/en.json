@@ -1363,6 +1363,34 @@
       "title": "Biggest bottleneck",
       "diagram": "To the diagram",
       "map": "On the map"
+    },
+    "machineWindow": {
+      "close": "Close {name}",
+      "open": "Open the machine window of {name}",
+      "status": "Status",
+      "productivity": "Productivity",
+      "state": {
+        "running": "Running",
+        "partLoad": "Part load",
+        "stopped": "Stopped",
+        "paused": "Paused"
+      },
+      "because": "Reason",
+      "noMeasurement": "No productivity measured in the save",
+      "alternate": "Alternate",
+      "of": "of {value}",
+      "missing": "missing",
+      "power": "Power",
+      "fuels": "Fuel (one of these)",
+      "supplement": "plus {item} {rate}",
+      "somersloops": "Somersloops",
+      "sloopSlots": "{used, number} of {total, number} Somersloop slots used",
+      "boost": "Output ×{value}",
+      "powerUse": "Power consumption while running",
+      "atClock": "at {clock} clock speed",
+      "powerMade": "Power production",
+      "hints": "Hints",
+      "belt": "At its output: {belt} ({rate})"
     }
   },
   "factoryMap": {

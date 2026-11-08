@@ -1,16 +1,15 @@
-import { useContext, useId, useState, type CSSProperties, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { evenClock, MAX_SHARDS, type ClockLimits, type Flow, type PlanStep, type Purity } from '../../../shared/planner.js';
 import type { RecipeIndex } from '../../../shared/recipes.js';
 import { Badge } from '../../components/Badge.js';
 import { FIELD_LABEL, fieldClass, NumberField } from '../../components/Field.js';
-import { SectionHeading } from '../../components/SectionHeading.js';
 import { StatList, StatRow } from '../../components/StatRow.js';
 import { Window } from '../../components/Window.js';
-import { IconsContext, GameIcon } from '../machineWiki/icons.js';
 import { buildingName, ChoiceSelect, powerText, usePurityOptions } from './controls.js';
 import { formatNumber, formatRate, itemName, type Lang } from './format.js';
-import { Picture, SHARD_CLASS, StepPicture } from './pictures.js';
+import { CycleBar, ItemSlot, MachineSection as Section, productionGrid, SLOT_LABEL, ShardSlots, SlotColumn } from './machineParts.js';
+import { StepPicture } from './pictures.js';
 import { usePlanner } from './usePlanner.js';
 
 export interface StepPanelProps {
@@ -80,25 +79,12 @@ export function StepPanel({ step, index, lang, minerId, limits, onClose, closeLa
   );
 }
 
-/** A titled part of the window: a section heading over its content. */
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  const id = useId();
-  return (
-    <section aria-labelledby={id} className="flex flex-col gap-2">
-      <SectionHeading as="h4" id={id}>{title}</SectionHeading>
-      {children}
-    </section>
-  );
-}
-
 /** Small print under the sections; empty parts are left out. */
 function Notes({ children }: { children: ReactNode[] }) {
   const notes = children.filter((c): c is string => typeof c === 'string' && c !== '');
   if (notes.length === 0) return null;
   return <ul className="flex flex-col gap-1 border-t border-line pt-3 text-sm text-muted">{notes.map(n => <li key={n}>{n}</li>)}</ul>;
 }
-
-const SLOT_LABEL = 'mb-1 font-display text-xs font-semibold tracking-wider text-muted uppercase';
 
 /** Inputs (or the resource node), the cycle and the outputs, each with the rate of all buildings and of one. */
 function Production({ step, index, lang }: { step: PlanStep; index: RecipeIndex; lang: Lang }) {
@@ -114,10 +100,9 @@ function Production({ step, index, lang }: { step: PlanStep; index: RecipeIndex;
   let left: ReactNode = null;
   if (step.recipe) {
     left = (
-      <div className="min-w-0">
-        <p className={SLOT_LABEL}>{t('planner.panel.input')}</p>
+      <SlotColumn label={t('planner.panel.input')}>
         <ul className="flex flex-col gap-1.5">{inputs.map(f => <Slot key={f.item} flow={f} index={index} lang={lang} per={per(f)} />)}</ul>
-      </div>
+      </SlotColumn>
     );
   } else if (step.purity) {
     left = (
@@ -138,26 +123,15 @@ function Production({ step, index, lang }: { step: PlanStep; index: RecipeIndex;
 
   return (
     <Section title={t('planner.panel.production')}>
-      <div className={`grid items-start gap-3 ${left ? 'sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]' : 'sm:grid-cols-[auto_minmax(0,1fr)]'}`}>
+      <div className={productionGrid(!!left)}>
         {left}
-        <div className="flex flex-col items-center gap-1 self-center px-1 text-center text-xs text-muted">
-          <span aria-hidden="true" className="inline-block rotate-90 text-2xl leading-none text-accent sm:rotate-0">→</span>
-          {seconds !== undefined ? (
-            <>
-              <span aria-hidden="true" className="block h-1.5 w-14 overflow-hidden bg-bg">
-                <span
-                  className="block h-full w-full origin-left bg-accent motion-safe:animate-[planner-cycle_var(--cycle)_linear_infinite]"
-                  style={{ '--cycle': `${seconds}s` } as CSSProperties}
-                />
-              </span>
-              <span>{t('planner.panel.cycle', { value: formatNumber(seconds, lang, 2) })}</span>
-            </>
-          ) : step.extractor && <span>{t('planner.panel.extraction')}</span>}
-        </div>
-        <div className="min-w-0">
-          <p className={SLOT_LABEL}>{t('planner.panel.output')}</p>
+        <CycleBar
+          seconds={seconds}
+          caption={seconds !== undefined ? t('planner.panel.cycle', { value: formatNumber(seconds, lang, 2) }) : step.extractor && t('planner.panel.extraction')}
+        />
+        <SlotColumn label={t('planner.panel.output')}>
           <ul className="flex flex-col gap-1.5">{outputs.map(f => <Slot key={f.item} flow={f} index={index} lang={lang} per={per(f)} />)}</ul>
-        </div>
+        </SlotColumn>
       </div>
     </Section>
   );
@@ -166,17 +140,7 @@ function Production({ step, index, lang }: { step: PlanStep; index: RecipeIndex;
 /** An item slot: picture, name, rate of all buildings, rate of one. */
 function Slot({ flow, index, lang, per }: { flow: Flow; index: RecipeIndex; lang: Lang; per: string }) {
   const { t } = useTranslation();
-  const name = itemName(index, flow.item, lang);
-  return (
-    <li className="flex min-w-0 items-center gap-2 chamfer border border-line bg-bg p-1.5">
-      <Picture cls={flow.item} px={32} />
-      <span className="min-w-0 flex-1 leading-5">
-        <span className="block text-sm break-words">{name}</span>
-        <span className="block font-display text-base font-semibold tabular-nums">{formatRate(index, flow.item, flow.rate, lang, t)}</span>
-        <span className="block text-xs text-muted tabular-nums">{per}</span>
-      </span>
-    </li>
-  );
+  return <ItemSlot item={flow.item} name={itemName(index, flow.item, lang)} value={formatRate(index, flow.item, flow.rate, lang, t)} sub={per} />;
 }
 
 /**
@@ -239,7 +203,7 @@ function ClockSection({ step, index, lang, limits }: { step: PlanStep; index: Re
       )}
       <div>
         <p className={SLOT_LABEL}>{shardsLabel}</p>
-        <ShardSlots used={step.shards} label={t('planner.panel.shardSlots', { used: step.shards, total: MAX_SHARDS })} />
+        <ShardSlots used={step.shards} total={MAX_SHARDS} label={t('planner.panel.shardSlots', { used: step.shards, total: MAX_SHARDS })} />
       </div>
       {pressurizer ? (
         <p className="text-sm">
@@ -257,21 +221,5 @@ function ClockSection({ step, index, lang, limits }: { step: PlanStep; index: Re
         </StatList>
       )}
     </Section>
-  );
-}
-
-const SLOT = 'flex size-10 items-center justify-center chamfer border bg-bg';
-
-/** The three Power Shard slots; those the clock speed needs are filled. */
-function ShardSlots({ used, label }: { used: number; label: string }) {
-  const icons = useContext(IconsContext);
-  return (
-    <span role="img" aria-label={label} className="flex gap-1.5">
-      {Array.from({ length: MAX_SHARDS }, (_, i) => (
-        <span key={i} data-filled={i < used} className={`${SLOT} ${i < used ? 'border-shard' : 'border-dashed border-edge'}`}>
-          {i < used && (icons?.has(SHARD_CLASS) ? <GameIcon cls={SHARD_CLASS} px={28} /> : <span aria-hidden="true" className="text-lg text-shard">◆</span>)}
-        </span>
-      ))}
-    </span>
   );
 }

@@ -12,7 +12,8 @@ import { Picture } from '../planner/pictures.js';
 import { PurityDot } from '../resourceNodes/PurityPips.js';
 import type { FactoryLabels } from './data.js';
 import type { FactoryFormat } from './format.js';
-import { Cell, LocateContext, LossBar, ProductivityBar, ReasonBadge, ShowOnMap, TABLE, TD, TD_FIRST, TH, THEAD, TR } from './parts.js';
+import { Cell, HINT_TONE, hintText, LocateContext, LossBar, ProductivityBar, ReasonBadge, ShowOnMap, TABLE, TD, TD_FIRST, TH, THEAD, TR } from './parts.js';
+import { OpenMachineContext } from './PageMachinePopup.js';
 import { useFactoryPage } from './timeline.js';
 
 /** Losses below this (per minute) round to 0.0 and are not listed. */
@@ -274,24 +275,6 @@ function ItemMachines({ worldId, item, lines, labels, fmt }: { worldId: string; 
   );
 }
 
-/** A hint's tone: a limit to fix in the accent, a guess or "just enough" muted (no warning), shards in their colour. */
-const HINT_TONE: Record<(MachineHint | LineHint)['kind'], string> = {
-  beltLimits: 'text-accent', noBelt: 'text-accent', beltBehind: 'text-muted', overclockUseless: 'text-shard', sharedBeltFull: 'text-accent', beltExact: 'text-muted',
-};
-
-/** A hint about a machine's output, in words ("Conveyor Belt Mk.1 limits it to 60.0/min"); pipes in m³. */
-export function hintText(h: MachineHint | LineHint, labels: FactoryLabels, fmt: FactoryFormat, t: (k: string, o?: Record<string, unknown>) => string): string {
-  const belt = (cls: string, rate: number) => ({ belt: labels.building(cls, fmt.lang), rate: fmt.rate(rate, /Pipeline/.test(cls)) });
-  switch (h.kind) {
-    case 'beltLimits': return t('factory.machine.hint.beltLimits', belt(h.belt, h.rate));
-    case 'beltBehind': return t('factory.machine.hint.beltBehind', belt(h.belt, h.rate));
-    case 'noBelt': return t('factory.machine.hint.noBelt');
-    case 'overclockUseless': return t('factory.machine.hint.overclockUseless', { shards: h.shards });
-    case 'sharedBeltFull': return t('factory.machine.hint.sharedBeltFull', belt(h.belt, h.rate));
-    case 'beltExact': return t('factory.machine.hint.beltExact', belt(h.belt, h.rate));
-  }
-}
-
 /**
  * One machine in a list: picture, name, what it makes and where (the biome nearby), productivity, clock speed with its
  * Power Shards, reasons, its loss and "Show on map". A row of columns from 640 px; on a phone name and map button,
@@ -312,15 +295,31 @@ export function MachineLine({ worldId, m, lost, fluid, labels, fmt, recipeName, 
   const detail = [recipeName, where && t('factory.routes.near', { biome: where })].filter(Boolean).join(' · ');
   const out = (item ? m.outputs.find(o => o.item === item) : undefined) ?? m.outputs[0];
   const extra = m.kind === 'extractor' || hints.length > 0;
+  const openMachine = useContext(OpenMachineContext);
+  const head = (
+    <>
+      <Picture cls={labels.buildingPicture(m.cls)} px={20} />
+      <span className="min-w-0">
+        <span className="block truncate">{name}</span>
+        {detail && <span className="block truncate text-xs text-muted max-[899px]:text-sm">{detail}</span>}
+      </span>
+    </>
+  );
   return (
     <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-1.5 sm:grid-cols-[minmax(12rem,20rem)_7.5rem_7rem_minmax(9rem,1fr)_8rem_auto]">
-      <span className="flex min-w-0 items-center gap-2">
-        <Picture cls={labels.buildingPicture(m.cls)} px={20} />
-        <span className="min-w-0">
-          <span className="block truncate">{name}</span>
-          {detail && <span className="block truncate text-xs text-muted max-[899px]:text-sm">{detail}</span>}
-        </span>
-      </span>
+      {/* With a popup host on the page the name opens the machine's window (the game's view of it). */}
+      {openMachine ? (
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          title={t('factory.machineWindow.open', { name })}
+          onClick={e => openMachine({ m, hints, opener: e.currentTarget, keyboard: e.detail === 0 })}
+          className="-mx-1 -my-0.5 flex min-h-11 min-w-0 items-center gap-2 chamfer px-1 py-0.5 text-left focus-ring hover:bg-raised sm:min-h-0"
+          data-testid="machine-open"
+        >
+          {head}
+        </button>
+      ) : <span className="flex min-w-0 items-center gap-2">{head}</span>}
       <span className="justify-self-end sm:order-last"><ShowOnMap worldId={worldId} ids={[m.id]} label={name} compact /></span>
       <span className="flex items-center gap-3 sm:contents">
         <ProductivityBar value={m.productivity} band={m.band} paused={m.paused} fmt={fmt} />
