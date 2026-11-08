@@ -8,7 +8,7 @@ import { AttributionControl, MapContainer, TileLayer, ZoomControl, useMap } from
 import { useShallow } from 'zustand/react/shallow';
 import { typeById, type CollectibleType } from '../../../shared/collectibleTypes.js';
 import type { DatasetIndex, Item } from '../../../shared/dataset.js';
-import { worldToLatLng } from '../../../shared/geo.js';
+import { latLngToWorld, worldToLatLng } from '../../../shared/geo.js';
 import { collect, type MapMode, type WorldCtx } from '../../app/feature.js';
 import { useFeatures } from '../../app/FeaturesContext.js';
 import { loadView, saveView, type PersistedView } from '../../app/persist.js';
@@ -16,11 +16,13 @@ import { useUiStore, type UiState } from '../../app/store.js';
 import { useRemotePulse } from '../live/pulse.js';
 import { hasMismatch, isCollected, useMarks, type MarksCache } from '../marks/useMarks.js';
 import { useRouteIndex } from '../routes/useRoutes.js';
+import { clickClaimed } from './clickClaims.js';
 import { IMAGE_BOUNDS } from './imageBounds.js';
 import { CONFLICT_PULSE_MS, newConflicts } from './conflictPulse.js';
 import { DOT_ZOOM, markerState, markerVisual, podBadge, type MarkerState } from './markerStyle.js';
 import { MarkerLayer, type DrawMarker } from './MarkerLayer.js';
 import { prefersReducedMotion } from './motion.js';
+import { currentMaxZoom } from './zoom.js';
 
 const MAX_BOUNDS = L.latLngBounds(IMAGE_BOUNDS).pad(0.1);
 /** Hit radius: covers the 42 px icon marker (mouse); half of the 44 px touch hit area (spec §10.1). */
@@ -50,7 +52,8 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
     modes: collect(features, 'mapModes'),
   }), [features]);
   const interactionMode = useUiStore(s => s.interactionMode);
-  const Banner = modes.find(m => m.id === interactionMode)?.Banner;
+  const activeMode = modes.find(m => m.id === interactionMode);
+  const Banner = activeMode?.Banner;
   // Read once: MapContainer takes its initial view only at creation.
   const [initial] = useState(() => {
     const v = loadView(ctx.worldId);
@@ -60,12 +63,13 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
   const [overlay, setOverlay] = useState<HTMLDivElement | null>(null);
 
   return (
-    <div className={`ficsmap-map-root absolute inset-0 ${Banner ? 'ficsmap-banner-on' : ''}`}>
+    <div className={`ficsmap-map-root absolute inset-0 ${Banner ? 'ficsmap-banner-on' : ''} ${activeMode?.onMapClick ? 'ficsmap-map-pick' : ''}`}>
       <MapContainer
         {...initial}
         crs={L.CRS.Simple}
         minZoom={0}
-        maxZoom={7}
+        // 7, or more while a layer that draws fine detail is on (zoom.ts); layers change it later with setMaxZoom.
+        maxZoom={currentMaxZoom()}
         // Whole zoom levels only: scaled tiles at fractional zooms show seams.
         zoomSnap={1}
         maxBounds={MAX_BOUNDS}
@@ -128,19 +132,25 @@ function BannerBar({ children }: { children: ReactNode }) {
     };
   }, []);
   return (
-    <div ref={ref} className="pointer-events-auto absolute inset-x-0 top-0 flex min-h-10 items-center justify-center bg-accent px-3 py-1 text-center text-sm leading-snug font-semibold text-bg">
-      {children}
+    <div ref={ref} className="pointer-events-auto absolute inset-x-0 top-0 flex min-h-10 flex-col bg-accent text-on-accent shadow-[0_4px_16px_rgb(0_0_0/0.4)]">
+      <div className="flex flex-1 items-center justify-center px-3 py-1 text-center text-sm leading-snug font-semibold">{children}</div>
+      {/* Hazard stripes along the lower edge: a mode is on and changes what a map click does. */}
+      <div aria-hidden="true" className="h-1 shrink-0 hazard" />
     </div>
   );
 }
 
 interface BaseMarker { item: Item; lat: number; lng: number; type: CollectibleType }
 
-type MarkerFilters = Pick<UiState, 'typeFilter' | 'visibility' | 'biomeScope' | 'onlyConflicts' | 'selectedActor'>;
+type MarkerFilters = Pick<UiState, 'typeFilter' | 'visibility' | 'biomeScope' | 'onlyConflicts' | 'selectedActor' | 'searchHighlight'> & {
+  /** A mode that takes points anywhere is on: the markers fade like non-matches of a search, so its points stand out. */
+  picking: boolean;
+};
 
-/** Draw order: uncollected, collected, conflicts, then the selected marker on top. */
+/** Draw order: uncollected, collected, conflicts, search matches, then the selected marker on top. */
 function rank(m: DrawMarker): number {
-  if (m.visual.selected) return 3;
+  if (m.visual.selected) return 4;
+  if (m.visual.highlight) return 3;
   return m.visual.badge === 'conflict' ? 2 : m.visual.badge === 'check' ? 1 : 0;
 }
 
@@ -165,6 +175,7 @@ function buildMarkers(
       typeEnabled: f.typeFilter.has(item.type),
       onlyConflicts: f.onlyConflicts,
       routeIndex: routeIndex.get(item.name) ?? null,
+      search: f.searchHighlight === null ? (f.picking ? false : null) : f.searchHighlight.has(item.name),
     });
     const pod = podBadge(item.extra?.pod);
     const m: DrawMarker = { id: item.name, lat, lng, type, visual: pod ? { ...visual, pod } : visual };
@@ -190,6 +201,7 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
   const marks = useMarks(ctx.worldId);
   const filters = useUiStore(useShallow((s): MarkerFilters => ({
     typeFilter: s.typeFilter, visibility: s.visibility, biomeScope: s.biomeScope, onlyConflicts: s.onlyConflicts, selectedActor: s.selectedActor,
+    searchHighlight: s.searchHighlight, picking: modes.some(m => m.id === s.interactionMode && m.onMapClick !== undefined),
   })));
   const pulse = useRemotePulse(s => s.pulse);
   const routeIndex = useRouteIndex(ctx.worldId);
@@ -219,18 +231,31 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
 
     const activeMode = () => modesRef.current.find(m => m.id === useUiStore.getState().interactionMode);
 
-    const onClick = (e: L.LeafletMouseEvent) => {
+    const pickAt = (e: L.LeafletMouseEvent) => {
       const pointerType = (e.originalEvent as Partial<PointerEvent>).pointerType;
-      const id = layer.pick(e.containerPoint.x, e.containerPoint.y, pointerType === 'touch' ? TOUCH_RADIUS : MOUSE_RADIUS);
-      if (id === null) return;
+      return layer.pick(e.containerPoint.x, e.containerPoint.y, pointerType === 'touch' ? TOUCH_RADIUS : MOUSE_RADIUS);
+    };
+
+    const onClick = (e: L.LeafletMouseEvent) => {
+      const mode = activeMode();
       const z = map.getZoom();
+      if (mode?.onMapClick) {
+        // Points anywhere: a marker icon gives its position, everything else (dots included) the clicked one.
+        const item = z < DOT_ZOOM ? undefined : ctxRef.current.index.byName.get(pickAt(e) ?? '');
+        if (item) mode.onMarkerClick(item, ctxRef.current);
+        else mode.onMapClick(latLngToWorld(e.latlng.lat, e.latlng.lng, ctxRef.current.index.ds.bounds), ctxRef.current);
+        return;
+      }
+      // A layer drawn above the markers (resource nodes) takes clicks on what it shows while just looking around.
+      if (useUiStore.getState().interactionMode === 'inspect' && clickClaimed(e.containerPoint.x, e.containerPoint.y)) return;
+      const id = pickAt(e);
+      if (id === null) return;
       if (z < DOT_ZOOM) {
         map.setZoomAround(e.latlng, z + 2);
         return;
       }
       const item = ctxRef.current.index.byName.get(id);
       if (!item) return;
-      const mode = activeMode();
       // Without a registered mode (only in tests) a click selects the item.
       if (mode) mode.onMarkerClick(item, ctxRef.current);
       else useUiStore.getState().select(item.name);
@@ -252,7 +277,9 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
       hoverFrame = requestAnimationFrame(() => {
         hoverFrame = 0;
         if (!hoverPoint || dragging) return;
-        setHover(layer.pick(hoverPoint.x, hoverPoint.y, MOUSE_RADIUS) !== null);
+        // A mode taking points anywhere does not snap to dots, so they get no pointer.
+        const dotsArePoints = activeMode()?.onMapClick !== undefined && map.getZoom() < DOT_ZOOM;
+        setHover(!dotsArePoints && layer.pick(hoverPoint.x, hoverPoint.y, MOUSE_RADIUS) !== null);
       });
     };
     const onMouseOut = () => {

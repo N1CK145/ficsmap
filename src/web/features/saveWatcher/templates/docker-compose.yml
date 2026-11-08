@@ -1,0 +1,15 @@
+# ficsmap save watcher. Start: docker compose up -d --build   Logs: docker compose logs -f
+# The save folder is mounted read-only; the watcher never changes your saves.
+services:
+  ficsmap-watch:
+    build: .
+    image: ficsmap-watch:local
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: @@SAVE_DIR@@
+        target: /saves
+        read_only: true
+      - state:/state
+volumes:
+  state:

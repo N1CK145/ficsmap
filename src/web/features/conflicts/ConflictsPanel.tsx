@@ -39,7 +39,8 @@ export function ConflictsPanel({ worldId }: { worldId: string }) {
 /**
  * Header item without a face: it lives as long as the world is open, so it can answer the import
  * banner's [Review conflicts] before the panel exists, and it keeps the review consistent with the
- * cache (selects the conflict that moved into the current slot, ends the review at zero conflicts).
+ * cache (selects the conflict that moved into the current slot, ends the review and the "only conflicts" filter at
+ * zero conflicts).
  */
 export function ConflictsHost({ ctx }: { ctx: WorldCtx }) {
   const { t } = useTranslation();
@@ -60,6 +61,12 @@ export function ConflictsHost({ ctx }: { ctx: WorldCtx }) {
     } });
     return () => useImportBanner.setState({ onReview: undefined });
   }, []);
+
+  // "Show only conflicts" with none left would hide every item, and the checkbox goes with the panel:
+  // switch the filter off once the last conflict is gone.
+  useEffect(() => {
+    if (marksSettled && list.length === 0 && useUiStore.getState().onlyConflicts) useUiStore.getState().setOnlyConflicts(false);
+  }, [marksSettled, list]);
 
   useEffect(() => {
     if (!wanted) return;

@@ -1,21 +1,22 @@
 import { useTranslation } from 'react-i18next';
 import { APP_VERSION, RELEASE_URL, REPO_URL } from '../app/version.js';
 
-/** The footer's fixed height; the mobile sheets and the Quick Check button sit above it. */
+/** The footer's fixed height. */
 export const FOOTER_PX = 28;
 
-const linkClass = 'rounded focus-ring hover:text-fg hover:underline';
+const linkClass = 'rounded focus-ring hover:text-accent';
 
 /**
- * One line of small print at the bottom of every page: this build's version (its release page)
- * and the source repository. Always `FOOTER_PX` high, so the world view can lay out around it.
+ * One line of small print at the bottom of the world list and the sign-in page: this build's version (its release
+ * page) and the source repository. Inside a world the account menu has both instead, so the map and the tool pages
+ * keep the whole height. Always `FOOTER_PX` high.
  */
 export function Footer({ className = '' }: { className?: string }) {
   const { t } = useTranslation();
   return (
     <footer
       style={{ height: FOOTER_PX }}
-      className={`flex shrink-0 items-center justify-center gap-x-2 overflow-hidden px-3 text-xs whitespace-nowrap text-muted ${className}`}
+      className={`flex shrink-0 items-center justify-center gap-x-2 overflow-hidden px-3 font-display text-xs tracking-wider whitespace-nowrap text-muted uppercase ${className}`}
     >
       <a href={RELEASE_URL} target="_blank" rel="noreferrer" className={linkClass}>{t('app.name')} v{APP_VERSION}</a>
       <span aria-hidden="true">·</span>

@@ -1,10 +1,12 @@
 import type { CollectibleTypeId, LocalizedName, WorldBounds } from './types.js';
 
 export interface PodRequirement { item: LocalizedName | null; amount: number; power: number }
-export interface ItemExtra { pod?: PodRequirement; shards?: number }
-/** What lies around a drop pod's crash site (`/data/<v>/crash-sites.json`); names and notes are English. */
+/** `cave`: the item lies inside a cave (dataset built with caves.json). */
+export interface ItemExtra { pod?: PodRequirement; shards?: number; cave?: true }
+/** What lies around a drop pod's crash site (`/data/<v>/crash-sites.json`); threats and notes are English. */
 export interface CrashSite {
-  items: { item: string; amount: number; where?: string }[];
+  /** `item`: the English name, which matches pod requirements; `de`: the German name (missing in older datasets). */
+  items: { item: string; de?: string; amount: number; where?: string }[];
   /** `count` null: "some" (e.g. gas pillars). */
   threats: { name: string; count: number | null }[];
   notes: string[];

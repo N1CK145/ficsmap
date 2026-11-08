@@ -1,0 +1,4 @@
+/* A resource node under the mouse; Leaflet's grab cursors win while the map is dragged. */
+body:not(.leaflet-dragging) .ficsmap-map.ficsmap-node-hover {
+  cursor: pointer;
+}

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
 import type { WorldCtx } from '../../src/web/app/feature.js';
@@ -56,6 +56,21 @@ describe('conflicts host and panel', () => {
     setup(['S1']);
     act(() => screen.getByRole('checkbox', { name: 'Show only conflicts' }).click());
     expect(useUiStore.getState().onlyConflicts).toBe(true);
+  });
+
+  it('switches "Show only conflicts" off once no conflict is left, so the items show again', async () => {
+    const { client } = setup(['S1']);
+    act(() => screen.getByRole('checkbox', { name: 'Show only conflicts' }).click());
+    expect(useUiStore.getState().onlyConflicts).toBe(true);
+    act(() => { client.setQueryData(queryKeys.marks(W), cache([])); });
+    await waitFor(() => expect(useUiStore.getState().onlyConflicts).toBe(false));
+    expect(screen.queryByRole('checkbox', { name: 'Show only conflicts' })).toBeNull();
+  });
+
+  it('a remembered "only conflicts" filter is dropped when the world has no conflicts', () => {
+    useUiStore.getState().setOnlyConflicts(true);
+    setup([]);
+    expect(useUiStore.getState().onlyConflicts).toBe(false);
   });
 
   it('ends the review with a toast when the last conflict is resolved', async () => {

@@ -96,7 +96,7 @@ function OverlayBox({ worldId, needs }: { worldId: string; needs: PodNeeds }) {
       ref={ref}
       aria-label={t('routes.podNeeds.title')}
       style={{ bottom: BOTTOM, right: fit.beside ? ITEM_PANEL_RIGHT + ITEM_PANEL_WIDTH + GAP : ITEM_PANEL_RIGHT, maxHeight: collapsed ? undefined : fit.maxHeight }}
-      className="ficsmap-pod-checklist pointer-events-auto absolute flex w-[300px] flex-col rounded border border-line bg-panel/95 shadow-lg"
+      className="ficsmap-pod-checklist pointer-events-auto absolute flex w-[300px] flex-col chamfer-window border border-t-2 border-line border-t-accent bg-panel/95 shadow-[0_10px_30px_rgb(0_0_0/0.45)]"
     >
       <header className="flex items-center gap-2 py-1 pr-1 pl-3">
         <h2 className="min-w-0 flex-1 truncate font-display text-sm font-semibold tracking-wider uppercase">

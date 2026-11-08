@@ -5,13 +5,16 @@ import L from 'leaflet';
 import { useMap } from 'react-leaflet';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
+import { latLngToWorld } from '../../src/shared/geo.js';
 import type { FeatureModule, WorldCtx } from '../../src/web/app/feature.js';
 import { FeaturesProvider } from '../../src/web/app/FeaturesContext.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { loadView, saveView } from '../../src/web/app/persist.js';
 import { queryKeys } from '../../src/web/app/queryKeys.js';
 import { useUiStore } from '../../src/web/app/store.js';
+import { markerClickClaims } from '../../src/web/features/map/clickClaims.js';
 import { MapView } from '../../src/web/features/map/MapView.js';
+import { MarkerLayer, type DrawMarker } from '../../src/web/features/map/MarkerLayer.js';
 import type { MarksCache } from '../../src/web/features/marks/useMarks.js';
 
 const WORLD = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
@@ -36,11 +39,17 @@ function MapGrabber() {
 }
 
 const onQuickClick = vi.fn();
+const onPickMarker = vi.fn();
+const onPickPoint = vi.fn();
 const probeFeature: FeatureModule = {
   id: 'probe',
   mapLayers: [{ id: 'probe-layer', order: 1, Component: ProbeLayer }, { id: 'grabber', order: 2, Component: MapGrabber }],
   mapControls: [{ id: 'probe-control', order: 1, Component: () => <button type="button">Probe control</button> }],
-  mapModes: [{ id: 'quick', onMarkerClick: onQuickClick, Banner: () => <p>Probe banner</p> }],
+  mapModes: [
+    { id: 'route', onMarkerClick: onQuickClick, Banner: () => <p>Probe banner</p> },
+    // Takes points anywhere, like the vehicle calculator's pick mode.
+    { id: 'vehicle-route', onMarkerClick: onPickMarker, onMapClick: onPickPoint },
+  ],
 };
 
 function renderMap(worldId = WORLD) {
@@ -76,7 +85,7 @@ describe('MapView', () => {
   it('shows the banner of the active map mode only', () => {
     renderMap();
     expect(screen.queryByText('Probe banner')).not.toBeInTheDocument();
-    act(() => { useUiStore.getState().setMode('quick'); });
+    act(() => { useUiStore.getState().setMode('route'); });
     expect(screen.getByText('Probe banner')).toBeInTheDocument();
   });
 });
@@ -87,6 +96,8 @@ describe('MapView clicks', () => {
     localStorage.clear();
     useUiStore.getState().enterWorld(WORLD);
     onQuickClick.mockClear();
+    onPickMarker.mockClear();
+    onPickPoint.mockClear();
     probedMap = null;
     // A 512 px map fits the 256-unit image at zoom 1; the item (world 50, 50) sits at the centre.
     vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(512);
@@ -120,10 +131,35 @@ describe('MapView clicks', () => {
   it('hands the item to the active map mode', () => {
     renderMap();
     const map = probedMap!;
-    act(() => { map.setZoom(3); useUiStore.getState().setMode('quick'); });
+    act(() => { map.setZoom(3); useUiStore.getState().setMode('route'); });
     clickAt(map, 256, 256);
     expect(onQuickClick).toHaveBeenCalledWith(expect.objectContaining({ name: 'S1' }), expect.objectContaining({ worldId: WORLD }));
     expect(useUiStore.getState().selectedActor).toBeNull();
+  });
+
+  it('gives a mode that takes points anywhere the marker under an icon, else the world position', () => {
+    const { container } = renderMap();
+    const map = probedMap!;
+    act(() => { map.setZoom(3); useUiStore.getState().setMode('vehicle-route'); });
+    expect(container.querySelector('.ficsmap-map-root')).toHaveClass('ficsmap-map-pick');
+    clickAt(map, 256, 256);
+    expect(onPickMarker).toHaveBeenCalledWith(expect.objectContaining({ name: 'S1' }), expect.objectContaining({ worldId: WORLD }));
+    expect(onPickPoint).not.toHaveBeenCalled();
+    clickAt(map, 50, 50);
+    const ll = map.containerPointToLatLng([50, 50]);
+    expect(onPickPoint).toHaveBeenCalledWith(latLngToWorld(ll.lat, ll.lng, dataset.bounds), expect.objectContaining({ worldId: WORLD }));
+    expect(useUiStore.getState().selectedActor).toBeNull();
+  });
+
+  it('gives such a mode the position of a click on a dot, without zooming in', () => {
+    renderMap();
+    const map = probedMap!;
+    act(() => { useUiStore.getState().setMode('vehicle-route'); });
+    clickAt(map, 258, 255);
+    expect(map.getZoom()).toBe(1);
+    expect(onPickMarker).not.toHaveBeenCalled();
+    const ll = map.containerPointToLatLng([258, 255]);
+    expect(onPickPoint).toHaveBeenCalledWith(latLngToWorld(ll.lat, ll.lng, dataset.bounds), expect.anything());
   });
 
   it('ignores a click away from every marker', () => {
@@ -146,6 +182,45 @@ describe('MapView clicks', () => {
   it('renders the controls outside the Leaflet container', () => {
     renderMap();
     expect(probedMap!.getContainer().contains(screen.getByRole('button', { name: 'Probe control' }))).toBe(false);
+  });
+
+  it('fades the markers like non-matches of a search while a mode takes points anywhere', () => {
+    renderMap();
+    let layer: MarkerLayer | undefined;
+    probedMap!.eachLayer(l => { if (l instanceof MarkerLayer) layer = l; });
+    // The canvas layer's data, as it draws it.
+    const drawn = () => (layer as unknown as { getMarkers(): readonly DrawMarker[] }).getMarkers();
+    expect(drawn()[0]!.visual.opacity).toBe(1);
+    act(() => { useUiStore.getState().setMode('vehicle-route'); });
+    expect(drawn()[0]!.visual).toMatchObject({ opacity: 0.2, highlight: false });
+    // A mode that only takes markers (the route editor) leaves them as they are.
+    act(() => { useUiStore.getState().setMode('route'); });
+    expect(drawn()[0]!.visual.opacity).toBe(1);
+    // A search match stays highlighted while picking.
+    act(() => { useUiStore.getState().setMode('vehicle-route'); useUiStore.getState().setSearchHighlight(new Set(['S1'])); });
+    expect(drawn()[0]!.visual).toMatchObject({ opacity: 1, highlight: true });
+    act(() => { useUiStore.getState().setSearchHighlight(null); });
+  });
+
+  it('leaves a click to a layer above the markers that claims it, while just looking around', () => {
+    renderMap();
+    const map = probedMap!;
+    act(() => { map.setZoom(3); });
+    const claim = (x: number, y: number) => Math.hypot(x - 256, y - 256) < 10;
+    markerClickClaims.add(claim);
+    try {
+      clickAt(map, 256, 256);
+      expect(useUiStore.getState().selectedActor).toBeNull();
+      // Modes still get their markers.
+      act(() => { useUiStore.getState().setMode('route'); });
+      clickAt(map, 256, 256);
+      expect(onQuickClick).toHaveBeenCalledWith(expect.objectContaining({ name: 'S1' }), expect.anything());
+    } finally {
+      markerClickClaims.delete(claim);
+    }
+    act(() => { useUiStore.getState().setMode('route'); });
+    clickAt(map, 256, 256);
+    expect(useUiStore.getState().selectedActor).toBe('S1');
   });
 });
 

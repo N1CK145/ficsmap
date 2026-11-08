@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { CloseIcon } from './icons.js';
 import { IconButton } from './IconButton.js';
+import { WINDOW_FRAME, WindowTitleBar } from './Window.js';
 
 export interface DialogProps {
   open: boolean;
@@ -38,18 +40,19 @@ export function Dialog({ open, onClose, title, labelledBy, children, footer }: D
       // Esc: the parent decides. A close the browser forces anyway (or a form method=dialog) is reported too.
       onCancel={e => { e.preventDefault(); onClose(); }}
       onClose={() => { if (open) onClose(); }}
-      className="m-auto w-[calc(100%-2rem)] max-w-md rounded border border-line bg-panel p-0 text-fg backdrop:bg-bg/70"
+      className={`m-auto w-[calc(100%-2rem)] max-w-md p-0 ${WINDOW_FRAME} backdrop:bg-bg/75 backdrop:backdrop-blur-[2px]`}
     >
       {open && (
         <>
-          <div className={`flex items-center gap-2 py-2 pr-2 pl-4 ${title ? 'justify-between border-b border-line' : 'justify-end'}`}>
-            {title && <h2 id={titleId} className="font-display text-xl font-semibold">{title}</h2>}
-            <IconButton aria-label={t('common.close')} size="sm" onClick={onClose}>
-              <span aria-hidden="true">×</span>
-            </IconButton>
-          </div>
+          {title
+            ? <WindowTitleBar title={title} titleId={titleId} onClose={onClose} />
+            : (
+              <div className="flex justify-end border-t-2 border-t-accent py-1.5 pr-1.5">
+                <IconButton aria-label={t('common.close')} size="sm" onClick={onClose}><CloseIcon /></IconButton>
+              </div>
+            )}
           <div className={title ? 'p-4' : 'px-4 pb-4'}>{children}</div>
-          {footer && <div className="flex justify-end gap-2 border-t border-line px-4 py-3">{footer}</div>}
+          {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line bg-bg/50 px-4 py-3">{footer}</div>}
         </>
       )}
     </dialog>

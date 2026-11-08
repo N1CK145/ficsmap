@@ -24,6 +24,11 @@ describe('SegmentedControl', () => {
     expect(screen.getByRole('radio', { name: 'Show' })).toHaveAttribute('tabindex', '-1');
   });
 
+  it('has 44 px segments below 900 px (touch)', () => {
+    render(<Harness />);
+    expect(screen.getByRole('radio', { name: 'Show' })).toHaveClass('h-8', 'max-[899px]:h-11');
+  });
+
   it('selects on click', () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);

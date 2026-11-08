@@ -15,7 +15,11 @@ import { registerWorldRoutes } from './http/worlds.js';
 import { registerMemberRoutes } from './http/members.js';
 import { registerMarkRoutes } from './http/marks.js';
 import { registerImportRoutes } from './http/import.js';
+import { registerResourceNodeRoutes } from './http/resourceNodes.js';
 import { registerRouteRoutes } from './http/routes.js';
+import { registerSnapshotRoutes } from './http/snapshots.js';
+import { registerSaveRoutes, SAVE_UPLOAD_ROUTE } from './http/saves.js';
+import { registerUploadTokenRoutes } from './http/uploadTokens.js';
 import { registerEventRoutes } from './http/events.js';
 import { registerInviteRoutes } from './http/invites.js';
 import { registerSpa } from './http/spa.js';
@@ -23,6 +27,7 @@ import { appVersion } from './version/appVersion.js';
 import { createInviteService, type InviteService } from './domain/invites.js';
 import { redactUrl } from './redact.js';
 import { SseHub } from './sse/hub.js';
+import { createParsePool, type SaveParser } from './parse/pool.js';
 
 export interface AppDeps {
   config: Config;
@@ -32,6 +37,8 @@ export interface AppDeps {
   now?: () => number;
   hub?: SseHub;
   invites?: InviteService;
+  /** Parses saves uploaded by the save watcher; default a worker pool on the dataset (tests pass a fake). */
+  saveParser?: SaveParser;
 }
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -42,6 +49,12 @@ const SECURITY_HEADERS: [string, string][] = [
   ['Content-Security-Policy', "frame-ancestors 'none'"],
 ];
 const LIMITED_ROUTES = /^\/(api|auth|invite)(\/|$)/;
+/**
+ * Routes that authenticate with a bearer token and never read the session cookie (the save watcher's upload). A
+ * cross-site page cannot set `Authorization`, so the Origin and JSON checks do not apply. Matched on the route
+ * pattern: a request only matches when it reaches that handler.
+ */
+const BEARER_ROUTES = new Set([`POST ${SAVE_UPLOAD_ROUTE}`]);
 
 /** GET/HEAD on anything that is not an API, auth or invite route (matched on the route pattern, so encoding cannot dodge it). */
 function isStaticGet(req: FastifyRequest): boolean {
@@ -82,6 +95,7 @@ export async function buildApp(input: AppDeps): Promise<FastifyInstance> {
     // Every mutation is guarded regardless of path: find-my-way decodes the path
     // before routing, so a path-prefix test could be bypassed by percent-encoding.
     if (!MUTATING.has(req.method)) return;
+    if (BEARER_ROUTES.has(`${req.method} ${req.routeOptions.url ?? ''}`)) return;
     const contentType = req.headers['content-type'];
     const emptyDelete =
       req.method === 'DELETE' && !contentType &&
@@ -110,7 +124,7 @@ export async function buildApp(input: AppDeps): Promise<FastifyInstance> {
     if (err instanceof HttpError) return send(err.status, err.code, err.message);
     if (err instanceof ZodError || err.validation) return send(400, 'invalid_body', 'Invalid request body');
     if (err.statusCode === 429) return send(429, 'rate_limited', 'Too many requests');
-    if (err.statusCode === 400 || err.statusCode === 413) {
+    if (err.statusCode === 400 || err.statusCode === 413 || err.statusCode === 415) {
       return send(err.statusCode, 'invalid_body', 'Invalid request body');
     }
     req.log.error({ err }, 'unhandled error');
@@ -131,7 +145,13 @@ export async function buildApp(input: AppDeps): Promise<FastifyInstance> {
   registerMemberRoutes(app, deps);
   registerMarkRoutes(app, deps);
   registerImportRoutes(app, deps);
+  registerResourceNodeRoutes(app, deps);
   registerRouteRoutes(app, deps);
+  registerSnapshotRoutes(app, deps);
+  const saveParser = deps.saveParser ?? createParsePool({ dataset: deps.dataset.ds });
+  app.addHook('onClose', async () => saveParser.close());
+  registerSaveRoutes(app, { ...deps, saveParser });
+  registerUploadTokenRoutes(app, deps);
   registerEventRoutes(app, deps);
   registerInviteRoutes(app, deps);
   await registerSpa(app, deps); // last: owns the not-found handler (SPA fallback)

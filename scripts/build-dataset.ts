@@ -4,9 +4,22 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { COLLECTIBLE_TYPES, classify, typeById } from '../src/shared/collectibleTypes.js';
 import { assignBiome, loadEditorBiomes, type BiomeShape } from '../src/shared/biomes.js';
+import { cavesToGeojson, type RawCaves } from '../src/shared/caves.js';
+import { sampleCaves } from './cave-geometry.js';
+import { readHeightGrid, writeHeightTiles } from './heightmap.js';
+import { AREA_SNAP, biomesFromAreas, landTest, readMapAreas } from './map-areas.js';
+import { readDocsFile } from './game-docs.js';
+import { buildTransportData, type RawTransport } from './transport.js';
+import { RecipeBuildError, recipeSummary, writeRecipes } from './recipes.js';
+import { buildMachinesFromDocs, MachineBuildError, machineSummary, writeMachines } from './machines.js';
+import { IconBuildError, iconSummary, writeIcons } from './icons.js';
+import { BuildingBuildError, buildBuildingsFromFiles, buildingIconClasses, buildingSummaryLine, writeBuildings } from './buildings.js';
+import type { BuildingsFile } from '../src/shared/buildings.js';
+import { descriptorClass, type MachineData } from '../src/shared/machines.js';
 import { UNITS_PER_METER, type Calibration } from '../src/shared/geo.js';
-import type { CollectibleTypeId, WorldBounds } from '../src/shared/types.js';
+import type { CollectibleTypeId, LocalizedName, WorldBounds } from '../src/shared/types.js';
 import type { CrashSites, Dataset, DatasetItemTuple, ItemExtra, PodRequirement } from '../src/shared/dataset.js';
+import { GEYSER_RESOURCE, purityFromGame, type NodeKind, type Purity, type ResourceNodesFile, type ResourceNodeTuple } from '../src/shared/resourceNodes.js';
 
 export class BuildError extends Error {
   constructor(public problems: string[]) {
@@ -21,45 +34,43 @@ export interface BuildInput {
   map: unknown;
   biomesGeojson: unknown;
   calibration: Calibration;
-  /** descriptor class (Desc_X_C) -> English display name; used for both locales */
-  itemNames: Record<string, string>;
+  /** descriptor class (Desc_X_C) -> the game's display name in English and German (item-names.json) */
+  itemNames: Record<string, LocalizedName>;
   snapUnits: number;
   build: number;
   /** data-src/crash-sites/crash-sites.json (Steam guide + game pickups), optional. */
   crashSites?: unknown;
+  /** Names of the items that lie in a cave (from sampleCaves), optional. They get `extra.cave`. */
+  itemsInCaves?: ReadonlySet<string>;
+  /** Biomes from the game's map areas (biomesFromAreas), optional; replace the editor polygons when given. */
+  biomeAreas?: { biomes: BiomeShape[]; assign: (x: number, y: number) => number };
 }
 
 interface RawEntry { name: string; class: string; location: [number, number, number] }
 interface RawPod { costType: string | null; item: string | null; amount: number; power: number }
 interface RawShrine { name: string; attachedTo: string }
 interface RawCrashSite {
-  requirement?: { type: string };
-  items?: { item: string; amount: number; pickup?: string; where?: string; inGame?: boolean }[];
+  items?: { item: string; itemClass?: string; amount: number; pickup?: string; where?: string; inGame?: boolean }[];
   threats?: { name: string; count: number | null }[];
   notes?: string[];
 }
 const crashSitePods = (raw: unknown): Record<string, RawCrashSite> => (raw as { pods?: Record<string, RawCrashSite> } | undefined)?.pods ?? {};
 interface RawMap { id: string; gameVersion?: string; world: WorldBounds }
 
-const DEFAULT_BUILD = 513885;
+const DEFAULT_BUILD = 517554;
 
-function podRequirement(raw: RawPod, itemNames: Record<string, string>, problems: string[]): PodRequirement | undefined {
-  const hasItem = !!raw.item && raw.amount > 0;
-  const hasPower = raw.power > 0;
-  let useItem: boolean;
-  let usePower: boolean;
-  if (raw.costType === 'Item') { useItem = hasItem; usePower = false; }
-  else if (raw.costType === 'Power') { useItem = false; usePower = hasPower; }
-  else if (raw.costType === 'None') { useItem = hasItem; usePower = hasPower; }
-  else return undefined; // no mUnlockCost: requirement unknown
-  if (!useItem && !usePower) return undefined;
-  let item: PodRequirement['item'] = null;
-  if (useItem) {
-    const en = itemNames[raw.item!];
-    if (en === undefined) problems.push(`Pod item ${raw.item} has no entry in item-names.json`);
-    item = { en: en ?? raw.item!, de: en ?? raw.item! };
-  }
-  return { item, amount: useItem ? raw.amount : 0, power: usePower ? raw.power : 0 };
+/**
+ * A pod's unlock cost (mUnlockCost). CostType says which field counts: Item (item and amount) or Power. With None, or
+ * without mUnlockCost (null: the class default), the pod needs nothing; leftover item or power values in the fields the
+ * game ignores do not count. Undefined (unknown) only for a cost type without its value or an unknown cost type.
+ */
+function podRequirement(raw: RawPod, itemNames: Record<string, LocalizedName>, problems: string[]): PodRequirement | undefined {
+  if (raw.costType === 'None' || raw.costType === null) return { item: null, amount: 0, power: 0 };
+  if (raw.costType === 'Power') return raw.power > 0 ? { item: null, amount: 0, power: raw.power } : undefined;
+  if (raw.costType !== 'Item' || !raw.item || raw.amount <= 0) return undefined;
+  const name = itemNames[raw.item];
+  if (name === undefined) problems.push(`Pod item ${raw.item} has no entry in item-names.json`);
+  return { item: name ?? { en: raw.item, de: raw.item }, amount: raw.amount, power: 0 };
 }
 
 export function buildDataset(input: BuildInput): Dataset {
@@ -67,7 +78,8 @@ export function buildDataset(input: BuildInput): Dataset {
   const coll = input.collectibles as { pickups: RawEntry[]; dropPods: RawEntry[] };
   const extras = input.extras as { dropPods: Record<string, RawPod>; shrines: RawShrine[] };
   const map = input.map as RawMap;
-  const biomes: BiomeShape[] = loadEditorBiomes(input.biomesGeojson, input.calibration);
+  const biomes: BiomeShape[] = input.biomeAreas?.biomes ?? loadEditorBiomes(input.biomesGeojson, input.calibration);
+  const biomeAt = input.biomeAreas?.assign ?? ((x: number, y: number) => assignBiome(x, y, biomes, input.snapUnits));
   const order = new Map(COLLECTIBLE_TYPES.map((t, i) => [t.id, i]));
 
   interface Work { name: string; type: CollectibleTypeId; x: number; y: number; z: number; biome: number; extra?: ItemExtra }
@@ -80,7 +92,7 @@ export function buildDataset(input: BuildInput): Dataset {
       if (seen.has(e.name)) { problems.push(`Duplicate item name ${e.name}`); continue; }
       seen.add(e.name);
       const [x, y, z] = e.location;
-      const biome = assignBiome(x, y, biomes, input.snapUnits);
+      const biome = biomeAt(x, y);
       if (biome < 0) {
         problems.push(`Item ${e.name} (${type}, x=${x}, y=${y}) is outside every biome beyond the snap distance`);
       }
@@ -89,11 +101,10 @@ export function buildDataset(input: BuildInput): Dataset {
       if (t.powerShards !== undefined) w.extra = { shards: t.powerShards };
       if (t.details === 'dropPod') {
         const raw = extras.dropPods[e.name];
-        let pod = raw && podRequirement(raw, input.itemNames, problems);
-        // The game data has no cost for some pods; where the crash-site guide says none is needed, trust it.
-        if (!pod && crashSitePods(input.crashSites)[e.name]?.requirement?.type === 'none') pod = { item: null, amount: 0, power: 0 };
+        const pod = raw && podRequirement(raw, input.itemNames, problems);
         if (pod) w.extra = { pod };
       }
+      if (input.itemsInCaves?.has(e.name)) w.extra = { ...w.extra, cave: true };
       work.push(w);
     }
   }
@@ -143,8 +154,9 @@ export function buildDataset(input: BuildInput): Dataset {
     build: input.build,
     bounds: map.world,
     mapId: map.id,
-    podRequirementsKnown: Object.keys(extras.dropPods).length > 0,
-    biomes: biomes.map(b => ({ id: b.id, name: { en: b.name, de: b.name } })),
+    // True only when every drop pod has its requirement from the game data (extras.json).
+    podRequirementsKnown: work.every(w => typeById(w.type).details !== 'dropPod' || w.extra?.pod !== undefined),
+    biomes: biomes.map(b => ({ id: b.id, name: { en: b.name, de: b.nameDe ?? b.name } })),
     items,
     aliases,
   };
@@ -152,21 +164,83 @@ export function buildDataset(input: BuildInput): Dataset {
 
 /**
  * Per pod of the dataset: the items lying around its crash site (only pickups that exist in the game),
- * threats and notes, from data-src/crash-sites/crash-sites.json. Served as `crash-sites.json`.
+ * threats and notes, from data-src/crash-sites/crash-sites.json. Served as `crash-sites.json`. Items whose class is in
+ * `itemNames` get the game's English name (the key that matches pod requirements) and its German name.
  */
-export function buildCrashSites(raw: unknown, ds: Dataset): CrashSites {
+export function buildCrashSites(raw: unknown, ds: Dataset, itemNames: Record<string, LocalizedName> = {}): CrashSites {
   const pods = new Set(ds.items.filter(i => i[1] === 'hard_drive').map(i => i[0]));
   const out: CrashSites = {};
   for (const [name, site] of Object.entries(crashSitePods(raw))) {
     if (!pods.has(name)) continue;
     out[name] = {
-      items: (site.items ?? []).filter(i => i.pickup !== undefined && i.inGame !== false)
-        .map(i => (i.where ? { item: i.item, amount: i.amount, where: i.where } : { item: i.item, amount: i.amount })),
+      items: (site.items ?? []).filter(i => i.pickup !== undefined && i.inGame !== false).map(i => {
+        const known = i.itemClass === undefined ? undefined : itemNames[i.itemClass];
+        return { item: known?.en ?? i.item, ...(known && { de: known.de }), amount: i.amount, ...(i.where ? { where: i.where } : {}) };
+      }),
       threats: (site.threats ?? []).map(t => ({ name: t.name, count: t.count })),
       notes: site.notes ?? [],
     };
   }
   return out;
+}
+
+interface RawNodeEntry { name?: unknown; location?: unknown; resource?: unknown; purity?: unknown }
+interface RawDefaultWorld {
+  gameVersion?: string;
+  resourceNodes?: RawNodeEntry[];
+  geysers?: RawNodeEntry[];
+  frackingCores?: (RawNodeEntry & { satellites?: RawNodeEntry[] })[];
+}
+
+/**
+ * `resource-nodes.json` from the extractor's `default-world.json`: every resource node, geyser, fracking
+ * core and satellite with resource, purity and position. Satellites take their core's resource; geysers get
+ * the pseudo resource `Geyser`. Fails on unknown purities, resources without a name in item-names.json,
+ * duplicate names and bad positions.
+ */
+export function buildResourceNodes(raw: unknown, itemNames: Record<string, LocalizedName>, version: string): ResourceNodesFile {
+  const w = raw as RawDefaultWorld;
+  const problems: string[] = [];
+  const nodes: ResourceNodeTuple[] = [];
+  const seen = new Set<string>();
+  const used = new Set<string>();
+  const add = (e: RawNodeEntry, kind: NodeKind, resource: unknown, core?: string) => {
+    const name = typeof e.name === 'string' ? e.name : '';
+    if (!/^[A-Za-z0-9_]{1,128}$/.test(name)) { problems.push(`Resource node with a bad name: ${JSON.stringify(e.name)}`); return; }
+    if (seen.has(name)) { problems.push(`Duplicate resource node name ${name}`); return; }
+    seen.add(name);
+    const loc = e.location;
+    if (!Array.isArray(loc) || loc.length !== 3 || !loc.every(v => typeof v === 'number' && Number.isFinite(v))) {
+      problems.push(`Resource node ${name} has no valid location`);
+      return;
+    }
+    if (typeof resource !== 'string' || !/^[A-Za-z0-9_]{1,64}$/.test(resource)) { problems.push(`Resource node ${name} has no resource`); return; }
+    let purity: Purity | null = null;
+    if (kind !== 'core') {
+      purity = purityFromGame(e.purity);
+      if (purity === null) { problems.push(`Resource node ${name} has an unknown purity ${JSON.stringify(e.purity)}`); return; }
+    }
+    used.add(resource);
+    const [x, y, z] = (loc as number[]).map(Math.round) as [number, number, number];
+    const t: ResourceNodeTuple = [name, kind, resource, purity, x, y, z];
+    if (core !== undefined) t.push(core);
+    nodes.push(t);
+  };
+  for (const e of w.resourceNodes ?? []) add(e, 'node', e.resource);
+  for (const e of w.geysers ?? []) add(e, 'geyser', GEYSER_RESOURCE);
+  for (const c of w.frackingCores ?? []) {
+    const before = nodes.length;
+    add(c, 'core', c.resource);
+    if (nodes.length === before) continue;
+    const core = nodes[nodes.length - 1]![0];
+    if (!c.satellites?.length) problems.push(`Fracking core ${core} has no satellites`);
+    for (const s of c.satellites ?? []) add(s, 'satellite', c.resource, core);
+  }
+  for (const r of used) if (r !== GEYSER_RESOURCE && itemNames[r] === undefined) problems.push(`Resource ${r} has no entry in item-names.json`);
+  if (nodes.length === 0) problems.push('default-world.json has no resource nodes');
+  if (problems.length > 0) throw new BuildError(problems);
+  const resources = [...used].sort().map(id => ({ id, name: id === GEYSER_RESOURCE ? 'Geyser' : itemNames[id]!.en }));
+  return { version: w.gameVersion ?? version, resources, nodes };
 }
 
 /** GeoJSON in world coordinates: one feature per biome; all rings under even-odd fill. */
@@ -195,9 +269,15 @@ export interface LoadOptions {
 /** Reads collectibles.json, extras.json, map/map.json from `dir`; biomes, calibration and item names from options (default: inside `dir`). */
 export function loadExtractorDir(dir: string, opts: LoadOptions = {}): BuildInput {
   const itemNamesPath = opts.itemNames ?? join(dir, 'item-names.json');
+
   const rawNames = existsSync(itemNamesPath) ? (readJson(itemNamesPath) as Record<string, unknown>) : {};
-  const itemNames: Record<string, string> = {};
-  for (const [k, v] of Object.entries(rawNames)) if (!k.startsWith('_') && typeof v === 'string') itemNames[k] = v;
+  // Entries are { en, de }; a plain string (older copies of the file) serves both locales.
+  const itemNames: Record<string, LocalizedName> = {};
+  for (const [k, v] of Object.entries(rawNames)) {
+    if (k.startsWith('_')) continue;
+    if (typeof v === 'string') itemNames[k] = { en: v, de: v };
+    else if (v && typeof v === 'object') itemNames[k] = v as LocalizedName;
+  }
   return {
     collectibles: readJson(join(dir, 'collectibles.json')),
     extras: readJson(join(dir, 'extras.json')),
@@ -211,11 +291,54 @@ export function loadExtractorDir(dir: string, opts: LoadOptions = {}): BuildInpu
   };
 }
 
+/**
+ * The parts of a dataset, each written to its own files. `npm run dataset` builds all of them; `--only` builds
+ * just the named ones (into an existing dataset folder, the others stay as they are).
+ */
+export const DATASET_PARTS = {
+  collectibles: 'collectibles.min.json (items with their biome and cave flag, drop-pod requirements)',
+  'crash-sites': 'crash-sites.json (maintainer data)',
+  biomes: 'biomes.geojson',
+  caves: 'caves.geojson',
+  heights: 'height/ (height map tiles)',
+  map: 'map.json, tiles/, icons/',
+  nodes: 'resource-nodes.json',
+  transport: 'transport.json (vehicle calculator)',
+  recipes: 'recipes.json (production planner)',
+  machines: 'machines.json (machine and vehicle wiki)',
+  icons: 'icons/items/ (pictures of items, machines, vehicles and, with buildings-raw.json, every buildable)',
+  buildings: 'buildings.json (footprints, names, categories and pictures of every buildable and vehicle, factory map)',
+} as const;
+export type DatasetPart = keyof typeof DATASET_PARTS;
+
+/**
+ * The parts to build from `--only` values (repeatable and/or comma-separated, e.g. `--only caves,recipes`):
+ * none means every part. Throws on an unknown name.
+ */
+export function selectParts(only: readonly string[] | undefined): Set<DatasetPart> {
+  const names = (only ?? []).flatMap(o => o.split(',')).map(o => o.trim()).filter(Boolean);
+  if (names.length === 0) return new Set(Object.keys(DATASET_PARTS) as DatasetPart[]);
+  const unknown = names.filter(n => !Object.hasOwn(DATASET_PARTS, n));
+  if (unknown.length) throw new Error(`--only: unknown part ${unknown.join(', ')}; parts: ${Object.keys(DATASET_PARTS).join(', ')}`);
+  return new Set(names as DatasetPart[]);
+}
+
+/** The selected parts whose input is missing (`has` tells per part whether its input exists), with what is missing. */
+export function missingParts(parts: ReadonlySet<DatasetPart>, inputs: Record<DatasetPart, { ok: boolean; what: string }>): string[] {
+  return [...parts].filter(p => !inputs[p].ok).map(p => `${p}: ${inputs[p].what}`);
+}
+
+const USAGE = 'usage: npm run dataset -- --extractor <dir> --out <dir> [--only <part,...>] [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--default-world <default-world.json>] [--docs <dir>] [--transport <file>] [--icons <dir>] [--buildings-raw <file>] [--snap-m 100] [--build N]'
+  + `\nparts: ${Object.keys(DATASET_PARTS).join(', ')} (default: all)`;
+
 function main(): void {
   const { values: v } = parseArgs({
     options: {
       extractor: { type: 'string' },
       out: { type: 'string' },
+      // Build only these parts (repeatable or comma-separated); without it every part is built and a missing
+      // input is an error.
+      only: { type: 'string', multiple: true },
       // Folder with the maintainer data: biomes/ and crash-sites/ (not in the public repo).
       'data-src': { type: 'string', default: 'data-src' },
       'snap-m': { type: 'string', default: '100' },
@@ -223,22 +346,119 @@ function main(): void {
       calibration: { type: 'string' },
       'item-names': { type: 'string' },
       'crash-sites': { type: 'string' },
+      // caves.json and the cave geometry dir from the extractor (`--caves-out`, `--cave-geometry-out`);
+      // default: inside --extractor.
+      caves: { type: 'string' },
+      'cave-geometry': { type: 'string' },
+      // The extractor's height grid (`--heightmap-out`); default: inside --extractor.
+      heightmap: { type: 'string' },
+      // The game's map areas (`--map-areas-out`); default: inside --extractor. They tell land from sea for the
+      // biomes, and are the biomes themselves when there is no biome raster.
+      'map-areas': { type: 'string' },
+      // The biomes as a raster in the map-areas format (scripts/wiki-biomes.ts, from the wiki's biome map);
+      // default: <data-src>/biomes/wiki-raster. First choice for the biomes.
+      'biome-raster': { type: 'string' },
+      // Resource nodes, geysers and fracking wells (`--out` of the extractor); default: inside --extractor.
+      'default-world': { type: 'string' },
+      // The game's CommunityResources/Docs folder (en-US.json, de.json; for recipes, machines and transport) and
+      // the extractor's transport.json (`--transport-out`); defaults: <extractor>/docs and <extractor>/transport.json.
+      docs: { type: 'string' },
+      transport: { type: 'string' },
+      // The extractor's descriptor pictures (`--icons-out`); default: <extractor>/icons.
+      icons: { type: 'string' },
+      // The extractor's buildables (`--buildings-out`); default: <extractor>/buildings-raw.json.
+      'buildings-raw': { type: 'string' },
       build: { type: 'string', default: String(DEFAULT_BUILD) },
     },
   });
-  if (!v.extractor || !v.out) {
-    throw new Error('usage: npm run dataset -- --extractor <dir> --out <dir> [--data-src <dir>] [--snap-m 100] [--build N]');
+  if (!v.extractor || !v.out) throw new Error(USAGE);
+  let parts: Set<DatasetPart>;
+  try { parts = selectParts(v.only); } catch (e) {
+    console.error((e as Error).message);
+    process.exit(1);
   }
+  const want = (...p: DatasetPart[]) => p.some(x => parts.has(x));
+  const ext = resolve(v.extractor);
   const src = resolve(v['data-src']!);
   const firstExisting = (...paths: string[]) => paths.find(p => existsSync(p)) ?? paths[0]!;
-  const input = loadExtractorDir(resolve(v.extractor), {
+
+  const crashSitesPath = resolve(v['crash-sites'] ?? join(src, 'crash-sites', 'crash-sites.json'));
+  const cavesPath = resolve(v.caves ?? join(ext, 'caves.json'));
+  const geometryDir = resolve(v['cave-geometry'] ?? join(ext, 'cave-geometry'));
+  const heightDir = resolve(v.heightmap ?? join(ext, 'heightmap'));
+  const defaultWorldPath = resolve(v['default-world'] ?? join(ext, 'default-world.json'));
+  const docsDir = resolve(v.docs ?? join(ext, 'docs'));
+  const rawTransportPath = resolve(v.transport ?? join(ext, 'transport.json'));
+  const iconsDir = resolve(v.icons ?? join(ext, 'icons'));
+  const buildingsRawPath = resolve(v['buildings-raw'] ?? join(ext, 'buildings-raw.json'));
+  const mapDir = join(ext, 'map');
+  const hasDocs = existsSync(join(docsDir, 'en-US.json'));
+  const hasCaves = existsSync(cavesPath) && existsSync(join(geometryDir, 'index.json'));
+  const inputs: Record<DatasetPart, { ok: boolean; what: string }> = {
+    collectibles: { ok: true, what: '' },
+    'crash-sites': { ok: existsSync(crashSitesPath), what: `${crashSitesPath} (--crash-sites or --data-src)` },
+    biomes: { ok: true, what: '' },
+    caves: { ok: hasCaves, what: `${cavesPath} and ${join(geometryDir, 'index.json')} (extractor --caves-out, --cave-geometry-out)` },
+    heights: { ok: existsSync(join(heightDir, 'meta.json')) || existsSync(join(heightDir, 'top.f32')), what: `height grid in ${heightDir} (extractor --heightmap-out)` },
+    map: { ok: existsSync(join(mapDir, 'map.json')), what: `${join(mapDir, 'map.json')} and tiles (extractor --map-out)` },
+    nodes: { ok: existsSync(defaultWorldPath), what: `${defaultWorldPath} (extractor --out)` },
+    transport: { ok: hasDocs && existsSync(rawTransportPath), what: `${join(docsDir, 'en-US.json')} (--docs) and ${rawTransportPath} (extractor --transport-out)` },
+    recipes: { ok: hasDocs, what: `${join(docsDir, 'en-US.json')} (--docs <install>/CommunityResources/Docs)` },
+    machines: { ok: hasDocs, what: `${join(docsDir, 'en-US.json')} (--docs <install>/CommunityResources/Docs)` },
+    // The Docs say which buildings are wiki entries (only their pictures are copied, not those of walls and foundations).
+    icons: {
+      ok: hasDocs && existsSync(join(iconsDir, 'index.json')),
+      what: `${join(iconsDir, 'index.json')} (extractor --icons-out, or --icons) and ${join(docsDir, 'en-US.json')} (--docs)`,
+    },
+    buildings: {
+      ok: hasDocs && existsSync(buildingsRawPath),
+      what: `${buildingsRawPath} (extractor --buildings-out, or --buildings-raw) and ${join(docsDir, 'en-US.json')}, de.json (--docs)`,
+    },
+  };
+  const missing = missingParts(parts, inputs);
+  if (missing.length) {
+    console.error(`Missing input, nothing built:\n  ${missing.join('\n  ')}\nProvide it, or build only some parts with --only (${Object.keys(DATASET_PARTS).join(', ')}).`);
+    process.exit(1);
+  }
+
+  const input = loadExtractorDir(ext, {
     biomes: resolve(v.biomes ?? join(src, 'biomes', 'biomes.editor.geojson')),
     calibration: resolve(v.calibration ?? join(src, 'biomes', 'calibration.json')),
     // item-names.json ships with the repo; a data folder may carry its own copy.
     itemNames: resolve(v['item-names'] ?? firstExisting(join(src, 'extractor', 'item-names.json'), 'data-src/extractor/item-names.json')),
-    crashSites: resolve(v['crash-sites'] ?? join(src, 'crash-sites', 'crash-sites.json')),
+    crashSites: crashSitesPath,
     snapMeters: Number(v['snap-m']), build: Number(v.build),
   });
+  const heightGrid = want('heights', 'collectibles', 'biomes') ? readHeightGrid(heightDir) : null;
+  let biomeSummary = 'editor polygons (--data-src)';
+  if (want('collectibles', 'biomes', 'crash-sites')) {
+    const gameAreas = readMapAreas(resolve(v['map-areas'] ?? join(ext, 'map-areas')));
+    const biomeRaster = readMapAreas(resolve(v['biome-raster'] ?? join(src, 'biomes', 'wiki-raster')));
+    const mapAreas = biomeRaster ?? gameAreas;
+    const biomeSource = biomeRaster ? 'biome raster (wiki biome map)' : 'game map areas';
+    if (mapAreas) {
+      // Land without a biome joins the nearest biome (landTest: everything but the open sea). The biome raster from
+      // the wiki map comes already filled (scripts/wiki-biomes.ts, with a land mask from the map image).
+      const isLand = biomeRaster ? undefined : landTest(heightGrid);
+      const world = (input.map as { world: WorldBounds }).world;
+      const areas = biomesFromAreas(mapAreas, world, AREA_SNAP, isLand);
+      input.biomeAreas = areas;
+      const pxArea = ((world.maxX - world.minX) / mapAreas.width / 100) ** 2;
+      biomeSummary = `${biomeSource}, ${areas.biomes.length} biomes, ${areas.biomes.reduce((n, b) => n + b.rings.reduce((m, r) => m + r.length, 0), 0)} outline points, `
+        + (isLand ? `${(areas.filled * pxArea / 1e6).toFixed(2)} km² of land without a biome joined to the nearest one` : 'no land fill');
+    }
+  }
+  // The cave sampling gives the cave layer and the items' cave flags, so the collectibles need it too.
+  let caveLayer: ReturnType<typeof sampleCaves> | undefined;
+  if (hasCaves && want('caves', 'collectibles')) {
+    console.log('Sampling caves ...');
+    const coll = input.collectibles as { pickups: RawEntry[]; dropPods: RawEntry[] };
+    const points = [...coll.pickups, ...coll.dropPods].map(e => ({ name: e.name, x: e.location[0], y: e.location[1], z: e.location[2] }));
+    // The landscape alone (`landscape.f32` next to the height grid): items far under it lie in a cave.
+    const landscape = readHeightGrid(heightDir, 'landscape.f32');
+    caveLayer = sampleCaves(geometryDir, readJson(cavesPath) as RawCaves, points, line => console.log(line), landscape);
+    input.itemsInCaves = caveLayer.itemsInCaves;
+  }
   let ds: Dataset;
   try { ds = buildDataset(input); } catch (e) {
     if (e instanceof BuildError) { console.error(e.message); process.exit(1); }
@@ -246,24 +466,97 @@ function main(): void {
   }
   const out = resolve(v.out);
   mkdirSync(out, { recursive: true });
-  writeFileSync(join(out, 'collectibles.min.json'), JSON.stringify(ds));
-  if (input.crashSites !== undefined) writeFileSync(join(out, 'crash-sites.json'), JSON.stringify(buildCrashSites(input.crashSites, ds)));
-  const shapes = loadEditorBiomes(input.biomesGeojson, input.calibration);
-  writeFileSync(join(out, 'biomes.geojson'), JSON.stringify(biomesToGeojson(shapes)));
-  const mapDir = join(resolve(v.extractor), 'map');
-  cpSync(join(mapDir, 'map.json'), join(out, 'map.json'));
-  cpSync(join(mapDir, 'tiles'), join(out, 'tiles'), { recursive: true });
-  if (existsSync(join(mapDir, 'icons'))) cpSync(join(mapDir, 'icons'), join(out, 'icons'), { recursive: true });
+  const summary: string[] = [];
+  const done = (part: DatasetPart, line: string) => summary.push(`  ${part}: ${line}`);
 
-  const perType = new Map<string, number>();
-  const perBiome = new Map<number, number>();
-  for (const it of ds.items) {
-    perType.set(it[1], (perType.get(it[1]) ?? 0) + 1);
-    perBiome.set(it[5], (perBiome.get(it[5]) ?? 0) + 1);
+  if (parts.has('collectibles')) {
+    writeFileSync(join(out, 'collectibles.min.json'), JSON.stringify(ds));
+    const perType = new Map<string, number>();
+    for (const it of ds.items) perType.set(it[1], (perType.get(it[1]) ?? 0) + 1);
+    done('collectibles', `${ds.items.length} items (${COLLECTIBLE_TYPES.map(t => `${perType.get(t.id) ?? 0} ${t.id}`).join(', ')}), ${Object.keys(ds.aliases).length} aliases`
+      + (caveLayer ? `, ${ds.items.filter(i => i[7]?.cave).length} in caves` : ', no cave flags (no cave input)'));
   }
-  console.log(`Dataset ${ds.version} (build ${ds.build}): ${ds.items.length} items, ${Object.keys(ds.aliases).length} aliases`);
-  for (const t of COLLECTIBLE_TYPES) console.log(`  ${t.id}: ${perType.get(t.id) ?? 0}`);
-  ds.biomes.forEach((b, i) => console.log(`  biome ${b.name.en}: ${perBiome.get(i) ?? 0}`));
+  if (parts.has('crash-sites')) {
+    const sites = buildCrashSites(input.crashSites, ds, input.itemNames);
+    writeFileSync(join(out, 'crash-sites.json'), JSON.stringify(sites));
+    done('crash-sites', `${Object.keys(sites).length} sites`);
+  }
+  if (parts.has('biomes')) {
+    const shapes = input.biomeAreas?.biomes ?? loadEditorBiomes(input.biomesGeojson, input.calibration);
+    writeFileSync(join(out, 'biomes.geojson'), JSON.stringify(biomesToGeojson(shapes)));
+    const perBiome = new Map<number, number>();
+    for (const it of ds.items) perBiome.set(it[5], (perBiome.get(it[5]) ?? 0) + 1);
+    done('biomes', `${biomeSummary}; items per biome: ${ds.biomes.map((b, i) => `${b.name.en} ${perBiome.get(i) ?? 0}`).join(', ')}`);
+  }
+  if (parts.has('caves') && caveLayer) {
+    writeFileSync(join(out, 'caves.geojson'), JSON.stringify(cavesToGeojson(caveLayer.caves)));
+    const entrances = caveLayer.caves.reduce((sum, c) => sum + c.entrances.length, 0);
+    done('caves', `${caveLayer.caves.length} caves, ${entrances} entrances`);
+  }
+  if (parts.has('heights') && heightGrid) {
+    const { meta, bytes } = writeHeightTiles(heightGrid, join(out, 'height'));
+    done('heights', `${meta.width}x${meta.height} cells of ${meta.cell / 100} m, ${(bytes / 1e6).toFixed(1)} MB in tiles of ${meta.tile} cells`);
+  }
+  if (parts.has('nodes')) {
+    let nodes: ResourceNodesFile;
+    try { nodes = buildResourceNodes(readJson(defaultWorldPath), input.itemNames, ds.version); } catch (e) {
+      if (e instanceof BuildError) { console.error(e.message); process.exit(1); }
+      throw e;
+    }
+    writeFileSync(join(out, 'resource-nodes.json'), JSON.stringify(nodes));
+    const perKind = new Map<string, number>();
+    for (const n of nodes.nodes) perKind.set(n[1], (perKind.get(n[1]) ?? 0) + 1);
+    done('nodes', `${[...perKind].map(([k, c]) => `${c} ${k}`).join(', ')}; ${nodes.resources.length} resources`);
+  }
+  if (parts.has('transport')) {
+    const deDocs = existsSync(join(docsDir, 'de.json')) ? readDocsFile(join(docsDir, 'de.json')) : [];
+    const transport = buildTransportData(readDocsFile(join(docsDir, 'en-US.json')), deDocs, readJson(rawTransportPath) as RawTransport, ds.version);
+    writeFileSync(join(out, 'transport.json'), JSON.stringify(transport));
+    done('transport', `${transport.vehicles.length} vehicles, ${transport.items.length} items, ${transport.fuels.length} fuels`);
+  }
+  if (parts.has('recipes')) {
+    try { done('recipes', recipeSummary(writeRecipes(docsDir, out))); } catch (e) {
+      if (e instanceof RecipeBuildError) { console.error(e.message); process.exit(1); }
+      throw e;
+    }
+  }
+  let machineData: MachineData | undefined;
+  const machines = () => (machineData ??= buildMachinesFromDocs(docsDir));
+  // The descriptor classes the extractor has a picture of: a building gets an `icon` only when its picture exists.
+  const extractorIcons = () => existsSync(join(iconsDir, 'index.json'))
+    ? new Set(Object.keys((readJson(join(iconsDir, 'index.json')) as { icons?: Record<string, unknown> }).icons ?? {}))
+    : undefined;
+  let buildingsFile: BuildingsFile | undefined;
+  const buildings = () => (buildingsFile ??= buildBuildingsFromFiles(buildingsRawPath, docsDir, extractorIcons()));
+  try {
+    if (parts.has('machines')) done('machines', machineSummary(writeMachines(docsDir, out, machines())));
+    if (parts.has('buildings')) {
+      const { file, bytes } = writeBuildings(buildingsRawPath, docsDir, out, extractorIcons());
+      buildingsFile = file;
+      done('buildings', buildingSummaryLine(file, bytes));
+    }
+    if (parts.has('icons')) {
+      // The wiki's machines and, when the extractor's buildables are there, the picture of every building class.
+      const withBuildings = existsSync(buildingsRawPath);
+      const wanted = new Set(machines().machines.map(m => descriptorClass(m.id)));
+      if (withBuildings) for (const c of buildingIconClasses(buildings())) wanted.add(c);
+      done('icons', iconSummary(writeIcons(iconsDir, out, wanted)) + (withBuildings ? '' : `; building pictures left out (no ${buildingsRawPath})`));
+    }
+  } catch (e) {
+    if (e instanceof MachineBuildError || e instanceof IconBuildError || e instanceof BuildingBuildError) { console.error(e.message); process.exit(1); }
+    throw e;
+  }
+  if (parts.has('map')) {
+    cpSync(join(mapDir, 'map.json'), join(out, 'map.json'));
+    cpSync(join(mapDir, 'tiles'), join(out, 'tiles'), { recursive: true });
+    if (existsSync(join(mapDir, 'icons'))) cpSync(join(mapDir, 'icons'), join(out, 'icons'), { recursive: true });
+    done('map', 'map.json, tiles' + (existsSync(join(mapDir, 'icons')) ? ', icons' : ''));
+  }
+
+  const skipped = (Object.keys(DATASET_PARTS) as DatasetPart[]).filter(p => !parts.has(p));
+  console.log(`Dataset ${ds.version} (build ${ds.build}) in ${out}: ${parts.size === Object.keys(DATASET_PARTS).length ? 'all parts' : `only ${[...parts].join(', ')}`}`);
+  for (const line of summary) console.log(line);
+  if (skipped.length) console.log(`  not built (--only): ${skipped.join(', ')}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

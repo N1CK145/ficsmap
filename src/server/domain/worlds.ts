@@ -14,6 +14,7 @@ export interface WorldRow {
   created_at: number;
   last_import_at: number | null;
   last_import_meta: string | null;
+  node_settings: string | null;
 }
 
 export function createWorld(db: Db, ownerId: number, name: string, datasetVersion: string, now: number): WorldRow {

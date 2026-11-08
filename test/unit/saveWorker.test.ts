@@ -61,6 +61,8 @@ describe('real save', () => {
     if (out.type !== 'done') return;
     expect(out.result.collected.filter(n => index.byName.get(n)?.type === 'hard_drive')).toHaveLength(10);
     expect(out.result.meta.build).toBe(index.ds.build);
+    expect(out.result.factory?.buildings.length).toBeGreaterThan(0);
+    expect(out.result.factory?.meta.sessionName).toBe(out.result.meta.sessionName);
     const stages = progress.map(p => (p.type === 'progress' ? p.stage : p.type));
     expect(stages[0]).toBe('reading');
     expect(stages).toContain('parsing');

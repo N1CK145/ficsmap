@@ -1,24 +1,42 @@
 import { useTranslation } from 'react-i18next';
-import type { Item } from '../../../../shared/dataset.js';
+import type { CrashSite as Site, Item } from '../../../../shared/dataset.js';
+import { detectLocale } from '../../../../shared/i18n.js';
 import type { WorldCtx } from '../../../app/feature.js';
 import { Panel } from '../../../components/Panel.js';
 import { useCrashSites } from '../useCrashSites.js';
 
+/**
+ * The site's items with one row per item and place: the dataset lists every pickup, so two piles of Motors (17 and 30)
+ * show as one row of 47, in the order the item first appears. Piles at another place ("lower level") stay apart.
+ */
+export function sumPickups(items: Site['items']): Site['items'] {
+  const rows = new Map<string, Site['items'][number]>();
+  for (const i of items) {
+    const key = `${i.item}\u0000${i.where ?? ''}`;
+    const row = rows.get(key);
+    if (row) row.amount += i.amount;
+    else rows.set(key, { ...i });
+  }
+  return [...rows.values()];
+}
+
 /** Drop pods: the items around the crash site, its threats and notes (crash-sites.json). Nothing while that is loading or missing. */
 export function CrashSite({ item, ctx }: { item: Item; ctx: WorldCtx }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const site = useCrashSites(ctx.me.datasetVersion).data?.[item.name];
   if (!site) return null;
+  const german = detectLocale([i18n.language]) === 'de';
+  const items = sumPickups(site.items);
   return (
     <Panel title={t('item.crashSite.title')}>
       <div className="flex flex-col gap-3 text-sm">
         <section>
           <h3 className="mb-1 font-medium">{t('item.crashSite.items')}</h3>
-          {site.items.length === 0 ? <p className="text-muted">{t('item.crashSite.none')}</p> : (
+          {items.length === 0 ? <p className="text-muted">{t('item.crashSite.none')}</p> : (
             <ul className="flex flex-col gap-0.5">
-              {site.items.map((i, n) => (
+              {items.map((i, n) => (
                 <li key={n} className="flex justify-between gap-3">
-                  <span>{i.item}{i.where && <span className="text-muted"> · {i.where}</span>}</span>
+                  <span>{(german && i.de) || i.item}{i.where && <span className="text-muted"> · {i.where}</span>}</span>
                   <span className="font-display tabular-nums">{t('item.crashSite.amount', { amount: i.amount })}</span>
                 </li>
               ))}

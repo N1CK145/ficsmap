@@ -1,6 +1,10 @@
 import { COLLECTIBLE_TYPES } from '../../shared/collectibleTypes.js';
+import { isTierKey, sortTierKeys, type TierKey } from '../../shared/machines.js';
 import type { Locale } from '../../shared/i18n.js';
+import { OCCUPANCIES, PURITIES, type Occupancy, type Purity } from '../../shared/resourceNodes.js';
+import type { VehicleId } from '../../shared/transport.js';
 import type { CollectibleTypeId } from '../../shared/types.js';
+import type { VehicleRoute, WorldPoint } from '../../shared/vehicleRoute.js';
 import type { CollectedVisibility } from './store.js';
 
 /** What the map remembers per world and device (spec §10). */
@@ -93,6 +97,25 @@ export function saveLocale(locale: Locale): void {
   write(LOCALE_KEY, locale);
 }
 
+const PANELS_KEY = 'ficsmap:panelsCollapsed';
+
+/** Sidebar panels the user folded or unfolded (per device): panel id -> collapsed. */
+export function loadPanelsCollapsed(): Record<string, boolean> {
+  const raw = read(PANELS_KEY);
+  if (raw === null) return {};
+  try {
+    const v = JSON.parse(raw) as unknown;
+    if (!v || typeof v !== 'object') return {};
+    return Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([, c]) => typeof c === 'boolean')) as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+export function savePanelsCollapsed(state: Record<string, boolean>): void {
+  write(PANELS_KEY, JSON.stringify(state));
+}
+
 const SIDEBAR_WIDTH_KEY = 'ficsmap:sidebarWidth';
 
 /** The sidebar width the user dragged to (per device), or null for "fit the content". */
@@ -136,4 +159,108 @@ export function loadPodChecklistCollapsed(): boolean {
 export function savePodChecklistCollapsed(collapsed: boolean): void {
   if (collapsed) write(POD_CHECKLIST_COLLAPSED_KEY, '1');
   else remove(POD_CHECKLIST_COLLAPSED_KEY);
+}
+
+const RESOURCE_NODES_KEY = 'ficsmap:resourceNodes';
+
+/**
+ * The resource node layer per device: shown or not, the hidden resources (new ones start shown), the shown purities
+ * and whether only nodes with (or without) an extractor show.
+ */
+export interface ResourceNodeView { visible: boolean; hiddenResources: string[]; purities: Purity[]; occupancy: Occupancy }
+
+export function loadResourceNodeView(): ResourceNodeView {
+  const view: ResourceNodeView = { visible: false, hiddenResources: [], purities: [...PURITIES], occupancy: 'all' };
+  const raw = read(RESOURCE_NODES_KEY);
+  if (raw === null) return view;
+  let d: Record<string, unknown>;
+  try {
+    const data: unknown = JSON.parse(raw);
+    if (data === null || typeof data !== 'object') return view;
+    d = data as Record<string, unknown>;
+  } catch {
+    return view;
+  }
+  if (typeof d.visible === 'boolean') view.visible = d.visible;
+  if (Array.isArray(d.hiddenResources)) view.hiddenResources = d.hiddenResources.filter((r): r is string => typeof r === 'string');
+  if (Array.isArray(d.purities)) view.purities = PURITIES.filter(p => (d.purities as unknown[]).includes(p));
+  if (OCCUPANCIES.includes(d.occupancy as Occupancy)) view.occupancy = d.occupancy as Occupancy;
+  return view;
+}
+
+export function saveResourceNodeView(v: ResourceNodeView): void {
+  write(RESOURCE_NODES_KEY, JSON.stringify(v));
+}
+
+const MACHINE_WIKI_TIERS_KEY = 'ficsmap:machineWikiTiers';
+
+/** The machine wiki's unlock filter (per device): the selected tiers and groups; empty shows everything. */
+export function loadMachineWikiTiers(): TierKey[] {
+  const raw = read(MACHINE_WIKI_TIERS_KEY);
+  if (raw === null) return [];
+  try {
+    const data: unknown = JSON.parse(raw);
+    return Array.isArray(data) ? sortTierKeys(data.filter(isTierKey)) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveMachineWikiTiers(tiers: readonly TierKey[]): void {
+  if (tiers.length === 0) remove(MACHINE_WIKI_TIERS_KEY);
+  else write(MACHINE_WIKI_TIERS_KEY, JSON.stringify(tiers));
+}
+
+const vehiclesKey = (worldId: string) => `ficsmap:vehicles:${worldId}`;
+const VEHICLE_IDS: ReadonlySet<string> = new Set<VehicleId>(['tractor', 'truck', 'explorer', 'fluidTruck', 'drone', 'freightCar']);
+const FORM_TEXTS = ['route', 'item', 'fuel', 'droneFuel', 'target'] as const;
+
+/** The vehicle calculator's form as typed (strings), per world and device; see `useVehicleCalc`. */
+export interface PersistedVehicleForm {
+  route: string; vehicle: VehicleId; item: string;
+  speed: Partial<Record<VehicleId, string>>; stop: Partial<Record<VehicleId, string>>;
+  fuel: string; droneFuel: string; target: string;
+}
+
+/** The vehicle calculator per world and device: the form, the route's start and destination, and whether the length follows them. */
+export interface PersistedVehicleCalc { form: Partial<PersistedVehicleForm>; route: VehicleRoute | null; lengthFromRoute: boolean }
+
+function perVehicle(v: unknown): Partial<Record<VehicleId, string>> {
+  if (v === null || typeof v !== 'object') return {};
+  return Object.fromEntries(Object.entries(v).filter(([id, s]) => VEHICLE_IDS.has(id) && typeof s === 'string'));
+}
+
+function point(v: unknown): WorldPoint | null {
+  if (v === null || typeof v !== 'object') return null;
+  const { x, y } = v as Record<string, unknown>;
+  return Number.isFinite(x) && Number.isFinite(y) ? { x: x as number, y: y as number } : null;
+}
+
+/** The stored calculator of a world, keeping only well-formed parts; null when there is none. */
+export function loadVehicleCalc(worldId: string): PersistedVehicleCalc | null {
+  const raw = read(vehiclesKey(worldId));
+  if (raw === null) return null;
+  let d: Record<string, unknown>;
+  try {
+    const data: unknown = JSON.parse(raw);
+    if (data === null || typeof data !== 'object') return null;
+    d = data as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const f = (d.form !== null && typeof d.form === 'object' ? d.form : {}) as Record<string, unknown>;
+  const form: Partial<PersistedVehicleForm> = {};
+  for (const key of FORM_TEXTS) if (typeof f[key] === 'string') form[key] = f[key];
+  if (typeof f.vehicle === 'string' && VEHICLE_IDS.has(f.vehicle)) form.vehicle = f.vehicle as VehicleId;
+  form.speed = perVehicle(f.speed);
+  form.stop = perVehicle(f.stop);
+  const r = d.route as Record<string, unknown> | null | undefined;
+  const start = r ? point(r.start) : null;
+  const end = r ? point(r.end) : null;
+  const route = start && end ? { start, end } : null;
+  return { form, route, lengthFromRoute: route !== null && d.lengthFromRoute === true };
+}
+
+export function saveVehicleCalc(worldId: string, v: PersistedVehicleCalc): void {
+  write(vehiclesKey(worldId), JSON.stringify(v));
 }

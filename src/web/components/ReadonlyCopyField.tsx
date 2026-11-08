@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react';
 import { Button } from './Button.js';
+import { fieldClass } from './Field.js';
 
 export interface ReadonlyCopyFieldProps {
   /** undefined while the value is still loading; Copy is disabled then. */
@@ -40,7 +41,7 @@ export function ReadonlyCopyField({ value, onCopied, copiedLabel, copyLabel, hin
           aria-label={label}
           aria-describedby={hint ? hintId : undefined}
           onFocus={e => e.currentTarget.select()}
-          className="h-10 min-w-0 flex-1 rounded border border-line bg-bg px-3 font-mono text-sm text-fg focus-ring"
+          className={fieldClass({}, 'min-w-0 flex-1 font-mono text-sm')}
         />
         <Button variant="primary" disabled={value === undefined} onClick={copy}>{copied ? copiedLabel : copyLabel}</Button>
       </div>

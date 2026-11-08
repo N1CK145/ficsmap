@@ -6,6 +6,11 @@ export interface ToastInput {
   action?: { label: string; run(): void };
   /** Default 6000 (spec §10.3). */
   durationMs?: number;
+  /**
+   * Moves the focus to the action when the toast shows, so keyboard and screen reader users reach it (an Undo after
+   * something was cleared). The toast then stays until the focus leaves it.
+   */
+  focusAction?: boolean;
 }
 
 export interface ToastApi { show(t: ToastInput): void }
@@ -38,7 +43,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 /**
  * One toast and its dismiss timer. The timer pauses while the pointer is over the toast or the
- * focus is in it (WCAG 2.2.1), and resumes with the time that was left.
+ * focus is in it (WCAG 2.2.1), and resumes with the time that was left. With `focusAction` its action takes the focus.
  */
 function ToastView({ toast, onDone }: { toast: ToastInput; onDone(): void }) {
   const [hovered, setHovered] = useState(false);
@@ -47,6 +52,11 @@ function ToastView({ toast, onDone }: { toast: ToastInput; onDone(): void }) {
   const paused = hovered || focused;
   const done = useRef(onDone);
   useEffect(() => { done.current = onDone; });
+  const actionRef = useRef<HTMLButtonElement>(null);
+  const focusAction = toast.focusAction === true;
+  useEffect(() => {
+    if (focusAction) actionRef.current?.focus();
+  }, [focusAction]);
 
   useEffect(() => {
     if (paused) return;
@@ -64,11 +74,11 @@ function ToastView({ toast, onDone }: { toast: ToastInput; onDone(): void }) {
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)}
       onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false); }}
-      className="pointer-events-auto flex max-w-full items-center gap-3 rounded border border-line bg-panel py-2 pr-2 pl-4 shadow-lg"
+      className="pointer-events-auto flex max-w-full items-center gap-3 chamfer-window border border-l-[3px] border-line border-l-accent bg-raised py-2 pr-2 pl-4 shadow-[0_10px_30px_rgb(0_0_0/0.45)]"
     >
       <span className="min-w-0">{toast.message}</span>
       {toast.action && (
-        <Button variant="link-accent" size="sm" onClick={() => { toast.action?.run(); onDone(); }}>
+        <Button ref={actionRef} variant="link-accent" size="sm" onClick={() => { toast.action?.run(); onDone(); }}>
           {toast.action.label}
         </Button>
       )}

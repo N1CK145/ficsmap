@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import L from 'leaflet';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
 import { worldToLatLng } from '../../src/shared/geo.js';
@@ -14,6 +15,7 @@ import { useUiStore } from '../../src/web/app/store.js';
 import { ToastProvider, type ToastInput } from '../../src/web/components/Toast.js';
 import { itemPanelFeature } from '../../src/web/features/itemPanel/index.js';
 import { ItemPanel } from '../../src/web/features/itemPanel/ItemPanel.js';
+import { SHEET_MARGIN_PX } from '../../src/web/features/itemPanel/SelectionPan.js';
 import { MapView } from '../../src/web/features/map/MapView.js';
 import { marksFeature } from '../../src/web/features/marks/index.js';
 import { AccountMenu } from '../../src/web/features/worlds/AccountMenu.js';
@@ -40,7 +42,8 @@ function dataset(podRequirementsKnown = true): Dataset {
       ['P2', 'hard_drive', 1000, 5000, 500, 0, 5, { pod: { item: null, amount: 0, power: 0 } }],
       ['P3', 'hard_drive', 9000, 9000, 500, 0, 6],
       ['B1', 'slug_blue', 1000, 2000, -1300, 0, 1, { shards: 1 }],
-      ['F1', 'mercer_sphere', 90_000, 90_000, 0, 0, 1],
+      // Just below zero: shown as "Z 0", not "Z -0".
+      ['F1', 'mercer_sphere', 90_000, 90_000, -40, 0, 1],
     ],
     aliases: {},
   };
@@ -122,6 +125,21 @@ describe('ItemPanel', () => {
     expect(panel()).toHaveTextContent(/Last changed by someone/);
   });
 
+  it('sums the piles of one item at a crash site, keeping piles at another place apart', async () => {
+    stubFetch({
+      'GET /data/test/crash-sites.json': { body: { P1: {
+        items: [
+          { item: 'Motor', amount: 17 }, { item: 'Stator', amount: 5 }, { item: 'Motor', amount: 30 },
+          { item: 'Motor', amount: 4, where: 'below' },
+        ],
+        threats: [], notes: [],
+      } } },
+    });
+    renderPanel('P1');
+    const section = await within(panel()).findByRole('region', { name: 'Crash site' });
+    expect(within(section).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Motor47×', 'Stator5×', 'Motor · below4×']);
+  });
+
   it('shows the crash site: items with location hints, threats and notes', async () => {
     stubFetch({
       'GET /data/test/crash-sites.json': { body: { P1: {
@@ -137,6 +155,25 @@ describe('ItemPanel', () => {
     expect(section).toHaveTextContent('2× Hatcher');
     expect(section).toHaveTextContent('Gas Pillar');
     expect(section).toHaveTextContent('Bring a gas mask.');
+  });
+
+  it('names crash-site items in German in the German UI where the dataset has the German name', async () => {
+    stubFetch({
+      'GET /data/test/crash-sites.json': { body: { P1: {
+        items: [{ item: 'Screws', de: 'Schrauben', amount: 98 }, { item: 'Stator', amount: 37 }],
+        threats: [], notes: [],
+      } } },
+    });
+    initI18n(['de']);
+    try {
+      renderPanel('P1');
+      const details = screen.getByRole('complementary', { name: 'Objektdetails' });
+      const section = await within(details).findByRole('region', { name: 'Absturzstelle' });
+      expect(section).toHaveTextContent('Schrauben98×');
+      expect(section).toHaveTextContent('Stator37×');
+    } finally {
+      initI18n(['en']);
+    }
   });
 
   it('has no crash-site section for a pod without data, or when the dataset has no crash-sites file', async () => {
@@ -171,7 +208,7 @@ describe('ItemPanel', () => {
   it('lists nearby items with distance, height and status; a row selects its item', async () => {
     renderPanel('S1', { marks: marksCache([['B1', {}]]) });
     const nearby = screen.getByRole('region', { name: /Nearby/ });
-    const slug = within(nearby).getByRole('button', { name: /Blue Power Slug · Grass Fields 1/ });
+    const slug = within(nearby).getByRole('button', { name: /Blue Power Slug · Grass Fields\u00a01/ });
     expect(slug).toHaveTextContent('21 m');
     expect(slug).toHaveTextContent('18 m below');
     expect(slug).toHaveTextContent('Collected');
@@ -184,11 +221,24 @@ describe('ItemPanel', () => {
     const writeText = vi.fn(async () => {});
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
     const { toasts } = renderPanel('P1');
-    expect(panel()).toHaveTextContent('X 50 · Y 10 · Z 5');
-    expect(within(panel()).getByText('P1')).toBeInTheDocument();
+    const footer = panel().querySelector('footer')!;
+    expect(footer).toHaveTextContent(/^X 50 · Y 10 · Z 5Copy ID$/);
+    // The raw ID is not shown, the button's tooltip names it.
+    expect(within(panel()).queryByText('P1')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Copy ID' })).toHaveAttribute('title', 'P1');
     await userEvent.click(screen.getByRole('button', { name: 'Copy ID' }));
     expect(writeText).toHaveBeenCalledWith('P1');
     await waitFor(() => expect(toasts).toContainEqual({ message: 'Copied' }));
+  });
+
+  it('shows a height just below zero as 0, not -0', () => {
+    renderPanel('F1');
+    expect(panel().querySelector('footer')).toHaveTextContent(/^X 900 · Y 900 · Z 0Copy ID$/);
+  });
+
+  it('pins the footer under the scrolling sections', () => {
+    renderPanel('S1');
+    expect(panel().querySelector('footer')!.parentElement).toBe(panel());
   });
 
   it('closes on Esc and with the × button', async () => {
@@ -215,7 +265,7 @@ describe('ItemPanel', () => {
   });
 
   it('does not close on the Esc that closes the account menu', async () => {
-    renderPanel('S1', { extra: <AccountMenu /> });
+    renderPanel('S1', { extra: <MemoryRouter><AccountMenu /></MemoryRouter> });
     await userEvent.click(screen.getByRole('button', { name: 'Account' }));
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
@@ -225,9 +275,9 @@ describe('ItemPanel', () => {
     expect(useUiStore.getState().selectedActor).toBeNull();
   });
 
-  it('keeps the panel open on Esc in quick mode (Esc leaves the mode there)', async () => {
+  it('keeps the panel open on Esc in another map mode (Esc leaves the mode there)', async () => {
     renderPanel('S1');
-    act(() => { useUiStore.getState().setMode('quick'); });
+    act(() => { useUiStore.getState().setMode('route'); });
     await userEvent.keyboard('{Escape}');
     expect(useUiStore.getState().selectedActor).toBe('S1');
   });
@@ -245,10 +295,14 @@ describe('ItemSheet (mobile)', () => {
     const { calls } = stubFetch({ [`PUT /api/worlds/${W}/marks/S1`]: { body: { rev: 2 } } });
     renderPanel('S1', { sheet: true });
     const sheet = panel();
-    expect(sheet).toHaveClass('h-[50dvh]');
+    // Half the screen from its bottom (no footer under it); the map measures it by its data attribute.
+    expect(sheet).toHaveClass('h-[50dvh]', 'bottom-0');
+    expect(sheet).toHaveAttribute('data-item-sheet');
     expect(within(sheet).getByRole('heading', { level: 2, name: 'Somersloop' })).toBeInTheDocument();
     const check = within(sheet).getByRole('button', { name: 'Check' });
     expect(check).toHaveClass('h-14', 'w-full');
+    // The coordinates scroll with the sections, so they do not take room from them on a phone.
+    expect(sheet.querySelector('footer')!.parentElement).toHaveClass('overflow-y-auto');
     await userEvent.click(check);
     await waitFor(() => expect(calls).toContainEqual({ method: 'PUT', path: `/api/worlds/${W}/marks/S1`, body: { collected: true } }));
   });
@@ -311,10 +365,20 @@ describe('SelectionPan', () => {
     );
   });
 
-  it('on mobile pans the marker out from under the item sheet (bottom half) instead', () => {
+  it('on mobile pans the marker above the item sheet\'s real top edge, with room for the marker, instead', () => {
     stubMatchMedia({ [MOBILE]: true });
     // A fresh point each call: Leaflet mutates the one it gets.
-    vi.spyOn(L.Map.prototype, 'getSize').mockImplementation(() => L.point(390, 700));
+    vi.spyOn(L.Map.prototype, 'getSize').mockImplementation(() => L.point(390, 796));
+    // The map fills the screen under the 48 px top bar (to 844 px); the sheet starts at 422 px.
+    const sheet = document.createElement('aside');
+    sheet.setAttribute('data-item-sheet', '');
+    document.body.append(sheet);
+    const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 390, width: 390, height: bottom - top, x: 0, y: top, toJSON: () => ({}) });
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      if (this === sheet) return rect(422, 844) as DOMRect;
+      if (this.classList.contains('leaflet-container')) return rect(48, 844) as DOMRect;
+      return rect(0, 0) as DOMRect;
+    });
     const panInside = vi.spyOn(L.Map.prototype, 'panInside');
     const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
     client.setQueryData(queryKeys.marks(W), marksCache());
@@ -328,8 +392,10 @@ describe('SelectionPan', () => {
     act(() => { useUiStore.getState().select('P1'); });
     expect(panInside).toHaveBeenCalledWith(
       worldToLatLng(5000, 1000, index.ds.bounds),
-      expect.objectContaining({ paddingTopLeft: [0, 0], paddingBottomRight: [0, 350] }),
+      // 844 - 422 px under the sheet, plus SHEET_MARGIN_PX for the marker.
+      expect.objectContaining({ paddingTopLeft: [0, 0], paddingBottomRight: [0, 422 + SHEET_MARGIN_PX] }),
     );
+    sheet.remove();
     vi.unstubAllGlobals();
   });
 });

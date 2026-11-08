@@ -4,9 +4,11 @@ import { Link, Navigate, useSearchParams } from 'react-router';
 import type { WorldSummaryDto } from '../../../shared/api.js';
 import { formatRelative } from '../../app/format.js';
 import { lastWorld } from '../../app/persist.js';
+import { Badge } from '../../components/Badge.js';
 import { Button } from '../../components/Button.js';
 import { Footer } from '../../components/Footer.js';
 import { Header } from '../../components/Header.js';
+import { SectionMarker } from '../../components/SectionHeading.js';
 import { AccountMenu } from './AccountMenu.js';
 import { CreateWorldDialog } from './CreateWorldDialog.js';
 import { useWorlds } from './queries.js';
@@ -30,8 +32,8 @@ export function WorldListPage() {
     <div className="flex min-h-dvh flex-col">
       <Header end={<AccountMenu />} />
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="font-display text-3xl font-bold">{t('worlds.title')}</h1>
+        <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
+          <h1 className="flex items-center gap-2.5 font-display text-3xl font-bold tracking-wider uppercase"><SectionMarker size="lg" />{t('worlds.title')}</h1>
           <Button variant="primary" onClick={() => setCreating(true)}>{t('worlds.new')}</Button>
         </div>
         {worlds.isPending && <p className="text-muted">{t('common.loading')}</p>}
@@ -43,7 +45,7 @@ export function WorldListPage() {
         )}
         {worlds.data?.length === 0 && <p className="text-muted">{t('worlds.empty')}</p>}
         {worlds.data && worlds.data.length > 0 && (
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-3">
             {worlds.data.map(w => <WorldRow key={w.id} world={w} />)}
           </ul>
         )}
@@ -60,12 +62,12 @@ function WorldRow({ world: w }: { world: WorldSummaryDto }) {
   // Rounded down, so 100 % only shows when everything is collected.
   const share = total > 0 ? Math.floor((done / total) * 100) / 100 : 0;
   return (
-    <li className="flex flex-col gap-2 rounded border border-line bg-panel p-3">
+    <li className="flex flex-col gap-2.5 chamfer-window border border-l-[3px] border-line border-l-accent bg-panel p-4 transition-colors hover:border-edge hover:border-l-accent">
       <div className="flex flex-wrap items-center gap-2">
-        <Link to={`/w/${w.id}`} className="min-w-0 flex-1 truncate rounded font-display text-xl font-semibold focus-ring hover:underline">
+        <Link to={`/w/${w.id}`} className="min-w-0 flex-1 truncate rounded font-display text-2xl leading-tight font-semibold tracking-wide focus-ring hover:text-accent">
           {w.name}
         </Link>
-        <span className="rounded border border-line px-2 py-0.5 text-xs font-medium text-muted">{t(`worlds.role.${w.role}`)}</span>
+        <Badge tone={w.role === 'owner' ? 'accent' : 'neutral'}>{t(`worlds.role.${w.role}`)}</Badge>
       </div>
       <div className="flex items-center gap-3">
         <div
@@ -74,11 +76,11 @@ function WorldRow({ world: w }: { world: WorldSummaryDto }) {
           aria-valuemin={0}
           aria-valuemax={total}
           aria-valuenow={done}
-          className="h-2 flex-1 overflow-hidden rounded bg-bg"
+          className="h-2 flex-1 overflow-hidden bg-bg"
         >
-          <div className="h-full bg-fg" style={{ width: `${share * 100}%` }} />
+          <div className="h-full bg-accent" style={{ width: `${share * 100}%` }} />
         </div>
-        <span className="font-display tabular-nums">{t('worlds.progress', { done, total })}</span>
+        <span className="font-display font-semibold tabular-nums">{t('worlds.progress', { done, total })}</span>
         <span className="w-12 text-right font-display text-muted tabular-nums">{t('worlds.percent', { share })}</span>
       </div>
       <div className="flex flex-wrap gap-x-4 text-sm text-muted">

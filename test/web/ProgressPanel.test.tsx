@@ -7,6 +7,7 @@ import { initI18n } from '../../src/web/app/i18n/index.js';
 import { queryKeys } from '../../src/web/app/queryKeys.js';
 import { useUiStore } from '../../src/web/app/store.js';
 import type { MarksCache } from '../../src/web/features/marks/useMarks.js';
+import { ProgressChips } from '../../src/web/features/progress/ProgressChips.js';
 import { ProgressPanel } from '../../src/web/features/progress/ProgressPanel.js';
 
 const WORLD = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
@@ -28,13 +29,13 @@ function marks(collected: string[]): MarksCache {
   };
 }
 
-function renderPanel() {
+function renderPanel(chips = false) {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
   const me: MeDto = { id: 1, displayName: 'Anna', avatarUrl: null, email: null, datasetVersion: 'test' };
   client.setQueryData(queryKeys.me(), me);
   client.setQueryData(queryKeys.dataset('test'), indexDataset(dataset));
   client.setQueryData(queryKeys.marks(WORLD), marks(['S1', 'S3']));
-  render(<QueryClientProvider client={client}><ProgressPanel worldId={WORLD} /></QueryClientProvider>);
+  render(<QueryClientProvider client={client}>{chips ? <ProgressChips worldId={WORLD} /> : <ProgressPanel worldId={WORLD} />}</QueryClientProvider>);
 }
 
 const row = (name: RegExp) => screen.getByRole('button', { name });
@@ -102,5 +103,24 @@ describe('ProgressPanel', () => {
     expect(screen.getByRole('radio', { name: 'Dim' })).toHaveAttribute('aria-checked', 'true');
     await userEvent.click(screen.getByRole('radio', { name: 'Hide' }));
     expect(useUiStore.getState().visibility).toBe('hide');
+  });
+});
+
+describe('ProgressChips', () => {
+  beforeAll(() => { initI18n(['en']); });
+  beforeEach(() => { useUiStore.getState().enterWorld(WORLD); });
+
+  it('fades the right edge of the row while chips are hidden there, until it is scrolled to the end', () => {
+    renderPanel(true);
+    const list = screen.getByRole('list', { name: 'Progress' });
+    expect(row(/Somersloops/)).toHaveTextContent('2/3');
+    // Everything fits (jsdom lays nothing out): no fade.
+    expect(list).not.toHaveAttribute('data-more');
+    Object.defineProperties(list, { scrollWidth: { value: 600, configurable: true }, clientWidth: { value: 390, configurable: true } });
+    fireEvent.scroll(list);
+    expect(list).toHaveAttribute('data-more');
+    Object.defineProperty(list, 'scrollLeft', { value: 210, configurable: true });
+    fireEvent.scroll(list);
+    expect(list).not.toHaveAttribute('data-more');
   });
 });

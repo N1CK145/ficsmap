@@ -7,6 +7,7 @@ import { api } from '../../app/api.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { Button } from '../../components/Button.js';
 import { Dialog } from '../../components/Dialog.js';
+import { fieldClass } from '../../components/Field.js';
 
 export const WORLD_NAME_MAX = 80;
 
@@ -112,7 +113,7 @@ function StartEmpty({ onClose }: { onClose(): void }) {
         maxLength={WORLD_NAME_MAX}
         autoComplete="off"
         onChange={e => setName(e.target.value)}
-        className="h-10 rounded border border-line bg-bg px-3 text-fg focus-ring"
+        className={fieldClass()}
       />
       {failed && <p role="alert" className="text-sm">{t('worlds.create.failed')}</p>}
       <div className="flex justify-end gap-2">

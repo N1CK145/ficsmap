@@ -5,14 +5,15 @@ import { Link, useMatch, useNavigate, useParams, useSearchParams } from 'react-r
 import { ApiClientError } from '../../app/api.js';
 import { collect, type SidebarPanel, type WorldCtx } from '../../app/feature.js';
 import { useFeatures } from '../../app/FeaturesContext.js';
+import { useWorldPage } from '../../app/pages.js';
 import { loadView, setLastWorld } from '../../app/persist.js';
 import { useUiStore } from '../../app/store.js';
-import { useIsMobile } from '../../app/useMediaQuery.js';
+import { useIsMobile, useMediaQuery } from '../../app/useMediaQuery.js';
 import { Button, buttonClass } from '../../components/Button.js';
-import { Footer } from '../../components/Footer.js';
 import { Header } from '../../components/Header.js';
 import { IconButton } from '../../components/IconButton.js';
-import { Panel } from '../../components/Panel.js';
+import { SidebarIcon } from '../../components/icons.js';
+import { SidebarPanelView } from './SidebarPanelView.js';
 import { useToast } from '../../components/Toast.js';
 import { ImportBanner } from '../import/ImportBanner.js';
 import { ImportDialogHost } from '../import/ImportDialog.js';
@@ -30,18 +31,23 @@ import { BottomSheet } from '../mobile/BottomSheet.js';
 import { ItemSheet } from '../mobile/ItemSheet.js';
 import type { Snap } from '../mobile/snap.js';
 import { ProgressChips } from '../progress/ProgressChips.js';
-import { useQuickCheckKeys } from '../quickCheck/useQuickCheckKeys.js';
 import { NextStopButton } from '../routes/NextStopButton.js';
 import { useRouteDraft } from '../routes/useRoutes.js';
 import { AccountMenu } from './AccountMenu.js';
 import { useMe, useWorld } from './queries.js';
+import { SectionMenu, WIDE_QUERY, WorldTabs } from './ToolsNav.js';
 import { useSidebarKey } from './useSidebarKey.js';
+import { useWorldTitle } from './useWorldTitle.js';
+import { WorldPageView } from './WorldPageView.js';
 
 /**
- * `/w/:id`: loads everything a world needs (me, world, dataset, marks), then renders the header,
- * the sidebar panels from the features' extension points, the map (which hosts the map ones) and the
- * item panel over it. Ctrl+Z, Q, Esc and `[` (sidebar) work anywhere in the world. Below 900 px the
- * panels move into a bottom sheet and the item panel into an item sheet (spec §10.11).
+ * `/w/:id`: loads everything a world needs (me, world, dataset, marks), then renders the header, from 1280 px the
+ * tab strip of the world's sections under it, the sidebar panels from the features' extension points, the map (which
+ * hosts the map ones) and the item panel over it. Ctrl+Z, Q, Esc and `[` (sidebar) work anywhere in the world. Below
+ * 900 px the panels move into a bottom sheet and the item panel into an item sheet (spec §10.11). The settings
+ * (`/w/:id/settings`) and the features' world pages (`/w/:id/<page>`) are child routes: they replace the sidebar, the
+ * map and the sheets while the layout stays mounted. There is no footer inside a world: the account menu has the
+ * version and the source link.
  */
 export function WorldLayout() {
   const { id = '' } = useParams();
@@ -119,7 +125,6 @@ function Screen({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <main className="flex flex-1 flex-col items-center justify-center gap-4 p-4 text-center">{children}</main>
-      <Footer />
     </div>
   );
 }
@@ -128,43 +133,60 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
   const { t } = useTranslation();
   const mainView = useUiStore(s => s.mainView);
   const inSettings = useMatch('/w/:id/settings') !== null;
+  const page = useWorldPage();
+  // The settings and the world pages take the whole main area: no sidebar, map, item panel or sheets.
+  const onMap = !inSettings && page === undefined;
   const mobile = useIsMobile();
+  const wide = useMediaQuery(WIDE_QUERY) && !mobile;
   const features = useFeatures();
   useWorldEvents(ctx.worldId, ctx);
   useUndoShortcut(ctx);
-  useQuickCheckKeys();
-  useSidebarKey(!mobile && !inSettings);
+  useSidebarKey(!mobile && onMap);
+  useWorldTitle(page ? t(page.titleKey) : inSettings ? t('settings.title') : t('nav.map'), ctx.world.name);
   // Sidebar panels' `visible` read the marks cache, so the shell re-renders when it changes.
   useMarks(ctx.worldId);
 
-  const { headerItems, panels } = useMemo(() => ({
-    headerItems: collect(features, 'headerItems'),
-    panels: collect(features, 'sidebarPanels'),
-  }), [features]);
+  const { startItems, centerItems, panels } = useMemo(() => {
+    const items = collect(features, 'headerItems');
+    return {
+      startItems: items.filter(h => (h.slot ?? 'start') === 'start'),
+      centerItems: items.filter(h => h.slot === 'center'),
+      panels: collect(features, 'sidebarPanels'),
+    };
+  }, [features]);
   const shown = panels.filter(p => p.visible?.(ctx) ?? true);
   const sidebarId = useId();
-  const hasSidebar = !inSettings && !mobile;
+  const hasSidebar = onMap && !mobile;
   // On mobile the map is always the main area; the sheet's full height is the list view.
   const view = inSettings ? 'settings' : mobile ? 'map' : mainView;
+  // The settings page has neither the search nor the navigation (it has its own way back); the world pages have both
+  // (a map result found there goes back to the map). From 1280 px the sections are a tab strip under the bar, below
+  // that a menu in it. On mobile the search is a button next to the menu rather than in the middle of the bar.
+  const centered = inSettings ? null : centerItems.map(h => <h.Component key={h.id} ctx={ctx} />);
+  const menu = inSettings || wide ? null : <SectionMenu ctx={ctx} />;
+  const center = mobile || !centered ? undefined : centered;
+  const tools = mobile ? <>{centered}{menu}</> : menu;
 
   return (
-    <div className="flex h-dvh flex-col">
-      <Header end={<AccountMenu />}>
+    // overflow-hidden: nothing (a screen-reader-only text, a menu) can make the whole screen scroll.
+    <div className="flex h-dvh flex-col overflow-hidden">
+      <Header center={center} tools={tools ?? undefined} end={<AccountMenu />}>
         {hasSidebar && <SidebarToggle sidebarId={sidebarId} />}
-        <h1 className="min-w-0 truncate font-display text-lg font-semibold">{ctx.world.name}</h1>
-        {headerItems.map(h => <h.Component key={h.id} ctx={ctx} />)}
+        <h1 title={ctx.world.name} className="min-w-12 truncate font-display text-lg font-semibold tracking-wide max-[899px]:mr-1 max-[899px]:text-base">{ctx.world.name}</h1>
+        {startItems.filter(h => onMap || !h.mapOnly).map(h => <h.Component key={h.id} ctx={ctx} />)}
       </Header>
+      {wide && !inSettings && <WorldTabs ctx={ctx} />}
       <div className="flex min-h-0 flex-1">
         {hasSidebar && <Sidebar id={sidebarId} ctx={ctx} panels={shown} />}
-        <section role="region" aria-label={t(view === 'settings' ? 'settings.title' : view === 'list' ? 'list.caption' : 'world.map')} className="relative min-w-0 flex-1 bg-bg">
-          {view === 'settings' ? <SettingsPage ctx={ctx} /> : view === 'list' ? <ListView ctx={ctx} /> : <MapView ctx={ctx} />}
-          <ImportBanner worldId={ctx.worldId} />
-          {view === 'map' && !mobile && <ItemPanel ctx={ctx} />}
-        </section>
+        {page ? <WorldPageView key={page.id} page={page} ctx={ctx} /> : (
+          <section role="region" aria-label={t(view === 'settings' ? 'settings.title' : view === 'list' ? 'list.caption' : 'world.map')} className="relative min-w-0 flex-1 bg-bg">
+            {view === 'settings' ? <SettingsPage ctx={ctx} /> : view === 'list' ? <ListView ctx={ctx} /> : <MapView ctx={ctx} />}
+            <ImportBanner worldId={ctx.worldId} />
+            {view === 'map' && !mobile && <ItemPanel ctx={ctx} />}
+          </section>
+        )}
       </div>
-      {/* Always visible; on mobile the sheets sit on top of it (FOOTER_PX). */}
-      <Footer className="border-t border-line bg-panel" />
-      {!inSettings && mobile && <MobileSheets ctx={ctx} panels={shown.filter(p => !p.desktopOnly)} />}
+      {onMap && mobile && <MobileSheets ctx={ctx} panels={shown.filter(p => !p.desktopOnly)} />}
       <ImportDialogHost ctx={ctx} />
     </div>
   );
@@ -195,7 +217,7 @@ function Sidebar({ id, ctx, panels }: { id: string; ctx: WorldCtx; panels: Sideb
           style={fit ? { width: 'max-content', minWidth: SIDEBAR.fitMin, maxWidth: SIDEBAR.fitMax } : undefined}
         >
           {panels.map(p => (
-            <Panel key={p.id} title={t(p.titleKey)}><p.Component worldId={ctx.worldId} /></Panel>
+            <SidebarPanelView key={p.id} panel={p} worldId={ctx.worldId} />
           ))}
         </div>
       </div>
@@ -210,7 +232,7 @@ function Sidebar({ id, ctx, panels }: { id: string; ctx: WorldCtx; panels: Sideb
         title={t('world.resizeSidebarHint')}
         tabIndex={open ? 0 : -1}
         {...handleProps}
-        className={`absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize touch-none select-none focus-ring hover:bg-accent/60 ${dragging ? 'bg-accent' : ''}`}
+        className={`absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize touch-none select-none transition-colors focus-ring hover:bg-accent/60 ${dragging ? 'bg-accent' : ''}`}
       />
     </aside>
   );
@@ -228,10 +250,10 @@ function SidebarToggle({ sidebarId }: { sidebarId: string }) {
       aria-controls={sidebarId}
       aria-keyshortcuts="["
       size="sm"
-      className="-ml-1"
+      variant={open ? 'ghost' : 'secondary'}
       onClick={() => useUiStore.getState().toggleSidebar()}
     >
-      <span aria-hidden="true">☰</span>
+      <SidebarIcon />
     </IconButton>
   );
 }
@@ -239,15 +261,24 @@ function SidebarToggle({ sidebarId }: { sidebarId: string }) {
 /**
  * Mobile (spec §10.11): the sidebar panels in the bottom sheet (peek: progress chips, half: the
  * panels with a sticky [Next stop ›] while a route is open, full: the list view) and the selected
- * item in the item sheet above it. "Show on map" from the list drops the sheet to peek.
+ * item in the item sheet above it. "Show on map" from the list drops the sheet to peek; so does a map mode that
+ * takes points anywhere (MapMode.onMapClick), which also closes the item sheet, so the map is free to tap.
  */
 function MobileSheets({ ctx, panels }: { ctx: WorldCtx; panels: SidebarPanel[] }) {
   const { t } = useTranslation();
+  const features = useFeatures();
   const [snap, setSnap] = useState<Snap>('peek');
   const routeOpen = useRouteDraft(s => s.draft !== null);
-  useEffect(() => useUiStore.subscribe((s, prev) => {
-    if (s.focusRequest && !prev.focusRequest) setSnap('peek');
-  }), []);
+  useEffect(() => {
+    const pickModes = new Set(collect(features, 'mapModes').filter(m => m.onMapClick).map(m => m.id));
+    return useUiStore.subscribe((s, prev) => {
+      if (s.focusRequest && !prev.focusRequest) setSnap('peek');
+      if (s.interactionMode !== prev.interactionMode && pickModes.has(s.interactionMode)) {
+        setSnap('peek');
+        if (s.selectedActor !== null) useUiStore.getState().select(null);
+      }
+    });
+  }, [features]);
 
   return (
     <>
@@ -261,7 +292,7 @@ function MobileSheets({ ctx, panels }: { ctx: WorldCtx; panels: SidebarPanel[] }
         {/* The panels stay mounted, so their state (route editor, conflict stepper) survives a resize. */}
         <div hidden={snap !== 'half'}>
           {panels.map(p => (
-            <Panel key={p.id} title={t(p.titleKey)}><p.Component worldId={ctx.worldId} /></Panel>
+            <SidebarPanelView key={p.id} panel={p} worldId={ctx.worldId} />
           ))}
         </div>
         {snap === 'full' && <ListView ctx={ctx} />}

@@ -44,7 +44,7 @@ export function Nearby({ item, ctx }: { item: Item; ctx: WorldCtx }) {
                 <button
                   type="button"
                   onClick={() => select(other.name)}
-                  className="flex w-full items-center gap-2 rounded px-1 py-1 text-left text-sm hover:bg-line focus-ring"
+                  className="flex w-full items-center gap-2 chamfer px-1 py-1 text-left text-sm hover:bg-raised focus-ring"
                 >
                   <TypeIcon type={typeById(other.type)} className="shrink-0" />
                   <span className="flex min-w-0 flex-1 flex-col">

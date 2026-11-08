@@ -15,9 +15,9 @@
     "retry": "Erneut versuchen"
   },
   "types": {
-    "slug_blue": "Blaue Power-Schnecke",
-    "slug_yellow": "Gelbe Power-Schnecke",
-    "slug_purple": "Violette Power-Schnecke",
+    "slug_blue": "Blaue Elektroschnecke",
+    "slug_yellow": "Gelbe Elektroschnecke",
+    "slug_purple": "Violette Elektroschnecke",
     "somersloop": "Somersloop",
     "mercer_sphere": "Mercer-Sphäre",
     "hard_drive": "Festplatte"
@@ -93,7 +93,159 @@
   "biomes": {
     "title": "Biome",
     "scope": "Bereich: {name}",
-    "clearScope": "Bereich aufheben"
+    "clearScope": "Bereich aufheben",
+    "noTypes": "Alle Sammelobjekt-Typen sind ausgeschaltet, es gibt nichts zu zählen. Typen unter Fortschritt einschalten.",
+    "noneShown": "keine der gezeigten Typen"
+  },
+  "caves": {
+    "control": "Höhlen",
+    "hint": "Höhlen und ihre Eingänge zeigen (aus den Spieldaten)",
+    "item": {
+      "title": "Höhle",
+      "inCave": "Liegt in einer Höhle.",
+      "nearestEntrance": "Nächster Höhleneingang: {distance, number} m (Luftlinie)"
+    }
+  },
+  "coords": {
+    "hint": "Position unter dem Mauszeiger in Metern. Z ist die höchste Oberfläche dort: Gelände, Felsen, Bauten und große Bäume, ohne Büsche und kleine Pflanzen."
+  },
+  "heights": {
+    "control": "Höhenkarte",
+    "hint": "Höhenkarte als Farbskala zeigen (höchste Oberfläche, aus den Spieldaten)",
+    "legend": "Höhe (höchster Punkt)",
+    "metres": "{value} m"
+  },
+  "resourceNodes": {
+    "title": "Rohstoffvorkommen",
+    "control": "Rohstoffvorkommen",
+    "hint": "Rohstoffvorkommen, Geysire und Rohstoffquellen zeigen (aus den Spieldaten und dem letzten Spielstand-Import)",
+    "show": "Auf der Karte zeigen",
+    "on": "An",
+    "off": "Aus",
+    "none": "Dieser Kartendatensatz enthält keine Rohstoffvorkommen.",
+    "resource": "Ressource",
+    "resourceHint": "Klicken zum Ein- oder Ausblenden · Alt-Klick oder „nur“: nur diese Ressource zeigen",
+    "only": "nur",
+    "onlyLabel": "Nur {resource} zeigen",
+    "all": "Alle",
+    "noneShown": "Keine",
+    "purityLabel": "Reinheit",
+    "count": "{count, number}",
+    "purity": {
+      "impure": "Unrein",
+      "normal": "Normal",
+      "pure": "Rein"
+    },
+    "kinds": {
+      "node": "Rohstoffvorkommen",
+      "geyser": "Geysir",
+      "core": "Rohstoffquelle (Mitte)",
+      "satellite": "Unterknoten einer Rohstoffquelle"
+    },
+    "fromSave": "Aus dem Spielstand-Import. Standardkarte: {resource}, {purity}",
+    "changedNote": "{count, plural, one {# Vorkommen weicht} other {# Vorkommen weichen}} von der Standardkarte ab (aus dem letzten Spielstand-Import, mit hellem Punkt am Ring markiert).",
+    "randomizedNote": "Diese Welt wurde mit zufälligen Rohstoffvorkommen gestartet ({mode}), aber der Spielstand enthält keine Vorkommensdaten, die ficsmap lesen kann. Die Karte zeigt die Standardvorkommen.",
+    "importChanged": "{count, plural, one {# Rohstoffvorkommen weicht} other {# Rohstoffvorkommen weichen}} von der Standardkarte ab.",
+    "importRandomized": "Zufällige Rohstoffvorkommen ({mode}): Der Spielstand enthält keine Vorkommensdaten, die ficsmap lesen kann, die Karte behält die Standardvorkommen.",
+    "nodeSettings": {
+      "entry": "{name}: „{value}“",
+      "randomization": "Zufällige Rohstoffvorkommen",
+      "purity": "Reinheit von Rohstoffvorkommen",
+      "randomizationValues": {
+        "NRM_None": "Standard",
+        "NRM_Strict": "Zufällig",
+        "NRM_BasicReach": "Reich: Grundressourcen",
+        "NRM_AdvancedRich": "Reich: Fortgeschrittene Ressourcen",
+        "NRM_FossilFuelRich": "Reich: Fossile Brennstoffe"
+      },
+      "purityValues": {
+        "NPS_NoChange": "Standard",
+        "NPS_AllPure": "Alle rein",
+        "NPS_AllNormal": "Durchschnittlich",
+        "NPS_AllImpure": "Alle unrein",
+        "NPS_AllRandom": "Zufällig",
+        "NPS_Increase": "Hauptsächlich rein",
+        "NPS_Decrease": "Hauptsächlich unrein"
+      }
+    },
+    "extractorsTitle": "Extraktoren (letzter Spielstand-Import)",
+    "occupancyLabel": "Extraktor auf dem Vorkommen",
+    "occupancy": {
+      "all": "Alle",
+      "occupied": "Belegt",
+      "free": "Frei"
+    },
+    "extractorKinds": {
+      "miner1": "Miner Mk.1",
+      "miner2": "Miner Mk.2",
+      "miner3": "Miner Mk.3",
+      "oil": "Ölpumpe",
+      "pressurizer": "Quellenkompressor",
+      "well": "Quellenextraktor",
+      "geothermal": "Geothermie-Generator",
+      "portable": "Mobiler Miner"
+    },
+    "extractorShort": {
+      "miner1": "Mk.1",
+      "miner2": "Mk.2",
+      "miner3": "Mk.3",
+      "oil": "Öl",
+      "pressurizer": "Komp",
+      "well": "Quel",
+      "geothermal": "Geo",
+      "portable": "Mob"
+    },
+    "clock": "Taktrate {value}",
+    "shards": "{count, plural, =0 {Keine Energiefragmente} one {# Energiefragment} other {# Energiefragmente}}",
+    "times": "{name} × {count, number}",
+    "rateEntry": "{rate} ({name})",
+    "extracts": "Fördert {rate}",
+    "extractsWell": "Fördert {rate} (Quellenkompressor bei {clock})",
+    "purityRatesHint": "Bei 100 % Taktrate: {rates}",
+    "summaryNodes": "{count, plural, one {# Vorkommen} other {# Vorkommen}} mit Extraktor",
+    "summaryShards": "Energiefragmente im Einsatz: {count, number}",
+    "importExtractors": "{count, plural, one {# Extraktor} other {# Extraktoren}} auf Rohstoffvorkommen, mit {shards, plural, one {# Energiefragment} other {# Energiefragmenten}}.",
+    "resources": {
+      "Desc_OreIron_C": "Eisenerz",
+      "Desc_OreCopper_C": "Kupfererz",
+      "Desc_Stone_C": "Kalkstein",
+      "Desc_Coal_C": "Kohle",
+      "Desc_OreGold_C": "Caterium-Erz",
+      "Desc_RawQuartz_C": "Rohquarz",
+      "Desc_Sulfur_C": "Schwefel",
+      "Desc_OreBauxite_C": "Bauxit",
+      "Desc_OreUranium_C": "Uran",
+      "Desc_SAM_C": "SAM",
+      "Desc_LiquidOil_C": "Rohöl",
+      "Desc_Water_C": "Wasser",
+      "Desc_NitrogenGas_C": "Stickstoffgas",
+      "Geyser": "Geysir"
+    },
+    "short": {
+      "Desc_OreIron_C": "Fe",
+      "Desc_OreCopper_C": "Cu",
+      "Desc_Stone_C": "Ka",
+      "Desc_Coal_C": "C",
+      "Desc_OreGold_C": "Ca",
+      "Desc_RawQuartz_C": "Qz",
+      "Desc_Sulfur_C": "S",
+      "Desc_OreBauxite_C": "Bx",
+      "Desc_OreUranium_C": "U",
+      "Desc_SAM_C": "SAM",
+      "Desc_LiquidOil_C": "Öl",
+      "Desc_Water_C": "H₂O",
+      "Desc_NitrogenGas_C": "N₂",
+      "Geyser": "Gy"
+    },
+    "search": {
+      "purity": {
+        "pure": "{count, number} rein",
+        "normal": "{count, number} normal",
+        "impure": "{count, number} unrein"
+      },
+      "nodes": "{count, plural, one {# Vorkommen} other {# Vorkommen}}",
+      "withPurity": "{resource} · {purity}"
+    }
   },
   "marks": {
     "saveFailed": "Speichern fehlgeschlagen. Prüfe deine Verbindung.",
@@ -110,9 +262,9 @@
     "dim": "Abblenden",
     "hide": "Ausblenden",
     "types": {
-      "slug_blue": "Blaue Power-Schnecken",
-      "slug_yellow": "Gelbe Power-Schnecken",
-      "slug_purple": "Violette Power-Schnecken",
+      "slug_blue": "Blaue Elektroschnecken",
+      "slug_yellow": "Gelbe Elektroschnecken",
+      "slug_purple": "Violette Elektroschnecken",
       "somersloop": "Somersloops",
       "mercer_sphere": "Mercer-Sphären",
       "hard_drive": "Festplatten"
@@ -134,14 +286,14 @@
     "toOpen": {
       "title": "Zum Öffnen",
       "varies": "Die Anforderungen sind je Welt verschieden",
-      "noData": "Für diese Kapsel gibt es keine Anforderungsdaten",
+      "noData": "Für diese Landekapsel gibt es keine Anforderungsdaten",
       "nothing": "Nichts nötig",
       "items": "{amount, number}× {item}",
       "power": "{power, number} MW"
     },
     "crashSite": {
-      "title": "Absturzort",
-      "items": "Items am Absturzort",
+      "title": "Absturzstelle",
+      "items": "Gegenstände an der Absturzstelle",
       "threats": "Gefahren",
       "notes": "Hinweise",
       "none": "Keine",
@@ -149,8 +301,8 @@
       "threat": "{count, number}× {name}"
     },
     "powerSlug": {
-      "title": "Power-Schnecke",
-      "yields": "{count, plural, one {Ergibt # Power-Splitter} other {Ergibt # Power-Splitter}}"
+      "title": "Elektroschnecke",
+      "yields": "{count, plural, one {Ergibt # Energiefragment} other {Ergibt # Energiefragmente}}"
     },
     "nearby": {
       "title": "In der Nähe · {radius, number} m",
@@ -168,16 +320,8 @@
     "copyId": "ID kopieren",
     "copied": "Kopiert"
   },
-  "quickCheck": {
-    "control": "Schnell abhaken",
-    "banner": "SCHNELL ABHAKEN AN · Klicke auf eine Markierung, um sie abzuhaken · Q zum Beenden",
-    "zoomIn": "Vergrößere die Karte zum schnellen Abhaken",
-    "checked": "{type} abgehakt",
-    "unchecked": "Haken bei {type} entfernt",
-    "zoomInShort": "Erst vergrößern"
-  },
   "import": {
-    "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur die Liste der gesammelten Objekte, dazu Name, Datum und Build des Spielstands.",
+    "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur: die Liste der gesammelten Objekte; Name, Datum und Build des Spielstands; zu den Rohstoffvorkommen die Ressource oder Reinheit, die dein Spielstand festlegt, sowie welcher Extraktor auf welchem Vorkommen steht (Gebäude, Taktrate, Energiefragmente); und für den Fabrikplan, was wo gebaut ist (Gebäude mit ihrer Produktivität, Förderbänder, Rohrleitungen, Stromleitungen, Wege, Stationen, Fahrzeuge, Kartenmarkierungen, Schildertexte und die erkundete Fläche). Keine Spielernamen und keine Spielerpositionen.",
     "button": "Importieren",
     "title": "Spielstand importieren",
     "chooseFolder": "Spielstand-Ordner wählen",
@@ -217,7 +361,44 @@
     "banner": "Import fertig · +{added, number} · {conflicts, plural, =0 {keine Konflikte} one {# Konflikt (!)} other {# Konflikte (!)}}",
     "review": "Konflikte prüfen",
     "dismiss": "Ausblenden",
-    "createImportFailed": "Welt erstellt, aber der Import ist fehlgeschlagen. Du kannst ihn auf der Karte noch einmal starten."
+    "createImportFailed": "Welt erstellt, aber der Import ist fehlgeschlagen. Du kannst ihn auf der Karte noch einmal starten.",
+    "factoryFailed": "Import fertig, aber die Fabrik dieses Spielstands ließ sich nicht für den Fabrikplan speichern.",
+    "older": {
+      "open": "Ältere Spielstände hinzufügen…",
+      "teaser": "Geh im Fabrikplan durch die Geschichte deiner Fabrik: Füge ältere Spielstände dieser Welt hinzu.",
+      "title": "Ältere Spielstände hinzufügen",
+      "intro": "Fügt die Fabrik älterer Spielstände zum Zeitstrahl des Fabrikplans hinzu. Abgehakte Objekte und Rohstoffvorkommen bleiben, wie sie sind: Die setzt nur der Import deines neuesten Spielstands.",
+      "filesLabel": "Spielstand-Dateien wählen",
+      "multiHint": "Du kannst mehrere Dateien auf einmal wählen. Sie werden nacheinander gelesen, die älteste zuerst.",
+      "progress": "{current, number} von {total, number}",
+      "progressLabel": "Fortschritt beim Hinzufügen älterer Spielstände",
+      "listLabel": "Gewählte Spielstände",
+      "status": {
+        "queued": "Wartet",
+        "parsing": "Wird gelesen",
+        "uploading": "Wird hochgeladen",
+        "added": "Hinzugefügt",
+        "duplicate": "Schon vorhanden",
+        "otherSession": "Andere Sitzung",
+        "noFactory": "Keine Fabrikdaten",
+        "notASave": "Kein Spielstand",
+        "tooLarge": "Zu groß",
+        "limit": "Grenze erreicht",
+        "rateLimited": "Zu viele",
+        "failed": "Fehlgeschlagen",
+        "cancelled": "Abgebrochen"
+      },
+      "otherSessionNote": "Die Sitzung „{session}“ ist nicht „{expected}“ dieser Welt, darum wurde sie übersprungen.",
+      "addAnyway": "Trotzdem hinzufügen",
+      "noFactoryNote": "Diese ficsmap-Version liest noch keine Fabrikdaten aus Spielständen.",
+      "limitNote": "Diese Welt hat so viele Fabrik-Schnappschüsse, wie sie speichern kann. Lösche zuerst ältere.",
+      "rateLimitedNote": "Zu viele Spielstände für diese Welt in einer Stunde. Versuche den Rest später.",
+      "tooLargeNote": "Die Fabrik dieses Spielstands ist größer, als ficsmap speichern kann.",
+      "summary": "{added, plural, one {# Spielstand hinzugefügt} other {# Spielstände hinzugefügt}} · {skipped, plural, =0 {keiner übersprungen} other {# übersprungen}}",
+      "more": "Weitere Spielstände wählen",
+      "back": "Zurück zum Import",
+      "finish": "Fertig"
+    }
   },
   "conflicts": {
     "title": "Konflikte",
@@ -249,9 +430,9 @@
       "allFound": "Nichts mitzunehmen: alles liegt unterwegs.",
       "collapse": "Liste einklappen",
       "expand": "Liste ausklappen",
-      "power": "Strom: {count, plural, one {# Pod} other {# Pods}}, bis {mw, number} MW",
-      "free": "{count, plural, one {# Pod ohne Voraussetzung} other {# Pods ohne Voraussetzung}}",
-      "unknown": "{count, plural, one {# Pod ohne Anforderungsdaten} other {# Pods ohne Anforderungsdaten}}"
+      "power": "Strom: {count, plural, one {# Landekapsel} other {# Landekapseln}}, bis {mw, number} MW",
+      "free": "{count, plural, one {# Landekapsel ohne Voraussetzung} other {# Landekapseln ohne Voraussetzung}}",
+      "unknown": "{count, plural, one {# Landekapsel ohne Anforderungsdaten} other {# Landekapseln ohne Anforderungsdaten}}"
     },
     "title": "Routen",
     "new": "+ Neue Route",
@@ -374,6 +555,1051 @@
       "peek": "klein",
       "half": "halb",
       "full": "voll"
+    }
+  },
+  "machineWiki": {
+    "open": "Maschinen",
+    "openHint": "Werte aller Maschinen und Fahrzeuge, aus den Spieldaten",
+    "title": "Maschinen",
+    "failed": "Die Maschinendaten konnten nicht geladen werden.",
+    "unavailable": "Dieser Datensatz hat keine Maschinendaten. Sie werden aus den Docs-Dateien des Spiels erzeugt (siehe Datensatz-Build).",
+    "search": "Suche",
+    "searchPlaceholder": "Name auf Deutsch oder Englisch",
+    "listLabel": "Maschinen und Fahrzeuge",
+    "noMatch": "Keine Treffer.",
+    "back": "Zurück zur Liste",
+    "tierFilter": "Nach Stufe filtern",
+    "tierLabel": "Stufe",
+    "tierChip": "{key, select, mam {MAM} shop {Shop} other {Andere}}",
+    "tierName": "{key, select, tier {Stufe {tier, number}} mam {MAM-Forschung} shop {AWESOME-Shop} other {Andere Freischaltungen}}",
+    "badge": "{key, select, tier {Stufe {tier, number}} mam {MAM} shop {Shop} other {Andere}}",
+    "upTo": "Bis Stufe",
+    "upToAll": "Alle",
+    "upToMixed": "Eigene Auswahl",
+    "clearTiers": "Filter löschen",
+    "showing": "{shown, plural, one {# von {total, number} angezeigt} other {# von {total, number} angezeigt}}",
+    "category": {
+      "production": "Produktion",
+      "extraction": "Förderung",
+      "power": "Strom",
+      "logistics": "Logistik",
+      "special": "Weitere Maschinen",
+      "vehicles": "Fahrzeuge"
+    },
+    "stats": "Werte",
+    "stat": {
+      "powerUse": "Stromverbrauch",
+      "powerUseRange": "Stromverbrauch",
+      "powerProduction": "Stromerzeugung",
+      "powerVariable": "Stromerzeugung",
+      "gridBoost": "Netzverstärkung",
+      "storageCapacity": "Speicherkapazität",
+      "maxCharge": "Maximale Laderate",
+      "fuelBurn": "Treibstoffverbrauch",
+      "extraction": "Förderrate",
+      "extractionFluid": "Förderrate",
+      "resources": "Fördert",
+      "resourceForm": "Fördert",
+      "inventorySlots": "Inventar",
+      "storageSlots": "Lagergröße",
+      "fluidStorage": "Flüssigkeitskapazität",
+      "fuelSlots": "Treibstoffinventar",
+      "loadSeconds": "Ladezeit",
+      "unloadSeconds": "Entladezeit",
+      "clock": "Taktrate",
+      "powerExponent": "Stromexponent (Taktrate)",
+      "somersloopSlots": "Somersloop-Plätze"
+    },
+    "statValue": {
+      "powerUse": "{mw, number} MW",
+      "powerUseRange": "{min, number}–{max, number} MW",
+      "powerProduction": "{mw, number} MW",
+      "powerVariable": "Durchschnittlich {mw, number} MW auf einem normalen Geysir, schwankt im Zyklus von {seconds, number} s",
+      "gridBoost": "+{share, number, percent} der Netzerzeugung",
+      "storageCapacity": "{mwh, number} MWh",
+      "maxCharge": "{mw, number} MW",
+      "fuelBurn": "{mw, number} MW",
+      "extraction": "{rate, number}/min{node, select, yes { (normales Vorkommen)} other {}}",
+      "extractionFluid": "{rate, number} m³/min{node, select, yes { (normales Vorkommen)} other {}}",
+      "resources": "{names}",
+      "resourceForm": "{form, select, solid {Feste Ressourcen} liquid {Flüssigkeiten} other {Gase}}",
+      "inventorySlots": "{slots, plural, one {# Platz} other {# Plätze}}",
+      "storageSlots": "{slots, plural, one {# Platz} other {# Plätze}}",
+      "fluidStorage": "Nicht in den Spieldaten",
+      "fuelSlots": "{slots, plural, one {# Platz} other {# Plätze}}",
+      "loadSeconds": "{seconds, number} s",
+      "unloadSeconds": "{seconds, number} s",
+      "clock": "{min, number, percent}–{max, number, percent} ohne Energiefragmente",
+      "clockShards": "{min, number}–{max, number} % (bis {shards, plural, one {# Energiefragment} other {# Energiefragmente}})",
+      "powerExponent": "{exponent, number}",
+      "somersloopSlots": "{slots, number}"
+    },
+    "amount": "{fluid, select, yes {{amount, number} m³ {name}} other {{amount, number} × {name}}}",
+    "amountPerMinute": "{fluid, select, yes {{amount, number} m³/min {name}} other {{amount, number}/min {name}}}",
+    "rate": "{fluid, select, yes {{amount, number} m³/min} other {{amount, number}/min}}",
+    "fuels": "Brennstoffe",
+    "plus": "dazu",
+    "byproduct": "erzeugt",
+    "fuelBoost": "+{share, number, percent} Netzverstärkung",
+    "atFullClock": "Pro Minute bei 100 % Taktrate.",
+    "description": "Im Spiel",
+    "noDescription": "Das Spiel hat keine Beschreibung.",
+    "buildCost": "{place, select, workshop {Hergestellt in der Ausrüstungs-Werkstatt aus} other {Baukosten}}",
+    "unlockedBy": "Freigeschaltet durch",
+    "unlock": "{kind, select, milestone {Stufe {tier, number}: {name}} tutorial {Stufe 0: {name}} mam {MAM-Forschung: {name}} alternate {Alternatives Rezept: {name}} hardDrive {Festplatte: {name}} shop {AWESOME-Shop: {name}} other {{name}}}",
+    "recipes": "{count, plural, one {# Rezept} other {# Rezepte}}",
+    "alternate": "Alternativ",
+    "into": "ergibt",
+    "cycle": "{seconds, number} s pro Zyklus",
+    "recipePower": "{min, number}–{max, number} MW",
+    "wikiLink": "Im Satisfactory-Wiki",
+    "newTab": "(öffnet in neuem Tab)",
+    "source": "Werte aus den Datendateien des Spiels (CommunityResources/Docs). Was die Spieldaten nicht enthalten, fehlt hier."
+  },
+  "planner": {
+    "button": "Planer",
+    "hint": "Produktionsplaner: von den benötigten Gegenständen bis zu Minern und Pumpen",
+    "title": "Planer",
+    "loadFailed": "Die Rezeptdaten konnten nicht geladen werden.",
+    "noData": "Dieser Datensatz hat keine Rezeptdaten (recipes.json). Baue den Datensatz mit --docs, um den Planer zu nutzen.",
+    "needs": "Was brauchst du?",
+    "itemN": "Gegenstand {n}",
+    "pickItem": "Gegenstand suchen…",
+    "noMatch": "Kein passender Gegenstand",
+    "rateFor": "Pro Minute {item}",
+    "remove": "{item} entfernen",
+    "add": "+ Gegenstand hinzufügen",
+    "reset": "Neu anfangen",
+    "extractors": "Extraktoren",
+    "miner": "Miner",
+    "clock": "Taktrate der Extraktoren",
+    "steps": "Produktionsschritte",
+    "howMade": "Hergestellt mit",
+    "option": {
+      "recipe": "{recipe} ({machine})",
+      "byproduct": "{recipe} ({machine}, Nebenprodukt)",
+      "external": "Von außen geliefert"
+    },
+    "exact": "genau {value}",
+    "power": "{value} MW",
+    "powerRange": "{min}–{max} MW",
+    "byproducts": "Nebenprodukte",
+    "forYou": "{value} davon für dich, der Rest geht in andere Schritte",
+    "external": "Von außen geliefert, nicht Teil dieses Plans.",
+    "cycle": "Kreislauf",
+    "cycleHint": "Teil eines Kreislaufs: Diese Schritte beliefern sich gegenseitig.",
+    "totals": "Summen",
+    "raw": "Rohstoffe",
+    "showOnMap": "Auf der Karte",
+    "externalInputs": "Von außen geliefert",
+    "buildings": "Gebäude",
+    "totalPower": "Strom",
+    "none": "Keine",
+    "wellNote": "{item}: ein {name} je Rohstoffquelle, {power} MW bei {clock, number} %{shards, plural, =0 {} one {, # Energiefragment} other {, # Energiefragmente}}; nicht im Strom eingerechnet.",
+    "error": {
+      "cycle": "Diese Rezepte bilden einen Kreislauf, der mindestens so viel verbraucht, wie er herstellt: {items}. Wähle für eines davon ein anderes Rezept oder lass eines von außen liefern.",
+      "invalidSettings": "Die Taktrate der Extraktoren muss eine Zahl von {min, number} bis {max, number} sein.",
+      "unknownItem": "Unbekannter Gegenstand {item}.",
+      "noTargets": "Gib eine Rate über 0 ein.",
+      "invalidClock": "Die Taktrate für {item} muss eine Zahl von {min, number} bis {max, number} sein."
+    },
+    "unit": {
+      "solid": "{value}/min",
+      "fluid": "{value} m³/min",
+      "perMin": "/min",
+      "fluidPerMin": "m³/min",
+      "mw": "MW"
+    },
+    "purity": "Reinheit des Rohstoffvorkommens",
+    "purityOption": {
+      "impure": "Unrein",
+      "normal": "Normal",
+      "pure": "Rein"
+    },
+    "purityHint": "Unrein ×{impure, number}, normal ×{normal, number}, rein ×{pure, number}: Faktoren aus dem Satisfactory-Wiki (nicht in den Spieldaten). Für Miner, Ölpumpen und Quellenextraktoren; jeder Schritt kann eine eigene haben.",
+    "clockHint": "{min, number} % bis {max, number} %. Über 100 % braucht jedes Gebäude ein Energiefragment je {per, number} % (höchstens {slots, number}). Bei einer Rohstoffquelle ist es die Taktrate ihres Quellenkompressors.",
+    "stepClock": "Taktrate",
+    "shards": "{count, plural, one {# Energiefragment} other {# Energiefragmente}} je Gebäude",
+    "fromByproducts": "{value} aus Nebenprodukten anderer Schritte",
+    "autoLoop": "Automatisch von außen geliefert: Das Standardrezept bräuchte das Produkt des gewählten Rezepts wieder (Kreislauf).",
+    "noMachines": "Nebenprodukte anderer Schritte decken den Bedarf; keine Gebäude nötig.",
+    "surplus": "Überschuss",
+    "shardsPressurizer": "{count, plural, one {# Energiefragment} other {# Energiefragmente}} je {name}",
+    "wellClock": "Die Taktrate wird am {name} eingestellt und gilt für alle Extraktoren der Rohstoffquelle; die Extraktoren selbst lassen sich nicht übertakten und brauchen keinen Strom.",
+    "view": "Ansicht",
+    "viewOption": {
+      "diagram": "Diagramm",
+      "list": "Liste"
+    },
+    "diagram": {
+      "label": "Produktionskette",
+      "hint": "Rohstoffe oben, deine Gegenstände unten, Mengen pro Minute. Wähle einen Schritt, um Rezept, Taktrate oder Reinheit zu ändern; die Pfeiltasten wechseln zwischen den Schritten, Escape schließt den Schritt.",
+      "wanted": "gewünscht: {value}",
+      "alt": "Alternativ",
+      "alternate": "{recipe} (Alternativrezept)",
+      "clock": "{value, number} %",
+      "clockLong": "Taktrate {value, number} %",
+      "byproducts": "+ Nebenprodukte",
+      "covered": "Aus Nebenprodukten",
+      "autoLoop": "Automatisch, vermeidet einen Kreislauf",
+      "editor": "{item} bearbeiten",
+      "close": "Bearbeitung von {item} schließen",
+      "legend": {
+        "label": "Legende",
+        "input": "Material pro Minute",
+        "byproduct": "Nebenprodukt",
+        "loop": "Kreislauf",
+        "external": "Von außen geliefert",
+        "shard": "Energiefragment"
+      },
+      "machines": "{count}× {name}",
+      "makes": "stellt {value} her",
+      "needs": "braucht {list}",
+      "wantedBadge": "Gewünscht",
+      "fit": "Einpassen",
+      "actualSize": "Originalgröße"
+    },
+    "panel": {
+      "recipe": "Rezept",
+      "production": "Produktion",
+      "input": "Eingang",
+      "output": "Ausgang",
+      "node": "Rohstoffvorkommen",
+      "extraction": "Extraktionsrate",
+      "perBuilding": "{value} je Gebäude",
+      "cycle": "{value} s je Zyklus",
+      "clock": "Taktrate",
+      "clockSlider": "Taktrate-Regler (%)",
+      "shards": "Energiefragmente",
+      "shardSlots": "{used, number} von {total, number} Plätzen für Energiefragmente belegt",
+      "pressurizerPower": "{name}: {value} MW je Rohstoffquelle, nicht in den Summen enthalten",
+      "purity": "Reinheit",
+      "even": "{count}× bei {clock} %"
+    },
+    "gameModeNote": "Die Zahlen gelten für den Standard-Spielmodus; Einstellungen des Spielmodus (Rezeptkosten, Stromverbrauch, zufällige Reinheit der Rohstoffvorkommen) werden nicht berücksichtigt.",
+    "lastWorking": "Unten steht der letzte gültige Plan; korrigiere den Wert, dann wird er aktualisiert.",
+    "variableShort": "schwankt während jedes Zyklus",
+    "empty": "Wähle einen Gegenstand und wie viele pro Minute: Hier stehen dann Strom und Rohstoffe, darunter die Produktionskette.",
+    "example": "Beispiel: {item}, {rate}",
+    "resetDone": "Plan geleert.",
+    "undo": "Rückgängig",
+    "status": "{power} MW, {buildings, plural, one {# Gebäude} other {# Gebäude}}",
+    "list": {
+      "item": "Gegenstand",
+      "rate": "Pro Minute"
+    }
+  },
+  "vehicleCalc": {
+    "open": "Fahrzeuge",
+    "openHint": "Fahrzeug-Rechner: Fahrzeit, Treibstoff und Stapel pro Minute auf einer Strecke",
+    "title": "Fahrzeuge",
+    "unavailable": "Dieser Kartendatensatz hat keine Fahrzeugdaten. Sie kommen hinzu, wenn der Datensatz mit den Docs-Dateien des Spiels gebaut wird.",
+    "failed": "Die Fahrzeugdaten konnten nicht geladen werden.",
+    "step": {
+      "route": "Strecke",
+      "vehicle": "Fahrzeug",
+      "fuel": "Treibstoff"
+    },
+    "route": "Streckenlänge (einfach)",
+    "pick": {
+      "button": "Auf der Karte wählen",
+      "hint": "Start (A) und Ziel (B) auf der Karte wählen oder die Länge eintippen.",
+      "again": "Neu wählen",
+      "clear": "Punkte entfernen",
+      "start": "Fahrzeug-Rechner: Start auf der Karte wählen",
+      "end": "Fahrzeug-Rechner: jetzt das Ziel wählen",
+      "cancel": "Abbrechen",
+      "startPoint": "Start",
+      "endPoint": "Ziel"
+    },
+    "routeInfo": {
+      "title": "Strecke auf der Karte",
+      "straightLength": "Luftlinie {value} m",
+      "climb": "Höhenunterschied",
+      "metres": "{value} m",
+      "loading": "…",
+      "useStraight": "Luftlinie übernehmen ({value} m)",
+      "adjust": {
+        "road": "Straßen sind länger: Wert anpassen.",
+        "freightCar": "Gleise sind länger: Wert anpassen.",
+        "drone": "Drohnen fliegen die Luftlinie.",
+        "droneTyped": "Gilt für Fahrzeuge am Boden; Drohnen fliegen die Luftlinie ({value} m)."
+      }
+    },
+    "capacity": {
+      "both": "{stacks, plural, one {# Stapel} other {# Stapel}} oder {m3, number} m³"
+    },
+    "fuel": "Treibstoff",
+    "fuelHint": {
+      "drone": "Die Geschwindigkeit der Drohne hängt vom Treibstoff ab."
+    },
+    "fuelNone": {
+      "freightCar": "Güterwagen brauchen keinen Treibstoff: Züge fahren mit Strom.",
+      "other": "Die Fahrzeugdaten enthalten keinen Treibstoffverbrauch."
+    },
+    "more": {
+      "title": "Weitere Einstellungen",
+      "values": "{item} · {speed} km/h · {stop} s",
+      "anyItem": "beliebiger Gegenstand"
+    },
+    "item": "Gegenstand (optional)",
+    "itemPlaceholder": "Beliebiger Gegenstand",
+    "itemHint": "Mit Gegenstand zeigt das Ergebnis auch Stück pro Minute.",
+    "itemUnknown": "Kein Gegenstand mit diesem Namen. Wähle einen aus der Liste.",
+    "itemClear": "Gegenstand entfernen",
+    "cannotCarry": "{vehicle} kann {item} nicht transportieren.",
+    "speed": "Durchschnittsgeschwindigkeit",
+    "speedDefault": {
+      "pathLimit": "Spielwert: das Limit des Autopiloten auf gerader Strecke. Der echte Schnitt ist niedriger (Kurven, Steigungen).",
+      "traction": "Spielwert: hier endet die Zugkraft des Motors; das Limit des Autopiloten von {limit, number} km/h erreicht das Fahrzeug nicht. Der echte Schnitt ist niedriger (Kurven, Steigungen).",
+      "droneFuel": "Spielwert für diesen Treibstoff ({fuel})."
+    },
+    "speedMissing": "Nicht in den Spieldaten: trag die Durchschnittsgeschwindigkeit ein, die du im Spiel siehst.",
+    "stop": "Lade- und Entladezeit",
+    "stopSource": {
+      "truckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Lkw-Station an jedem Ende.",
+      "fluidTruckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Tanklaster-Station an jedem Ende.",
+      "freightPlatform": "Beide Enden zusammen. Spielwert: Lade- und Entladezeit der Frachtplattform.",
+      "dronePort": "Beide Enden zusammen. Spielwert: Andocken und Abheben an beiden Drohnenlandeplätzen."
+    },
+    "stopMissing": "Nicht in den Spieldaten: trag ein, wie lange das Fahrzeug pro Fahrt hin und zurück an beiden Enden zusammen steht.",
+    "reset": "Spielwert übernehmen ({value})",
+    "unit": {
+      "m": "m",
+      "kmh": "km/h",
+      "s": "s",
+      "items": "Stück/min",
+      "stacks": "Stapel/min",
+      "m3": "m³/min"
+    },
+    "rate": {
+      "items": "{items, number} Stück/min ({stacks, number} Stapel/min)",
+      "stacks": "{value, number} Stapel/min",
+      "m3": "{value, number} m³/min",
+      "itemsOnly": "{value, number} Stück/min"
+    },
+    "amount": {
+      "items": "{value, number} Stück",
+      "stacks": "{value, plural, one {# Stapel} other {# Stapel}}",
+      "m3": "{value, number} m³"
+    },
+    "duration": {
+      "seconds": "{s, number} s",
+      "minutes": "{m, number} min {s, number} s"
+    },
+    "result": {
+      "title": "Ergebnis",
+      "perVehicle": "Pro Fahrzeug",
+      "perFreightCar": "Pro Güterwagen",
+      "roundTrip": "Hin und zurück",
+      "oneWay": "Hinweg {time}",
+      "fuel": "Treibstoff",
+      "fuelPerTrip": "je Fahrt",
+      "fuelPerMinute": "{value}/min",
+      "load": "Ladung je Fahrt: {load} · inklusive {stop} Laden und Entladen",
+      "fuelNote": {
+        "autopilot": "Treibstoff geschätzt aus dem Verbrauch pro gefahrenem Meter laut Spieldaten.",
+        "autopilotUphill": "Treibstoff geschätzt aus dem Verbrauch pro gefahrenem Meter laut Spieldaten; bergauf verbraucht er mehr.",
+        "dronePort": "Treibstoffverbrauch der Drohne laut Spielertests."
+      },
+      "missing": {
+        "route": "Wähle die Strecke auf der Karte oder tippe ihre Länge ein, dann steht hier das Ergebnis.",
+        "speed": "Gib die Durchschnittsgeschwindigkeit ein, dann steht hier das Ergebnis.",
+        "stop": "Gib die Lade- und Entladezeit ein, dann steht hier das Ergebnis."
+      },
+      "straightLine": "Luftlinie",
+      "spoken": {
+        "fuel": "{vehicle}: {rate}, hin und zurück {time}, {fuel} {fuelName} je Fahrt",
+        "plain": "{vehicle}: {rate}, hin und zurück {time}"
+      }
+    },
+    "compare": {
+      "title": "Alle Treibstoffe im Vergleich",
+      "bySpeed": "Deiner oben, darunter der schnellste zuerst. Verbrauch: Treibstoff je Fahrt.",
+      "sameSpeed": "Die Fahrzeit ist mit jedem Treibstoff gleich. Deiner oben, darunter der sparsamste zuerst.",
+      "roundTrip": "Hin und zurück",
+      "used": "Verbrauch",
+      "perMinute": "Verbrauch pro Minute",
+      "stacks": "Stapel/min",
+      "fastest": "Schnellster: {fuel}",
+      "yours": "{fuel} · {value}/min"
+    },
+    "fleet": {
+      "question": {
+        "vehicles": "Wie viele Fahrzeuge brauche ich?",
+        "freightCars": "Wie viele Güterwagen brauche ich?"
+      },
+      "target": "Gewünschter Durchsatz",
+      "needed": {
+        "vehicles": "Nötige Fahrzeuge",
+        "freightCars": "Nötige Güterwagen"
+      },
+      "utilisation": "Auslastung",
+      "percent": "{share, number, percent}",
+      "capacity": "Zusammen bis zu",
+      "fuel": "Treibstoff für alle",
+      "fuelTotal": "{value}/min",
+      "missing": "Gib den gewünschten Durchsatz ein.",
+      "freightCarNote": "Gezählt werden Güterwagen. Wagen im selben Zug teilen sich einen Umlauf; Lokomotiven zählen nicht mit.",
+      "spoken": {
+        "vehicles": "{count, plural, one {# Fahrzeug} other {# Fahrzeuge}} nötig, Auslastung {share, number, percent}, zusammen bis zu {capacity}",
+        "freightCars": "{count, plural, one {# Güterwagen} other {# Güterwagen}} nötig, Auslastung {share, number, percent}, zusammen bis zu {capacity}"
+      }
+    }
+  },
+  "search": {
+    "label": "Suche",
+    "open": "Suche",
+    "placeholder": "Suchen: Gegenstände, IDs, Biome, Höhlen …",
+    "clear": "Suche leeren",
+    "chip": "Suche: {query}",
+    "results": "Suchergebnisse",
+    "none": "Keine Treffer",
+    "count": "{count, plural, one {# Treffer} other {# Treffer}}",
+    "countOnMap": "{count, plural, one {# Treffer} other {# Treffer}} · {onMap, plural, one {# Objekt} other {# Objekte}} auf der Karte hervorgehoben",
+    "typeCount": "{count, number} auf der Karte",
+    "itemCount": "{count, plural, one {# Objekt} other {# Objekte}}",
+    "cave": "Höhle {n, number}",
+    "caveIn": "{biome} · {count, plural, one {# Objekt} other {# Objekte}}",
+    "crashSite": "Absturzort · {place}",
+    "crashSiteTerms": "Absturzort, Absturzstelle, Absturzkapsel, Kapsel",
+    "toOpen": "Zum Öffnen: {what}",
+    "kind": {
+      "item": "Objekt",
+      "type": "Typ",
+      "biome": "Biom",
+      "cave": "Höhle",
+      "crashSite": "Absturzort",
+      "machine": "Maschine",
+      "vehicle": "Fahrzeug",
+      "resource": "Rohstoffvorkommen"
+    }
+  },
+  "nav": {
+    "label": "Bereiche",
+    "map": "Karte",
+    "menu": "Bereich: {section}",
+    "layers": "Kartenebenen"
+  },
+  "factory": {
+    "title": "Fabrik",
+    "hint": "Effizienz von Maschinen, Gegenständen und Fahrzeugrouten, Spielstand für Spielstand",
+    "loadFailed": "Die Fabrik-Schnappschüsse konnten nicht geladen werden.",
+    "snapshotFailed": "Die Fabrik dieses Spielstands konnte nicht geladen werden.",
+    "noRecipes": "Dieser Datensatz hat keine Rezeptdaten (recipes.json), darum gibt es keine Produktionsraten. Baue den Datensatz mit --docs.",
+    "showOnMap": "Auf der Karte",
+    "showOnMapNamed": "{name} auf der Karte zeigen",
+    "showAll": "Alle {count, number} zeigen",
+    "showFewer": "Weniger zeigen",
+    "clock": "Takt {value}",
+    "clockHint": "Taktrate",
+    "shards": "{count, plural, one {# Energiefragment} other {# Energiefragmente}}",
+    "unit": {
+      "solid": "{value}/min",
+      "fluid": "{value} m³/min",
+      "pct": "{value} %",
+      "mw": "{value} MW",
+      "playTime": "{h} h {m} min",
+      "minSec": "{m} min {s} s",
+      "sec": "{s} s",
+      "points": "{value} Pkt."
+    },
+    "reason": {
+      "paused": "Pausiert",
+      "noPower": "Kein Strom",
+      "noRecipe": "Kein Rezept",
+      "noFuel": "Kein Treibstoff",
+      "starved": "Mangel",
+      "blocked": "Stau",
+      "unknown": "Läuft zeitweise",
+      "surplus": "Überschuss"
+    },
+    "reasonHint": {
+      "paused": "Von einem Spieler pausiert (Standby). Zählt nicht als ineffizient und nicht als Verlust.",
+      "noPower": "Nicht an ein Stromnetz mit Generator angeschlossen, oder die Sicherung ist ausgelöst.",
+      "noRecipe": "Kein Rezept eingestellt.",
+      "noFuel": "Der Generator hat keinen Treibstoff mehr.",
+      "starved": "Mangel: Ein Eingang war leer, es kommen zu wenig Zutaten an.",
+      "blocked": "Stau: Der Ausgang war voll, das Förderband oder die Pipeline nimmt weniger ab, als sie herstellt.",
+      "unknown": "Sie lief beim Speichern, aber nicht während der ganzen letzten Messung (5 min): meist ungleichmäßiger Nachschub.",
+      "surplus": "Überschuss: Der Extraktor fördert mehr, als abgenommen wird (Ausgang voll). Zählt nicht als ineffizient."
+    },
+    "band": {
+      "idle": "Steht (< 1 %)",
+      "throttled": "Teillast (1–90 %)",
+      "high": "Fast voll (90–99 %)",
+      "full": "Voll (≥ 99 %)"
+    },
+    "bandCount": {
+      "idle": "{count, number} stehen",
+      "throttled": "{count, number} Teillast",
+      "high": "{count, number} fast voll",
+      "full": "{count, number} voll",
+      "paused": "{count, number} pausiert"
+    },
+    "timeline": {
+      "title": "Zeitstrahl",
+      "label": "Spielstände",
+      "position": "Spielstand {n, number} von {total, number}",
+      "older": "Älterer Spielstand",
+      "olderShort": "Älter",
+      "newer": "Neuerer Spielstand",
+      "newerShort": "Neuer",
+      "point": "{date}: {buildings} Gebäude, Ø Produktivität {productivity}",
+      "comparedMark": "Vergleich",
+      "tooltip": "{buildings} Gebäude · {machines} Maschinen · Ø Produktivität {productivity}",
+      "compare": "Vergleichen mit",
+      "compareWith": "Spielstand zum Vergleich",
+      "comparedLegend": "Vergleichsstand",
+      "toChanges": "Änderungen ↓"
+    },
+    "kpi": {
+      "label": "Kennzahlen der Fabrik",
+      "machines": "Maschinen",
+      "inefficient": "{count, number} ineffizient",
+      "avg": "Ø Produktivität",
+      "avgHint": "Mittel aller Maschinen",
+      "idle": "Stillstand",
+      "idleHint": "unter 1 %, ohne pausierte",
+      "throttled": "Teillast",
+      "throttledHint": "1–90 %",
+      "power": "Strom",
+      "powerHint": "Kapazität der Generatoren",
+      "since": "{delta} seit {date}",
+      "inefficientPaused": "{count, number} ineffizient, {paused, number} pausiert"
+    },
+    "lines": {
+      "title": "Produktionsstränge",
+      "subtitle": "{count, plural, one {# Strang} other {# Stränge}} · {machines, plural, one {# Maschine} other {# Maschinen}}",
+      "listLabel": "Produktionsstränge",
+      "view": "Strang zeigen als",
+      "viewDiagram": "Diagramm",
+      "viewMap": "Karte",
+      "groupTitle": "{count, number}× {name}",
+      "rateOf": "{actual} von {nominal}",
+      "of": "von {value}",
+      "makes": "Stellt her",
+      "needs": "Braucht",
+      "members": "Gebäude dieser Gruppe",
+      "groupsLabel": "Gruppen dieses Strangs",
+      "close": "{name} schließen",
+      "none": "In diesem Spielstand gibt es keine Produktionsstränge: Keine Maschinen sind über Förderbänder oder Pipelines verbunden.",
+      "noLinks": "Verbindungen fehlen in diesem Spielstand. Importiere den Spielstand erneut, um die Produktionsstränge zu sehen.",
+      "reimport": "Spielstand erneut importieren",
+      "noLinksMember": "{owner} besitzt diese Welt und kann ihn erneut importieren.",
+      "kind": {
+        "splitter": "Splitter",
+        "merger": "Fusionator",
+        "junction": "Pipeline-Kreuzung",
+        "pump": "Pipeline-Pumpe",
+        "valve": "Ventil",
+        "storage": "Lager",
+        "tank": "Flüssigkeitsspeicher",
+        "station": "Station",
+        "sink": "AWESOME-Schredder",
+        "other": "Logistik"
+      },
+      "band": {
+        "idle": "Steht",
+        "throttled": "Teillast",
+        "high": "Fast voll",
+        "full": "Voll",
+        "paused": "Pausiert"
+      },
+      "bottleneck": {
+        "badge": "Engpass"
+      },
+      "diagram": {
+        "label": "Produktionsstrang {name}",
+        "hint": "Zulieferung oben, Produkte unten; an jedem Förderband und jeder Pipeline die Menge pro Minute und ihre Kapazität. Wähle eine Gruppe, um ihre Maschinen zu sehen; die Pfeiltasten wechseln zwischen den Gruppen, Escape schließt die Gruppe."
+      },
+      "legend": {
+        "load": "Dicker = vollere Förderbänder und Pipelines",
+        "full": "Voll (≥ 95 %), davor staut es sich",
+        "byproduct": "Nebenprodukt",
+        "loop": "Zurück in den Strang",
+        "hidden": "{count, plural, one {# Pumpe, Ventil oder Verteiler} other {# Pumpen, Ventile und Verteiler}} ohne Abzweig ausgeblendet",
+        "estimated": "Mengen über Splitter, Fusionatoren und Zwischenlager sind geschätzt: Der Spielstand sagt nicht, welche Maschine wohin liefert.",
+        "exact": "Voll, reicht genau",
+        "neck": "Engpass",
+        "idle": "{count, plural, one {# leeres Lager oder Station} other {# leere Lager und Stationen}} ausgeblendet",
+        "folded": "{count, plural, one {# Nebenprodukt-Verbindung} other {# Nebenprodukt-Verbindungen}} eingeklappt"
+      },
+      "logisticsInDiagram": "{count, plural, one {# Logistikgebäude} other {# Logistikgebäude}} (Splitter, Lager, Stationen) im Diagramm darunter.",
+      "machinesOnly": "Nur Maschinen",
+      "capacityEach": "{count, number}× {belt} (je {each})",
+      "belt": "Förderband",
+      "pipe": "Pipeline",
+      "neck": {
+        "capacity": "{belt} voll zwischen {from} und {to} ({flow}) – {fix}",
+        "connection": "Verbindung prüfen: {belt} zwischen {from} und {to} führt kaum etwas ({flow})",
+        "fixTier": "auf {next} aufrüsten",
+        "fixBelt": "ein zweites Förderband legen",
+        "fixPipe": "eine zweite Pipeline legen",
+        "shortOutside": "{group}: Mangel an {item} – {supply} von {need} kommen an, von außerhalb des Strangs (Lager oder Station)",
+        "shortMakers": "{group}: Mangel an {item} – {supply} von {need} kommen an, Zulieferer laufen {pct}",
+        "shortFull": "{group}: Mangel an {item} – {supply} von {need} kommen an, Zulieferer laufen {pct} ({fix})",
+        "fixMiner": "übertakten, {miner} oder weitere Vorkommen",
+        "fixExtractor": "übertakten oder weitere Vorkommen",
+        "fixMakers": "mehr Hersteller bauen oder übertakten",
+        "demand": "{group}: Abnehmer brauchen nicht mehr – mehr Abnehmer oder AWESOME-Schredder",
+        "group": "{group}: {why}"
+      },
+      "exact": "reicht genau",
+      "limit": "Grenze:",
+      "byproducts": "Nebenprodukte",
+      "moreRight": "mehr →",
+      "limitBadge": "Grenze"
+    },
+    "items": {
+      "title": "Ineffiziente Gegenstände",
+      "subtitle": "{losing, plural, =0 {Alle Gegenstände laufen voll} one {# Gegenstand unter Soll} other {# Gegenstände unter Soll}}{shortage, plural, =0 {} other {, davon # mit Mangel}}{full, plural, =0 {} other {, # laufen voll}}",
+      "none": "Alle Maschinen stellen her, was sie sollen. Nichts geht verloren.",
+      "item": "Gegenstand",
+      "nominal": "Soll/min",
+      "actual": "Ist/min",
+      "lost": "Verlust/min",
+      "machines": "Maschinen",
+      "reason": "Lage",
+      "machineSummary": "{losing, number} von {total, number} Maschinen verlieren Produktion",
+      "group": {
+        "shortage": "Mangel: zu wenig Zutaten, zuerst beheben",
+        "rest": "Stau und weitere Verluste",
+        "surplus": "Überschuss: Extraktoren fördern mehr, als abgenommen wird (nicht ineffizient)"
+      },
+      "noConsumer": "kein Abnehmer",
+      "noConsumerHint": "Keine Maschine in dieser Fabrik verarbeitet diesen Gegenstand, und keine Ladestation hält ihn.",
+      "consumers": "Abnehmer",
+      "consumersNone": "Keine Maschine in dieser Fabrik verarbeitet {item}.",
+      "loadedAt": "{count, plural, one {Liegt an # Ladestation} other {Liegt an # Ladestationen}}",
+      "consumerGroup": "{name} {count, number}",
+      "reasonCount": "{count, number} {reason}",
+      "fine": "{count, number} voll",
+      "transport": "Transport dazwischen begrenzt: Die Hersteller stauen sich, während Abnehmer im selben Strang auf genau diesen Gegenstand warten. Förderbänder, Pipelines oder Fahrzeuge dazwischen schaffen zu wenig.",
+      "endsHere": {
+        "noConsumer": "Stau endet hier: Kein Abnehmer in dieser Fabrik.",
+        "transport": "Stau endet hier: Die Abnehmer warten darauf, der Transport dazwischen schafft zu wenig.",
+        "demand": "Stau endet hier: Die Abnehmer laufen und brauchen nicht mehr – mehr Abnehmer oder AWESOME-Schredder.",
+        "capacity": "Stau endet hier: Das Förderband oder die Pipeline zu den Abnehmern ist voll – schneller ausbauen.",
+        "connection": "Stau endet hier: Das Band zu den Abnehmern führt kaum etwas, obwohl sie darauf warten – Verbindung prüfen.",
+        "vehicles": "Stau endet hier: Es liegt an Ladestationen, die Fahrzeuge holen zu wenig ab."
+      },
+      "jamEnds": "Stau endet bei",
+      "why": {
+        "noConsumer": "kein Abnehmer",
+        "transport": "Transport dazwischen prüfen",
+        "demand": "Abnehmer brauchen nicht mehr – mehr Abnehmer oder AWESOME-Schredder",
+        "capacity": "Förderband oder Pipeline voll – schneller ausbauen",
+        "connection": "Verbindung prüfen – Band führt kaum etwas",
+        "vehicles": "Fahrzeuge holen zu wenig ab"
+      },
+      "makers": "Hersteller",
+      "outputOf": "Ist {actual} von {nominal}",
+      "moreInGroup": "{count, plural, one {# weiterer zeigen} other {# weitere zeigen}}"
+    },
+    "machines": {
+      "title": "Maschinen",
+      "subtitle": "{machines, number} Maschinen, {inefficient, number} ineffizient",
+      "classes": "Maschinenarten",
+      "count": "{count, plural, one {# Maschine} other {# Maschinen}}",
+      "avg": "Ø",
+      "inefficient": "Ineffiziente Maschinen",
+      "listCount": "{count, number}",
+      "filters": "Filter",
+      "removeClass": "Filter entfernen",
+      "clear": "Filter zurücksetzen",
+      "sort": "Sortieren nach",
+      "sortBy": {
+        "productivity": "Produktivität",
+        "lost": "Verlust",
+        "name": "Name",
+        "clock": "Taktrate"
+      },
+      "listLabel": "{count, plural, one {# Maschine} other {# Maschinen}}",
+      "noMatch": "Keine Maschine passt zum Filter.",
+      "allFine": "Keine Maschine ist ineffizient.",
+      "inefficientCount": "{count, number} ineffizient",
+      "filtered": "Maschinen: {filter}",
+      "inefficientOf": "Ineffiziente Maschinen: {filter}"
+    },
+    "routes": {
+      "title": "Stationen und Fahrzeuge",
+      "subtitle": "{stations, plural, one {# Station} other {# Stationen}}, {vehicles, plural, one {# Fahrzeug} other {# Fahrzeuge}}, {moved} entladen",
+      "none": "Dieser Spielstand hat keine Stationen oder Fahrzeuge.",
+      "stations": "Stationen",
+      "station": "Station",
+      "mode": "Modus",
+      "vehicles": "Fahrzeuge",
+      "perMin": "Gegenstände/min",
+      "interval": "Intervall",
+      "perDock": "Pro Halt",
+      "near": "bei {biome}",
+      "items": "{value} Stück",
+      "hold": "Laderaum {stacks, number} Stapel",
+      "loading": "Beladen",
+      "unloading": "Entladen",
+      "vehicleList": "Fahrzeuge",
+      "autopilot": "Autopilot",
+      "manual": "Manuell",
+      "noFuel": "kein Treibstoff",
+      "fuel": "{amount, number} im Tank",
+      "roundTrip": "Rundfahrt ≈ {time}",
+      "loads": "lädt {value}",
+      "unloads": "entlädt {value}",
+      "stops": "Halte von {name}",
+      "unknownStop": "Wegpunkt",
+      "noRoute": "Keine Route eingestellt.",
+      "intervalHint": "Zeit zwischen zwei Halten irgendeines Fahrzeugs; darunter je Fahrzeug",
+      "intervalEach": "Intervall je Fahrzeug {time}",
+      "fill": "Füllung {value}",
+      "fillApprox": "Füllung ≈ {value}",
+      "fillHint": "Gegenstände je Halt im Verhältnis zum Laderaum (Stapel × Stapelgröße der geladenen Gegenstände). Unter 1 Gegenstand pro Minute, oder unter 5 % bei weniger als 10 pro Minute: kaum Durchsatz.",
+      "cargo": "Ladung",
+      "cargoNone": "leer",
+      "problem": {
+        "noVehicles": "Kein Fahrzeug hält hier",
+        "nothingMoved": "Fahrzeuge halten, bewegen nichts",
+        "lowThroughput": "Kaum Durchsatz"
+      },
+      "problems": "{count, plural, one {# Station mit Problem} other {# Stationen mit Problem}}",
+      "emptyLegs": "Leerfahrt bei {stations}",
+      "fuelNamed": "{fuel}: {amount, number} im Tank",
+      "noFuelNamed": "{fuel}: kein Treibstoff",
+      "carries": "Hat geladen",
+      "consumersShort": "Abnehmer: {count, number} von {total, number} mit Mangel",
+      "consumersFine": "Abnehmer: {count, number} ohne Mangel",
+      "notEnough": "Zu wenig für {station}: {count, plural, one {# Abnehmer wartet} other {# Abnehmer warten}} auf {item}",
+      "repeat": "wie Halt {n}",
+      "stopShort": "Mangel"
+    },
+    "changes": {
+      "title": "Änderungen",
+      "subtitle": "Seit {date}: {added, number} gebaut, {removed, number} abgerissen",
+      "newBuildings": "die neuen Gebäude",
+      "built": "Gebaut und abgerissen",
+      "noBuildings": "Nichts gebaut oder abgerissen.",
+      "moreClasses": "{count, plural, one {# weitere Art} other {# weitere Arten}}",
+      "items": "Gegenstände: Verlust geändert",
+      "noItems": "Bei keinem Gegenstand hat sich der Verlust geändert.",
+      "moreLoss": "mehr Verlust",
+      "lessLoss": "weniger Verlust",
+      "worse": "Schlechter ({count, number})",
+      "better": "Besser ({count, number})",
+      "noMachines": "Keine.",
+      "added": "+{count, number}",
+      "removed": "−{count, number}",
+      "addedHint": "gebaut",
+      "removedHint": "abgerissen",
+      "to": "auf",
+      "logistics": "Logistik",
+      "logisticsHint": "Förderbänder, Förderlifte, Förderbandsplitter, Förderband-Fusionatoren, Stützen, Pipeline-Kreuzungen, Strommasten und Hypertubes",
+      "logisticsCount": "{count, plural, one {# Art} other {# Arten}}",
+      "summary": "Zusammenfassung",
+      "row": {
+        "machines": "Maschinen",
+        "logistics": "Logistik",
+        "foundations": "Fundamente",
+        "other": "Sonstiges"
+      },
+      "none": "unverändert",
+      "logisticsFoundations": "Logistik und Fundamente"
+    },
+    "empty": {
+      "title": "Noch keine Fabrikdaten",
+      "text": "Die Fabrik-Seite zeigt, wie gut deine Maschinen laufen, welche Gegenstände Produktion verlieren und was deine Fahrzeuge bewegen, für jeden Spielstand auf einem Zeitstrahl.",
+      "owner": "Importiere deinen aktuellen Spielstand und füge ältere Spielstände dieser Welt hinzu, um zu sehen, wie sich die Fabrik verändert hat.",
+      "import": "Spielstand importieren",
+      "older": "Ältere Spielstände hinzufügen",
+      "member": "{owner} besitzt diese Welt und kann Spielstände importieren. Dann erscheint die Fabrik hier."
+    },
+    "state": {
+      "paused": "Pausiert"
+    },
+    "machine": {
+      "purity": "Vorkommen {purity}",
+      "belt": "{belt} ({rate})",
+      "hint": {
+        "beltLimits": "{belt} begrenzt auf {rate}",
+        "beltBehind": "Vermutlich {belt} dahinter ({rate})",
+        "noBelt": "Kein Förderband angeschlossen",
+        "overclockUseless": "Übertakten bringt derzeit nichts ({shards, plural, one {# Energiefragment} other {# Energiefragmente}} frei)",
+        "sharedBeltFull": "Gemeinsames {belt} voll ({rate}): staut sich davor",
+        "beltExact": "{belt} danach voll, reicht genau ({rate})"
+      }
+    },
+    "top": {
+      "title": "Größter Engpass",
+      "diagram": "Zum Diagramm",
+      "map": "Auf der Karte"
+    }
+  },
+  "factoryMap": {
+    "title": "Fabrikplan",
+    "control": "Fabrikplan",
+    "hint": "Zeichnet auf die Karte, was deine Spielstände gebaut haben: Gebäude, Förderbänder, Wege, Stationen und Fahrzeuge, mit Zeitstrahl",
+    "show": "Fabrik anzeigen",
+    "on": "An",
+    "off": "Aus",
+    "colorMode": "Färben nach",
+    "colorModes": {
+      "category": "Kategorie",
+      "productivity": "Produktivität"
+    },
+    "legend": "Legende",
+    "layersLabel": "Ebenen",
+    "layers": {
+      "floor": "Grundriss",
+      "buildings": "Gebäude",
+      "lines": "Förderbänder und Pipelines",
+      "power": "Stromleitungen",
+      "roads": "Wege, Stationen, Fahrzeuge",
+      "markers": "Kartenmarkierungen",
+      "crates": "Kisten",
+      "fog": "Erkundet"
+    },
+    "kinds": {
+      "production": "Produktion",
+      "extraction": "Rohstoffgewinnung",
+      "power": "Strom",
+      "building": "Lager, Stationen und andere Gebäude",
+      "logistics": "Logistik (Splitter, Lifte, Masten)",
+      "structure": "Fundamente"
+    },
+    "showOnMapHint": "Auf der Karte umranden und hinzoomen",
+    "clearHighlight": "Markierung aufheben ({count, plural, one {# Gebäude} other {# Gebäude}})",
+    "perMin": "{value} /min",
+    "noMeasurement": "Keine Produktivität gemessen",
+    "productivityValue": "Produktivität {value}",
+    "station": {
+      "loading": "Beladen",
+      "unloading": "Entladen",
+      "idleShort": "keine Fahrzeuge",
+      "rateShort": "{dir} {rate} /min",
+      "mode": "Modus",
+      "throughput": "Bewegte Gegenstände",
+      "interval": "Fahrzeug dockt",
+      "vehicles": "{count, plural, one {# Fahrzeug} other {# Fahrzeuge}}",
+      "vehicleRow": "{rate} · {perDock} pro Andocken · alle {time}",
+      "state": {
+        "idle": "Hier dockt kein Fahrzeug.",
+        "empty": "Fahrzeuge docken hier, bewegen aber nichts: Leerfahrten.",
+        "active": "In Betrieb. Die Werte sind die Durchschnitte des Spiels pro Fahrzeug."
+      },
+      "every": "alle {time}",
+      "kind": "Station",
+      "rateFillShort": "{dir} {rate} /min · {fill} %",
+      "cargo": "Liegt bereit",
+      "number": "Nr. {n}"
+    },
+    "vehicle": {
+      "kind": "Fahrzeug",
+      "autopilot": "Autopilot",
+      "autopilotOn": "Autopilot an",
+      "autopilotOff": "Autopilot aus",
+      "on": "An",
+      "off": "Aus",
+      "fuel": "Brennstoff",
+      "loads": "Lädt",
+      "unloads": "Entlädt",
+      "route": "Route ({count, plural, one {# Halt} other {# Halte}})",
+      "noRoute": "Keine gespeicherte Route.",
+      "roundTrip": "Rundfahrt (geschätzt)",
+      "cargo": "Hat geladen"
+    },
+    "info": {
+      "close": "Schließen",
+      "newSince": "Neu seit {date}",
+      "production": "Produktion",
+      "productivity": "Produktivität",
+      "recipe": "Rezept",
+      "clock": "Taktrate",
+      "shards": "Energiefragmente",
+      "somersloops": "Somersloops",
+      "output": "Ausgabe",
+      "actualOf": "{actual} von {at}",
+      "onNode": "Steht auf einem Rohstoffvorkommen.",
+      "signText": "Text",
+      "change": "Vorher {before} ({delta})",
+      "lost": "Verliert {rate}",
+      "power": "Strom",
+      "actualOfTarget": "Ist {actual} von Soll {at}",
+      "belt": "Förderband",
+      "purity": "Vorkommen"
+    },
+    "panel": {
+      "save": "Spielstand vom {date}: {buildings} Gebäude, {machines} mit Produktivität",
+      "transport": "Stationen und Fahrzeuge",
+      "transportSummary": "{stations, plural, one {# Station} other {# Stationen}}, {vehicles, plural, one {# Fahrzeug} other {# Fahrzeuge}}",
+      "stops": "{count, plural, =0 {keine Route} one {# Halt} other {# Halte}}"
+    },
+    "empty": {
+      "title": "Noch keine Fabrikdaten",
+      "owner": "Importiere einen Spielstand, um zu sehen, was in dieser Welt gebaut ist. Ältere Spielstände derselben Welt füllen den Zeitstrahl.",
+      "member": "Die Fabrik erscheint, sobald der Besitzer dieser Welt einen Spielstand importiert.",
+      "import": "Spielstand importieren",
+      "older": "Ältere Spielstände hinzufügen"
+    },
+    "timeline": {
+      "label": "Zeitstrahl",
+      "previous": "Vorheriger Spielstand",
+      "next": "Nächster Spielstand",
+      "position": "{index} von {count}",
+      "loading": "Lädt …",
+      "changes": "Änderungen",
+      "compareWith": "Vergleichen mit",
+      "comparePrevious": "Dem Spielstand davor",
+      "slider": "Spielstände",
+      "comparedWith": "Verglichen mit {date}:",
+      "nothingToCompare": "Kein anderer Spielstand zum Vergleichen.",
+      "better": "{count, plural, one {{n} besser} other {{n} besser}}",
+      "worse": "{count, plural, one {{n} schlechter} other {{n} schlechter}}",
+      "toChanges": "Zu den Änderungen",
+      "comparedMark": "verglichen",
+      "area": "Bereich {index} von {count}",
+      "areaNext": "Zum nächsten Bereich mit Änderungen"
+    },
+    "noProduction": "Gebäude ohne Produktion",
+    "reasonsLabel": "Gründe",
+    "kindShort": {
+      "production": "Produktion",
+      "extraction": "Rohstoffgewinnung",
+      "power": "Strom",
+      "building": "Gebäude",
+      "logistics": "Logistik",
+      "structure": "Fundament"
+    },
+    "highlight": {
+      "count": "{count, plural, one {{n} Gebäude markiert} other {{n} Gebäude markiert}}",
+      "clear": "Markierung aufheben"
+    },
+    "lines": {
+      "title": "Produktionsstränge",
+      "kind": "Produktionsstrang",
+      "summary": "{count, plural, =0 {keine} one {# Strang} other {# Stränge}}{issues, plural, =0 {} other {, # mit Engpass}}",
+      "none": "In diesem Spielstand sind keine Maschinen über Förderbänder oder Pipelines verbunden.",
+      "missingShort": "Verbindungen fehlen",
+      "missing": "Verbindungen fehlen in diesem Spielstand – erneut importieren.",
+      "missingOwner": "Er wurde importiert, bevor ficsmap die Förderbänder und Pipelines zwischen den Maschinen las. Importiere ihn noch einmal, dann zeigt die Karte seine Produktionsstränge.",
+      "missingMember": "Er wurde importiert, bevor ficsmap die Förderbänder und Pipelines zwischen den Maschinen las. Der Besitzer dieser Welt kann ihn noch einmal importieren.",
+      "machinesCount": "{count, plural, one {# Maschine} other {# Maschinen}}",
+      "showAll": "Alle {count} zeigen",
+      "productivity": "Ø Produktivität",
+      "bottleneck": "Engpass:",
+      "output": "Ausstoß",
+      "machines": "Maschinen",
+      "products": "Produkte",
+      "inputs": "Zulieferung",
+      "asDiagram": "Als Diagramm",
+      "fit": "Zum Strang",
+      "partOf": "Teil des Produktionsstrangs",
+      "announce": "Produktionsstrang {name}: {count, plural, one {# Maschine} other {# Maschinen}}, Ø {pct}.",
+      "tip": "Strang {name} · {count, plural, one {# Maschine} other {# Maschinen}}",
+      "edgeFull": "{link} voll zwischen {from} und {to}",
+      "belt": "Förderband",
+      "pipe": "Pipeline",
+      "groupIssue": "{name}: {why}",
+      "groupIssueMany": "{count} × {name}: {why}",
+      "demand": "wird nicht abgenommen",
+      "more": "Details zeigen",
+      "less": "Weniger zeigen",
+      "onMap": "Auf der Karte"
+    },
+    "cargoMore": "{count, plural, one {+# weiterer} other {+# weitere}}"
+  },
+  "saveWatcher": {
+    "title": "Automatischer Upload",
+    "intro": "Ein kleines Skript auf deinem PC oder Server beobachtet den Spielstand-Ordner und lädt jeden neuen Spielstand in diese Welt hoch. ficsmap wertet ihn aus wie einen Import: Häkchen, Rohstoffvorkommen und Fabrik-Zeitstrahl.",
+    "copy": "Kopieren",
+    "copied": "Kopiert ✓",
+    "tokens": {
+      "title": "Upload-Schlüssel",
+      "none": "Noch kein Schlüssel.",
+      "loadFailed": "Die Schlüssel konnten nicht geladen werden.",
+      "label": "Name des neuen Schlüssels",
+      "labelPlaceholder": "z. B. Gaming-PC",
+      "create": "Schlüssel erstellen",
+      "anySession": "Spielstände jeder Sitzung annehmen",
+      "anySessionHint": "Sonst lehnt ficsmap Spielstände ab, die zu einer anderen Sitzung gehören als diese Welt.",
+      "anySessionBadge": "jede Sitzung",
+      "created": "Erstellt {date} von {name}",
+      "neverUsed": "noch nie benutzt",
+      "lastUsed": "zuletzt benutzt {date}",
+      "revoke": "Widerrufen",
+      "revokeNamed": "{name} widerrufen",
+      "revokeConfirm": "Schlüssel „{name}“ widerrufen? Skripte mit diesem Schlüssel können danach nichts mehr hochladen.",
+      "revokeAction": "Schlüssel widerrufen",
+      "revoked": "Schlüssel widerrufen",
+      "revokeFailed": "Der Schlüssel konnte nicht widerrufen werden. Bitte versuche es erneut.",
+      "createFailed": "Der Schlüssel konnte nicht erstellt werden. Bitte versuche es erneut.",
+      "limit": "Eine Welt hat höchstens 20 Schlüssel. Widerrufe einen, den du nicht mehr brauchst.",
+      "createdTitle": "Schlüssel „{name}“ erstellt",
+      "secretLabel": "Neuer Upload-Schlüssel",
+      "secretHint": "Wird nur jetzt angezeigt. Er steckt auch im Skript, das du unten herunterlädst."
+    },
+    "platform": {
+      "label": "Plattform",
+      "docker": "Docker",
+      "bash": "Linux (bash)",
+      "powershell": "Windows (PowerShell)"
+    },
+    "script": {
+      "title": "Skript",
+      "token": "Upload-Schlüssel",
+      "tokenHint": "Erstelle oben einen Schlüssel oder füge einen ein, den du noch hast.",
+      "tokenFromNew": "Der neue Schlüssel ist eingetragen.",
+      "folder": "Spielstand-Ordner",
+      "folderDocker": "Spielstand-Ordner auf dem Docker-Host",
+      "presets": "Bekannte Ordner:",
+      "presetOwn": "Eigener Ordner",
+      "folderHint": "Unterordner (etwa der mit deiner Steam- oder Epic-ID) werden mit durchsucht.",
+      "session": "Sitzungsname",
+      "sessionHint": "Nur Dateien, deren Name mit „Sitzungsname_“ beginnt. Leer: alle Spielstände.",
+      "poll": "Prüfen alle",
+      "seconds": "s",
+      "pollHint": "{min}–{max} Sekunden. Neue Dateien bemerkt das Skript meist sofort; das ist die Rückfallebene.",
+      "mode": "Was hochladen?",
+      "modes": {
+        "newest": "Nur den neuesten Spielstand",
+        "newestHint": "Kommen mehrere neue Spielstände auf einmal, nur der neueste.",
+        "all": "Alle neuen Spielstände",
+        "allHint": "Jeder neue Spielstand, der älteste zuerst; ältere landen im Zeitstrahl."
+      },
+      "warning": "Die Datei enthält deinen Upload-Schlüssel. Gib sie nicht weiter: Wer sie hat, kann Spielstände in diese Welt hochladen.",
+      "download": "{file} herunterladen",
+      "downloaded": "Heruntergeladen"
+    },
+    "problems": {
+      "token": "Erst einen Upload-Schlüssel erstellen oder eintragen.",
+      "saveDir": "Gib den Spielstand-Ordner an.",
+      "sessionFilter": "Der Sitzungsname enthält ungültige Zeichen.",
+      "pollSeconds": "Prüfen alle 5 bis 3600 Sekunden.",
+      "serverUrl": "Die Adresse dieses Servers lässt sich nicht verwenden.",
+      "worldId": "Ungültige Welt."
+    },
+    "run": {
+      "title": "Starten",
+      "bash": {
+        "run": "Im Ordner der Datei ausführen",
+        "note": "Läuft, bis du es mit Strg+C beendest; mit --once lädt es einmal hoch und endet (etwa für cron). Mit dem Paket inotify-tools bemerkt es neue Spielstände sofort."
+      },
+      "powershell": {
+        "run": "In PowerShell im Ordner der Datei ausführen",
+        "autostart": "Bei jeder Anmeldung starten (Aufgabenplanung): Datei nach %USERPROFILE%\\ficsmap legen, dann in PowerShell",
+        "note": "Protokoll und Liste der hochgeladenen Spielstände: %LOCALAPPDATA%\\ficsmap. Verlangt Windows Administratorrechte, die Befehle in einer PowerShell als Administrator ausführen."
+      },
+      "docker": {
+        "compose": "Entpacken und mit Docker Compose starten",
+        "dockerRun": "Oder ohne Compose",
+        "note": "Das Image wird aus dem Dockerfile im Ordner gebaut. Der Spielstand-Ordner ist nur lesend eingebunden. Protokoll: docker compose logs -f"
+      }
+    },
+    "presets": {
+      "windows": "Windows (Steam, Epic)",
+      "windowsServer": "Windows, dedizierter Server",
+      "proton": "Linux, Steam (Proton)",
+      "flatpak": "Linux, Steam als Flatpak",
+      "steamDeck": "Steam Deck",
+      "linuxServer": "Linux, dedizierter Server"
     }
   }
 }

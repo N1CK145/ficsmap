@@ -1,0 +1,35 @@
+/* The factory map's info window floats over the right of the map like the item panel: the zoom keys and the map's
+   controls move to its left (8 px margin + 340 px). */
+@media (min-width: 900px) {
+  .ficsmap-map-root:has(.ficsmap-factory-info) .leaflet-right {
+    right: 348px;
+  }
+
+  .ficsmap-map-root:has(.ficsmap-factory-info) .ficsmap-map-controls {
+    right: calc(348px + 10px);
+  }
+}
+
+/* The explored-area veil: smooth edges when scaled up. */
+.ficsmap-factory-fog {
+  image-rendering: auto;
+}
+
+/* The line card's peek on phones: its title bar is the grab handle (a tap or a drag up unfolds it, down folds it), with
+   a small bar on top as the cue, like the bottom sheet's handle. */
+.ficsmap-factory-peek > :first-child {
+  position: relative;
+  touch-action: none;
+  cursor: grab;
+}
+
+.ficsmap-factory-peek > :first-child::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 2.5rem;
+  height: 3px;
+  transform: translateX(-50%);
+  background: var(--color-edge);
+}

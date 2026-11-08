@@ -7,6 +7,7 @@ import type { Dataset } from '../../src/shared/dataset.js';
 import { FeaturesProvider } from '../../src/web/app/FeaturesContext.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { lastWorld } from '../../src/web/app/persist.js';
+import { useUiStore } from '../../src/web/app/store.js';
 import { ToastProvider } from '../../src/web/components/Toast.js';
 import { FEATURES } from '../../src/web/features/index.js';
 import { useImportDialog } from '../../src/web/features/import/index.js';
@@ -130,14 +131,16 @@ describe('WorldLayout', () => {
     expect(await screen.findByRole('complementary', { name: 'Sidebar' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Panels' })).not.toBeInTheDocument();
 
-    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+    // No footer inside a world: the account menu has the version and the source link.
+    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
 
     act(() => media.set(MOBILE, true));
     expect(screen.queryByRole('complementary', { name: 'Sidebar' })).not.toBeInTheDocument();
     const sheet = screen.getByRole('region', { name: 'Panels' });
-    // The footer stays visible on mobile: the sheet sits on top of it.
-    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
-    expect(sheet).toHaveStyle({ bottom: '28px' });
+    // The sheet sits on the bottom of the screen, its handle a 44 px touch target.
+    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
+    expect(sheet).toHaveClass('bottom-0');
+    expect(within(sheet).getByRole('button', { name: 'Panel size: small' })).toHaveClass('h-11');
     expect(within(sheet).getByRole('button', { name: 'Panel size: small' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('region', { name: 'Map' })).toBeInTheDocument();
 
@@ -157,6 +160,20 @@ describe('WorldLayout', () => {
     act(() => media.set(MOBILE, false));
     expect(screen.getByRole('complementary', { name: 'Sidebar' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Panels' })).not.toBeInTheDocument();
+  });
+
+  it('on mobile drops the sheet to peek and closes the item sheet when a mode takes points on the map', async () => {
+    stubMatchMedia({ [MOBILE]: true });
+    stubWorld();
+    renderAt(`/w/${W}`);
+    const sheet = await screen.findByRole('region', { name: 'Panels' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Panel size: small' }));
+    expect(within(sheet).getByRole('button', { name: 'Panel size: half' })).toBeInTheDocument();
+    act(() => useUiStore.getState().select('S1'));
+    act(() => useUiStore.getState().setMode('vehicle-route'));
+    expect(within(sheet).getByRole('button', { name: 'Panel size: small' })).toBeInTheDocument();
+    expect(useUiStore.getState().selectedActor).toBeNull();
+    act(() => useUiStore.getState().setMode('inspect'));
   });
 
   it('collapses the sidebar with [ on desktop', async () => {
@@ -181,5 +198,59 @@ describe('WorldLayout', () => {
     expect(show).toHaveAttribute('aria-expanded', 'false');
     await userEvent.click(show);
     expect(screen.getByRole('complementary', { name: 'Sidebar' })).toBeInTheDocument();
+  });
+
+  it('has the search in the middle of the top bar and the sections as tabs under it from 1280 px, neither on the settings page', async () => {
+    stubMatchMedia({ '(min-width: 1280px)': true });
+    stubWorld({ [`GET /api/worlds/${W}`]: { body: { ...WORLD, isOwner: true } } });
+    const router = renderAt(`/w/${W}`);
+    await screen.findByRole('heading', { name: 'Alpha' });
+    const header = screen.getByRole('banner');
+    const search = within(header).getByRole('search');
+    expect(within(search).getByRole('combobox', { name: 'Search' })).toBeInTheDocument();
+    // The search sits between the left and the right part of the bar; no section menu in the bar.
+    expect(search.parentElement?.previousElementSibling).toContainElement(screen.getByRole('heading', { name: 'Alpha' }));
+    expect(search.parentElement?.nextElementSibling).toContainElement(within(header).getByRole('button', { name: 'Account' }));
+    expect(within(header).queryByRole('button', { name: /^Section:/ })).toBeNull();
+    // The tab strip follows the bar: the map first and current, then the pages, each with the word of its heading.
+    const tabs = screen.getByRole('navigation', { name: 'Sections' });
+    expect(header.nextElementSibling).toContainElement(tabs);
+    expect(within(tabs).getAllByRole('link').map(l => l.textContent)).toEqual(['Map', 'Factory', 'Planner', 'Vehicles', 'Machines']);
+    expect(within(tabs).getByRole('link', { name: 'Map' })).toHaveAttribute('aria-current', 'page');
+    // Import is about the map: it is in the bar on the map only.
+    expect(within(header).getByRole('button', { name: 'Import' })).toBeInTheDocument();
+    await userEvent.click(within(tabs).getByRole('link', { name: 'Planner' }));
+    expect(router.state.location.pathname).toBe(`/w/${W}/planner`);
+    expect(within(header).queryByRole('button', { name: 'Import' })).toBeNull();
+    expect(within(screen.getByRole('navigation', { name: 'Sections' })).getByRole('link', { name: 'Planner' })).toHaveAttribute('aria-current', 'page');
+    await act(() => router.navigate(`/w/${W}/settings`));
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Search' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Sections' })).toBeNull();
+    expect(within(header).queryByRole('button', { name: 'Import' })).toBeNull();
+  });
+
+  it('on mobile has a search button and the section menu, named after the section shown, in the top bar', async () => {
+    stubMatchMedia({ [MOBILE]: true });
+    stubWorld();
+    renderAt(`/w/${W}`);
+    await screen.findByRole('heading', { name: 'Alpha' });
+    const header = screen.getByRole('banner');
+    await userEvent.click(within(header).getByRole('button', { name: 'Search' }));
+    expect(within(header).getByRole('combobox', { name: 'Search' })).toHaveFocus();
+    await userEvent.click(within(header).getByRole('button', { name: 'Close' }));
+    const menuButton = within(header).getByRole('button', { name: 'Section: Map' });
+    expect(menuButton).toHaveTextContent('Map');
+    expect(screen.queryByRole('navigation', { name: 'Sections' })).toBeNull();
+    await userEvent.click(menuButton);
+    expect(within(screen.getByRole('menu', { name: 'Sections' })).getByRole('menuitem', { name: 'Planner' })).toBeInTheDocument();
+  });
+
+  it('has the version and the source link in the account menu', async () => {
+    stubWorld();
+    renderAt(`/w/${W}`);
+    await userEvent.click(await screen.findByRole('button', { name: 'Account' }));
+    expect(screen.getByRole('link', { name: /^ficsmap v\d/ })).toHaveAttribute('href', expect.stringContaining('/releases/'));
+    expect(screen.getByRole('link', { name: 'Source on GitHub' })).toHaveAttribute('href', expect.stringContaining('github.com'));
   });
 });

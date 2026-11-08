@@ -3,7 +3,8 @@ import { COLLECTIBLE_TYPES } from '../../shared/collectibleTypes.js';
 import type { CollectibleTypeId } from '../../shared/types.js';
 import type { PersistedView } from './persist.js';
 
-export type InteractionMode = 'inspect' | 'quick' | 'route';
+/** 'route': editing a route (routes feature); 'vehicle-route': picking a vehicle route's ends (vehicleCalc feature). */
+export type InteractionMode = 'inspect' | 'route' | 'vehicle-route';
 export type CollectedVisibility = 'show' | 'dim' | 'hide';
 export type MainView = 'map' | 'list';
 
@@ -15,6 +16,11 @@ export interface UiState {
   typeFilter: Set<CollectibleTypeId>;
   visibility: CollectedVisibility;
   biomeScope: number | null;
+  /**
+   * A pending request for the map to fit the view to this biome: set with the scope, not for a scope restored with
+   * the view. The biome layer carries it out once the map is shown and clears it.
+   */
+  biomeFitRequest: number | null;
   sidebarOpen: boolean;
   onlyConflicts: boolean;
   /** What the main area shows: the map or the list view (spec §10.10). Not remembered; the map restores its own viewport. */
@@ -23,6 +29,12 @@ export interface UiState {
   selfLeaving: string | null;
   /** A pending request for the map to bring an item into view (list view's Show on map); the map clears it. */
   focusRequest: { actor: string } | null;
+  /**
+   * The items the header search highlights on the map (the others are dimmed), or null while no
+   * search with item results is active. Matches are drawn even when the filters would hide them.
+   */
+  searchHighlight: ReadonlySet<string> | null;
+  setSearchHighlight(actors: ReadonlySet<string> | null): void;
   setSelfLeaving(worldId: string | null): void;
   /** Selects the item, shows the map and asks it to zoom to the item (spec §10.10). */
   focusItem(actor: string): void;
@@ -35,6 +47,7 @@ export interface UiState {
   setTypeFilter(ids: Iterable<CollectibleTypeId>): void;
   setVisibility(v: CollectedVisibility): void;
   setBiomeScope(biome: number | null): void;
+  clearBiomeFitRequest(): void;
   setSidebarOpen(open: boolean): void;
   toggleSidebar(): void;
   setOnlyConflicts(on: boolean): void;
@@ -43,7 +56,7 @@ export interface UiState {
   enterWorld(worldId: string, view?: Partial<PersistedView>): void;
 }
 
-type WorldState = Pick<UiState, 'worldId' | 'interactionMode' | 'selectedActor' | 'typeFilter' | 'visibility' | 'biomeScope' | 'onlyConflicts' | 'mainView' | 'selfLeaving' | 'focusRequest'>;
+type WorldState = Pick<UiState, 'worldId' | 'interactionMode' | 'selectedActor' | 'typeFilter' | 'visibility' | 'biomeScope' | 'biomeFitRequest' | 'onlyConflicts' | 'mainView' | 'selfLeaving' | 'focusRequest' | 'searchHighlight'>;
 
 function worldState(worldId: string | null, view: Partial<PersistedView> = {}): WorldState {
   return {
@@ -53,10 +66,12 @@ function worldState(worldId: string | null, view: Partial<PersistedView> = {}): 
     typeFilter: new Set(view.typeFilter ?? COLLECTIBLE_TYPES.map(t => t.id)),
     visibility: view.visibility ?? 'dim',
     biomeScope: view.biomeScope ?? null,
+    biomeFitRequest: null,
     onlyConflicts: false,
     mainView: 'map',
     selfLeaving: null,
     focusRequest: null,
+    searchHighlight: null,
   };
 }
 
@@ -73,7 +88,8 @@ export const useUiStore = create<UiState>()(set => ({
   showOnlyType: id => set({ typeFilter: new Set([id]) }),
   setTypeFilter: ids => set({ typeFilter: new Set(ids) }),
   setVisibility: v => set({ visibility: v }),
-  setBiomeScope: biome => set({ biomeScope: biome }),
+  setBiomeScope: biome => set({ biomeScope: biome, biomeFitRequest: biome }),
+  clearBiomeFitRequest: () => set({ biomeFitRequest: null }),
   setSidebarOpen: open => set({ sidebarOpen: open }),
   toggleSidebar: () => set(s => ({ sidebarOpen: !s.sidebarOpen })),
   setOnlyConflicts: on => set({ onlyConflicts: on }),
@@ -81,5 +97,6 @@ export const useUiStore = create<UiState>()(set => ({
   setSelfLeaving: worldId => set({ selfLeaving: worldId }),
   focusItem: actor => set({ mainView: 'map', selectedActor: actor, focusRequest: { actor } }),
   clearFocusRequest: () => set({ focusRequest: null }),
+  setSearchHighlight: actors => set({ searchHighlight: actors }),
   enterWorld: (worldId, view) => set(worldState(worldId, view)),
 }));

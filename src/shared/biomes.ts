@@ -1,6 +1,7 @@
 import { distanceToRings, imageToWorld, pointInRings, type Calibration } from './geo.js';
 
-export interface BiomeShape { id: string; name: string; rings: number[][][] } // world coords; groups merged
+/** World coords; groups merged. `nameDe`: German name where the source has one (else `name` in both languages). */
+export interface BiomeShape { id: string; name: string; nameDe?: string; rings: number[][][] }
 
 interface EditorFeature {
   properties?: { name?: string; group?: string | null };

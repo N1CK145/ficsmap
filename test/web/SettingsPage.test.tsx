@@ -55,7 +55,7 @@ describe('SettingsPage', () => {
       [`DELETE /api/worlds/${W}/members/2`]: { status: 204 },
     });
     renderPage(world(true), 1);
-    expect(screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent)).toEqual(['Name', 'Members', 'Invite', 'Import save', 'Danger zone']);
+    expect(screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent)).toEqual(['Name', 'Members', 'Invite', 'Import save', 'Automatic upload', 'Danger zone']);
 
     const anna = screen.getByRole('listitem', { name: 'Anna' });
     expect(within(anna).getByText(/joined via invite/)).toBeInTheDocument();

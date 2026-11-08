@@ -14,7 +14,7 @@ export const useLiveStatus = create<{ status: LiveStatus; setStatus(s: LiveStatu
 }));
 
 const EVENT_TYPES = Object.keys({
-  mark: true, 'marks-bulk': true, import: true, world: true, members: true, removed: true, deleted: true, routes: true,
+  mark: true, 'marks-bulk': true, import: true, world: true, members: true, removed: true, deleted: true, routes: true, snapshots: true,
 } satisfies Record<SseEvent['type'], true>);
 
 const RECONNECT_MIN_MS = 2000;
@@ -22,7 +22,7 @@ const RECONNECT_MAX_MS = 30_000;
 
 /**
  * Keeps the world's event stream open while mounted and hands every event to the features'
- * `sseHandlers`. There is no replay (spec §9): each (re)connect refetches world, marks and routes,
+ * `sseHandlers`. There is no replay (spec §9): each (re)connect refetches world, marks, routes and snapshots,
  * and the handlers skip events at or below the loaded rev. The first open refetches too: an event sent
  * between the initial GET and the subscription would otherwise be lost.
  */
@@ -56,7 +56,7 @@ export function useWorldEvents(worldId: string, ctx: WorldCtx): LiveStatus {
       es.onopen = () => {
         delay = RECONNECT_MIN_MS;
         setStatus('live');
-        for (const queryKey of [queryKeys.world(worldId), queryKeys.marks(worldId), queryKeys.routes(worldId)]) {
+        for (const queryKey of [queryKeys.world(worldId), queryKeys.marks(worldId), queryKeys.routes(worldId), queryKeys.snapshots(worldId)]) {
           void queryClient.invalidateQueries({ queryKey });
         }
       };

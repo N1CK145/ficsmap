@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
-import { buildCrashSites, buildDataset, BuildError, loadExtractorDir, type BuildInput } from '../../scripts/build-dataset.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { buildCrashSites, buildDataset, BuildError, buildResourceNodes, DATASET_PARTS, loadExtractorDir, missingParts, selectParts, type BuildInput } from '../../scripts/build-dataset.js';
 
 const dir = fileURLToPath(new URL('../fixtures/extractor-mini', import.meta.url));
 const base = (): BuildInput => structuredClone(loadExtractorDir(dir));
@@ -60,14 +62,32 @@ describe('buildDataset (mini fixture)', () => {
     expect(by('BP_DropPod2_1')[7]).toEqual({ pod: { item: null, amount: 0, power: 30 } });
     expect(by('BP_WAT1_C_1')[7]).toBeUndefined();
   });
-  it('pod cost semantics: None keeps what is set, null cost is omitted', () => {
+  it('pod cost semantics: None and a missing cost need nothing; values in fields the cost type ignores do not count', () => {
     const i = base();
     const e = i.extras as Extras;
-    e.dropPods.BP_DropPod1 = { costType: 'None', item: 'Desc_Rotor_C', amount: 2, power: 0 };
+    e.dropPods.BP_DropPod1 = { costType: 'None', item: 'Desc_Rotor_C', amount: 2, power: 30 };
     e.dropPods.BP_DropPod2_1 = { costType: null, item: null, amount: 0, power: 0 };
     const d = buildDataset(i);
-    expect(d.items.find(x => x[0] === 'BP_DropPod1')![7]).toEqual({ pod: { item: { en: 'Rotor', de: 'Rotor' }, amount: 2, power: 0 } });
+    expect(d.items.find(x => x[0] === 'BP_DropPod1')![7]).toEqual({ pod: { item: null, amount: 0, power: 0 } });
+    expect(d.items.find(x => x[0] === 'BP_DropPod2_1')![7]).toEqual({ pod: { item: null, amount: 0, power: 0 } });
+    expect(d.podRequirementsKnown).toBe(true);
+    e.dropPods.BP_DropPod1 = { costType: 'Item', item: 'Desc_Rotor_C', amount: 2, power: 40 };
+    e.dropPods.BP_DropPod2_1 = { costType: 'Power', item: 'Desc_Rotor_C', amount: 5, power: 40 };
+    const d2 = buildDataset(i);
+    expect(d2.items.find(x => x[0] === 'BP_DropPod1')![7]).toEqual({ pod: { item: { en: 'Rotor', de: 'Rotor' }, amount: 2, power: 0 } });
+    expect(d2.items.find(x => x[0] === 'BP_DropPod2_1')![7]).toEqual({ pod: { item: null, amount: 0, power: 40 } });
+  });
+  it('gives pod items their German name from item-names.json', () => {
+    const i = base();
+    i.itemNames = { Desc_Rotor_C: { en: 'Rotor', de: 'Rotor (de)' } };
+    expect(buildDataset(i).items.find(x => x[0] === 'BP_DropPod1')![7]).toEqual({ pod: { item: { en: 'Rotor', de: 'Rotor (de)' }, amount: 3, power: 0 } });
+  });
+  it('podRequirementsKnown is false when a pod has no requirement in the game data', () => {
+    const i = base();
+    delete (i.extras as Extras).dropPods.BP_DropPod2_1;
+    const d = buildDataset(i);
     expect(d.items.find(x => x[0] === 'BP_DropPod2_1')![7]).toBeUndefined();
+    expect(d.podRequirementsKnown).toBe(false);
   });
 });
 
@@ -123,21 +143,15 @@ describe('crash-site data', () => {
     ...extra,
   });
 
-  it('fills an unknown pod requirement from the guide when it says nothing is needed', () => {
+  it('takes pod requirements from the game data only, never from the guide', () => {
     const input = base();
-    (input.extras as Extras).dropPods.BP_DropPod2_1 = { costType: null, item: null, amount: 0, power: 0 };
-    input.crashSites = { pods: { BP_DropPod2_1: site({ type: 'none' }), BP_DropPod1: site({ type: 'none' }) } };
+    const e = input.extras as Extras;
+    e.dropPods.BP_DropPod2_1 = { costType: null, item: null, amount: 0, power: 0 };
+    delete e.dropPods.BP_DropPod1;
+    input.crashSites = { pods: { BP_DropPod2_1: site({ type: 'power', mw: 50 }), BP_DropPod1: site({ type: 'none' }) } };
     const d = buildDataset(input);
     expect(d.items.find(x => x[0] === 'BP_DropPod2_1')![7]).toEqual({ pod: { item: null, amount: 0, power: 0 } });
-    // The game's own requirement wins over the guide.
-    expect(d.items.find(x => x[0] === 'BP_DropPod1')![7]).toEqual({ pod: { item: { en: 'Rotor', de: 'Rotor' }, amount: 3, power: 0 } });
-  });
-
-  it('keeps an unknown requirement unknown when the guide names one', () => {
-    const input = base();
-    (input.extras as Extras).dropPods.BP_DropPod2_1 = { costType: null, item: null, amount: 0, power: 0 };
-    input.crashSites = { pods: { BP_DropPod2_1: site({ type: 'power', mw: 50 }) } };
-    expect(buildDataset(input).items.find(x => x[0] === 'BP_DropPod2_1')![7]).toBeUndefined();
+    expect(d.items.find(x => x[0] === 'BP_DropPod1')![7]).toBeUndefined();
   });
 
   it('writes the in-game items, threats and notes per pod of the dataset', () => {
@@ -149,5 +163,125 @@ describe('crash-site data', () => {
       threats: [{ name: 'Hatcher', count: 2 }, { name: 'Gas Pillar', count: null }],
       notes: ['Bring a gas mask.'],
     });
+  });
+
+  it('names items with a known class in English and German from item-names.json', () => {
+    const d = buildDataset(base());
+    const out = buildCrashSites({ pods: { BP_DropPod1: site({ type: 'none' }) } }, d, { Desc_SteelPipe_C: { en: 'Steel Pipe', de: 'Stahlrohr' } });
+    expect(out.BP_DropPod1!.items).toEqual([
+      { item: 'Steel Pipe', de: 'Stahlrohr', amount: 98, where: 'lower level' },
+      { item: 'Stator', amount: 37 },
+    ]);
+  });
+});
+
+describe('caves', () => {
+  it('marks the items the cave sampling found inside a cave with extra.cave', () => {
+    const input = base();
+    input.itemsInCaves = new Set(['BP_Crystal_C_1', 'BP_DropPod1']);
+    const d = buildDataset(input);
+    expect(d.items.find(x => x[0] === 'BP_Crystal_C_1')![7]).toEqual({ shards: 1, cave: true });
+    expect(d.items.find(x => x[0] === 'BP_Crystal_C_2')![7]).toEqual({ shards: 1 });
+    expect(d.items.find(x => x[0] === 'BP_DropPod1')![7]).toEqual({ pod: { item: { en: 'Rotor', de: 'Rotor' }, amount: 3, power: 0 }, cave: true });
+  });
+
+  it('adds nothing without cave data', () => {
+    expect(buildDataset(base()).items.some(x => x[7]?.cave)).toBe(false);
+  });
+
+  it('takes the biomes from the game map areas when given, instead of the editor polygons', () => {
+    const input = base();
+    input.biomeAreas = {
+      biomes: [{ id: 'swamp', name: 'Swamp', rings: [] }, { id: 'savanna', name: 'Savanna', rings: [] }],
+      assign: x => (x < 0 ? 0 : 1),
+    };
+    const d = buildDataset(input);
+    expect(d.biomes.map(b => b.id)).toEqual(['swamp', 'savanna']);
+    for (const it of d.items) expect(it[5]).toBe(it[2] < 0 ? 0 : 1);
+  });
+
+  it('reports items the map areas cannot place', () => {
+    const input = base();
+    input.biomeAreas = { biomes: [{ id: 'swamp', name: 'Swamp', rings: [] }], assign: () => -1 };
+    expect(() => buildDataset(input)).toThrow(BuildError);
+  });
+});
+
+
+describe('resource nodes', () => {
+  const world = () => JSON.parse(readFileSync(join(dir, 'default-world.json'), 'utf8')) as {
+    resourceNodes: { name: string; location: number[]; resource: string; purity: string }[];
+    frackingCores: { satellites: unknown[] }[];
+  };
+  const names = () => base().itemNames;
+  const build = (raw: unknown, itemNames = names()) => buildResourceNodes(raw, itemNames, 'fallback');
+  function failsNodes(raw: unknown, re: RegExp, itemNames = names()) {
+    try { build(raw, itemNames); } catch (e) {
+      expect(e).toBeInstanceOf(BuildError);
+      expect((e as BuildError).problems.join('\n')).toMatch(re);
+      return;
+    }
+    throw new Error('expected BuildError');
+  }
+
+  it('writes nodes, geysers, cores and satellites with purity and rounded positions', () => {
+    const f = build(world());
+    expect(f.version).toBe('1.0.0.0');
+    expect(f.resources).toEqual([
+      { id: 'Desc_Coal_C', name: 'Coal' }, { id: 'Desc_OreIron_C', name: 'Iron Ore' }, { id: 'Desc_Water_C', name: 'Water' }, { id: 'Geyser', name: 'Geyser' },
+    ]);
+    expect(f.nodes).toEqual([
+      ['BP_ResourceNode1', 'node', 'Desc_OreIron_C', 'impure', 10000, 20001, 100],
+      ['BP_ResourceNode2', 'node', 'Desc_OreIron_C', 'pure', 30000, 20000, 100],
+      ['BP_ResourceNode3', 'node', 'Desc_Coal_C', 'normal', 60000, 70000, 100],
+      ['BP_ResourceNodeGeyser_C_UAID_1', 'geyser', 'Geyser', 'normal', 50000, 50000, -10],
+      ['BP_FrackingCore1', 'core', 'Desc_Water_C', null, 80000, 20000, 500],
+      ['BP_FrackingSatellite1', 'satellite', 'Desc_Water_C', 'pure', 80500, 20000, 500, 'BP_FrackingCore1'],
+      ['BP_FrackingSatellite2', 'satellite', 'Desc_Water_C', 'impure', 79500, 20000, 500, 'BP_FrackingCore1'],
+    ]);
+  });
+  it('takes the dataset version when the file has none', () => {
+    const w = world() as { gameVersion?: string };
+    delete w.gameVersion;
+    expect(build(w).version).toBe('fallback');
+  });
+  it('fails on an unknown purity', () => {
+    const w = world(); w.resourceNodes[0]!.purity = 'RP_Shiny';
+    failsNodes(w, /BP_ResourceNode1 has an unknown purity "RP_Shiny"/);
+  });
+  it('fails on a resource without a display name', () => {
+    failsNodes(world(), /Resource Desc_Coal_C .*item-names\.json/, { Desc_OreIron_C: { en: 'Iron Ore', de: 'Eisenerz' }, Desc_Water_C: { en: 'Water', de: 'Wasser' } });
+  });
+  it('fails on duplicate names and bad locations', () => {
+    const w = world();
+    w.resourceNodes.push({ ...w.resourceNodes[0]! });
+    w.resourceNodes[1]!.location = [1, 2];
+    failsNodes(w, /Duplicate resource node name BP_ResourceNode1/);
+    failsNodes(w, /BP_ResourceNode2 has no valid location/);
+  });
+  it('fails on a well without satellites and on an empty file', () => {
+    const w = world(); w.frackingCores[0]!.satellites = [];
+    failsNodes(w, /BP_FrackingCore1 has no satellites/);
+    failsNodes({}, /no resource nodes/);
+  });
+});
+
+describe('dataset parts', () => {
+  const all = Object.keys(DATASET_PARTS);
+  it('builds every part without --only', () => {
+    expect([...selectParts(undefined)]).toEqual(all);
+    expect([...selectParts([])]).toEqual(all);
+  });
+  it('builds only the parts named in --only, repeated or comma-separated', () => {
+    expect([...selectParts(['caves,recipes'])]).toEqual(['caves', 'recipes']);
+    expect([...selectParts(['caves', ' recipes ', 'caves'])]).toEqual(['caves', 'recipes']);
+  });
+  it('rejects an unknown part', () => {
+    expect(() => selectParts(['caves,cake'])).toThrow(/unknown part cake/);
+  });
+  it('names the selected parts whose input is missing', () => {
+    const inputs = Object.fromEntries(all.map(p => [p, { ok: p !== 'recipes' && p !== 'nodes', what: `${p} input` }])) as Parameters<typeof missingParts>[1];
+    expect(missingParts(selectParts(undefined), inputs)).toEqual(['nodes: nodes input', 'recipes: recipes input']);
+    expect(missingParts(selectParts(['caves']), inputs)).toEqual([]);
   });
 });

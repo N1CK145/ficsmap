@@ -39,6 +39,14 @@ describe('markerVisual', () => {
     ['conflict badge wins over check', 'conflict', { visibility: 'show' }, { badge: 'conflict' }],
     ['selected passes through', 'uncollected', { selected: true }, { selected: true }],
     ['route index passes through', 'collected', { routeIndex: 4 }, { routeIndex: 4 }],
+    ['no search: no highlight, no fade', 'uncollected', { search: null }, { draw: true, opacity: 1, highlight: false }],
+    ['search match gets the highlight', 'uncollected', { search: true }, { draw: true, opacity: 1, highlight: true }],
+    ['search non-match fades by 0.2', 'uncollected', { search: false }, { draw: true, opacity: 0.2, highlight: false }],
+    ['search non-match out of scope fades twice', 'uncollected', { search: false, inScope: false }, { opacity: 0.04 }],
+    ['search match is drawn although its type is off', 'uncollected', { search: true, typeEnabled: false }, { draw: true, highlight: true }],
+    ['search match is drawn although collected ones are hidden', 'collected', { search: true, visibility: 'hide' }, { draw: true, badge: 'check' }],
+    ['search match is drawn with only conflicts on', 'uncollected', { search: true, onlyConflicts: true }, { draw: true }],
+    ['search non-match keeps the filters', 'uncollected', { search: false, typeEnabled: false }, { draw: false }],
   ];
 
   it.each(rows)('%s', (_name, state, opts, expected) => {
@@ -49,9 +57,9 @@ describe('markerVisual', () => {
     }
   });
 
-  it('defaults to not selected and no route index', () => {
+  it('defaults to not selected, no route index and no search highlight', () => {
     expect(markerVisual('uncollected', base)).toEqual({
-      draw: true, opacity: 1, dot: false, selected: false, routeIndex: null, badge: 'none',
+      draw: true, opacity: 1, dot: false, selected: false, routeIndex: null, badge: 'none', highlight: false,
     });
   });
 

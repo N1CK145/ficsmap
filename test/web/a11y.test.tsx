@@ -105,7 +105,7 @@ describe('accessibility', () => {
     let now = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => now);
     const at = (ms: number) => { now = ms; };
-    // Slowly up by 330 px, from peek (96) to 426: next to half (422).
+    // Slowly up by 330 px, from peek (112) to 442: next to half (422).
     act(() => {
       at(0);
       fireEvent.pointerDown(handle, { pointerId: 1, clientY: 800 });
@@ -130,9 +130,9 @@ describe('accessibility', () => {
     const sheet = screen.getByRole('region', { name: 'Panels' });
     fireEvent.pointerDown(handle, { pointerId: 1, clientY: 800 });
     fireEvent.pointerMove(handle, { pointerId: 1, clientY: 600 });
-    expect(sheet.style.height).toBe('296px');
+    expect(sheet.style.height).toBe('312px');
     fireEvent.lostPointerCapture(handle, { pointerId: 1 });
-    expect(sheet.style.height).toBe('96px');
+    expect(sheet.style.height).toBe('112px');
     fireEvent.pointerUp(handle, { pointerId: 1, clientY: 300 });
     expect(onSnap).not.toHaveBeenCalled();
   });

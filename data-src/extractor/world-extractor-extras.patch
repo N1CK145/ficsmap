@@ -1,16 +1,65 @@
 diff --git a/world-extractor-net/Program.cs b/world-extractor-net/Program.cs
-index 5af71fd..19946c3 100644
+index 5af71fd..a29d402 100644
 --- a/world-extractor-net/Program.cs
 +++ b/world-extractor-net/Program.cs
-@@ -41,6 +41,7 @@ string installDir = opts.Require("install-dir");
+@@ -7,8 +7,12 @@ using CUE4Parse.Encryption.Aes;
+ using CUE4Parse.FileProvider;
+ using CUE4Parse.MappingsProvider.Usmap;
+ using CUE4Parse.UE4.Assets.Exports;
++using CUE4Parse.UE4.Assets;
++using CUE4Parse.UE4.Assets.Exports.Component.StaticMesh;
++using CUE4Parse.UE4.Assets.Exports.StaticMesh;
+ using CUE4Parse.UE4.Assets.Exports.Texture;
+ using CUE4Parse.UE4.Assets.Objects;
++using CUE4Parse.UE4.Objects.Core.i18N;
+ using CUE4Parse.UE4.Objects.Core.Math;
+ using CUE4Parse.UE4.Objects.Core.Misc;
+ using CUE4Parse.UE4.Objects.Engine;
+@@ -30,10 +34,19 @@ using SkiaSharp;
+ //   --map-out           a directory with the in-game map as a 256px WebP tile pyramid
+ //                       (tiles/{z}/{x}/{y}.webp) plus map.json (content id, zoom range and the world
+ //                       rectangle the image covers, read from the level's minimap capture actor).
++//   --caves-out         caves.json: the cave volumes (2D hulls + Z range), see CaveData.
++//   --cave-geometry-out a directory with the 3D geometry around every cave (GLB per cave), see CaveGeometry.
++//   --heightmap-out     a directory with height grids of the whole map (highest surface per cell), see Heightmap.
++//   --map-areas-out     a directory with the game's map area raster (which area every spot belongs to), see MapAreas.
++//   --transport-out     transport.json: capacity, timing, speed and drone fuel values of the transport vehicles, see TransportData.
++//   --icons-out         a directory with the icon of every item, building and vehicle descriptor (WebP per size), see DescriptorIcons.
++//   --buildings-out     buildings-raw.json: clearance boxes, grid sizes, mesh bounds and descriptors of every buildable and vehicle, see BuildingsData.
+ //
+ // Usage:
+ //   WorldExtractor --install-dir <game install> --out <default-world.json>
+-//                  [--collectibles-out <collectibles.json>] [--map-out <dir>]
++//                  [--collectibles-out <collectibles.json>] [--map-out <dir>] [--caves-out <caves.json>]
++//                  [--cave-geometry-out <dir>] [--heightmap-out <dir>] [--map-areas-out <dir>] [--transport-out <file>]
++//                  [--icons-out <dir>] [--buildings-out <file>]
+ //                  [--engine-candidates GAME_UE5_6,GAME_UE5_5] [--game-version 1.2.3.1]
+ 
+ var opts = Args.Parse(args);
+@@ -41,6 +54,14 @@ string installDir = opts.Require("install-dir");
  string outPath = opts.Require("out");
  string? collectiblesPath = opts.Get("collectibles-out");
  string? mapDir = opts.Get("map-out");
 +string? extrasPath = opts.Get("extras-out");
++string? cavesPath = opts.Get("caves-out");
++string? caveGeometryDir = opts.Get("cave-geometry-out");
++string? heightmapDir = opts.Get("heightmap-out");
++string? mapAreasDir = opts.Get("map-areas-out");
++string? transportPath = opts.Get("transport-out");
++string? iconsDir = opts.Get("icons-out");
++string? buildingsPath = opts.Get("buildings-out");
  
  string paksDir = Path.Combine(installDir, "FactoryGame", "Content", "Paks");
  string usmapPath = Path.Combine(installDir, "CommunityResources", "FactoryGame.usmap");
-@@ -71,6 +72,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
+@@ -62,7 +83,6 @@ const string levelPath = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persis
+ 
+ var (provider, level, engine) = OpenLevel(paksDir, usmapPath, candidates);
+ Console.WriteLine($"Engine: {engine} | mounted files: {provider.Files.Count} | game version: {gameVersion}");
+-
+ var resourceNodes = new List<ResourceNode>();
+ var geysers = new List<GeyserNode>();
+ var cores = new List<FrackingCore>();
+@@ -71,6 +91,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
  UObject? scannableGenerator = null;
  UObject? minimapCapture = null;
  int skipped = 0;
@@ -19,7 +68,7 @@ index 5af71fd..19946c3 100644
  
  foreach (var actorIndex in level.Actors)
  {
-@@ -99,6 +102,9 @@ foreach (var actorIndex in level.Actors)
+@@ -99,6 +121,9 @@ foreach (var actorIndex in level.Actors)
              satellites.Add((actor.Get<FPackageIndex>("mCore").Name, ResourceClass(actor),
                  new GeyserNode(actor.Name, Location(actor), Purity(actor))));
              break;
@@ -29,7 +78,7 @@ index 5af71fd..19946c3 100644
          case "BP_WorldScannableDataGenerator_C":
              scannableGenerator = actor;
              break;
-@@ -146,6 +152,23 @@ if (collectiblesPath is not null)
+@@ -146,6 +171,72 @@ if (collectiblesPath is not null)
          $"{collectibles.DropPods.Count} drop pods, {collectibles.CreatureSpawners.Count} creature spawners -> {collectiblesPath}");
  }
  
@@ -50,10 +99,59 @@ index 5af71fd..19946c3 100644
 +    Console.WriteLine($"Extras: {extraPods.Count} drop pods, {extraShrines.Count} mercer shrines -> {extrasPath}");
 +}
 +
++Caves? caveVolumes = cavesPath is not null || caveGeometryDir is not null ? CaveData.Read(provider) : null;
++if (cavesPath is not null)
++{
++    File.WriteAllText(cavesPath, JsonSerializer.Serialize(caveVolumes, Json.Options));
++    Console.WriteLine($"Caves: {caveVolumes!.Volumes.Count} cave volumes -> {cavesPath}");
++}
++
++if (caveGeometryDir is not null)
++{
++    var index = CaveGeometry.Write(provider, caveVolumes!, caveGeometryDir);
++    Console.WriteLine($"Cave geometry: {index.Caves.Count} caves, {index.Caves.Sum(c => c.Instances)} mesh instances, " +
++        $"{index.Caves.Sum(c => c.Triangles)} triangles -> {caveGeometryDir}");
++}
++
++if (mapAreasDir is not null)
++{
++    var areas = MapAreas.Write(provider, mapAreasDir);
++    Console.WriteLine($"Map areas: {areas.Width}x{areas.Height} px, {areas.Areas.Count} palette entries -> {mapAreasDir}");
++}
++
++if (transportPath is not null)
++{
++    var transport = TransportData.Read(provider);
++    File.WriteAllText(transportPath, JsonSerializer.Serialize(transport, Json.Options));
++    Console.WriteLine($"Transport: {transport.Vehicles.Count} vehicles -> {transportPath}");
++}
++
++if (iconsDir is not null)
++{
++    var icons = DescriptorIcons.Write(provider, installDir, gameVersion, iconsDir);
++    Console.WriteLine($"Icons: {icons.Icons.Count} descriptors at {string.Join(" and ", icons.Sizes)} px, " +
++        $"{icons.Missing.Count} without an icon -> {iconsDir}");
++}
++
++if (buildingsPath is not null)
++{
++    var b = BuildingsData.Read(provider, installDir, gameVersion);
++    File.WriteAllText(buildingsPath, JsonSerializer.Serialize(b, Json.Options));
++    Console.WriteLine($"Buildings: {b.Buildings.Count} buildables ({b.Buildings.Values.Count(x => x.Clearance is { Count: > 0 })} with clearance boxes, " +
++        $"{b.Buildings.Values.Count(x => x.Mesh is not null)} with mesh bounds), {b.Vehicles.Count} vehicles, {b.Failed.Count} notes -> {buildingsPath}");
++}
++
++if (heightmapDir is not null)
++{
++    if (minimapCapture is null) throw new Exception("BP_MinimapCaptureActor_C not found in the level.");
++    var hm = Heightmap.Write(provider, MapTiler.CaptureBounds(minimapCapture), heightmapDir);
++    Console.WriteLine($"Heightmap: {hm.Width}x{hm.Height} cells of {hm.Cell} cm -> {heightmapDir}");
++}
++
  if (mapDir is not null)
  {
      if (minimapCapture is null) throw new Exception("BP_MinimapCaptureActor_C not found in the level.");
-@@ -163,6 +186,31 @@ static float[] Location(UObject actor)
+@@ -163,6 +254,31 @@ static float[] Location(UObject actor)
      return [loc.X, loc.Y, loc.Z];
  }
  
@@ -85,16 +183,133 @@ index 5af71fd..19946c3 100644
  static string ResourceClass(UObject actor) => actor.Get<FPackageIndex>("mResourceClass").Name;
  
  static string Purity(UObject actor) => actor.GetOrDefault<FName>("mPurity", new FName("RP_Normal")).ToString();
-@@ -428,7 +476,7 @@ record PickupContent(string? Item, int Amount);
+@@ -372,7 +488,7 @@ static class MapTiler
+     }
+ 
+     /** A top-down orthographic capture: the image is OrthoWidth world units wide and as tall, centred on the capture. */
+-    private static MapBounds CaptureBounds(UObject captureActor)
++    public static MapBounds CaptureBounds(UObject captureActor)
+     {
+         var root = captureActor.Get<FPackageIndex>("RootComponent").Load()!;
+         var capture = captureActor.Get<FPackageIndex>("CaptureComponent2D").Load()!;
+@@ -390,12 +506,8 @@ static class MapTiler
+         {
+             try
+             {
+-                using var bitmap = (texture.Decode() ?? throw new Exception("decode returned null")).ToSkBitmap();
+-                using var scaled = new SKBitmap(new SKImageInfo(IconSize, IconSize, SKColorType.Rgba8888, SKAlphaType.Premul));
+-                bitmap.ScalePixels(scaled, SKFilterQuality.High);
+-                using var image = SKImage.FromBitmap(scaled);
+-                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+-                icons[key] = data.ToArray();
++                using var bitmap = IconImage.Decode(texture);
++                icons[key] = IconImage.Encode(bitmap, IconSize, SKEncodedImageFormat.Png, 100);
+             }
+             catch (Exception e)
+             {
+@@ -428,64 +540,67 @@ record PickupContent(string? Item, int Amount);
  /** What each loose item pickup holds, from the world partition cells that contain the pickups. */
  static class PickupContents
  {
 -    private const string CellsDir = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persistent_Level/_Generated_/";
+-    private static readonly string[] DescriptorRoots =
+-        ["FactoryGame/Content/FactoryGame/Resource/", "FactoryGame/Content/FactoryGame/Equipment/"];
+-    private static readonly string[] DescriptorPrefixes = ["Desc_", "BP_EquipmentDescriptor", "BP_ItemDescriptor"];
 +    public const string CellsDir = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persistent_Level/_Generated_/";
-     private static readonly string[] DescriptorRoots =
-         ["FactoryGame/Content/FactoryGame/Resource/", "FactoryGame/Content/FactoryGame/Equipment/"];
-     private static readonly string[] DescriptorPrefixes = ["Desc_", "BP_EquipmentDescriptor", "BP_ItemDescriptor"];
-@@ -534,8 +582,29 @@ static class MapIcons
+ 
+     public static Dictionary<string, PickupContent> Read(IFileProvider provider)
+     {
+         var started = DateTime.UtcNow;
+-        var meshes = new Dictionary<string, (string? Mesh, int Amount)>();
++        var contents = new Dictionary<string, PickupContent>();
+         foreach (var cell in provider.Files.Keys.Where(k => k.StartsWith(CellsDir, StringComparison.OrdinalIgnoreCase) && k.EndsWith(".umap")))
+         {
++            CUE4Parse.UE4.Assets.IPackage package;
+             IEnumerable<UObject> exports;
+-            try { exports = provider.LoadPackage(cell).GetExports(); }
++            try { package = provider.LoadPackage(cell); exports = package.GetExports(); }
+             catch { continue; }
++            byte[]? data = null;
+             foreach (var export in exports)
+             {
+                 if (export.ExportType != "FGItemPickup_Spawnable") continue;
+-                // The item itself is a natively serialized FInventoryItem that cannot be read without mappings;
+-                // the pickup's mesh is the item's conveyor mesh, which identifies it just as well.
+-                string? mesh = null;
++                int amount = export.GetOrDefault<FStructFallback>("mPickupItems")?.GetOrDefault<int>("NumItems") ?? 0;
++                string? item = null;
+                 try
+                 {
+-                    mesh = export.Get<FPackageIndex>("mMeshComponent").Load()?
+-                        .GetOrDefault<FPackageIndex>("StaticMesh")?.ResolvedObject?.GetPathName();
++                    if (package is CUE4Parse.UE4.Assets.IoPackage io) item = ItemClass(provider, io, cell, export.Name, ref data);
+                 }
+                 catch { /* unknown item */ }
+-                int amount = export.GetOrDefault<FStructFallback>("mPickupItems")?.GetOrDefault<int>("NumItems") ?? 0;
+-                meshes[export.Name] = (mesh, amount);
++                contents[export.Name] = new PickupContent(item, amount);
+             }
+         }
+-
+-        var items = DescriptorsByMesh(provider, meshes.Values.Select(m => m.Mesh).OfType<string>().ToHashSet());
+-        var contents = meshes.ToDictionary(
+-            entry => entry.Key,
+-            entry => new PickupContent(entry.Value.Mesh is null ? null : items.GetValueOrDefault(entry.Value.Mesh), entry.Value.Amount));
+         Console.WriteLine($"Pickup contents: {contents.Count} pickups, {contents.Values.Count(c => c.Item is not null)} identified ({(DateTime.UtcNow - started).TotalSeconds:F0} s)");
+         return contents;
+     }
+ 
+-    private static Dictionary<string, string> DescriptorsByMesh(IFileProvider provider, HashSet<string> wanted)
++    /**
++     * The item class of one pickup. `mPickupItems.Item` is an FInventoryItem, which the game serializes natively
++     * (tag flag HasBinaryOrNativeSerialize) and CUE4Parse skips. Its first field is the item class as a package
++     * index, so the tag is looked up in the export's raw bytes and that index resolved. (The pickup's mesh does
++     * not identify the item: several pickups use a mesh that is not their item's conveyor mesh, and packaged
++     * and liquid fuels share one.)
++     */
++    private static string? ItemClass(IFileProvider provider, CUE4Parse.UE4.Assets.IoPackage package, string cell, string exportName, ref byte[]? data)
+     {
+-        var result = new Dictionary<string, string>();
+-        var descriptors = provider.Files.Keys
+-            .Where(k => DescriptorRoots.Any(root => k.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+-                        && DescriptorPrefixes.Any(prefix => Path.GetFileName(k).StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+-                        && k.EndsWith(".uasset", StringComparison.OrdinalIgnoreCase));
+-        foreach (var file in descriptors)
++        int exportIndex = Array.FindIndex(package.ExportMap, e => package.CreateFNameFromMappedName(e.ObjectName).Text == exportName);
++        if (exportIndex < 0) return null;
++        var names = package.NameMap.Select(n => n.Name).ToList();
++        int itemName = names.IndexOf("Item"), structProperty = names.IndexOf("StructProperty"), inventoryItem = names.IndexOf("InventoryItem");
++        if (itemName < 0 || structProperty < 0 || inventoryItem < 0) return null;
++        data ??= provider.SaveAsset(cell);
++        // Export data starts after the zen package header (FZenPackageSummary: bHasVersioningInfo, HeaderSize, ...).
++        long headerSize = BitConverter.ToUInt32(data, 4);
++        var export = package.ExportMap[exportIndex];
++        long start = headerSize + (long) export.CookedSerialOffset, end = Math.Min(start + (long) export.CookedSerialSize, data.Length);
++        // Property tag: Name (index, number), then the type name as nodes (name index, number, inner count):
++        // StructProperty(InventoryItem(/Script/FactoryGame)).
++        for (long p = start; p + 24 <= end; p++)
+         {
+-            if (result.Count == wanted.Count) break;
+-            try
+-            {
+-                var cdo = provider.LoadPackage(file).GetExports().FirstOrDefault(e => e.Name.StartsWith("Default__"));
+-                string? mesh = cdo?.GetOrDefault<FPackageIndex>("mConveyorMesh")?.ResolvedObject?.GetPathName();
+-                if (mesh is not null && wanted.Contains(mesh)) result.TryAdd(mesh, cdo!.ExportType);
+-            }
+-            catch { /* not an item descriptor */ }
++            if (BitConverter.ToInt32(data, (int) p) != itemName || BitConverter.ToInt32(data, (int) p + 4) != 0
++                || BitConverter.ToInt32(data, (int) p + 8) != structProperty || BitConverter.ToInt32(data, (int) p + 20) != inventoryItem) continue;
++            var ar = new CUE4Parse.UE4.Assets.Readers.FAssetArchive(new CUE4Parse.UE4.Readers.FByteArchive(cell, data, provider.Versions), package) { Position = p };
++            var tag = new FPropertyTag(ar, false);
++            if (tag.Name.Text != "Item" || tag.Size < 4 || ar.Position + 4 > end) continue;
++            return new FPackageIndex(package, BitConverter.ToInt32(data, (int) ar.Position)).ResolvedObject?.Name.Text;
+         }
+-        return result;
++        return null;
+     }
+ }
+ 
+@@ -534,8 +649,156 @@ static class MapIcons
              }
              catch (Exception e) { Console.Error.WriteLine($"WARN: creature descriptor {file}: {e.Message}"); }
          }
@@ -121,10 +336,137 @@ index 5af71fd..19946c3 100644
 +    {
 +        "Desc_Crystal", "Desc_Crystal_mk2", "Desc_Crystal_mk3", "Desc_WAT1", "Desc_WAT2",
 +    };
++}
++
++// ---- icon images ----
++
++/** Decoding and scaling of icon textures, shared by the map icons and the descriptor icons. */
++static class IconImage
++{
++    public static SKBitmap Decode(UTexture2D texture) =>
++        (texture.Decode() ?? throw new Exception("decode returned null")).ToSkBitmap();
++
++    /** The bitmap scaled to a size x size square and encoded. */
++    public static byte[] Encode(SKBitmap bitmap, int size, SKEncodedImageFormat format, int quality)
++    {
++        using var scaled = new SKBitmap(new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Premul));
++        bitmap.ScalePixels(scaled, SKFilterQuality.High);
++        using var image = SKImage.FromBitmap(scaled);
++        using var data = image.Encode(format, quality) ?? throw new Exception($"{format} encoding is not available in this SkiaSharp build.");
++        return data.ToArray();
++    }
++
++    /** A square copy with the bitmap centred on a transparent background (icons are square; this only guards odd ones). */
++    public static SKBitmap Square(SKBitmap bitmap)
++    {
++        int side = Math.Max(bitmap.Width, bitmap.Height);
++        var square = new SKBitmap(new SKImageInfo(side, side, SKColorType.Rgba8888, SKAlphaType.Premul));
++        using var canvas = new SKCanvas(square);
++        canvas.Clear(SKColors.Transparent);
++        canvas.DrawBitmap(bitmap, (side - bitmap.Width) / 2f, (side - bitmap.Height) / 2f);
++        return square;
++    }
++}
++
++// ---- descriptor icons ----
++
++// --icons-out <dir>: the icon of every descriptor in the game's Docs (items, resources, equipment, buildings, vehicles, ...),
++// for the in-app machine and vehicle wiki. The class list and each class's icon texture come from
++// <install>/CommunityResources/Docs/en-US.json: mSmallIcon, else mPersistentBigIcon (the Docs resolve inherited values; in
++// 1.2.5.0 both fields name the same 256 or 512 px texture for every class). The textures are read from the paks and written
++// as <dir>/<size>/<ClassName>.webp for each of Sizes (square, transparent background), plus <dir>/index.json.
++static class DescriptorIcons
++{
++    public static readonly int[] Sizes = [64, 256];
++    const int WebpQuality = 90;
++    const string DocsFile = "CommunityResources/Docs/en-US.json";
++    static readonly Regex TextureValue = new(@"^(?:\w+ )?/Game/(\S+)$");
++
++    public record Icon(
++        [property: JsonPropertyName("nativeClass")] string NativeClass,
++        [property: JsonPropertyName("texture")] string Texture);
++
++    public record Index(
++        [property: JsonPropertyName("gameVersion")] string GameVersion,
++        [property: JsonPropertyName("format")] string Format,
++        [property: JsonPropertyName("sizes")] int[] Sizes,
++        [property: JsonPropertyName("icons")] SortedDictionary<string, Icon> Icons,
++        [property: JsonPropertyName("missing")] SortedDictionary<string, string> Missing);
++
++    public static Index Write(IFileProvider provider, string installDir, string gameVersion, string outDir)
++    {
++        string docsPath = Path.Combine(installDir, DocsFile);
++        if (!File.Exists(docsPath)) throw new Exception($"--icons-out needs the game's Docs: {docsPath} not found.");
++        // UTF-16 LE with a byte order mark: ReadAllText detects it (JsonDocument alone reads only UTF-8).
++        using var docs = JsonDocument.Parse(File.ReadAllText(docsPath));
++        var wanted = new SortedDictionary<string, Icon>(StringComparer.Ordinal);
++        var missing = new SortedDictionary<string, string>(StringComparer.Ordinal);
++        foreach (var group in docs.RootElement.EnumerateArray())
++        {
++            string native = Regex.Match(group.GetProperty("NativeClass").GetString() ?? "", @"\.(\w+)'?$").Groups[1].Value;
++            foreach (var c in group.GetProperty("Classes").EnumerateArray())
++            {
++                string? small = Field(c, "mSmallIcon"), big = Field(c, "mPersistentBigIcon");
++                if (small is null && big is null) continue;
++                string cls = Field(c, "ClassName") ?? throw new Exception("Docs class without a ClassName");
++                string? texture = TexturePath(small) ?? TexturePath(big);
++                if (texture is null) missing[cls] = $"no icon in the Docs ({small ?? big})";
++                else wanted[cls] = new Icon(native, texture);
++            }
++        }
++        if (wanted.Count == 0) throw new Exception($"No descriptor icons found in {docsPath}; the Docs format probably changed.");
++
++        foreach (int size in Sizes)
++        {
++            string dir = Path.Combine(outDir, size.ToString());
++            if (Directory.Exists(dir)) Directory.Delete(dir, true);
++            Directory.CreateDirectory(dir);
++        }
++        // Several classes share a texture (FICSMAS cartridges, jump pads): decode each texture once.
++        var written = new SortedDictionary<string, Icon>(StringComparer.Ordinal);
++        foreach (var byTexture in wanted.GroupBy(w => w.Value.Texture))
++        {
++            byte[][] encoded;
++            try
++            {
++                string objectPath = "FactoryGame/Content/" + byTexture.Key;
++                using var texture = IconImage.Decode(provider.LoadPackageObject<UTexture2D>(objectPath));
++                if (texture.Width < Sizes.Max() || texture.Height < Sizes.Max())
++                    Console.Error.WriteLine($"WARN: icon texture {byTexture.Key} is only {texture.Width}x{texture.Height} px");
++                using var square = texture.Width == texture.Height ? null : IconImage.Square(texture);
++                encoded = Sizes.Select(size => IconImage.Encode(square ?? texture, size, SKEncodedImageFormat.Webp, WebpQuality)).ToArray();
++            }
++            catch (Exception e)
++            {
++                foreach (var (cls, _) in byTexture) missing[cls] = $"texture {byTexture.Key} failed: {e.Message}";
++                Console.Error.WriteLine($"WARN: icon texture {byTexture.Key} failed: {e.Message}");
++                continue;
++            }
++            foreach (var (cls, icon) in byTexture)
++            {
++                for (int i = 0; i < Sizes.Length; i++)
++                    File.WriteAllBytes(Path.Combine(outDir, Sizes[i].ToString(), $"{cls}.webp"), encoded[i]);
++                written[cls] = icon;
++            }
++        }
++        var index = new Index(gameVersion, "webp", Sizes, written, missing);
++        File.WriteAllText(Path.Combine(outDir, "index.json"), JsonSerializer.Serialize(index, Json.Options));
++        return index;
++    }
++
++    static string? Field(JsonElement c, string name) =>
++        c.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
++
++    /** "Texture2D /Game/FactoryGame/X/Icon_256.Icon_256" -> "FactoryGame/X/Icon_256.Icon_256"; null for "None" or empty. */
++    static string? TexturePath(string? value)
++    {
++        var m = value is null ? null : TextureValue.Match(value);
++        return m is { Success: true } ? m.Groups[1].Value : null;
++    }
  }
  
  // ---- output model (matches Konsl/satisfactory-world-generator default-world.json) ----
-@@ -599,6 +668,21 @@ record MapInfo(
+@@ -599,6 +862,1674 @@ record MapInfo(
      [property: JsonPropertyName("world")] MapBounds World,
      [property: JsonPropertyName("icons")] Dictionary<string, string> Icons);
  
@@ -142,6 +484,1659 @@ index 5af71fd..19946c3 100644
 +record Extras(
 +    [property: JsonPropertyName("dropPods")] SortedDictionary<string, DropPodExtra> DropPods,
 +    [property: JsonPropertyName("shrines")] List<ShrineExtra> Shrines);
++
++// ---- caves ----
++
++// The game's cave volumes: FGAmbientVolume actors whose ambient-settings class has "Cave" in its name
++// (AS_CaveLarge_C, AmbientSettings_Caves_*_C, CaveWaterfall_Rework_Thin_C, ...; not AmbientSettings_CaveWind_C)
++// and FGAtmosphereVolume actors with "cave" in the actor name (Atmosphere_SwampCave, ...): the zones in which the
++// game switches to cave sound and fog. Rough hand-placed boxes; they tell where caves are and at what height,
++// not their shape (that comes from CaveGeometry). Each convex collision element of the brush is written as its
++// 2D convex hull in world X/Y plus its world Z range.
++static class CaveData
++{
++    public static Caves Read(IFileProvider provider)
++    {
++        var volumes = new List<CaveVolume>();
++        foreach (var file in provider.Files.Keys
++                     .Where(k => k.StartsWith(PickupContents.CellsDir, StringComparison.OrdinalIgnoreCase) && k.EndsWith(".umap"))
++                     .Prepend("FactoryGame/Content/FactoryGame/Map/GameLevel01/Persistent_Level.umap"))
++        {
++            List<UObject> exports;
++            try { exports = provider.LoadPackage(file).GetExports().ToList(); }
++            catch { continue; }
++            foreach (var e in exports)
++            {
++                if (e.ExportType is not ("FGAmbientVolume" or "FGAtmosphereVolume") || !IsCave(e)) continue;
++                var elements = Elements(e);
++                if (elements.Count > 0) volumes.Add(new CaveVolume(e.Name, Source(e), elements));
++            }
++        }
++        return new Caves(volumes.OrderBy(v => v.Name, StringComparer.Ordinal).ToList());
++    }
++
++    private static bool IsCave(UObject e)
++    {
++        if (e.ExportType == "FGAtmosphereVolume") return e.Name.Contains("cave", StringComparison.OrdinalIgnoreCase);
++        var settings = e.GetOrDefault<FPackageIndex>("mAmbientSettings")?.Name ?? "";
++        return settings.Contains("Cave", StringComparison.Ordinal) && !settings.Contains("CaveWind", StringComparison.Ordinal);
++    }
++
++    private static string Source(UObject e) =>
++        e.ExportType == "FGAmbientVolume" ? $"FGAmbientVolume:{e.GetOrDefault<FPackageIndex>("mAmbientSettings")?.Name}" : e.ExportType;
++
++    private static List<CaveElement> Elements(UObject volume)
++    {
++        var result = new List<CaveElement>();
++        var brush = volume.GetOrDefault<FPackageIndex>("BrushComponent")?.Load();
++        var body = brush?.GetOrDefault<FPackageIndex>("BrushBodySetup")?.Load();
++        if (brush is null || body is null) return result;
++        var loc = brush.GetOrDefault<FVector>("RelativeLocation");
++        var rot = brush.GetOrDefault<FRotator>("RelativeRotation");
++        var scale = brush.GetOrDefault<FVector>("RelativeScale3D", new FVector(1, 1, 1));
++        var agg = body.GetOrDefault<FStructFallback>("AggGeom");
++        if (agg is null) return result;
++        foreach (var elem in agg.GetOrDefault<FStructFallback[]>("ConvexElems", []))
++        {
++            var verts = elem.GetOrDefault<FVector[]>("VertexData", []);
++            bool hasTransform = elem.TryGetValue(out FTransform t, "Transform");
++            if (verts.Length < 3) continue;
++            var world = verts.Select(v =>
++            {
++                var p = hasTransform ? t.TransformPosition(v) : v;
++                return Rotate(new FVector(p.X * scale.X, p.Y * scale.Y, p.Z * scale.Z), rot) + loc;
++            }).ToList();
++            var hull = Hull(world.Select(w => (X: (double)w.X, Y: (double)w.Y)).ToList());
++            if (hull.Count < 3) continue;
++            result.Add(new CaveElement(
++                hull.Select(h => new[] { Math.Round(h.X, 1), Math.Round(h.Y, 1) }).ToList(),
++                Math.Round(world.Min(w => w.Z), 1), Math.Round(world.Max(w => w.Z), 1)));
++        }
++        return result;
++    }
++
++    // FRotationMatrix(rot).TransformVector(v), written out so it does not depend on the library's helpers.
++    private static FVector Rotate(FVector v, FRotator r)
++    {
++        double p = r.Pitch * Math.PI / 180, y = r.Yaw * Math.PI / 180, ro = r.Roll * Math.PI / 180;
++        double sp = Math.Sin(p), cp = Math.Cos(p), sy = Math.Sin(y), cy = Math.Cos(y), sr = Math.Sin(ro), cr = Math.Cos(ro);
++        double[] ax = [cp * cy, cp * sy, sp];
++        double[] ay = [sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, -sr * cp];
++        double[] az = [-(cr * sp * cy + sr * sy), cy * sr - cr * sp * sy, cr * cp];
++        return new FVector(
++            (float)(v.X * ax[0] + v.Y * ay[0] + v.Z * az[0]),
++            (float)(v.X * ax[1] + v.Y * ay[1] + v.Z * az[1]),
++            (float)(v.X * ax[2] + v.Y * ay[2] + v.Z * az[2]));
++    }
++
++    // Andrew's monotone chain, counter-clockwise, no repeated first point.
++    private static List<(double X, double Y)> Hull(List<(double X, double Y)> pts)
++    {
++        pts = pts.Distinct().OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
++        if (pts.Count < 3) return pts;
++        static double Cross((double X, double Y) o, (double X, double Y) a, (double X, double Y) b) =>
++            (a.X - o.X) * (b.Y - o.Y) - (a.Y - o.Y) * (b.X - o.X);
++        var hull = new List<(double X, double Y)>();
++        foreach (var pass in new[] { pts, Enumerable.Reverse(pts).ToList() })
++        {
++            int start = hull.Count;
++            foreach (var p in pass)
++            {
++                while (hull.Count >= start + 2 && Cross(hull[^2], hull[^1], p) <= 0) hull.RemoveAt(hull.Count - 1);
++                hull.Add(p);
++            }
++            hull.RemoveAt(hull.Count - 1);
++        }
++        return hull;
++    }
++
++}
++
++record Caves([property: JsonPropertyName("volumes")] List<CaveVolume> Volumes);
++
++record CaveVolume(
++    [property: JsonPropertyName("name")] string Name,
++    [property: JsonPropertyName("source")] string Source,
++    [property: JsonPropertyName("elements")] List<CaveElement> Elements);
++
++record CaveElement(
++    [property: JsonPropertyName("hull")] List<double[]> Hull,
++    [property: JsonPropertyName("zMin")] double ZMin,
++    [property: JsonPropertyName("zMax")] double ZMax);
++
++// ---- cave geometry (3D) ----
++
++// Everything solid around each cave, for sampling the real cave shape and for 3D previews:
++//   <dir>/index.json      the caves: id, world bounding box (cm), the cave volumes they consist of, file, counts
++//   <dir>/<id>.glb        glTF 2.0 binary: every static or spline mesh component whose world bounds touch the cave's box
++//                         (one glTF mesh per static mesh, one node per placed instance), plus the landscape inside
++//                         the box as a 1 m grid mesh without its holes (node "landscape").
++// A cave is a group of cave volumes (CaveData) whose boxes overlap or are within 10 m of each other.
++// Coordinates: glTF metres, right-handed, Y up: glTF (x, y, z) = UE (X, Z, Y) / 100. Node extras carry the UE
++// actor and mesh names. Foliage instances (small rocks, plants) are not included.
++static class CaveGeometry
++{
++    const double Gap = 1000, MarginXY = 3000, MarginBelow = 3000, MarginAbove = 6000;
++
++    public static CaveGeometryIndex Write(IFileProvider provider, Caves caves, string dir)
++    {
++        Directory.CreateDirectory(dir);
++        var groups = Group(caves.Volumes);
++        var boxes = groups.Select(g => Expand(g.Box)).ToList();
++
++        // placed meshes touching a cave box
++        var hits = groups.Select(_ => new List<Placed>()).ToList();
++        // Bounds of every mesh seen; render geometry only for meshes that touch a cave box.
++        var meshCache = new Dictionary<string, MeshRef?>(StringComparer.OrdinalIgnoreCase);
++        var landscape = new LandscapeHeights();
++        foreach (var file in provider.Files.Keys
++                     .Where(k => k.StartsWith(PickupContents.CellsDir, StringComparison.OrdinalIgnoreCase) && k.EndsWith(".umap"))
++                     .Prepend("FactoryGame/Content/FactoryGame/Map/GameLevel01/Persistent_Level.umap"))
++        {
++            List<UObject> exports;
++            try { exports = provider.LoadPackage(file).GetExports().ToList(); }
++            catch { continue; }
++            Xf.ClearCache();
++            foreach (var e in exports)
++            {
++                if (e.ExportType == "Landscape") landscape.SetTransform(e);
++                if (e.ExportType == "LandscapeComponent") landscape.Add(e);
++                if (e.ExportType is not ("StaticMeshComponent" or "SplineMeshComponent")) continue;
++                var owner = e.Outer?.Name.Text ?? "";
++                if (owner.StartsWith("WPHLOD", StringComparison.Ordinal) || Skipped(owner)) continue;
++                var meshRef = e.GetOrDefault<FPackageIndex>("StaticMesh");
++                if (meshRef is null || meshRef.IsNull) meshRef = e.Template?.Load()?.GetOrDefault<FPackageIndex>("StaticMesh");
++                if (meshRef is null || meshRef.IsNull || SkippedMesh(meshRef.Name)) continue;
++                var path = meshRef.ResolvedObject?.GetPathName() ?? meshRef.Name;
++                if (!meshCache.TryGetValue(path, out var mref)) meshCache[path] = mref = MeshRef.Load(meshRef);
++                if (mref is null) continue;
++                Xf t;
++                try { t = Xf.World(e); }
++                catch (Exception x) { Console.Error.WriteLine($"WARN: transform of {owner}.{e.Name} ({x.Message})"); continue; }
++                bool spline = e.ExportType == "SplineMeshComponent";
++                // Spline meshes bend away from their bounds; test them with a generous box around the spline ends.
++                var wb = spline ? SplineMesh.RoughBounds(e, t, mref) : t.Bounds(mref.Min, mref.Max);
++                var touched = Enumerable.Range(0, boxes.Count).Where(i => wb is { } b && Intersects(b, boxes[i])).ToList();
++                if (touched.Count == 0) continue;
++                var mesh = mref.Data;
++                if (mesh is null) continue;
++                Placed placed;
++                if (spline)
++                {
++                    var baked = SplineMesh.Deform(e, mesh, t);
++                    if (baked is null) continue;
++                    placed = new Placed(owner, path, mesh, t, baked);
++                }
++                else placed = new Placed(owner, path, mesh, t, null);
++                var pb = placed.Bounds();
++                if (Math.Max(pb.MaxX - pb.MinX, Math.Max(pb.MaxY - pb.MinY, pb.MaxZ - pb.MinZ)) > MaxExtent) continue;
++                foreach (var i in touched) if (Intersects(pb, boxes[i])) hits[i].Add(placed);
++            }
++        }
++
++        var index = new CaveGeometryIndex([]);
++        for (int i = 0; i < groups.Count; i++)
++        {
++            var id = $"cave-{i + 1:D3}";
++            var terrain = landscape.Grid(boxes[i]);
++            var tris = Glb.Write(Path.Combine(dir, id + ".glb"), hits[i], terrain);
++            var b = boxes[i];
++            index.Caves.Add(new CaveGeometryEntry(id, $"{id}.glb",
++                [Math.Round(b.MinX), Math.Round(b.MinY), Math.Round(b.MinZ)], [Math.Round(b.MaxX), Math.Round(b.MaxY), Math.Round(b.MaxZ)],
++                groups[i].Volumes.Select(v => v.Name).ToList(), hits[i].Count, tris));
++        }
++        File.WriteAllText(Path.Combine(dir, "index.json"), JsonSerializer.Serialize(index, Json.Options));
++        return index;
++    }
++
++    public record struct Box3(double MinX, double MinY, double MinZ, double MaxX, double MaxY, double MaxZ)
++    {
++        public Box3 Union(Box3 o) => new(Math.Min(MinX, o.MinX), Math.Min(MinY, o.MinY), Math.Min(MinZ, o.MinZ), Math.Max(MaxX, o.MaxX), Math.Max(MaxY, o.MaxY), Math.Max(MaxZ, o.MaxZ));
++    }
++    record Group3(Box3 Box, List<CaveVolume> Volumes);
++    /// A placed mesh; `Baked` holds world vertices (UE cm) for meshes deformed along a spline.
++    public record Placed(string Actor, string MeshPath, MeshData Mesh, Xf Transform, float[]? Baked)
++    {
++        public Box3 Bounds()
++        {
++            if (Baked is null) return Transform.Bounds(Mesh.Min, Mesh.Max);
++            var b = new Box3(double.MaxValue, double.MaxValue, double.MaxValue, double.MinValue, double.MinValue, double.MinValue);
++            for (int i = 0; i < Baked.Length; i += 3) b = b.Union(new Box3(Baked[i], Baked[i + 1], Baked[i + 2], Baked[i], Baked[i + 1], Baked[i + 2]));
++            return b;
++        }
++    }
++
++    // Surfaces that are not solid: water, fog and river planes, and pickups/plants that only add noise.
++    static readonly string[] SkippedOwners = ["BP_Water", "BP_LakeWater", "BP_TranslucentWater", "BP_WaterPlane", "BP_River", "BP_VolumeGas", "BP_VolumeFog",
++        "BP_CaveFogPlane", "BP_Crystal", "BP_WAT", "BP_BerryBush", "BP_NutBush", "BP_Shroom", "BP_MercerShrine", "BP_SomerSloopShrine", "BP_GasPillar", "BPW_Ocean",
++        "SkySphere", "BP_Sky", "BP_Planet", "BP_Manta", "Char_"];
++    /// Anything larger than this (sky sphere, planets) is scenery, not cave.
++    internal const double MaxExtent = 500000;
++    internal static bool Skipped(string owner) => SkippedOwners.Any(p => owner.StartsWith(p, StringComparison.Ordinal));
++    internal static bool SkippedMesh(string mesh) => mesh.Contains("Water", StringComparison.OrdinalIgnoreCase) || mesh.Contains("Fog", StringComparison.OrdinalIgnoreCase)
++        || mesh.Contains("OceanPlane", StringComparison.OrdinalIgnoreCase) || mesh.Contains("RiverPlane", StringComparison.OrdinalIgnoreCase);
++
++    static Box3 Expand(Box3 b) => new(b.MinX - MarginXY, b.MinY - MarginXY, b.MinZ - MarginBelow, b.MaxX + MarginXY, b.MaxY + MarginXY, b.MaxZ + MarginAbove);
++    static bool Intersects(Box3 a, Box3 b) => a.MinX <= b.MaxX && a.MaxX >= b.MinX && a.MinY <= b.MaxY && a.MaxY >= b.MinY && a.MinZ <= b.MaxZ && a.MaxZ >= b.MinZ;
++
++    static Box3 BoxOf(CaveVolume v)
++    {
++        var pts = v.Elements.SelectMany(e => e.Hull).ToList();
++        return new(pts.Min(p => p[0]), pts.Min(p => p[1]), v.Elements.Min(e => e.ZMin), pts.Max(p => p[0]), pts.Max(p => p[1]), v.Elements.Max(e => e.ZMax));
++    }
++
++    static List<Group3> Group(List<CaveVolume> volumes)
++    {
++        // Elements far larger than the rest of their volume and over 300 m are broken brushes (see cleanElements in
++        // caves.ts); leave them out of the box.
++        var clean = volumes.Select(v =>
++        {
++            if (v.Elements.Count < 3) return v;
++            var size = v.Elements.Select(e => new[] { e.Hull.Max(p => p[0]) - e.Hull.Min(p => p[0]), e.Hull.Max(p => p[1]) - e.Hull.Min(p => p[1]), e.ZMax - e.ZMin }.Max()).ToList();
++            var median = size.OrderBy(x => x).ElementAt(size.Count / 2);
++            return v with { Elements = v.Elements.Where((_, i) => size[i] <= 5 * median || size[i] <= 30000).ToList() };
++        }).ToList();
++        var boxes = clean.Select(BoxOf).ToList();
++        var parent = Enumerable.Range(0, boxes.Count).ToArray();
++        int Find(int i) => parent[i] == i ? i : parent[i] = Find(parent[i]);
++        for (int i = 0; i < boxes.Count; i++)
++            for (int j = i + 1; j < boxes.Count; j++)
++            {
++                var a = boxes[i]; var b = boxes[j];
++                if (a.MinX - Gap <= b.MaxX && a.MaxX + Gap >= b.MinX && a.MinY - Gap <= b.MaxY && a.MaxY + Gap >= b.MinY && a.MinZ - Gap <= b.MaxZ && a.MaxZ + Gap >= b.MinZ)
++                    parent[Find(i)] = Find(j);
++            }
++        return Enumerable.Range(0, boxes.Count).GroupBy(Find)
++            .Select(g => new Group3(g.Select(i => boxes[i]).Aggregate((x, y) => x.Union(y)), g.Select(i => clean[i]).ToList()))
++            .OrderBy(g => g.Box.MinX).ThenBy(g => g.Box.MinY).ToList();
++    }
++
++    /// Affine transform UE local -> UE world (cm): world = L . local + T, L row-major 3x3 (rotation and scale).
++    public sealed record Xf(double[] L, double[] T)
++    {
++        static readonly Dictionary<UObject, Xf> cache = new(ReferenceEqualityComparer.Instance);
++        /// Components only attach within their own package; the cache is cleared per package to free memory.
++        public static void ClearCache() => cache.Clear();
++
++        /// The component's relative transform (FRotationMatrix rows = rotated axes; scale applied first).
++        public static Xf Relative(UObject c)
++        {
++            var l = c.GetOrDefault<FVector>("RelativeLocation");
++            var r = c.GetOrDefault<FRotator>("RelativeRotation");
++            var s = c.GetOrDefault<FVector>("RelativeScale3D", new FVector(1, 1, 1));
++            var rot = RotMatrix(r);
++            double[] sc = [s.X, s.Y, s.Z];
++            var m = new double[9];
++            for (int row = 0; row < 3; row++)
++                for (int col = 0; col < 3; col++)
++                    m[row * 3 + col] = rot[col * 3 + row] * sc[col];
++            return new Xf(m, [l.X, l.Y, l.Z]);
++        }
++
++        /// World transform: the relative transforms up the AttachParent chain.
++        public static Xf World(UObject c, int depth = 0)
++        {
++            if (cache.TryGetValue(c, out var hit)) return hit;
++            if (depth > 32) throw new Exception("attachment chain too deep");
++            var rel = Relative(c);
++            var parentRef = c.GetOrDefault<FPackageIndex>("AttachParent");
++            var parent = parentRef is null || parentRef.IsNull ? null : parentRef.Load();
++            var world = parent is null ? rel : World(parent, depth + 1).Then(rel);
++            cache[c] = world;
++            return world;
++        }
++
++        /// this . child (apply child first).
++        public Xf Then(Xf child)
++        {
++            var m = new double[9];
++            for (int r = 0; r < 3; r++)
++                for (int c = 0; c < 3; c++)
++                    m[r * 3 + c] = L[r * 3] * child.L[c] + L[r * 3 + 1] * child.L[3 + c] + L[r * 3 + 2] * child.L[6 + c];
++            var t = Apply(child.T[0], child.T[1], child.T[2]);
++            return new Xf(m, t);
++        }
++
++        public double[] Apply(double x, double y, double z) =>
++            [L[0] * x + L[1] * y + L[2] * z + T[0], L[3] * x + L[4] * y + L[5] * z + T[1], L[6] * x + L[7] * y + L[8] * z + T[2]];
++
++        public Box3 Bounds(float[] min, float[] max)
++        {
++            var b = new Box3(double.MaxValue, double.MaxValue, double.MaxValue, double.MinValue, double.MinValue, double.MinValue);
++            foreach (var x in new[] { min[0], max[0] })
++                foreach (var y in new[] { min[1], max[1] })
++                    foreach (var z in new[] { min[2], max[2] })
++                    {
++                        var p = Apply(x, y, z);
++                        b = b.Union(new Box3(p[0], p[1], p[2], p[0], p[1], p[2]));
++                    }
++            return b;
++        }
++
++        static double[] RotMatrix(FRotator r)
++        {
++            double p = r.Pitch * Math.PI / 180, y = r.Yaw * Math.PI / 180, ro = r.Roll * Math.PI / 180;
++            double sp = Math.Sin(p), cp = Math.Cos(p), sy = Math.Sin(y), cy = Math.Cos(y), sr = Math.Sin(ro), cr = Math.Cos(ro);
++            return [cp * cy, cp * sy, sp, sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, -sr * cp, -(cr * sp * cy + sr * sy), cy * sr - cr * sp * sy, cr * cp];
++        }
++    }
++
++    /// USplineMeshComponent deformation (forward axis X, as the cave floor blueprint uses): each vertex is moved
++    /// to the cubic Hermite spline at its position along the mesh's X extent, its Y/Z become offsets in the
++    /// spline's cross-section frame (up = Z), with roll and scale interpolated linearly.
++    internal static class SplineMesh
++    {
++        public static float[]? Deform(UObject c, MeshData mesh, Xf world)
++        {
++            var p = c.GetOrDefault<FStructFallback>("SplineParams");
++            if (p is null) return null;
++            var tmpl = c.Template?.Load();
++            var forward = c.GetOrDefault("ForwardAxis", tmpl?.GetOrDefault<FName>("ForwardAxis") ?? default).ToString();
++            if (forward is not ("" or "None" or "ESplineMeshAxis::X")) { Console.Error.WriteLine($"WARN: spline mesh {c.Name} forward axis {forward} not supported"); return null; }
++            var p0 = V(p.GetOrDefault<FVector>("StartPos")); var t0 = V(p.GetOrDefault<FVector>("StartTangent"));
++            var p1 = V(p.GetOrDefault<FVector>("EndPos")); var t1 = V(p.GetOrDefault<FVector>("EndTangent"));
++            var s0 = p.GetOrDefault("StartScale", new FVector2D(1, 1)); var s1 = p.GetOrDefault("EndScale", new FVector2D(1, 1));
++            var o0 = p.GetOrDefault("StartOffset", new FVector2D(0, 0)); var o1 = p.GetOrDefault("EndOffset", new FVector2D(0, 0));
++            double r0 = p.GetOrDefault<float>("StartRoll"), r1 = p.GetOrDefault<float>("EndRoll");
++            double[] upDir = [0, 0, 1];
++            double minX = mesh.Min[0], len = mesh.Max[0] - mesh.Min[0];
++            if (len <= 0) return null;
++            var outPos = new float[mesh.Positions.Length];
++            for (int i = 0; i < mesh.Positions.Length; i += 3)
++            {
++                double a = (mesh.Positions[i] - minX) / len;
++                double a2 = a * a, a3 = a2 * a;
++                double h00 = 2 * a3 - 3 * a2 + 1, h10 = a3 - 2 * a2 + a, h01 = -2 * a3 + 3 * a2, h11 = a3 - a2;
++                double d00 = 6 * a2 - 6 * a, d10 = 3 * a2 - 4 * a + 1, d01 = -6 * a2 + 6 * a, d11 = 3 * a2 - 2 * a;
++                var pos = new double[3]; var dir = new double[3];
++                for (int k = 0; k < 3; k++)
++                {
++                    pos[k] = h00 * p0[k] + h10 * t0[k] + h01 * p1[k] + h11 * t1[k];
++                    dir[k] = d00 * p0[k] + d10 * t0[k] + d01 * p1[k] + d11 * t1[k];
++                }
++                Normalize(dir);
++                var bx = Cross(upDir, dir); Normalize(bx);
++                var by = Cross(dir, bx); Normalize(by);
++                double roll = r0 + (r1 - r0) * a, ca = Math.Cos(roll), sa = Math.Sin(roll);
++                double sx = s0.X + (s1.X - s0.X) * a, sy = s0.Y + (s1.Y - s0.Y) * a;
++                double ox = o0.X + (o1.X - o0.X) * a, oy = o0.Y + (o1.Y - o0.Y) * a;
++                double ly = mesh.Positions[i + 1], lz = mesh.Positions[i + 2];
++                for (int k = 0; k < 3; k++)
++                {
++                    double xv = ca * bx[k] - sa * by[k], yv = ca * by[k] + sa * bx[k];
++                    pos[k] += xv * (ox + ly * sx) + yv * (oy + lz * sy);
++                }
++                var w = world.Apply(pos[0], pos[1], pos[2]);
++                outPos[i] = (float)w[0]; outPos[i + 1] = (float)w[1]; outPos[i + 2] = (float)w[2];
++            }
++            return outPos;
++        }
++
++        /// Box around both spline ends, grown by the mesh's largest extent times the largest scale.
++        public static Box3? RoughBounds(UObject c, Xf world, MeshRef mesh)
++        {
++            var p = c.GetOrDefault<FStructFallback>("SplineParams");
++            if (p is null) return null;
++            var a = p.GetOrDefault<FVector>("StartPos"); var b = p.GetOrDefault<FVector>("EndPos");
++            var s0 = p.GetOrDefault("StartScale", new FVector2D(1, 1)); var s1 = p.GetOrDefault("EndScale", new FVector2D(1, 1));
++            double grow = Math.Max(Math.Max(Math.Abs(mesh.Min[1]), Math.Abs(mesh.Max[1])), Math.Max(Math.Abs(mesh.Min[2]), Math.Abs(mesh.Max[2])))
++                * Math.Max(Math.Max(s0.X, s0.Y), Math.Max(s1.X, s1.Y)) + (b - a).Size() * 0.5;
++            var pa = world.Apply(a.X, a.Y, a.Z); var pb = world.Apply(b.X, b.Y, b.Z);
++            double sc = Math.Sqrt(world.L[0] * world.L[0] + world.L[3] * world.L[3] + world.L[6] * world.L[6]);
++            grow *= Math.Max(sc, 1e-6);
++            return new Box3(Math.Min(pa[0], pb[0]) - grow, Math.Min(pa[1], pb[1]) - grow, Math.Min(pa[2], pb[2]) - grow,
++                Math.Max(pa[0], pb[0]) + grow, Math.Max(pa[1], pb[1]) + grow, Math.Max(pa[2], pb[2]) + grow);
++        }
++
++        static double[] V(FVector v) => [v.X, v.Y, v.Z];
++        static double[] Cross(double[] a, double[] b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
++        static void Normalize(double[] v) { var n = Math.Sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]); if (n > 0) for (int k = 0; k < 3; k++) v[k] /= n; }
++    }
++
++    /// A static mesh's local bounds (cheap, from the render data) and, on first use, its geometry.
++    public sealed class MeshRef
++    {
++        public required float[] Min, Max;
++        public required FPackageIndex Reference;
++        MeshData? data; bool loaded;
++        public MeshData? Data { get { if (!loaded) { data = MeshData.Load(Reference); loaded = true; } return data; } }
++
++        public static MeshRef? Load(FPackageIndex reference)
++        {
++            try
++            {
++                var sm = reference.Load<CUE4Parse.UE4.Assets.Exports.StaticMesh.UStaticMesh>();
++                var bounds = sm?.RenderData?.Bounds;
++                if (bounds is null) return null;
++                var o = bounds.Origin; var x = bounds.BoxExtent;
++                return new MeshRef { Reference = reference, Min = [o.X - x.X, o.Y - x.Y, o.Z - x.Z], Max = [o.X + x.X, o.Y + x.Y, o.Z + x.Z] };
++            }
++            catch { return null; }
++        }
++    }
++
++    /// One static mesh's render geometry (UE local cm), from the first LOD.
++    public sealed class MeshData
++    {
++        public required string Name;
++        public required float[] Positions; // x, y, z per vertex
++        public required uint[] Indices;
++        public required float[] Min, Max;
++
++        public static MeshData? Load(FPackageIndex reference)
++        {
++            try
++            {
++                var sm = reference.Load<CUE4Parse.UE4.Assets.Exports.StaticMesh.UStaticMesh>();
++                if (sm is null || !CUE4Parse_Conversion.Meshes.MeshConverter.TryConvert(sm, out var converted) || converted.LODs.Count == 0) return null;
++                var lod = converted.LODs[0];
++                if (lod.Verts is null || lod.Indices is null) return null;
++                var pos = new float[lod.Verts.Length * 3];
++                for (int i = 0; i < lod.Verts.Length; i++)
++                {
++                    var v = lod.Verts[i].Position;
++                    pos[i * 3] = v.X; pos[i * 3 + 1] = v.Y; pos[i * 3 + 2] = v.Z;
++                }
++                uint[] idx = lod.Indices.Value.ToArray();
++                float[] min = [float.MaxValue, float.MaxValue, float.MaxValue], max = [float.MinValue, float.MinValue, float.MinValue];
++                for (int i = 0; i < pos.Length; i++) { min[i % 3] = Math.Min(min[i % 3], pos[i]); max[i % 3] = Math.Max(max[i % 3], pos[i]); }
++                return new MeshData { Name = sm.Name, Positions = pos, Indices = idx, Min = min, Max = max };
++            }
++            catch (Exception e)
++            {
++                Console.Error.WriteLine($"WARN: mesh {reference.Name} not converted ({e.Message})");
++                return null;
++            }
++        }
++    }
++
++    /// Landscape heights per vertex (cm), and holes, from the heightmap and visibility weightmap textures.
++    internal sealed class LandscapeHeights
++    {
++        readonly Dictionary<(int, int), (float Z, bool Hole)> verts = new();
++        readonly List<UObject> pending = new();
++        double ox, oy, oz, quad = 100, zScale = 100;
++        bool hasTransform;
++
++        public void SetTransform(UObject landscape)
++        {
++            var root = landscape.GetOrDefault<FPackageIndex>("RootComponent")?.Load();
++            var loc = root?.GetOrDefault<FVector>("RelativeLocation") ?? FVector.ZeroVector;
++            var scale = root?.GetOrDefault<FVector>("RelativeScale3D", new FVector(1, 1, 1)) ?? new FVector(1, 1, 1);
++            var offset = landscape.GetOrDefault<FIntPoint>("LandscapeSectionOffset");
++            quad = scale.X; zScale = scale.Z;
++            ox = loc.X - offset.X * scale.X; oy = loc.Y - offset.Y * scale.Y; oz = loc.Z;
++            hasTransform = true;
++        }
++
++        // Components are decoded lazily: only the ones a cave box needs.
++        public void Add(UObject component) => pending.Add(component);
++
++        void Decode(UObject c) => Decode(c, (i, j, z, hole) => verts[(i, j)] = (z, hole));
++
++        /// Every landscape vertex not in a hole, in world cm, decoding one component at a time (nothing kept).
++        public void ForEachVertex(Action<double, double, float> sink)
++        {
++            if (!hasTransform) return;
++            foreach (var c in pending)
++            {
++                try { Decode(c, (i, j, z, hole) => { if (!hole) sink(ox + i * quad, oy + j * quad, z); }); }
++                catch (Exception x) { Console.Error.WriteLine($"WARN: landscape component {c.Name} ({x.Message})"); }
++            }
++        }
++
++        void Decode(UObject c, Action<int, int, float, bool> sink)
++        {
++            int bx = c.GetOrDefault<int>("SectionBaseX"), by = c.GetOrDefault<int>("SectionBaseY");
++            int q = c.GetOrDefault<int>("ComponentSizeQuads", 127);
++            var hTex = c.GetOrDefault<FPackageIndex>("HeightmapTexture")?.Load<UTexture2D>();
++            if (hTex is null) return;
++            using var hb = (hTex.Decode() ?? throw new Exception($"heightmap of {c.Name}")).ToSkBitmap();
++            var hs = c.GetOrDefault<FVector4>("HeightmapScaleBias");
++            int hox = (int)Math.Round(hs.Z * hb.Width), hoy = (int)Math.Round(hs.W * hb.Height);
++            var holes = new HashSet<(int, int)>();
++            foreach (var alloc in c.GetOrDefault<FStructFallback[]>("WeightmapLayerAllocations", []))
++            {
++                if (alloc.GetOrDefault<FPackageIndex>("LayerInfo")?.Name != "LandscapeVisibilityLayerInfo") continue;
++                var tex = c.GetOrDefault<FPackageIndex[]>("WeightmapTextures", [])[alloc.GetOrDefault<byte>("WeightmapTextureIndex")].Load<UTexture2D>();
++                if (tex is null) continue;
++                using var wb = (tex.Decode() ?? throw new Exception($"weightmap of {c.Name}")).ToSkBitmap();
++                var ws = c.GetOrDefault<FVector4>("WeightmapScaleBias");
++                int wox = (int)Math.Round(ws.Z * wb.Width), woy = (int)Math.Round(ws.W * wb.Height);
++                int ch = alloc.GetOrDefault<byte>("WeightmapTextureChannel");
++                for (int j = 0; j <= q; j++)
++                    for (int i = 0; i <= q; i++)
++                    {
++                        var px = wb.GetPixel(Math.Min(wox + i, wb.Width - 1), Math.Min(woy + j, wb.Height - 1));
++                        if ((ch switch { 0 => px.Red, 1 => px.Green, 2 => px.Blue, _ => px.Alpha }) > 127) holes.Add((i, j));
++                    }
++            }
++            for (int j = 0; j <= q; j++)
++                for (int i = 0; i <= q; i++)
++                {
++                    var px = hb.GetPixel(Math.Min(hox + i, hb.Width - 1), Math.Min(hoy + j, hb.Height - 1));
++                    int h = px.Red << 8 | px.Green;
++                    // LANDSCAPE_ZSCALE = 1/128; height 32768 = 0
++                    float z = (float)(oz + (h - 32768) / 128.0 * zScale);
++                    sink(bx + i, by + j, z, holes.Contains((i, j)));
++                }
++        }
++
++        public (double Ox, double Oy, double Quad, int I0, int J0, int W, int H, float[] Z, bool[] Hole)? Grid(Box3 b)
++        {
++            if (!hasTransform) return null;
++            int i0 = (int)Math.Floor((b.MinX - ox) / quad), i1 = (int)Math.Ceiling((b.MaxX - ox) / quad);
++            int j0 = (int)Math.Floor((b.MinY - oy) / quad), j1 = (int)Math.Ceiling((b.MaxY - oy) / quad);
++            foreach (var c in pending.ToList())
++            {
++                int bx = c.GetOrDefault<int>("SectionBaseX"), by = c.GetOrDefault<int>("SectionBaseY"), q = c.GetOrDefault<int>("ComponentSizeQuads", 127);
++                if (bx > i1 || bx + q < i0 || by > j1 || by + q < j0) continue;
++                Decode(c);
++                pending.Remove(c);
++            }
++            int w = i1 - i0 + 1, h = j1 - j0 + 1;
++            var z = new float[w * h]; var hole = new bool[w * h];
++            for (int j = 0; j < h; j++)
++                for (int i = 0; i < w; i++)
++                {
++                    if (verts.TryGetValue((i0 + i, j0 + j), out var v)) { z[j * w + i] = v.Z; hole[j * w + i] = v.Hole; }
++                    else { z[j * w + i] = float.NaN; hole[j * w + i] = true; }
++                }
++            return (ox, oy, quad, i0, j0, w, h, z, hole);
++        }
++    }
++
++    /// Minimal glTF 2.0 binary writer: positions + indices, one mesh per static mesh, one node per instance.
++    static class Glb
++    {
++        public static long Write(string path, List<Placed> placed, (double Ox, double Oy, double Quad, int I0, int J0, int W, int H, float[] Z, bool[] Hole)? terrain)
++        {
++            var bin = new MemoryStream();
++            var bufferViews = new List<object>(); var accessors = new List<object>(); var meshes = new List<object>(); var nodes = new List<object>();
++            var meshIndex = new Dictionary<string, int>();
++            long triangles = 0;
++
++            int AddPrimitive(float[] gltfPositions, uint[] indices)
++            {
++                Align(bin);
++                long posOffset = bin.Length;
++                foreach (var f in gltfPositions) bin.Write(BitConverter.GetBytes(f));
++                long idxOffset = bin.Length;
++                foreach (var i in indices) bin.Write(BitConverter.GetBytes(i));
++                float[] min = [float.MaxValue, float.MaxValue, float.MaxValue], max = [float.MinValue, float.MinValue, float.MinValue];
++                for (int i = 0; i < gltfPositions.Length; i++) { min[i % 3] = Math.Min(min[i % 3], gltfPositions[i]); max[i % 3] = Math.Max(max[i % 3], gltfPositions[i]); }
++                bufferViews.Add(new Dictionary<string, object> { ["buffer"] = 0, ["byteOffset"] = posOffset, ["byteLength"] = gltfPositions.Length * 4, ["target"] = 34962 });
++                accessors.Add(new Dictionary<string, object> { ["bufferView"] = bufferViews.Count - 1, ["componentType"] = 5126, ["count"] = gltfPositions.Length / 3, ["type"] = "VEC3", ["min"] = min, ["max"] = max });
++                int posAcc = accessors.Count - 1;
++                bufferViews.Add(new Dictionary<string, object> { ["buffer"] = 0, ["byteOffset"] = idxOffset, ["byteLength"] = indices.Length * 4, ["target"] = 34963 });
++                accessors.Add(new Dictionary<string, object> { ["bufferView"] = bufferViews.Count - 1, ["componentType"] = 5125, ["count"] = indices.Length, ["type"] = "SCALAR" });
++                return posAcc;
++            }
++
++            foreach (var p in placed)
++            {
++                if (p.Baked is { } baked)
++                {
++                    var bpos = new float[baked.Length];
++                    for (int i = 0; i < bpos.Length; i += 3) { bpos[i] = baked[i] / 100f; bpos[i + 1] = baked[i + 2] / 100f; bpos[i + 2] = baked[i + 1] / 100f; }
++                    int bacc = AddPrimitive(bpos, p.Mesh.Indices);
++                    meshes.Add(new Dictionary<string, object> { ["name"] = p.Mesh.Name, ["primitives"] = new[] { new Dictionary<string, object> { ["attributes"] = new Dictionary<string, int> { ["POSITION"] = bacc }, ["indices"] = bacc + 1 } } });
++                    nodes.Add(new Dictionary<string, object> { ["name"] = p.Actor, ["mesh"] = meshes.Count - 1, ["extras"] = new { actor = p.Actor, mesh = p.MeshPath, spline = true } });
++                    triangles += p.Mesh.Indices.Length / 3;
++                    continue;
++                }
++                if (!meshIndex.TryGetValue(p.MeshPath, out var mi))
++                {
++                    var m = p.Mesh;
++                    var pos = new float[m.Positions.Length];
++                    for (int i = 0; i < pos.Length; i += 3) { pos[i] = m.Positions[i] / 100f; pos[i + 1] = m.Positions[i + 2] / 100f; pos[i + 2] = m.Positions[i + 1] / 100f; }
++                    // UE's front faces are clockwise in its left-handed frame; the axis swap mirrors that into
++                    // glTF's counter-clockwise, so the index order stays as it is.
++                    var idx = m.Indices;
++                    int acc = AddPrimitive(pos, idx);
++                    meshes.Add(new Dictionary<string, object> { ["name"] = m.Name, ["primitives"] = new[] { new Dictionary<string, object> { ["attributes"] = new Dictionary<string, int> { ["POSITION"] = acc }, ["indices"] = acc + 1 } } });
++                    meshIndex[p.MeshPath] = mi = meshes.Count - 1;
++                }
++                triangles += p.Mesh.Indices.Length / 3;
++                nodes.Add(new Dictionary<string, object> { ["name"] = p.Actor, ["mesh"] = mi, ["matrix"] = GltfMatrix(p.Transform), ["extras"] = new { actor = p.Actor, mesh = p.MeshPath } });
++            }
++
++            if (terrain is { } t)
++            {
++                var pos = new List<float>(); var idx = new List<uint>(); var vid = new int[t.W * t.H];
++                for (int k = 0; k < vid.Length; k++)
++                {
++                    vid[k] = -1;
++                    if (float.IsNaN(t.Z[k])) continue;
++                    int i = k % t.W, j = k / t.W;
++                    double x = t.Ox + (t.I0 + i) * t.Quad, y = t.Oy + (t.J0 + j) * t.Quad;
++                    vid[k] = pos.Count / 3;
++                    pos.Add((float)(x / 100)); pos.Add(t.Z[k] / 100f); pos.Add((float)(y / 100));
++                }
++                for (int j = 0; j + 1 < t.H; j++)
++                    for (int i = 0; i + 1 < t.W; i++)
++                    {
++                        int a = j * t.W + i, b = a + 1, c = a + t.W, d = c + 1;
++                        // a quad is a hole if its first vertex is (UE's convention)
++                        if (t.Hole[a] || vid[a] < 0 || vid[b] < 0 || vid[c] < 0 || vid[d] < 0) continue;
++                        // counter-clockwise seen from above (glTF +Y): normals point up
++                        idx.AddRange([(uint)vid[a], (uint)vid[d], (uint)vid[b], (uint)vid[a], (uint)vid[c], (uint)vid[d]]);
++                    }
++                if (idx.Count > 0)
++                {
++                    int acc = AddPrimitive(pos.ToArray(), idx.ToArray());
++                    meshes.Add(new Dictionary<string, object> { ["name"] = "landscape", ["primitives"] = new[] { new Dictionary<string, object> { ["attributes"] = new Dictionary<string, int> { ["POSITION"] = acc }, ["indices"] = acc + 1 } } });
++                    nodes.Add(new Dictionary<string, object> { ["name"] = "landscape", ["mesh"] = meshes.Count - 1 });
++                    triangles += idx.Count / 3;
++                }
++            }
++
++            Align(bin);
++            var gltf = new Dictionary<string, object>
++            {
++                ["asset"] = new { version = "2.0", generator = "ficsmap world-extractor (CaveGeometry)" },
++                ["scene"] = 0,
++                ["scenes"] = new[] { new { nodes = Enumerable.Range(0, nodes.Count).ToArray() } },
++                ["nodes"] = nodes, ["meshes"] = meshes, ["accessors"] = accessors, ["bufferViews"] = bufferViews,
++                ["buffers"] = new[] { new { byteLength = bin.Length } },
++            };
++            var json = System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(gltf));
++            int jsonPad = (4 - json.Length % 4) % 4;
++            using var f = File.Create(path);
++            using var w = new BinaryWriter(f);
++            w.Write(0x46546C67u); w.Write(2u); w.Write((uint)(12 + 8 + json.Length + jsonPad + 8 + bin.Length));
++            w.Write((uint)(json.Length + jsonPad)); w.Write(0x4E4F534Au); w.Write(json); for (int i = 0; i < jsonPad; i++) w.Write((byte)0x20);
++            w.Write((uint)bin.Length); w.Write(0x004E4942u); w.Write(bin.ToArray());
++            return triangles;
++        }
++
++        static void Align(MemoryStream s) { while (s.Length % 4 != 0) s.WriteByte(0); }
++
++        // glTF column-major 4x4 of P . M . P^-1: P swaps UE Y and Z and turns cm into m. Mesh vertices are
++        // already in glTF axes and metres, so the linear part is the swapped L and the translation is P . T.
++        static double[] GltfMatrix(Xf t)
++        {
++            int[] perm = [0, 2, 1]; // glTF axis k = UE axis perm[k]
++            var m = new double[16];
++            for (int c = 0; c < 3; c++)
++                for (int r = 0; r < 3; r++)
++                    m[c * 4 + r] = t.L[perm[r] * 3 + perm[c]];
++            m[12] = t.T[0] / 100; m[13] = t.T[2] / 100; m[14] = t.T[1] / 100; m[15] = 1;
++            return m;
++        }
++    }
++}
++
++record CaveGeometryIndex([property: JsonPropertyName("caves")] List<CaveGeometryEntry> Caves);
++
++record CaveGeometryEntry(
++    [property: JsonPropertyName("id")] string Id,
++    [property: JsonPropertyName("file")] string File,
++    [property: JsonPropertyName("min")] double[] Min,
++    [property: JsonPropertyName("max")] double[] Max,
++    [property: JsonPropertyName("volumes")] List<string> Volumes,
++    [property: JsonPropertyName("instances")] int Instances,
++    [property: JsonPropertyName("triangles")] long Triangles);
++
++// Height grids of the whole map (the minimap capture's square), written by --heightmap-out:
++//   top.f32        highest solid surface per cell: landscape (without holes), static meshes, spline meshes and
++//                  instanced meshes except foliage (cm, float32 LE, row-major from minX/minY, NaN = nothing);
++//   landscape.f32  the UE landscape alone;
++//   foliage.f32    the highest foliage instance (trees, bushes, small rocks), for comparison;
++//   height-data.f32 the game's own top-down height texture (HeightData_Test, normalised 0..1, no scale), as cooked;
++//   heightmap.json the grid (cell size, origin, size) and counts.
++// A cell takes the maximum of every triangle sampled at its centre and of every vertex inside it, so small or
++// steep triangles are not lost.
++static class Heightmap
++{
++    const double Cell = 200;
++
++    public record Info(
++        [property: JsonPropertyName("cell")] double Cell,
++        [property: JsonPropertyName("minX")] double MinX,
++        [property: JsonPropertyName("minY")] double MinY,
++        [property: JsonPropertyName("width")] int Width,
++        [property: JsonPropertyName("height")] int Height,
++        [property: JsonPropertyName("counts")] SortedDictionary<string, long> Counts,
++        [property: JsonPropertyName("heightData")] object? HeightData);
++
++    sealed class Grid(double minX, double minY, int w, int h)
++    {
++        public readonly float[] Z = Enumerable.Repeat(float.NaN, w * h).ToArray();
++
++        public void Point(double x, double y, double z)
++        {
++            int i = (int)Math.Floor((x - minX) / Cell), j = (int)Math.Floor((y - minY) / Cell);
++            if (i < 0 || j < 0 || i >= w || j >= h) return;
++            int k = j * w + i;
++            if (!(Z[k] >= z)) Z[k] = (float)z;
++        }
++
++        public void Triangle(double ax, double ay, double az, double bx, double by, double bz, double cx, double cy, double cz)
++        {
++            Point(ax, ay, az); Point(bx, by, bz); Point(cx, cy, cz);
++            double det = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
++            if (Math.Abs(det) < 1e-6) return;
++            int i0 = Math.Max(0, (int)Math.Ceiling((Math.Min(ax, Math.Min(bx, cx)) - minX) / Cell - 0.5));
++            int i1 = Math.Min(w - 1, (int)Math.Floor((Math.Max(ax, Math.Max(bx, cx)) - minX) / Cell - 0.5));
++            int j0 = Math.Max(0, (int)Math.Ceiling((Math.Min(ay, Math.Min(by, cy)) - minY) / Cell - 0.5));
++            int j1 = Math.Min(h - 1, (int)Math.Floor((Math.Max(ay, Math.Max(by, cy)) - minY) / Cell - 0.5));
++            for (int j = j0; j <= j1; j++)
++            {
++                double py = minY + (j + 0.5) * Cell;
++                for (int i = i0; i <= i1; i++)
++                {
++                    double px = minX + (i + 0.5) * Cell;
++                    double l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / det;
++                    double l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / det;
++                    double l3 = 1 - l1 - l2;
++                    if (l1 < 0 || l2 < 0 || l3 < 0) continue;
++                    double z = l1 * az + l2 * bz + l3 * cz;
++                    int k = j * w + i;
++                    if (!(Z[k] >= z)) Z[k] = (float)z;
++                }
++            }
++        }
++
++        public void Mesh(CaveGeometry.MeshData mesh, CaveGeometry.Xf t)
++        {
++            var p = mesh.Positions;
++            var wv = new double[p.Length];
++            for (int v = 0; v < p.Length; v += 3)
++            {
++                var q = t.Apply(p[v], p[v + 1], p[v + 2]);
++                wv[v] = q[0]; wv[v + 1] = q[1]; wv[v + 2] = q[2];
++            }
++            Baked(wv, mesh.Indices);
++        }
++
++        public void Baked(IReadOnlyList<double> wv, uint[] idx)
++        {
++            for (int k = 0; k + 2 < idx.Length; k += 3)
++            {
++                long a = idx[k] * 3L, b = idx[k + 1] * 3L, c = idx[k + 2] * 3L;
++                Triangle(wv[(int)a], wv[(int)a + 1], wv[(int)a + 2], wv[(int)b], wv[(int)b + 1], wv[(int)b + 2], wv[(int)c], wv[(int)c + 1], wv[(int)c + 2]);
++            }
++        }
++
++        public void Save(string path)
++        {
++            var bytes = new byte[Z.Length * 4];
++            Buffer.BlockCopy(Z, 0, bytes, 0, bytes.Length);
++            File.WriteAllBytes(path, bytes);
++        }
++    }
++
++    public static Info Write(IFileProvider provider, MapBounds bounds, string dir)
++    {
++        Directory.CreateDirectory(dir);
++        int w = (int)Math.Ceiling((bounds.MaxX - bounds.MinX) / Cell), h = (int)Math.Ceiling((bounds.MaxY - bounds.MinY) / Cell);
++        var top = new Grid(bounds.MinX, bounds.MinY, w, h);
++        var ground = new Grid(bounds.MinX, bounds.MinY, w, h);
++        var foliage = new Grid(bounds.MinX, bounds.MinY, w, h);
++        var counts = new SortedDictionary<string, long>(StringComparer.Ordinal);
++        void Count(string key, long n = 1) => counts[key] = counts.GetValueOrDefault(key) + n;
++
++        var meshCache = new Dictionary<string, CaveGeometry.MeshData?>(StringComparer.OrdinalIgnoreCase);
++        CaveGeometry.MeshData? MeshOf(FPackageIndex r)
++        {
++            var path = r.ResolvedObject?.GetPathName() ?? r.Name;
++            if (!meshCache.TryGetValue(path, out var m)) meshCache[path] = m = CaveGeometry.MeshData.Load(r);
++            return m;
++        }
++
++        var landscape = new CaveGeometry.LandscapeHeights();
++        foreach (var file in provider.Files.Keys
++                     .Where(k => k.StartsWith(PickupContents.CellsDir, StringComparison.OrdinalIgnoreCase) && k.EndsWith(".umap"))
++                     .Prepend("FactoryGame/Content/FactoryGame/Map/GameLevel01/Persistent_Level.umap"))
++        {
++            List<UObject> exports;
++            try { exports = provider.LoadPackage(file).GetExports().ToList(); }
++            catch { continue; }
++            CaveGeometry.Xf.ClearCache();
++            foreach (var e in exports)
++            {
++                if (e.ExportType == "Landscape") landscape.SetTransform(e);
++                if (e.ExportType == "LandscapeComponent") landscape.Add(e);
++                bool ism = e is UInstancedStaticMeshComponent;
++                if (!ism && e.ExportType is not ("StaticMeshComponent" or "SplineMeshComponent")) continue;
++                var owner = e.Outer?.Name.Text ?? "";
++                if (owner.StartsWith("WPHLOD", StringComparison.Ordinal) || CaveGeometry.Skipped(owner)) { Count("skipped owner"); continue; }
++                if (!e.GetOrDefault("bVisible", true) || e.GetOrDefault("bHiddenInGame", false)) { Count("skipped hidden"); continue; }
++                var meshRef = e.GetOrDefault<FPackageIndex>("StaticMesh");
++                if (meshRef is null || meshRef.IsNull) meshRef = e.Template?.Load()?.GetOrDefault<FPackageIndex>("StaticMesh");
++                if (meshRef is null || meshRef.IsNull || CaveGeometry.SkippedMesh(meshRef.Name)) { Count("skipped mesh"); continue; }
++                var mesh = MeshOf(meshRef);
++                if (mesh is null) continue;
++                if (Math.Max(mesh.Max[0] - mesh.Min[0], Math.Max(mesh.Max[1] - mesh.Min[1], mesh.Max[2] - mesh.Min[2])) > CaveGeometry.MaxExtent) { Count("skipped huge"); continue; }
++                CaveGeometry.Xf t;
++                try { t = CaveGeometry.Xf.World(e); }
++                catch (Exception x) { Console.Error.WriteLine($"WARN: transform of {owner}.{e.Name} ({x.Message})"); continue; }
++                if (ism)
++                {
++                    bool isFoliage = e.ExportType.Contains("Foliage", StringComparison.Ordinal) || owner.StartsWith("InstancedFoliageActor", StringComparison.Ordinal);
++                    var grid = isFoliage ? foliage : top;
++                    var instances = ((UInstancedStaticMeshComponent)e).PerInstanceSMData ?? [];
++                    foreach (var inst in instances) grid.Mesh(mesh, t.Then(InstanceXf(inst.TransformData)));
++                    Count($"{e.ExportType} instances", instances.Length);
++                    continue;
++                }
++                if (e.ExportType == "SplineMeshComponent")
++                {
++                    var baked = CaveGeometry.SplineMesh.Deform(e, mesh, t);
++                    if (baked is null) continue;
++                    top.Baked(Array.ConvertAll(baked, v => (double)v), mesh.Indices);
++                    Count("SplineMeshComponent");
++                    continue;
++                }
++                var wb = t.Bounds(mesh.Min, mesh.Max);
++                if (Math.Max(wb.MaxX - wb.MinX, Math.Max(wb.MaxY - wb.MinY, wb.MaxZ - wb.MinZ)) > CaveGeometry.MaxExtent) { Count("skipped huge"); continue; }
++                top.Mesh(mesh, t);
++                Count("StaticMeshComponent");
++            }
++        }
++        landscape.ForEachVertex((x, y, z) => { ground.Point(x, y, z); top.Point(x, y, z); Count("landscape vertices"); });
++        // Landscape quads are 1 m; with 2 m cells every cell has vertices, so points are enough.
++
++        top.Save(Path.Combine(dir, "top.f32"));
++        ground.Save(Path.Combine(dir, "landscape.f32"));
++        foliage.Save(Path.Combine(dir, "foliage.f32"));
++        object? heightData = null;
++        try { heightData = HeightDataTexture(provider, Path.Combine(dir, "height-data.f32")); }
++        catch (Exception x) { Console.Error.WriteLine($"WARN: HeightData_Test not exported ({x.Message})"); }
++        var info = new Info(Cell, bounds.MinX, bounds.MinY, w, h, counts, heightData);
++        File.WriteAllText(Path.Combine(dir, "heightmap.json"), JsonSerializer.Serialize(info, Json.Options));
++        foreach (var (k, v) in counts) Console.WriteLine($"  {k}: {v}");
++        return info;
++    }
++
++    static CaveGeometry.Xf InstanceXf(FTransform tr)
++    {
++        var m = tr.ToMatrixWithScale();
++        // FMatrix rows are the transformed axes (row vectors); Xf.L is column-vector form, so transpose.
++        return new CaveGeometry.Xf(
++            [m.M00, m.M10, m.M20, m.M01, m.M11, m.M21, m.M02, m.M12, m.M22],
++            [m.M30, m.M31, m.M32]);
++    }
++
++    /// The game's top-down height texture next to the map slices: half floats 0..1, row 0 = north edge (min Y).
++    static object HeightDataTexture(IFileProvider provider, string path)
++    {
++        var tex = provider.LoadPackageObject<UTexture2D>("FactoryGame/Content/FactoryGame/Interface/UI/Assets/MapTest/HeightData_Test.HeightData_Test");
++        var mip = tex.GetFirstMip() ?? throw new Exception("no mip");
++        var data = mip.BulkData?.Data ?? throw new Exception("no bulk data");
++        int n = mip.SizeX * mip.SizeY;
++        string format = tex.Format.ToString();
++        var f = new float[n];
++        if (format == "PF_R16F") for (int k = 0; k < n; k++) f[k] = (float)BitConverter.ToHalf(data, k * 2);
++        else if (format == "PF_G16") for (int k = 0; k < n; k++) f[k] = BitConverter.ToUInt16(data, k * 2) / 65535f;
++        else throw new Exception($"format {format}");
++        var bytes = new byte[n * 4];
++        Buffer.BlockCopy(f, 0, bytes, 0, bytes.Length);
++        File.WriteAllBytes(path, bytes);
++        return new { format, width = mip.SizeX, height = mip.SizeY };
++    }
++}
++
++// The game's map areas (the regions whose name the game shows), from the FGMapAreaTexture asset
++// MapareatexturePersistentLevel that the level's minimap capture actor references (mMapAreaTexture): a byte raster
++// (mAreaData, mDataWidth wide, row-major) of palette indices, and per index its colour and area class
++// (mColorPalette, mColorToArea with the area's pixel bounds). The class names do not always say the area's name
++// (Area_Savanna_* is shown as Rocky Desert, Area_RedJungle_2 as Jungle Spires): the name is the class default's
++// mDisplayName, a string table entry, resolved here in English and German from the game's AllStringTables.
++// Written by --map-areas-out as areas.u8 (the raster as is) and areas.json. The raster's world extent is not in
++// the asset; it is the minimap capture's square (checked against the map image, see README).
++static class MapAreas
++{
++    const string Asset = "FactoryGame/Content/FactoryGame/Interface/UI/Minimap/MapAreaPersistenLevel/MapareatexturePersistentLevel.MapareatexturePersistentLevel";
++
++    public record Area(
++        [property: JsonPropertyName("index")] int Index,
++        [property: JsonPropertyName("color")] string Color,
++        [property: JsonPropertyName("class")] string Class,
++        [property: JsonPropertyName("nameKey")] string? NameKey,
++        [property: JsonPropertyName("name")] string? Name,
++        [property: JsonPropertyName("nameDe")] string? NameDe,
++        [property: JsonPropertyName("bounds")] int[] Bounds);
++
++    public record Info(
++        [property: JsonPropertyName("width")] int Width,
++        [property: JsonPropertyName("height")] int Height,
++        [property: JsonPropertyName("areas")] List<Area> Areas);
++
++    public static Info Write(IFileProvider provider, string dir)
++    {
++        Directory.CreateDirectory(dir);
++        var tex = provider.LoadPackageObject(Asset);
++        var data = tex.GetOrDefault<byte[]>("mAreaData") ?? throw new Exception("mAreaData missing");
++        int width = tex.GetOrDefault<int>("mDataWidth");
++        if (width <= 0 || data.Length % width != 0) throw new Exception($"mAreaData {data.Length} bytes, width {width}");
++        var palette = tex.GetOrDefault<FColor[]>("mColorPalette", []);
++        var pairs = tex.GetOrDefault<FStructFallback[]>("mColorToArea", []);
++        var en = StringTable(provider, "en-US");
++        var de = StringTable(provider, "de");
++        var areas = new List<Area>();
++        for (int i = 0; i < pairs.Length; i++)
++        {
++            var pair = pairs[i];
++            var areaRef = pair.GetOrDefault<FPackageIndex>("MapArea");
++            var cls = areaRef?.Name ?? "";
++            var color = i < palette.Length ? palette[i].Hex : "";
++            var (table, key) = DisplayNameKey(areaRef);
++            string? nameEn = null, nameDe = null;
++            if (table is not null && key is not null)
++            {
++                nameEn = en.GetValueOrDefault((table, key));
++                nameDe = de.GetValueOrDefault((table, key));
++            }
++            areas.Add(new Area(i, color, cls, key, nameEn, nameDe, [pair.GetOrDefault<int>("MinX"), pair.GetOrDefault<int>("MinY"), pair.GetOrDefault<int>("MaxX"), pair.GetOrDefault<int>("MaxY")]));
++        }
++        File.WriteAllBytes(Path.Combine(dir, "areas.u8"), data);
++        foreach (var a in areas.Where(a => a.Class is not ("" or "None") && a.Name is null)) Console.Error.WriteLine($"WARN: map area {a.Class} has no display name");
++        var info = new Info(width, data.Length / width, areas);
++        File.WriteAllText(Path.Combine(dir, "areas.json"), JsonSerializer.Serialize(info, Json.Options));
++        return info;
++    }
++
++    /// The string table entry (table id, key) of an area class's mDisplayName, from its class default object.
++    static (string?, string?) DisplayNameKey(FPackageIndex? areaRef)
++    {
++        if (areaRef is null || areaRef.IsNull) return (null, null);
++        try
++        {
++            var cls = areaRef.Load<CUE4Parse.UE4.Objects.Engine.UBlueprintGeneratedClass>();
++            var cdo = cls?.ClassDefaultObject.Load();
++            var text = cdo?.GetOrDefault<CUE4Parse.UE4.Objects.Core.i18N.FText>("mDisplayName");
++            if (text?.TextHistory is CUE4Parse.UE4.Objects.Core.i18N.FTextHistory.StringTableEntry st) return (st.TableId.Text, st.Key);
++        }
++        catch (Exception x) { Console.Error.WriteLine($"WARN: display name of {areaRef.Name} ({x.Message})"); }
++        return (null, null);
++    }
++
++    /// The game's string tables in one culture: (table id, key) -> text.
++    static Dictionary<(string, string), string> StringTable(IFileProvider provider, string culture)
++    {
++        var path = $"FactoryGame/Content/Localization/AllStringTables/{culture}/AllStringTables.locres";
++        var result = new Dictionary<(string, string), string>();
++        if (!provider.Files.TryGetValue(path, out var file)) { Console.Error.WriteLine($"WARN: {path} not found"); return result; }
++        var loc = new CUE4Parse.UE4.Localization.FTextLocalizationResource(new CUE4Parse.UE4.Readers.FByteArchive(path, file.Read()));
++        foreach (var (ns, keys) in loc.Entries)
++            foreach (var (key, val) in keys) result[(ns.Str, key.Str)] = val.LocalizedString;
++        return result;
++    }
++}
++
++// Values of the transport vehicles that the game's CommunityResources/Docs JSON does not contain, read from the
++// class default objects of the vehicle blueprints (written by --transport-out as transport.json):
++//   inventorySize             mInventorySize (also in the Docs; written for cross-checking)
++//   isFluidStorage            mIsFluidStorageInventory
++//   fluidStackSizeMultiplier  mFluidStackSizeMultiplier: a fluid slot holds the fluid's stack size times this
++//   dockingSequenceDuration,  mDockingSequenceDuration, mTakeoffSequenceDuration of the drone (seconds)
++//   takeoffSequenceDuration
++//   straightPathSpeedLimit    the autopilot's mCurvatureSpeedLimitCurve at curvature 0 (a straight path), m/s
++//   tractionSpeedLimit        the speed (m/s) at which the autopilot's mTractiveEffortCurve (m/s -> kN) reaches 0:
++//                             the engine pulls no more, so the vehicle gets no faster on level ground
++//   droneFuelTypes            the drone's mFuelTypes: item class and TravelSpeed (cm/s, the cruising speed) per fuel
++// Blueprint defaults are stored as deltas, so a value missing on a class is taken from its parent blueprint
++// (BP_FluidTruck inherits from BP_Truck). null means no blueprint in the chain sets it (a C++ default, not in the paks).
++static class TransportData
++{
++    const string Root = "FactoryGame/Content/FactoryGame/Buildable/";
++    static readonly string[] Vehicles =
++    [
++        "Vehicle/Tractor/BP_Tractor", "Vehicle/Truck/BP_Truck", "Vehicle/Truck/BP_FluidTruck",
++        "Vehicle/Explorer/BP_Explorer", "Vehicle/Train/Wagon/BP_FreightWagon", "Factory/DroneStation/BP_DroneTransport",
++    ];
++
++    public record DroneFuel(
++        [property: JsonPropertyName("item")] string Item,
++        [property: JsonPropertyName("travelSpeed")] float? TravelSpeed);
++
++    public record Vehicle(
++        [property: JsonPropertyName("class")] string Class,
++        [property: JsonPropertyName("asset")] string Asset,
++        [property: JsonPropertyName("inventorySize")] int? InventorySize,
++        [property: JsonPropertyName("isFluidStorage")] bool? IsFluidStorage,
++        [property: JsonPropertyName("fluidStackSizeMultiplier")] int? FluidStackSizeMultiplier,
++        [property: JsonPropertyName("dockingSequenceDuration")] float? DockingSequenceDuration,
++        [property: JsonPropertyName("takeoffSequenceDuration")] float? TakeoffSequenceDuration,
++        [property: JsonPropertyName("straightPathSpeedLimit")] float? StraightPathSpeedLimit,
++        [property: JsonPropertyName("tractionSpeedLimit")] float? TractionSpeedLimit,
++        [property: JsonPropertyName("droneFuelTypes")] List<DroneFuel>? DroneFuelTypes);
++
++    public record Info([property: JsonPropertyName("vehicles")] List<Vehicle> Vehicles);
++
++    public static Info Read(IFileProvider provider)
++    {
++        var list = new List<Vehicle>();
++        foreach (var path in Vehicles)
++        {
++            var chain = Chain(provider, Root + path);
++            if (chain.Count == 0) throw new Exception($"Vehicle blueprint {path} not found");
++            list.Add(new Vehicle(
++                chain[0].Class, "/Game/FactoryGame/Buildable/" + path,
++                First(chain, c => c.Cdo.TryGetValue(out int v, "mInventorySize") ? v : (int?)null),
++                First(chain, c => c.Cdo.TryGetValue(out bool v, "mIsFluidStorageInventory") ? v : (bool?)null),
++                First(chain, c => c.Cdo.TryGetValue(out int v, "mFluidStackSizeMultiplier") ? v : (int?)null),
++                First(chain, c => c.Cdo.TryGetValue(out float v, "mDockingSequenceDuration") ? v : (float?)null),
++                First(chain, c => c.Cdo.TryGetValue(out float v, "mTakeoffSequenceDuration") ? v : (float?)null),
++                First(chain, c => SpeedLimitAtZero(c.Autopilot)),
++                First(chain, c => TractionZero(c.Autopilot)),
++                chain.Select(c => DroneFuels(c.Cdo)).FirstOrDefault(f => f is not null)));
++        }
++        return new Info(list);
++    }
++
++    record Level(string Class, UObject Cdo, UObject? Autopilot);
++
++    static T? First<T>(List<Level> chain, Func<Level, T?> get) where T : struct
++    {
++        foreach (var c in chain) if (get(c) is T v) return v;
++        return null;
++    }
++
++    /// The blueprint and its parent blueprints, each with its class default object and autopilot component template.
++    static List<Level> Chain(IFileProvider provider, string package)
++    {
++        var chain = new List<Level>();
++        for (int depth = 0; depth < 10 && package.Length > 0; depth++)
++        {
++            if (!provider.TryLoadPackage(package + ".uasset", out var pkg)) break;
++            var exports = pkg.GetExports().ToList();
++            var cls = exports.OfType<CUE4Parse.UE4.Objects.Engine.UBlueprintGeneratedClass>().FirstOrDefault();
++            if (cls is null) break;
++            var cdo = cls.ClassDefaultObject.Load();
++            if (cdo is null) break;
++            // The component template the class default object owns (one per blueprint package).
++            var autopilot = exports.FirstOrDefault(e => e.Name == "AutopilotComponent" && e.ExportType == "FGVehicleAutopilotComponent");
++            chain.Add(new Level(cls.Name, cdo, autopilot));
++            var super = cls.SuperStruct?.ResolvedObject;
++            var superPackage = super?.Package?.Name;
++            if (superPackage is null || !superPackage.StartsWith("/Game/")) break;
++            var next = "FactoryGame/Content/FactoryGame/" + superPackage["/Game/FactoryGame/".Length..];
++            // The root blueprint (BP_WheeledVehicle) resolves its native parent to its own package: stop there.
++            if (next.Equals(package, StringComparison.OrdinalIgnoreCase)) break;
++            package = next;
++        }
++        return chain;
++    }
++
++    /// The keys of a runtime float curve property: its external curve asset, else the curve stored inline.
++    /// Empty when the component does not set the property.
++    static CUE4Parse.UE4.Objects.Engine.Curves.FRichCurveKey[] CurveKeys(UObject? owner, string property)
++    {
++        if (owner is null || !owner.TryGetValue(out FStructFallback curve, property)) return [];
++        var external = curve.GetOrDefault<FPackageIndex>("ExternalCurve");
++        if (external is not null && !external.IsNull)
++            return external.Load()?.GetOrDefault<CUE4Parse.UE4.Objects.Engine.Curves.FRichCurve>("FloatCurve")?.Keys ?? [];
++        return curve.GetOrDefault<CUE4Parse.UE4.Objects.Engine.Curves.FRichCurve>("EditorCurveData")?.Keys ?? [];
++    }
++
++    /// The first key of the autopilot's curvature speed limit curve, if it is at curvature 0.
++    static float? SpeedLimitAtZero(UObject? autopilot)
++    {
++        var keys = CurveKeys(autopilot, "mCurvatureSpeedLimitCurve");
++        if (keys.Length == 0) return null;
++        return keys[0].Time == 0 ? keys[0].Value : null;
++    }
++
++    /// The speed at which the tractive effort curve first drops to 0 or below after being positive: the key's speed
++    /// when the key is 0 (Tractor, Explorer), else linear between the two keys around the crossing (the Truck's
++    /// last key is -3.5e-7). In 1.2.5.0 the cubic segment before that key stays positive, so this is where it reaches 0.
++    static float? TractionZero(UObject? autopilot)
++    {
++        var keys = CurveKeys(autopilot, "mTractiveEffortCurve");
++        for (int i = 1; i < keys.Length; i++)
++        {
++            var (a, b) = (keys[i - 1], keys[i]);
++            if (a.Value <= 0 || b.Value > 0) continue;
++            return b.Value == 0 ? b.Time : a.Time + (b.Time - a.Time) * a.Value / (a.Value - b.Value);
++        }
++        return null;
++    }
++
++    /// The drone's fuel types (item class and travel speed in cm/s); null for a class that does not set mFuelTypes.
++    /// A travel speed the blueprint does not set is written as null (the build then fails rather than guess).
++    static List<DroneFuel>? DroneFuels(UObject cdo)
++    {
++        if (!cdo.TryGetValue(out FStructFallback[] fuels, "mFuelTypes")) return null;
++        return fuels.Select(f => new DroneFuel(
++            f.GetOrDefault<FPackageIndex>("Item")?.Name ?? throw new Exception("Drone fuel type without an item"),
++            f.TryGetValue(out float speed, "TravelSpeed") ? speed : null)).ToList();
++    }
++}
++
++// --buildings-out <file>: what the 2D factory map needs to draw every buildable and vehicle a save can hold, read from the
++// blueprints in the paks (buildings.json in ficsmap's dataset is built from this and the game's Docs):
++//   per buildable class (every Build_*.uasset blueprint, any case, e.g. BUILD_Potty_mk1; abstract base classes left out) and per
++//   vehicle class (the class a vehicle descriptor places, see descriptor):
++//   nativeClass      the first C++ class in the parent chain (FGBuildableManufacturer, ...)
++//   parents          the parent blueprints between the class and its native class
++//   descriptor       the descriptor whose mBuildableClass / mVehicleClass is this class (descriptors from the Docs'
++//                    FGBuildingDescriptor and FGVehicleDescriptor lists; the Factory Carts' FGEquipmentDescriptor through
++//                    its dispenser's mGolfCartClass), with its build menu mCategory, mSubCategories and mMenuPriority;
++//                    null when no descriptor builds it (HUB parts, lift attachments, path nodes, ...)
++//   displayName      the class default object's mDisplayName (FText source text, English); null when no blueprint in the
++//                    chain sets it. Only English: the paks carry no German Game.locres (1.2.5.0 has en-US, ie and io)
++//   clearance        mClearanceData as the blueprint sets it: per entry the box (local cm), Type, ExcludeForSnapping and
++//                    RelativeTransform; null when no blueprint in the chain sets it (the C++ default, not in the paks)
++//   grid             mWidth, mDepth, mHeight, mElevation (cm) and mSize (pillars, cm) where a blueprint in the chain sets them
++//   mesh             the axis-aligned bounds (actor space, cm) of the static meshes the blueprint places: its instance data
++//                    (mInstanceDataCDO, how most 1.0+ buildables render) and the static mesh components of its construction
++//                    script (with their parents' relative transforms; hidden ones and ones without collision left out);
++//                    for classes without either, a skeletal root mesh's imported bounds (vehicles), else the mesh a few
++//                    known properties name (see MeshProperties). null when there is none.
++//   refs             the buildables and vehicles the class default objects name in their properties (directly, or through a
++//                    recipe's product descriptor: the HUB names its terminal, craft bench, storage and biomass burner by
++//                    recipe), e.g. so parts without a name of their own can be shown under their owner's name
++// Blueprint defaults are stored as deltas, so a value a class does not set is taken from its parent blueprint.
++static class BuildingsData
++{
++    public record Vec([property: JsonPropertyName("x")] double X, [property: JsonPropertyName("y")] double Y, [property: JsonPropertyName("z")] double Z);
++
++    public record Transform(
++        [property: JsonPropertyName("translation")] Vec Translation,
++        [property: JsonPropertyName("rotation")] double[] Rotation,
++        [property: JsonPropertyName("scale")] Vec Scale);
++
++    public record Clearance(
++        [property: JsonPropertyName("min")] Vec Min,
++        [property: JsonPropertyName("max")] Vec Max,
++        [property: JsonPropertyName("type")] string? Type,
++        [property: JsonPropertyName("excludeForSnapping")] bool? ExcludeForSnapping,
++        [property: JsonPropertyName("transform")] Transform? RelativeTransform);
++
++    public record Grid(
++        [property: JsonPropertyName("width")] float? Width,
++        [property: JsonPropertyName("depth")] float? Depth,
++        [property: JsonPropertyName("height")] float? Height,
++        [property: JsonPropertyName("elevation")] float? Elevation,
++        [property: JsonPropertyName("size")] Vec? Size);
++
++    public record MeshBounds(
++        [property: JsonPropertyName("min")] Vec Min,
++        [property: JsonPropertyName("max")] Vec Max,
++        [property: JsonPropertyName("source")] string Source,
++        [property: JsonPropertyName("meshes")] List<string> Meshes);
++
++    public record Descriptor(
++        [property: JsonPropertyName("class")] string Class,
++        [property: JsonPropertyName("category")] string? Category,
++        [property: JsonPropertyName("subCategories")] List<string> SubCategories,
++        [property: JsonPropertyName("menuPriority")] float? MenuPriority);
++
++    public record Building(
++        [property: JsonPropertyName("asset")] string Asset,
++        [property: JsonPropertyName("nativeClass")] string? NativeClass,
++        [property: JsonPropertyName("parents")] List<string> Parents,
++        [property: JsonPropertyName("descriptor")] Descriptor? Descriptor,
++        [property: JsonPropertyName("displayName")] string? DisplayName,
++        [property: JsonPropertyName("clearance")] List<Clearance>? Clearance,
++        [property: JsonPropertyName("grid")] Grid? Grid,
++        [property: JsonPropertyName("mesh")] MeshBounds? Mesh,
++        [property: JsonPropertyName("refs")] List<string> Refs);
++
++    public record Info(
++        [property: JsonPropertyName("gameVersion")] string GameVersion,
++        [property: JsonPropertyName("buildings")] SortedDictionary<string, Building> Buildings,
++        [property: JsonPropertyName("vehicles")] SortedDictionary<string, Building> Vehicles,
++        [property: JsonPropertyName("failed")] SortedDictionary<string, string> Failed);
++
++    const string DocsFile = "CommunityResources/Docs/en-US.json";
++    const string Content = "FactoryGame/Content/";
++    static readonly string[] DescriptorNatives = ["FGBuildingDescriptor", "FGVehicleDescriptor", "FGEquipmentDescriptor"];
++
++    // Classes whose meshes are not placed by instance data or construction script components but built at runtime from
++    // these properties (conveyor lifts and the elevator from bottom/mid/top pieces; the elevator's are on its sparse data object, passthroughs from a cap, pipe and hypertube
++    // supports from a support mesh, conveyor poles from pole variations). The first one a class sets is used, at the actor's
++    // origin unless the property carries its own RelativeTransform; it is only the piece at the base, not the whole height.
++    static readonly string[] MeshProperties = ["mBottomMesh", "mCapMesh", "mSupportMeshInstanceData", "mPoleVariations"];
++
++    public static Info Read(IFileProvider provider, string installDir, string gameVersion)
++    {
++        string docsPath = Path.Combine(installDir, DocsFile);
++        if (!File.Exists(docsPath)) throw new Exception($"--buildings-out needs the game's Docs: {docsPath} not found.");
++
++        // Package paths by asset name (case-insensitive: BUILD_Potty_mk1).
++        var packages = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
++        foreach (var f in provider.Files.Keys)
++        {
++            if (!f.EndsWith(".uasset", StringComparison.OrdinalIgnoreCase) || !f.StartsWith(Content + "FactoryGame/", StringComparison.OrdinalIgnoreCase)) continue;
++            packages.TryAdd(Path.GetFileNameWithoutExtension(f), f[..^".uasset".Length]);
++        }
++
++        var failed = new SortedDictionary<string, string>(StringComparer.Ordinal);
++        // Descriptors: which descriptor builds which class.
++        var descriptorOf = new Dictionary<string, Descriptor>(StringComparer.OrdinalIgnoreCase);
++        var vehicleClasses = new SortedSet<string>(StringComparer.Ordinal);
++        using (var docs = JsonDocument.Parse(File.ReadAllText(docsPath)))
++        {
++            foreach (var group in docs.RootElement.EnumerateArray())
++            {
++                string native = Regex.Match(group.GetProperty("NativeClass").GetString() ?? "", @"\.(\w+)'?$").Groups[1].Value;
++                if (!DescriptorNatives.Contains(native)) continue;
++                foreach (var c in group.GetProperty("Classes").EnumerateArray())
++                {
++                    string cls = c.GetProperty("ClassName").GetString()!;
++                    try
++                    {
++                        if (!packages.TryGetValue(cls[..^2], out var pkg)) { failed[cls] = "descriptor package not found"; continue; }
++                        var chain = Chain(provider, pkg);
++                        if (chain.Count == 0) { failed[cls] = "descriptor blueprint not loadable"; continue; }
++                        string? built = FirstObject(chain, "mBuildableClass") ?? FirstObject(chain, "mVehicleClass");
++                        // The Factory Carts are equipment: the descriptor's mEquipmentClass is a dispenser whose
++                        // mGolfCartClass is the vehicle it places.
++                        if (built is null && native == "FGEquipmentDescriptor")
++                        {
++                            string? equip = FirstObjectPath(chain, "mEquipmentClass");
++                            var equipChain = equip is not null && packages.TryGetValue(equip, out var ep) ? Chain(provider, ep) : [];
++                            built = FirstObject(equipChain, "mGolfCartClass");
++                            if (built is null) continue; // other equipment
++                            vehicleClasses.Add(built);
++                        }
++                        if (built is null) { failed[cls] = "descriptor has no mBuildableClass or mVehicleClass"; continue; }
++                        if (native == "FGVehicleDescriptor") vehicleClasses.Add(built);
++                        var d = new Descriptor(chain[0].Class, FirstObject(chain, "mCategory"), SubCategories(chain), First(chain, c => c.Cdo.TryGetValue(out float v, "mMenuPriority") ? v : (float?)null));
++                        // Two descriptors for one class: keep the first in name order, note the other.
++                        if (descriptorOf.TryGetValue(built, out var other))
++                        {
++                            if (string.CompareOrdinal(other.Class, d.Class) > 0) (descriptorOf[built], d) = (d, other);
++                            failed[d.Class] = $"descriptor also builds {built} (kept {descriptorOf[built].Class})";
++                        }
++                        else descriptorOf[built] = d;
++                    }
++                    catch (Exception e) { failed[cls] = $"descriptor failed: {e.Message}"; }
++                }
++            }
++        }
++
++        var buildings = new SortedDictionary<string, Building>(StringComparer.Ordinal);
++        var vehicles = new SortedDictionary<string, Building>(StringComparer.Ordinal);
++        var meshBounds = new Dictionary<string, (Vec Min, Vec Max)?>(StringComparer.OrdinalIgnoreCase);
++        var rawRefs = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
++        foreach (var (name, pkg) in packages.OrderBy(p => p.Key, StringComparer.Ordinal))
++        {
++            bool isBuild = name.StartsWith("Build_", StringComparison.OrdinalIgnoreCase);
++            bool isVehicle = !isBuild && vehicleClasses.Contains(name + "_C");
++            if (!isBuild && !isVehicle) continue;
++            try
++            {
++                var chain = Chain(provider, pkg);
++                if (chain.Count == 0) continue; // not a blueprint (a mesh or texture named Build_...)
++                if (chain[0].Bgc.ClassFlags.HasFlag(EClassFlags.CLASS_Abstract)) continue; // a base class, never placed
++                string? nativeClass = chain[^1].NativeParent;
++                var building = new Building(
++                    "/" + pkg.Replace(Content, "Game/"),
++                    nativeClass,
++                    chain.Skip(1).Select(c => c.Class).ToList(),
++                    descriptorOf.GetValueOrDefault(chain[0].Class),
++                    DisplayName(chain),
++                    ClearanceOf(chain),
++                    GridOf(chain),
++                    MeshOf(provider, chain, meshBounds),
++                    []);
++                (isVehicle ? vehicles : buildings)[chain[0].Class] = building;
++                // What the class names, and what its hologram (the build gun preview that places it) names: lift variants
++                // of mergers and splitters, sign poles and path nodes are placed by another class's hologram.
++                var refs = chain.SelectMany(c => ClassRefs(c.Cdo)).ToHashSet(StringComparer.OrdinalIgnoreCase);
++                var holo = FirstObjectPath(chain, "mHologramClass");
++                if (holo is not null && packages.TryGetValue(holo, out var hp))
++                    foreach (var h in Chain(provider, hp)) refs.UnionWith(ClassRefs(h.Cdo));
++                rawRefs[chain[0].Class] = refs;
++            }
++            catch (Exception e)
++            {
++                failed[name + "_C"] = e.Message;
++                Console.Error.WriteLine($"WARN: buildable {name} failed: {e.Message}");
++            }
++        }
++        foreach (var v in vehicleClasses.Where(v => !vehicles.ContainsKey(v))) failed.TryAdd(v, "vehicle class of a descriptor, blueprint not found");
++
++        // Resolve references: buildables and vehicles directly, recipes through their first product's descriptor.
++        var builtBy = descriptorOf.ToDictionary(d => d.Value.Class, d => d.Key, StringComparer.OrdinalIgnoreCase);
++        var known = new HashSet<string>(buildings.Keys.Concat(vehicles.Keys), StringComparer.OrdinalIgnoreCase);
++        var recipeProduct = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
++        foreach (var (cls, refs) in rawRefs)
++        {
++            if (!known.Contains(cls)) continue;
++            var resolved = new SortedSet<string>(StringComparer.Ordinal);
++            foreach (var r in refs)
++            {
++                if (r.Equals(cls, StringComparison.OrdinalIgnoreCase)) continue;
++                if (known.Contains(r)) { resolved.Add(known.First(k => k.Equals(r, StringComparison.OrdinalIgnoreCase))); continue; }
++                if (!r.StartsWith("Recipe_", StringComparison.OrdinalIgnoreCase)) continue;
++                if (!recipeProduct.TryGetValue(r, out var built))
++                {
++                    // recipe -> product descriptor -> its mBuildableClass (also for descriptors the Docs do not list)
++                    string? product = packages.TryGetValue(r[..^2], out var rp) ? RecipeProduct(Chain(provider, rp)) : null;
++                    built = product is null ? null
++                        : builtBy.TryGetValue(product, out var b) ? b
++                        : packages.TryGetValue(product[..^2], out var dp) ? FirstObject(Chain(provider, dp), "mBuildableClass") : null;
++                    recipeProduct[r] = built;
++                }
++                if (built is not null && known.Contains(built) && !built.Equals(cls, StringComparison.OrdinalIgnoreCase))
++                    resolved.Add(known.First(k => k.Equals(built, StringComparison.OrdinalIgnoreCase)));
++            }
++            var list = (buildings.ContainsKey(cls) ? buildings : vehicles)[cls].Refs;
++            list.AddRange(resolved);
++        }
++        if (buildings.Count == 0) throw new Exception("No buildable blueprints found; the pak layout probably changed.");
++        return new Info(gameVersion, buildings, vehicles, failed);
++    }
++
++    record Level(string Class, UObject Cdo, UBlueprintGeneratedClass Bgc, IPackage Package, string? NativeParent);
++
++    /// The blueprint and its parent blueprints (nearest first), each with its class default object. The last level's
++    /// NativeParent is the C++ class the chain ends in.
++    static List<Level> Chain(IFileProvider provider, string package)
++    {
++        var chain = new List<Level>();
++        for (int depth = 0; depth < 12 && package.Length > 0; depth++)
++        {
++            if (!provider.TryLoadPackage(package + ".uasset", out var pkg)) break;
++            var cls = pkg.GetExports().OfType<UBlueprintGeneratedClass>().FirstOrDefault();
++            if (cls is null) break;
++            var cdo = cls.ClassDefaultObject.Load();
++            if (cdo is null) break;
++            // "/Script/FactoryGame.FGBuildableManufacturer" (C++) or "/Game/FactoryGame/.../BP_WheeledVehicle.BP_WheeledVehicle_C".
++            string superPath = cls.SuperStruct?.ResolvedObject?.GetPathName() ?? "";
++            bool native = !superPath.StartsWith("/Game/");
++            chain.Add(new Level(cls.Name, cdo, cls, pkg, native ? superPath[(superPath.LastIndexOf('.') + 1)..] : null));
++            if (native) break;
++            string next = Content + superPath["/Game/".Length..superPath.LastIndexOf('.')];
++            if (next.Equals(package, StringComparison.OrdinalIgnoreCase)) break;
++            package = next;
++        }
++        return chain;
++    }
++
++    static T? First<T>(List<Level> chain, Func<Level, T?> get) where T : struct
++    {
++        foreach (var c in chain) if (get(c) is T v) return v;
++        return null;
++    }
++
++    /// The class name an object property of the first blueprint that sets it points to.
++    static string? FirstObject(List<Level> chain, string property)
++    {
++        foreach (var c in chain)
++            if (c.Cdo.TryGetValue(out FPackageIndex v, property) && !v.IsNull) return v.Name;
++        return null;
++    }
++
++    /// The asset name of the class an object property of the first blueprint that sets it points to (Holo_X for Holo_X_C).
++    static string? FirstObjectPath(List<Level> chain, string property)
++    {
++        string? cls = FirstObject(chain, property);
++        return cls is not null && cls.EndsWith("_C") ? cls[..^2] : null;
++    }
++
++    /// The first product's item class of a recipe (mProduct[0].ItemClass).
++    static string? RecipeProduct(List<Level> chain)
++    {
++        foreach (var c in chain)
++            if (c.Cdo.TryGetValue(out FStructFallback[] products, "mProduct") && products.Length > 0
++                && products[0].TryGetValue(out FPackageIndex item, "ItemClass") && !item.IsNull) return item.Name;
++        return null;
++    }
++
++    /// Class names (`..._C`) that the object's properties point to, through arrays and structs.
++    static IEnumerable<string> ClassRefs(UObject obj)
++    {
++        var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
++        foreach (var p in obj.Properties) Collect(p.Tag?.GenericValue, found, 0);
++        return found;
++    }
++
++    static void Collect(object? value, HashSet<string> found, int depth)
++    {
++        if (value is null || depth > 6) return;
++        switch (value)
++        {
++            case FPackageIndex i when !i.IsNull:
++                if (i.Name.EndsWith("_C")) found.Add(i.Name);
++                break;
++            case FSoftObjectPath sp:
++                string path = sp.AssetPathName.Text;
++                string name = path[(path.LastIndexOf('.') + 1)..];
++                if (name.EndsWith("_C")) found.Add(name);
++                break;
++            case UScriptArray a:
++                foreach (var e in a.Properties) Collect(e.GenericValue, found, depth + 1);
++                break;
++            case FScriptStruct st when st.StructType is FStructFallback f:
++                foreach (var p in f.Properties) Collect(p.Tag?.GenericValue, found, depth + 1);
++                break;
++        }
++    }
++
++    static List<string> SubCategories(List<Level> chain)
++    {
++        foreach (var c in chain)
++            if (c.Cdo.TryGetValue(out FPackageIndex[] v, "mSubCategories")) return v.Where(i => !i.IsNull).Select(i => i.Name).ToList();
++        return [];
++    }
++
++    static string? DisplayName(List<Level> chain)
++    {
++        foreach (var c in chain)
++        {
++            if (!c.Cdo.TryGetValue(out FText text, "mDisplayName")) continue;
++            string? en = (text.TextHistory as FTextHistory.Base)?.SourceString ?? text.Text;
++            if (!string.IsNullOrEmpty(en)) return en;
++        }
++        return null;
++    }
++
++    static List<Clearance>? ClearanceOf(List<Level> chain)
++    {
++        foreach (var c in chain)
++        {
++            if (!c.Cdo.TryGetValue(out FStructFallback[] entries, "mClearanceData")) continue;
++            var list = new List<Clearance>();
++            foreach (var e in entries)
++            {
++                var box = e.GetOrDefault<FBox>("ClearanceBox");
++                if (box.IsValid == 0) continue;
++                string? type = e.TryGetValue(out FName t, "Type") ? t.Text : null;
++                bool? exclude = e.TryGetValue(out bool x, "ExcludeForSnapping") ? x : null;
++                Transform? rel = TransformProp(e, "RelativeTransform") is { } tr ? ToTransform(tr) : null;
++                list.Add(new Clearance(V(box.Min), V(box.Max), type?.Split("::").Last(), exclude, rel));
++            }
++            return list;
++        }
++        return null;
++    }
++
++    static Grid? GridOf(List<Level> chain)
++    {
++        float? F(string p) => First(chain, c => c.Cdo.TryGetValue(out float v, p) ? v : (float?)null);
++        Vec? size = null;
++        foreach (var c in chain)
++            if (c.Cdo.TryGetValue(out FVector s, "mSize")) { size = V(s); break; }
++        var g = new Grid(F("mWidth"), F("mDepth"), F("mHeight"), F("mElevation"), size);
++        return g is { Width: null, Depth: null, Height: null, Elevation: null, Size: null } ? null : g;
++    }
++
++    // ---- mesh bounds ----
++
++    static MeshBounds? MeshOf(IFileProvider provider, List<Level> chain, Dictionary<string, (Vec Min, Vec Max)?> cache)
++    {
++        var acc = new Bounds();
++        var meshes = new SortedSet<string>(StringComparer.Ordinal);
++        string? source = null;
++
++        // 1. Instance data (FGBuildable mInstanceDataCDO -> AbstractInstanceDataObject.Instances[]: StaticMesh, RelativeTransform).
++        foreach (var c in chain)
++        {
++            if (!c.Cdo.TryGetValue(out FPackageIndex idx, "mInstanceDataCDO") || idx.IsNull) continue;
++            var data = idx.Load();
++            if (data is null || !data.TryGetValue(out FStructFallback[] instances, "Instances")) break;
++            foreach (var inst in instances)
++            {
++                if (!inst.TryGetValue(out FPackageIndex mesh, "StaticMesh") || mesh.IsNull) continue;
++                var t = TransformProp(inst, "RelativeTransform") ?? FTransform.Identity;
++                if (AddMesh(acc, mesh, t, cache)) meshes.Add(mesh.Name);
++            }
++            source = "instanceData";
++            break;
++        }
++
++        // 2. Static mesh components of the construction scripts (this blueprint and its parents).
++        int before = meshes.Count;
++        foreach (var c in chain)
++        {
++            var scs = c.Bgc.SimpleConstructionScript?.Load();
++            if (scs is null || !scs.TryGetValue(out FPackageIndex[] roots, "RootNodes")) continue;
++            foreach (var root in roots) WalkNode(root.Load(), FTransform.Identity, acc, meshes, cache);
++        }
++        if (meshes.Count > before) source = source is null ? "components" : source + "+components";
++
++        // 3. A skeletal mesh as root component (vehicles): its imported bounds.
++        if (meshes.Count == 0)
++        {
++            foreach (var c in chain)
++            {
++                if (!c.Cdo.TryGetValue(out FPackageIndex rootIdx, "RootComponent") || rootIdx.Load() is not { } root) continue;
++                var skIdx = root.GetOrDefault<FPackageIndex>("SkeletalMesh") ?? root.GetOrDefault<FPackageIndex>("SkinnedAsset");
++                if (skIdx is null || skIdx.IsNull) continue;
++                var sk = skIdx.Load<CUE4Parse.UE4.Assets.Exports.SkeletalMesh.USkeletalMesh>();
++                if (sk is null || sk.ImportedBounds.BoxExtent.X <= 0) continue;
++                var b = sk.ImportedBounds;
++                foreach (var x in new[] { -1f, 1f })
++                foreach (var y in new[] { -1f, 1f })
++                foreach (var z in new[] { -1f, 1f })
++                    acc.Add(b.Origin + new FVector(x * b.BoxExtent.X, y * b.BoxExtent.Y, z * b.BoxExtent.Z));
++                meshes.Add(skIdx.Name);
++                source = "skeletalMesh";
++                break;
++            }
++        }
++
++        // 4. Known mesh properties of classes that build their meshes at runtime.
++        if (meshes.Count == 0)
++        {
++            foreach (var prop in MeshProperties)
++            {
++                // On the class default object, or on its sparse data object (the elevator keeps its meshes there).
++                var found = chain.SelectMany(c => c.Package.GetExports().Where(e => e.Name == c.Cdo.Name || e.ExportType.EndsWith("SparseData")))
++                    .Select(o => MeshProperty(o, prop)).FirstOrDefault(m => m is not null);
++                if (found is null) continue;
++                if (AddMesh(acc, found.Value.Mesh, found.Value.Transform, cache)) { meshes.Add(found.Value.Mesh.Name); source = prop; }
++                break;
++            }
++        }
++        if (meshes.Count == 0 || !acc.Valid) return null;
++        return new MeshBounds(acc.Min, acc.Max, source!, meshes.ToList());
++    }
++
++    static (FPackageIndex Mesh, FTransform Transform)? MeshProperty(UObject cdo, string prop)
++    {
++        if (cdo.TryGetValue(out FPackageIndex mesh, prop) && !mesh.IsNull) return (mesh, FTransform.Identity);
++        if (cdo.TryGetValue(out FStructFallback s, prop) && s.TryGetValue(out FPackageIndex m, "StaticMesh") && !m.IsNull)
++            return (m, TransformProp(s, "RelativeTransform") ?? FTransform.Identity);
++        if (cdo.TryGetValue(out FStructFallback[] arr, prop) && arr.Length > 0 && arr[0].TryGetValue(out FPackageIndex first, "StaticMesh") && !first.IsNull)
++            return (first, FTransform.Identity);
++        return null;
++    }
++
++    static void WalkNode(UObject? node, FTransform parent, Bounds acc, SortedSet<string> meshes, Dictionary<string, (Vec Min, Vec Max)?> cache)
++    {
++        if (node is null) return;
++        var transform = parent;
++        if (node.TryGetValue(out FPackageIndex tpl, "ComponentTemplate") && tpl.Load() is { } component)
++        {
++            var loc = component.GetOrDefault("RelativeLocation", FVector.ZeroVector);
++            var rot = component.GetOrDefault("RelativeRotation", FRotator.ZeroRotator);
++            var scale = component.GetOrDefault("RelativeScale3D", FVector.OneVector);
++            transform = Compose(new FTransform(rot.Quaternion(), loc, scale), parent);
++            // Visible meshes with collision: leaves out hidden helpers and effect meshes such as a locomotive's light shaft.
++            bool visible = component.GetOrDefault("bVisible", true) && !component.GetOrDefault("bHiddenInGame", false)
++                && !(component.TryGetValue(out FStructFallback body, "BodyInstance")
++                     && (body.GetOrDefault<FName>("CollisionProfileName").Text == "NoCollision"
++                         || body.GetOrDefault<FName>("CollisionEnabled").Text.EndsWith("NoCollision")));
++            if (visible && component.TryGetValue(out FPackageIndex mesh, "StaticMesh") && !mesh.IsNull && AddMesh(acc, mesh, transform, cache))
++                meshes.Add(mesh.Name);
++        }
++        if (node.TryGetValue(out FPackageIndex[] children, "ChildNodes"))
++            foreach (var child in children) WalkNode(child.Load(), transform, acc, meshes, cache);
++    }
++
++    /// child relative to parent -> child in the parent's space (the parent's rotation and scale applied to the child's offset).
++    static FTransform Compose(FTransform child, FTransform parent)
++    {
++        var q = parent.Rotation * child.Rotation;
++        var t = Rotate(parent.Rotation, child.Translation * parent.Scale3D) + parent.Translation;
++        return new FTransform(q, t, child.Scale3D * parent.Scale3D);
++    }
++
++    static bool AddMesh(Bounds acc, FPackageIndex meshIndex, FTransform t, Dictionary<string, (Vec Min, Vec Max)?> cache)
++    {
++        string key = meshIndex.ResolvedObject?.GetPathName() ?? meshIndex.Name;
++        if (!cache.TryGetValue(key, out var local))
++        {
++            var mesh = meshIndex.Load<UStaticMesh>();
++            // ExtendedBounds (the mesh's bounds as the engine uses them; RenderData.Bounds is empty for some meshes)
++            FVector? origin = null, extent = null;
++            if (mesh is not null && mesh.TryGetValue(out FStructFallback eb, "ExtendedBounds"))
++            {
++                origin = eb.GetOrDefault<FVector>("Origin");
++                extent = eb.GetOrDefault<FVector>("BoxExtent");
++            }
++            if ((extent is null || extent.Value.X + extent.Value.Y + extent.Value.Z <= 0) && mesh?.RenderData?.Bounds is { } rb)
++                (origin, extent) = (rb.Origin, rb.BoxExtent);
++            local = extent is null || extent.Value.X + extent.Value.Y + extent.Value.Z <= 0 ? null
++                : (V(origin!.Value - extent.Value), V(origin.Value + extent.Value));
++            cache[key] = local;
++        }
++        if (local is null) return false;
++        var (min, max) = local.Value;
++        foreach (var x in new[] { min.X, max.X })
++        foreach (var y in new[] { min.Y, max.Y })
++        foreach (var z in new[] { min.Z, max.Z })
++        {
++            var p = Rotate(t.Rotation, new FVector((float)x, (float)y, (float)z) * t.Scale3D) + t.Translation;
++            acc.Add(p);
++        }
++        return true;
++    }
++
++    static FVector Rotate(FQuat q, FVector v)
++    {
++        // v' = v + 2w (u x v) + 2 u x (u x v), u = (x, y, z) of the unit quaternion
++        var u = new FVector((float)q.X, (float)q.Y, (float)q.Z);
++        var c1 = FVector.CrossProduct(u, v);
++        var c2 = FVector.CrossProduct(u, c1);
++        return v + c1 * (2f * (float)q.W) + c2 * 2f;
++    }
++
++    class Bounds
++    {
++        double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
++        double maxX = double.MinValue, maxY = double.MinValue, maxZ = double.MinValue;
++        public bool Valid => minX <= maxX;
++        public void Add(FVector p)
++        {
++            minX = Math.Min(minX, p.X); minY = Math.Min(minY, p.Y); minZ = Math.Min(minZ, p.Z);
++            maxX = Math.Max(maxX, p.X); maxY = Math.Max(maxY, p.Y); maxZ = Math.Max(maxZ, p.Z);
++        }
++        public Vec Min => new(R(minX), R(minY), R(minZ));
++        public Vec Max => new(R(maxX), R(maxY), R(maxZ));
++    }
++
++    static double R(double v) => Math.Round(v, 3);
++    static Vec V(FVector v) => new(R(v.X), R(v.Y), R(v.Z));
++
++    /// A transform property; fields the data leaves out keep their defaults (no rotation, no offset, scale 1).
++    static FTransform? TransformProp(IPropertyHolder owner, string name)
++    {
++        if (owner.TryGetValue(out FStructFallback f, name))
++            return new FTransform(f.GetOrDefault("Rotation", FQuat.Identity), f.GetOrDefault("Translation", FVector.ZeroVector), f.GetOrDefault("Scale3D", FVector.OneVector));
++        return owner.TryGetValue(out FTransform t, name) ? t : null;
++    }
++
++    static Transform ToTransform(FTransform t) => new(V(t.Translation), [R(t.Rotation.X), R(t.Rotation.Y), R(t.Rotation.Z), R(t.Rotation.W)], V(t.Scale3D));
++}
 +
  static class Json
  {

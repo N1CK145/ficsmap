@@ -2,17 +2,29 @@
 
 /* The only place colours are defined (spec §4.5, §10.12). Tailwind's default palette is
    switched off so components can only use these tokens. `static` keeps every token as a CSS
-   variable even when no utility uses it yet (canvas markers and Leaflet read them at runtime). */
+   variable even when no utility uses it yet (canvas markers and Leaflet read them at runtime).
+
+   The look follows the game's FICSIT interface (docs/architecture.md, "Design system"): neutral gunmetal
+   panels on a near-black base, off-white text, one orange accent for what is active or primary.
+   Every text colour below is at least 4.5:1 on bg, panel and raised (test/web/theme.test.ts). */
 @theme static {
   --color-*: initial;
 
-  --color-bg: #15171A;
-  --color-panel: #1E2125;
-  --color-line: #2E3238;
-  --color-fg: #E8E6E3;
-  --color-muted: #9BA1A8;
-  --color-accent: #F28C28;
-  --color-conflict: #F2555A;
+  /* Surfaces, darkest first: the page and map base, panels and windows, title bars, hover and pressed rows. */
+  --color-bg: #131416;
+  --color-panel: #1C1D20;
+  --color-raised: #26282B;
+  /* Hairlines between areas (decoration), and the 3:1 edge of form controls (inputs, selects, checkboxes). */
+  --color-line: #383B40;
+  --color-edge: #6B7077;
+  --color-fg: #EEEBE6;
+  --color-muted: #A6AAB0;
+  /* FICSIT orange: primary buttons, the active state, title rules, focus rings. Text on it is on-accent. */
+  --color-accent: #F59B3D;
+  --color-accent-hi: #FFB062;
+  --color-accent-lo: #D9822A;
+  --color-on-accent: #141416;
+  --color-conflict: #F7666B;
   /* Drop-pod badges on the map: opened with power (bolt), needs nothing (dot). */
   --color-power: #FFD23F;
   --color-free: #3DDC84;
@@ -25,11 +37,77 @@
   --color-mercer: #F062C0;
   --color-hdd: #C8CDD3;
 
+  /* Cave layer: areas (drawn translucent) and the ring around entrances. */
+  --color-cave: #E8DD55;
+
+  /* Resource node purity: the ring around a node (zoomed out its dot), the purity filter and the info box. Never the
+     only cue: zoomed out the dot grows with the purity, and the panel, info box and search name it (no pips). Each is
+     at least 5.3:1 against bg and panel (as ring and as text), and bg text on it at least 5.9:1. */
+  --color-purity-impure: #FF5C5C;
+  --color-purity-normal: #FFA94D;
+  --color-purity-pure: #4ADE80;
+
+  /* Resource node layer, per resource (features/resourceNodes/resourceStyle.ts): the panel's swatch and the disk a
+     node shows when the dataset has no picture of its resource (with its short label from zoom 4). Dark fills get a
+     light label. */
+  --color-res-iron: #A9B6C6;
+  --color-res-copper: #E0905C;
+  --color-res-limestone: #E6D7B4;
+  --color-res-coal: #4A4A55;
+  --color-res-caterium: #E8B931;
+  --color-res-quartz: #F2A7C8;
+  --color-res-sulfur: #C9DB3E;
+  --color-res-bauxite: #A9472F;
+  --color-res-uranium: #6BE05A;
+  --color-res-sam: #9A5CF0;
+  --color-res-oil: #2A2430;
+  --color-res-water: #3FA9F5;
+  --color-res-nitrogen: #B5EEF5;
+  --color-res-geyser: #F2683C;
+  /* Power Shards in an extractor (diamonds next to its tag on the resource node layer). */
+  --color-shard: #7FD4FF;
+
+  /* Machine wiki: one accent per category (heading text, bars, the tint behind the pictures) and the unlock badges
+     for MAM research and the AWESOME Shop (milestone tiers stay neutral). Each is at least 4.5:1 as text on bg,
+     panel and on its own 10-15 % tint over panel. */
+  --color-cat-production: #F28C28;
+  --color-cat-extraction: #2EC4B6;
+  --color-cat-power: #FFD23F;
+  --color-cat-logistics: #4DA3FF;
+  --color-cat-special: #F062C0;
+  --color-cat-vehicles: #3DDC84;
+  --color-unlock-mam: #B084F5;
+  --color-unlock-shop: #E8B931;
+
+  /* Factory map (features/factory/map/style.ts). Three hues for the machine kinds, picked from the data-viz reference
+     palette's dark steps and validated as a set (all pairs, protan/deutan ΔE ≥ 8.4, normal vision ≥ 19.8, ≥ 3:1 on bg);
+     everything else in two neutrals, so the machines stand out. Never the only cue: the machine's picture from a
+     close zoom, its name on hover, and the legend with counts in the Factory panel. */
+  --color-fac-production: #3987E5;
+  --color-fac-extraction: #199E70;
+  --color-fac-power: #C98500;
+  /* Storage, stations, the HUB and other buildings; belt and pipe attachments, poles and signs. */
+  --color-fac-building: #8B9097;
+  --color-fac-minor: #5F646B;
+  /* Foundations, ramps and walls (the floor plan), their edges. */
+  --color-fac-floor: #3A3D42;
+  --color-fac-floor-edge: #50545B;
+  /* Belts (light, wider and brighter per tier), pipes, roads. */
+  --color-fac-belt: #D8D4CC;
+  --color-fac-pipe: #7CC4E8;
+  --color-fac-road: #9C9488;
+  /* Productivity on the factory map uses the factory page's band colours (features/factory/parts.tsx BAND_FILL):
+     standing conflict, throttled accent, nearly full power, full free; a machine without productivity is fac-minor.
+     Below 90 % a hatch is the second cue, and a glyph per reason (the page's reason icons). */
+
+  /* Barlow for reading (body, controls, numbers), its condensed cut for titles, headings and labels. */
+  --font-sans: "Barlow", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
 
-  /* One radius for everything: bare `rounded` (Tailwind v4 reads the unsuffixed --radius key). */
+  /* One radius for everything: bare `rounded` (Tailwind v4 reads the unsuffixed --radius key). Corners of
+     controls and windows are cut instead (`chamfer`, `chamfer-window` below) where the browser can. */
   --radius-*: initial;
-  --radius: 4px;
+  --radius: 3px;
 }
 
 /* Visible keyboard focus for every interactive primitive. */
@@ -39,11 +117,56 @@
   }
 }
 
+/* Cut corners, the FICSIT plate look: a small bevel on all four corners of controls (buttons, fields,
+   segments), a larger one on two opposite corners of windows (dialogs, the item panel, floating boxes).
+   Browsers without `corner-shape` keep a plain small radius. Use instead of `rounded`, never with it. */
+@utility chamfer {
+  border-radius: var(--radius);
+  @supports (corner-shape: bevel) {
+    border-radius: 5px;
+    corner-shape: bevel;
+  }
+}
+
+@utility chamfer-window {
+  border-radius: var(--radius);
+  @supports (corner-shape: bevel) {
+    border-radius: 12px 0;
+    corner-shape: bevel;
+  }
+}
+
+/* Diagonal hazard stripes in the accent: a thin strip on map mode banners and danger zones, never a fill. */
+@utility hazard {
+  background-image: repeating-linear-gradient(-45deg, var(--color-accent) 0 6px, var(--color-bg) 6px 12px);
+}
+
+@utility hazard-danger {
+  background-image: repeating-linear-gradient(-45deg, var(--color-conflict) 0 6px, var(--color-bg) 6px 12px);
+}
+
 @layer base {
   html {
     color-scheme: dark;
+    scrollbar-color: var(--color-edge) transparent;
   }
   body {
-    @apply bg-bg text-fg antialiased;
+    @apply bg-bg font-sans text-fg antialiased;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  }
+  input[type="checkbox"], input[type="radio"], progress {
+    accent-color: var(--color-accent);
+  }
+}
+
+/* The planner's step panel: one production cycle filling up, like the game's machine window (motion-safe only). */
+@keyframes planner-cycle {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }

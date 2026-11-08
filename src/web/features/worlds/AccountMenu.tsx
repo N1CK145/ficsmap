@@ -1,12 +1,19 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../app/api.js';
-import { Button } from '../../components/Button.js';
+import { Link } from 'react-router';
+import { Button, buttonClass } from '../../components/Button.js';
 import { IconButton } from '../../components/IconButton.js';
+import { LanguageSwitch } from '../../components/LanguageSwitch.js';
+import { POPOVER } from '../../components/Window.js';
 import { useMe } from './queries.js';
-import { APP_VERSION, RELEASE_URL } from '../../app/version.js';
+import { APP_VERSION, RELEASE_URL, REPO_URL } from '../../app/version.js';
 
-/** Avatar button in the header with the signed-in account and [Sign out]. */
+/**
+ * Avatar button in the header with the signed-in account, a link to the worlds (on a phone the top bar has no mark
+ * inside a world), the language switch, [Sign out], and this build's version (its release page) and the source
+ * repository: inside a world there is no footer, so they live here.
+ */
 export function AccountMenu() {
   const { t } = useTranslation();
   const me = useMe().data;
@@ -52,20 +59,28 @@ export function AccountMenu() {
         aria-label={t('account.menu')}
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
+        size="sm"
         onClick={() => setOpen(o => !o)}
       >
         {me.avatarUrl
-          ? <img src={me.avatarUrl} alt="" className="size-8 rounded-full" />
+          ? <img src={me.avatarUrl} alt="" className="size-7 rounded-full ring-1 ring-line" />
           : <span aria-hidden="true" className="font-display text-lg font-bold">{me.displayName.slice(0, 1).toUpperCase()}</span>}
       </IconButton>
       {open && (
-        <div id={menuId} className="absolute top-full right-0 z-[1400] mt-1 flex w-64 flex-col gap-2 rounded border border-line bg-panel p-3 shadow-lg">
-          <p className="font-semibold">{me.displayName}</p>
-          {me.email && <p className="text-sm break-all text-muted">{t('account.signedInAs', { email: me.email })}</p>}
+        <div id={menuId} className={`absolute top-full right-0 z-[1400] mt-2 flex w-[min(17rem,calc(100vw-1rem))] flex-col gap-3 p-3 ${POPOVER}`}>
+          <p className="font-display text-lg leading-tight font-semibold">{me.displayName}</p>
+          {me.email && <p className="-mt-2 text-sm text-muted [overflow-wrap:anywhere]">{t('account.signedInAs', { email: me.email })}</p>}
+          <Link to="/?list=1" onClick={() => setOpen(false)} className={buttonClass({ variant: 'secondary', size: 'sm' }, 'w-full')}>{t('worlds.title')}</Link>
+          <div className="flex items-center justify-between gap-2 border-y border-line py-2">
+            <span className="text-sm text-muted">{t('language.label')}</span>
+            <LanguageSwitch />
+          </div>
           <Button disabled={busy} onClick={() => void signOut()}>{t('account.signOut')}</Button>
-          <a href={RELEASE_URL} target="_blank" rel="noreferrer" className="self-start rounded text-xs text-muted focus-ring hover:underline">
-            ficsmap v{APP_VERSION}
-          </a>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line pt-2 font-display text-xs tracking-wider text-muted uppercase max-[899px]:text-sm">
+            <a href={RELEASE_URL} target="_blank" rel="noreferrer" className="rounded focus-ring hover:text-accent">{t('app.name')} v{APP_VERSION}</a>
+            <span aria-hidden="true">·</span>
+            <a href={REPO_URL} target="_blank" rel="noreferrer" className="rounded focus-ring hover:text-accent">{t('footer.source')}</a>
+          </p>
         </div>
       )}
     </div>

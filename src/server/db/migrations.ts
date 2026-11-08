@@ -49,6 +49,49 @@ CREATE TABLE routes(id TEXT PRIMARY KEY CHECK(length(id) = 36),
       created_at INT NOT NULL, updated_at INT NOT NULL);
 CREATE INDEX routes_world ON routes(world_id);
 `,
+  // 2: resource nodes as the world's last save import reports them (overrides of the default map) and its
+  // node randomisation settings (JSON, NodeSettings).
+  `
+CREATE TABLE resource_node_overrides(world_id TEXT NOT NULL REFERENCES worlds ON DELETE CASCADE,
+      node TEXT NOT NULL, resource TEXT,
+      purity TEXT CHECK(purity IS NULL OR purity IN ('impure','normal','pure')),
+      PRIMARY KEY(world_id, node)) WITHOUT ROWID;
+ALTER TABLE worlds ADD COLUMN node_settings TEXT;
+`,
+  // 3: the extractors standing on resource nodes as the world's last save import reports them: building kind
+  // (ExtractorKind), clock speed (1 = 100 %) and Power Shards, null where the building has none. `seq` numbers
+  // the extractors of one node (several portable miners can share a node). Validated by the import route.
+  `
+CREATE TABLE resource_node_extractors(world_id TEXT NOT NULL REFERENCES worlds ON DELETE CASCADE,
+      node TEXT NOT NULL, seq INT NOT NULL, kind TEXT NOT NULL, clock REAL, shards INT,
+      PRIMARY KEY(world_id, node, seq)) WITHOUT ROWID;
+`,
+  // 4: factory snapshots (src/shared/factory/snapshot.ts), one per save and world: the snapshot as gzip-compressed
+  // JSON, its timeline summary (JSON: buildings, machines, avgProductivity, idle) and the stored size. A save is
+  // identified by session name and save time, so importing it again replaces its row. AUTOINCREMENT: ids are never
+  // reused, because GET /snapshots/:sid is cached as immutable by id.
+  `
+CREATE TABLE factory_snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,
+      world_id TEXT NOT NULL REFERENCES worlds ON DELETE CASCADE,
+      session_name TEXT NOT NULL, save_time INT NOT NULL,
+      imported_at INT NOT NULL, imported_by INT REFERENCES users ON DELETE SET NULL,
+      data BLOB NOT NULL, summary TEXT NOT NULL, bytes INT NOT NULL,
+      UNIQUE(world_id, session_name, save_time));
+CREATE INDEX factory_snapshots_world_time ON factory_snapshots(world_id, save_time);
+`,
+  // 5: upload tokens of the save watcher (src/server/domain/uploadTokens.ts): a script uploads saves to one world with
+  // `Authorization: Bearer fsm_<id>_<secret>`. Only the SHA-256 of the secret is stored. `any_session` = 1 accepts
+  // saves of another session than the world's. Revoked tokens keep their row (revoked_at) and stop working.
+  `
+CREATE TABLE upload_tokens(id INTEGER PRIMARY KEY AUTOINCREMENT,
+      world_id TEXT NOT NULL REFERENCES worlds ON DELETE CASCADE,
+      label TEXT NOT NULL CHECK(length(label) BETWEEN 1 AND 80),
+      secret_hash BLOB NOT NULL,
+      any_session INT NOT NULL DEFAULT 0 CHECK(any_session IN (0,1)),
+      created_by INT REFERENCES users ON DELETE SET NULL,
+      created_at INT NOT NULL, last_used_at INT, revoked_at INT);
+CREATE INDEX upload_tokens_world ON upload_tokens(world_id);
+`,
 ];
 
 export function migrate(db: Db): void {

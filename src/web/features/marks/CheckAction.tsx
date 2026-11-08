@@ -26,7 +26,7 @@ export function CheckAction({ item, ctx }: { item: Item; ctx: WorldCtx }) {
   return (
     <div className="flex flex-col gap-2">
       {conflict ? (
-        <div className="flex flex-col gap-2 rounded border border-conflict p-2">
+        <div className="flex flex-col gap-2 chamfer border border-conflict p-2">
           <p><span aria-hidden="true" className="text-conflict">⚠ </span>{t('item.conflict')}</p>
           <div className="flex gap-2">
             <Button size={mobile ? 'lg' : 'sm'} className={mobile ? 'flex-1' : ''} onClick={() => void setMark(item.name, true)}>{t('item.keepChecked')}</Button>

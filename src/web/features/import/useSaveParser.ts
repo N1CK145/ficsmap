@@ -27,6 +27,50 @@ export function datasetUrlFor(version: string): string {
   return new URL(`/data/${encodeURIComponent(version)}/collectibles.min.json`, window.location.href).href;
 }
 
+/** A failed `parseSaveFile`: the worker's error code, or `cancelled` when the signal aborted it. */
+export class SaveParseFailure extends Error {
+  constructor(readonly code: SaveParseError | 'cancelled') {
+    super(code);
+    this.name = 'SaveParseFailure';
+  }
+}
+
+/**
+ * Parses one file with a fresh `save.worker.ts`, as a promise (for parsing several saves one after another).
+ * Rejects with SaveParseFailure; aborting `signal` terminates the worker.
+ */
+export function parseSaveFile(
+  file: File, datasetUrl: string, onProgress?: (stage: SaveWorkerStage, percent: number) => void, signal?: AbortSignal,
+): Promise<ExtractResult> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new SaveParseFailure('cancelled'));
+    if (file.size > MAX_SAVE_BYTES) return reject(new SaveParseFailure('not_a_save'));
+    let w: Worker | null = null;
+    const finish = (fn: () => void) => {
+      w?.terminate();
+      w = null;
+      signal?.removeEventListener('abort', onAbort);
+      fn();
+    };
+    const onAbort = () => finish(() => reject(new SaveParseFailure('cancelled')));
+    signal?.addEventListener('abort', onAbort);
+    onProgress?.('reading', 0);
+    file.arrayBuffer().then(buffer => {
+      if (signal?.aborted) return;
+      const worker = new Worker(new URL('../../save.worker.ts', import.meta.url), { type: 'module' });
+      w = worker;
+      worker.onmessage = ({ data }: MessageEvent<SaveWorkerOut>) => {
+        if (data.type === 'progress') onProgress?.(data.stage, data.percent);
+        else if (data.type === 'done') finish(() => resolve(data.result));
+        else finish(() => reject(new SaveParseFailure(data.code)));
+      };
+      worker.onerror = () => finish(() => reject(new SaveParseFailure('failed')));
+      const msg: SaveWorkerIn = { type: 'parse', buffer, datasetUrl };
+      worker.postMessage(msg, [buffer]);
+    }, () => finish(() => reject(new SaveParseFailure('failed'))));
+  });
+}
+
 /**
  * Runs `save.worker.ts` on a file (spec §7 step 2). The file goes over as a transferred buffer
  * together with the url of the dataset the worker matches against. Every parse gets a fresh worker:
