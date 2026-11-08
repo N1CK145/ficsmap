@@ -35,6 +35,14 @@ export interface FactorySnapshot {
   pathNetworks: { id: number; nodes: number /* count */ ; segments: string[] }[];
   stations: SnapshotStation[];
   vehicles: SnapshotVehicle[];
+  /**
+   * How buildings are connected by belts and pipes, collapsed to links between "nodes": machines and logistics nodes
+   * (splitters, mergers, storage, stations, pumps, valves, tanks, junctions, sinks). Belts, lifts and pipes in between
+   * are listed in `via`. Missing in snapshots extracted before connections were read.
+   */
+  links?: SnapshotLink[];
+  /** Power circuits: which buildings share one grid (by circuit id). Missing in older snapshots. */
+  circuits?: SnapshotCircuit[];
   /** The players' own map markers and stamps. */
   markers: SnapshotMarker[];
   /** Death crates and other crates left in the world. */
@@ -174,4 +182,35 @@ export interface SnapshotSummary {
   /** Machines with productivity below 1 % (standing still). */
   idle: number;
   bytes: number;
+}
+
+/** One belt or pipe connection from an upstream node's output to a downstream node's input. */
+export interface SnapshotLink {
+  /** Upstream building id (where the items come from). */
+  from: string;
+  /** Downstream building id (where they go). */
+  to: string;
+  /** Connector names on both ends as the save has them (e.g. `Output0`, `Input1`, `PipeOutputFactory`), when known. */
+  fromPort?: string;
+  toPort?: string;
+  kind: 'belt' | 'pipe';
+  /** Spline and lift ids along the way, upstream first (empty for a direct connection). */
+  via: string[];
+  /**
+   * Class of the slowest belt/lift or pipe on the way (`Build_ConveyorBeltMk2_C`, `Build_PipelineMK2_C`); its rate
+   * comes from the dataset (`recipes.json` belts) — the link's capacity.
+   */
+  slowest?: string;
+  /** Items seen on the belt at saving time (class → count), from the conveyor chain actors, when readable. */
+  items?: Record<string, number>;
+  /** For pipes: the fluid in the pipe network, when known. */
+  fluid?: string;
+}
+
+export interface SnapshotCircuit {
+  id: number;
+  /** Building ids with a power connection on this circuit. */
+  buildings: string[];
+  /** Fuse blown at saving time. */
+  fuseTriggered?: boolean;
 }
