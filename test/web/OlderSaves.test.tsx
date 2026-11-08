@@ -216,7 +216,7 @@ describe('the save import uploads the factory snapshot', () => {
     const { onClose, toast } = renderDialog('save');
     await importSave(resultOf(makeSnapshot('Letz Fetz', 1_000)));
     await waitFor(() => expect(toast.show).toHaveBeenCalledWith({
-      message: "Import done, but the factory of this save couldn't be saved for the factory map.",
+      message: "Import done, but the factory of this save couldn't be saved for the factory plan.",
     }));
     expect(onClose).toHaveBeenCalled();
   });

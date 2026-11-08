@@ -27,25 +27,46 @@ export type FactorySelection =
   | { kind: 'building'; id: string }
   | { kind: 'vehicle'; id: string };
 
+/** How a selection was made: from a button (focus moves to the info window and returns to `opener` on close). */
+export interface SelectOptions {
+  focus?: boolean;
+  /** The control that opened the info window; focus returns to it when the window closes. */
+  opener?: HTMLElement | null;
+}
+
 interface FactoryMapState extends FactoryMapView {
   selection: FactorySelection | null;
+  /** The info window should move the focus to its title (it was opened from a button). */
+  pendingFocus: boolean;
+  /** Where the focus goes back when the info window closes (the button that opened it), or null. */
+  returnFocus: HTMLElement | null;
   /** The last `useFactoryView.highlightSeq` the map fitted to. */
   fittedSeq: number;
+  /** Bumped by "Go to the changes": the map fits to the changed buildings. */
+  fitChangesSeq: number;
   toggle(): void;
   setVisible(v: boolean): void;
   toggleLayer(l: FactoryLayer): void;
   setColorMode(m: ColorMode): void;
   setCompareMode(m: CompareMode): void;
-  select(s: FactorySelection | null): void;
+  select(s: FactorySelection | null, opts?: SelectOptions): void;
+  focusHandled(): void;
   setFittedSeq(seq: number): void;
+  requestFitChanges(): void;
 }
 
 const KEY = 'ficsmap:factoryMap';
+/**
+ * Version of the remembered view. Version 1 stored the colour mode on every change while "category" was the default,
+ * so a stored "category" there says nothing about a choice: from version 2 on the productivity mode is the default
+ * and a version 1 colour mode is ignored.
+ */
+const VERSION = 2;
 
 export const DEFAULT_VIEW: FactoryMapView = {
   visible: false,
   layers: { floor: true, buildings: true, lines: true, power: false, roads: true, markers: true, crates: true, fog: false },
-  colorMode: 'category',
+  colorMode: 'productivity',
   compareMode: 'previous',
 };
 
@@ -74,14 +95,14 @@ export function loadFactoryMapView(): FactoryMapView {
       if (typeof v === 'boolean') view.layers[l] = v;
     }
   }
-  if (COLOR_MODES.includes(d.colorMode as ColorMode)) view.colorMode = d.colorMode as ColorMode;
+  if (d.v === VERSION && COLOR_MODES.includes(d.colorMode as ColorMode)) view.colorMode = d.colorMode as ColorMode;
   if (d.compareMode === 'previous' || d.compareMode === 'chosen') view.compareMode = d.compareMode;
   return view;
 }
 
 function save(v: FactoryMapView): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ visible: v.visible, layers: v.layers, colorMode: v.colorMode, compareMode: v.compareMode }));
+    localStorage.setItem(KEY, JSON.stringify({ v: VERSION, visible: v.visible, layers: v.layers, colorMode: v.colorMode, compareMode: v.compareMode }));
   } catch {
     // Not remembering is fine.
   }
@@ -101,13 +122,25 @@ export const useFactoryMap = create<FactoryMapState>()((set, get) => {
   return {
     ...initial,
     selection: null,
+    pendingFocus: false,
+    returnFocus: null,
     fittedSeq: 0,
+    fitChangesSeq: 0,
     toggle: () => update({ visible: !get().visible }),
     setVisible: visible => { if (visible !== get().visible) update({ visible }); },
     toggleLayer: l => update({ layers: { ...get().layers, [l]: !get().layers[l] } }),
     setColorMode: colorMode => update({ colorMode }),
     setCompareMode: compareMode => update({ compareMode }),
-    select: selection => set({ selection }),
+    select: (selection, opts = {}) => {
+      const was = get();
+      if (selection === null) { set({ selection, pendingFocus: false }); return; }
+      // Opened from a button: the first opener (a list in the panel) stays the place to return to, also when the
+      // window then moves on (a route stop in the window selects its station).
+      const returnFocus = opts.focus ? (was.selection && was.returnFocus ? was.returnFocus : opts.opener ?? null) : null;
+      set({ selection, pendingFocus: opts.focus === true, returnFocus });
+    },
+    focusHandled: () => set({ pendingFocus: false }),
     setFittedSeq: fittedSeq => set({ fittedSeq }),
+    requestFitChanges: () => set({ fitChangesSeq: get().fitChangesSeq + 1 }),
   };
 });

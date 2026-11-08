@@ -1,40 +1,54 @@
 import { useId, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Button } from '../../../components/Button.js';
 import { Fold } from '../../../components/Fold.js';
 import { SegmentedControl } from '../../../components/SegmentedControl.js';
 import { useDataset } from '../../map/useDataset.js';
 import { useMe, useWorld } from '../../worlds/queries.js';
 import { useFactoryView } from '../view.js';
 import { ReasonIcon } from '../icons.js';
-import { BAND_FILL } from '../parts.js';
 import { useTimeline } from '../timeline.js';
 import { useMapData } from './mapData.js';
 import { langOf, stationName, vehicleName } from './names.js';
-import { bandHatch, KIND_BG } from './ProdParts.js';
+import { BandSwatch, KIND_BG } from './ProdParts.js';
 import type { Scene } from './scene.js';
 import { BANDS, REASONS, type Band, type Reason } from '../../../../shared/factory/analysis.js';
-import { MAP_KINDS, type MapKind } from './style.js';
+import { stateKey } from '../parts.js';
+import { bandLook, MAP_KINDS, type MapKind } from './style.js';
 import { EmptyFactory } from './Timeline.js';
 import { FACTORY_LAYERS, useFactoryMap, type ColorMode } from './useFactoryMap.js';
 
-const ROW = 'flex h-8 w-full items-center gap-2 chamfer px-2 text-left text-sm select-none focus-ring hover:bg-raised';
+/** A row of the panel's lists: 32 px, 44 px (a touch target) below 900 px. */
+const ROW = 'flex h-8 w-full items-center gap-2 chamfer px-2 text-left text-sm select-none focus-ring hover:bg-raised max-[899px]:h-11';
 
 interface Legend {
   kinds: Map<MapKind, string[]>;
+  /** Machines per band, paused ones apart. */
   bands: Map<Band, string[]>;
+  paused: string[];
   reasons: Map<Reason, string[]>;
 }
 
-/** Building ids per map kind, per productivity band (machines only) and per reason. */
+/** Building ids per map kind, per productivity band (machines only; paused ones counted apart) and per reason. */
 export function legendOf(scene: Scene): Legend {
-  const l: Legend = { kinds: new Map(), bands: new Map(), reasons: new Map() };
+  const l: Legend = { kinds: new Map(), bands: new Map(), paused: [], reasons: new Map() };
   const add = <K,>(m: Map<K, string[]>, k: K, id: string) => (m.get(k) ?? m.set(k, []).get(k)!).push(id);
   for (const sb of scene.buildings) {
     add(l.kinds, sb.kind, sb.b.id);
-    if (sb.band) add(l.bands, sb.band, sb.b.id);
+    if (sb.paused && sb.band) l.paused.push(sb.b.id);
+    else if (sb.band) add(l.bands, sb.band, sb.b.id);
     for (const r of sb.reasons) add(l.reasons, r, sb.b.id);
   }
   return l;
+}
+
+/**
+ * The legend's reasons: the analysis's list, then any reason the scene has that the list does not know yet. "Paused"
+ * is a state of its own in the band list, so it is not repeated here.
+ */
+function reasonOrder(legend: Legend): Reason[] {
+  const all = [...REASONS, ...[...legend.reasons.keys()].filter(r => !(REASONS as readonly Reason[]).includes(r))];
+  return legend.paused.length > 0 ? all.filter(r => r !== 'paused') : all;
 }
 
 /**
@@ -90,6 +104,8 @@ function PanelDetails({ worldId, version }: { worldId: string; version: string }
   const data = useMapData(worldId, version, bounds, true);
   const scene = data.scene;
   const legend = useMemo(() => (scene ? legendOf(scene) : null), [scene]);
+  // The page's counts, so map and page always agree (the ids for "show on the map" come from the scene).
+  const totals = data.current?.snapshot === scene?.snapshot ? data.current?.analysis.totals : undefined;
   const layersLabel = useId();
   const num = new Intl.NumberFormat(i18n.language);
   const show = (ids: readonly string[]) => useFactoryView.getState().showOnMap(ids);
@@ -106,7 +122,7 @@ function PanelDetails({ worldId, version }: { worldId: string; version: string }
       {legend && colorMode === 'category' && (
         <ul aria-label={t('factoryMap.legend')} className="flex flex-col text-sm" data-testid="factory-legend">
           {MAP_KINDS.filter(k => k !== 'structure').map(k => (
-            <li key={k} className="flex h-7 items-center gap-2 px-2">
+            <li key={k} className="flex h-7 items-center gap-2 px-2 max-[899px]:h-9">
               <span aria-hidden="true" className={`size-3 shrink-0 border border-bg ${KIND_BG[k]}`} />
               <span className="min-w-0 flex-1 truncate">{t(`factoryMap.kinds.${k}`)}</span>
               <span className="font-display tabular-nums">{num.format(legend.kinds.get(k)?.length ?? 0)}</span>
@@ -118,33 +134,43 @@ function PanelDetails({ worldId, version }: { worldId: string; version: string }
       {legend && colorMode === 'productivity' && (
         <div className="flex flex-col gap-2" data-testid="factory-legend">
           <ul aria-label={t('factoryMap.legend')} className="flex flex-col">
-            {[...BANDS].reverse().map(b => {
+            {/* Problems first: standing, throttled, nearly full, full. */}
+            {[...BANDS].sort((a, b) => bandLook(b).rank - bandLook(a).rank).map(b => {
               const ids = legend.bands.get(b) ?? [];
               return (
                 <li key={b}>
                   <button type="button" className={ROW} disabled={ids.length === 0} onClick={() => show(ids)} title={t('factoryMap.showOnMapHint')}>
-                    <span aria-hidden="true" className={`size-3 shrink-0 border border-bg ${BAND_FILL[b]}`} style={{ backgroundImage: bandHatch(b) }} />
+                    <BandSwatch band={b} />
                     <span className="min-w-0 flex-1 truncate">{t(`factory.band.${b}`)}</span>
-                    <span className="font-display tabular-nums">{num.format(ids.length)}</span>
+                    <span className="font-display tabular-nums">{num.format(totals?.bands[b] ?? ids.length)}</span>
                   </button>
                 </li>
               );
             })}
-            <li className="flex h-8 items-center gap-2 px-2 text-sm text-muted">
-              <span aria-hidden="true" className="size-3 shrink-0 border border-bg bg-fac-minor" />
+            {legend.paused.length > 0 && (
+              <li>
+                <button type="button" className={ROW} onClick={() => show(legend.paused)} title={t('factory.reasonHint.paused')}>
+                  <BandSwatch band="paused" />
+                  <span className="min-w-0 flex-1 truncate">{t(stateKey('paused'))}</span>
+                  <span className="font-display tabular-nums">{num.format(totals?.paused ?? legend.paused.length)}</span>
+                </button>
+              </li>
+            )}
+            <li className="flex h-8 items-center gap-2 px-2 text-sm text-muted max-[899px]:h-11">
+              <BandSwatch band={null} />
               <span className="min-w-0 flex-1 truncate">{t('factoryMap.noProduction')}</span>
             </li>
           </ul>
           <ul aria-label={t('factoryMap.reasonsLabel')} className="flex flex-col">
-            {REASONS.map(r => {
+            {reasonOrder(legend).map(r => {
               const ids = legend.reasons.get(r) ?? [];
               if (ids.length === 0) return null;
               return (
                 <li key={r}>
-                  <button type="button" className={ROW} onClick={() => show(ids)} title={t(`factory.reasonHint.${r}`)}>
+                  <button type="button" className={ROW} onClick={() => show(ids)} title={t(`factory.reasonHint.${r}`, { defaultValue: '' }) || undefined}>
                     <ReasonIcon reason={r} />
                     <span className="min-w-0 flex-1 truncate">{t(`factory.reason.${r}`)}</span>
-                    <span className="font-display tabular-nums">{num.format(ids.length)}</span>
+                    <span className="font-display tabular-nums">{num.format(totals?.reasons[r] ?? ids.length)}</span>
                   </button>
                 </li>
               );
@@ -153,9 +179,9 @@ function PanelDetails({ worldId, version }: { worldId: string; version: string }
         </div>
       )}
       {highlightCount > 0 && (
-        <button type="button" className="self-start chamfer px-1 text-xs text-muted focus-ring hover:text-fg" onClick={() => useFactoryView.getState().clearHighlight()}>
+        <Button size="sm" variant="ghost" className="self-start" onClick={() => useFactoryView.getState().clearHighlight()}>
           {t('factoryMap.clearHighlight', { count: highlightCount })}
-        </button>
+        </Button>
       )}
 
       <div>
@@ -177,7 +203,7 @@ function PanelDetails({ worldId, version }: { worldId: string; version: string }
           <ul className="flex flex-col" data-testid="factory-vehicles">
             {scene.vehicles.map(v => (
               <li key={v.v.id}>
-                <button type="button" className={ROW} onClick={() => { useFactoryMap.getState().select({ kind: 'vehicle', id: v.v.id }); show([v.v.id, ...v.v.route]); }}>
+                <button type="button" className={ROW} onClick={e => { useFactoryMap.getState().select({ kind: 'vehicle', id: v.v.id }, { focus: true, opener: e.currentTarget }); show([v.v.id, ...v.v.route]); }}>
                   <span className="min-w-0 flex-1 truncate">{vehicleName(scene, v.v.id, lang)}</span>
                   <span className="text-xs text-muted">{t('factoryMap.panel.stops', { count: v.v.route.length })}</span>
                 </button>
@@ -185,7 +211,7 @@ function PanelDetails({ worldId, version }: { worldId: string; version: string }
             ))}
             {scene.stations.map(st => (
               <li key={st.s.id}>
-                <button type="button" className={ROW} onClick={() => { useFactoryMap.getState().select({ kind: 'building', id: st.s.id }); show([st.s.id]); }}>
+                <button type="button" className={ROW} onClick={e => { useFactoryMap.getState().select({ kind: 'building', id: st.s.id }, { focus: true, opener: e.currentTarget }); show([st.s.id]); }}>
                   <span aria-hidden="true" className="w-3 shrink-0 text-muted">{st.s.loading === false ? '↓' : '↑'}</span>
                   <span className="min-w-0 flex-1 truncate">{stationName(scene, st.s.id, lang)}</span>
                   <span className="text-xs text-muted tabular-nums">{t('factoryMap.perMin', { value: num.format(Math.round(st.flow.itemsPerMin ?? 0)) })}</span>

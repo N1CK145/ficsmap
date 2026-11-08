@@ -1,4 +1,6 @@
 import type { FactorySnapshot, SnapshotStation } from '../../../../shared/factory/snapshot.js';
+import type { FrameRoute } from './FactoryCanvasLayer.js';
+import type { Scene } from './scene.js';
 
 /**
  * The road a vehicle drives between its stops, as polylines of world points: road segments form a graph by their end
@@ -80,4 +82,35 @@ function shortestWay(
     n = p.from;
   }
   return parts.reverse().flat();
+}
+
+/**
+ * The selected vehicle's way along the roads between its stops, in map units, and its stops with their numbers. A leg
+ * into a stop where the vehicle moves nothing (0 /min) and that stop's badge are marked.
+ */
+export function vehicleRoute(scene: Scene, id: string): FrameRoute | null {
+  const v = scene.vehicleById.get(id);
+  if (!v || v.v.route.length === 0) return null;
+  const zeroAt = new Set(v.flow.stops.filter(s => s.visit !== null && (s.visit.itemsPerMin ?? 0) <= 0).map(s => s.station));
+  // The same stops `routePath` walks: known stations, consecutive pairs (back to the first), repeats skipped.
+  const known = v.v.route.filter(sid => scene.stationById.has(sid));
+  const targets: string[] = [];
+  if (known.length >= 2) {
+    for (let i = 0; i < known.length; i++) {
+      const a = known[i]!, b = known[(i + 1) % known.length]!;
+      if (a !== b) targets.push(b);
+    }
+  }
+  const legs = routePath(scene.snapshot, v.v.route).map((leg, i) => {
+    const pts = new Float32Array(leg.length * 2);
+    leg.forEach((p, k) => { pts[k * 2] = scene.t.x(p.x); pts[k * 2 + 1] = scene.t.y(p.y); });
+    return { pts, zero: zeroAt.has(targets[i] ?? '') };
+  });
+  const labels = new Map<string, number[]>();
+  v.v.route.forEach((sid, i) => (labels.get(sid) ?? labels.set(sid, []).get(sid)!).push(i + 1));
+  const stops = [...labels].flatMap(([sid, nums]) => {
+    const st = scene.stationById.get(sid);
+    return st ? [{ cx: st.cx, cy: st.cy, label: nums.join('·'), zero: zeroAt.has(sid) }] : [];
+  });
+  return { legs, stops };
 }

@@ -4,7 +4,7 @@ import { useMap } from 'react-leaflet';
 import { buildingName, stationName, vehicleName, type Lang } from './names.js';
 import type { Scene } from './scene.js';
 import { ReasonIcon } from '../icons.js';
-import { BAND_TEXT } from '../parts.js';
+import { STATE_TEXT, stateKey } from '../parts.js';
 import { productivityOf } from './style.js';
 import type { FactorySelection } from './useFactoryMap.js';
 
@@ -53,8 +53,8 @@ export function HoverTip({ scene, hit, lang }: { scene: Scene; hit: FactorySelec
       const measured = sb.b.prod.productivity !== undefined;
       body = (
         <>
-          <div className={`tabular-nums ${BAND_TEXT[sb.band]}`}>
-            {t('factoryMap.productivityValue', { value: pct.format(productivityOf(sb.b.prod)) })}
+          <div className={`tabular-nums ${STATE_TEXT[sb.paused ? 'paused' : sb.band]}`}>
+            {sb.paused ? t(stateKey('paused')) : t('factoryMap.productivityValue', { value: pct.format(productivityOf(sb.b.prod)) })}
             {!measured && <span className="text-muted"> · {t('factoryMap.noMeasurement')}</span>}
           </div>
           {sb.reasons.length > 0 && (

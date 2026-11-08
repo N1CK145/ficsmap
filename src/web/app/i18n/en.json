@@ -321,7 +321,7 @@
     "copied": "Copied"
   },
   "import": {
-    "privacy": "Your save is read in your browser. Only this is sent to the server: the list of collected items; the save's name, date and game build; for resource nodes the resource or purity your save sets and which extractor stands on which node (building, clock speed, Power Shards); and for the factory map what is built where (buildings with their productivity, belts, pipes, power lines, roads, stations, vehicles, map markers, sign texts and the explored area). No player names or player positions.",
+    "privacy": "Your save is read in your browser. Only this is sent to the server: the list of collected items; the save's name, date and game build; for resource nodes the resource or purity your save sets and which extractor stands on which node (building, clock speed, Power Shards); and for the factory plan what is built where (buildings with their productivity, belts, pipes, power lines, roads, stations, vehicles, map markers, sign texts and the explored area). No player names or player positions.",
     "button": "Import",
     "title": "Import save",
     "chooseFolder": "Choose save folder",
@@ -362,12 +362,12 @@
     "review": "Review conflicts",
     "dismiss": "Dismiss",
     "createImportFailed": "World created, but the import failed. You can import again from the map.",
-    "factoryFailed": "Import done, but the factory of this save couldn't be saved for the factory map.",
+    "factoryFailed": "Import done, but the factory of this save couldn't be saved for the factory plan.",
     "older": {
       "open": "Add older saves…",
-      "teaser": "Step through your factory's history on the factory map: add older saves of this world.",
+      "teaser": "Step through your factory's history on the factory plan: add older saves of this world.",
       "title": "Add older saves",
-      "intro": "Adds the factory of older saves to the timeline of the factory map. Checks and resource nodes stay as they are: only the import of your newest save sets them.",
+      "intro": "Adds the factory of older saves to the timeline of the factory plan. Checks and resource nodes stay as they are: only the import of your newest save sets them.",
       "filesLabel": "Choose save files",
       "multiHint": "You can pick several files at once. They're read one after another, oldest first.",
       "progress": "{current, number} of {total, number}",
@@ -1270,7 +1270,10 @@
         "empty": "Vehicles dock here but move nothing: empty runs.",
         "active": "In use. Figures are the game's own averages per vehicle."
       },
-      "every": "every {time}"
+      "every": "every {time}",
+      "kind": "Station",
+      "rateFillShort": "{dir} {rate} /min · {fill} %",
+      "cargo": "Holds"
     },
     "vehicle": {
       "kind": "Vehicle",
@@ -1284,7 +1287,8 @@
       "unloads": "Unloads",
       "route": "Route ({count, plural, one {# stop} other {# stops}})",
       "noRoute": "No saved route.",
-      "roundTrip": "Round trip (estimated)"
+      "roundTrip": "Round trip (estimated)",
+      "cargo": "Carries"
     },
     "info": {
       "close": "Close",
@@ -1301,7 +1305,10 @@
       "signText": "Text",
       "change": "Before {before} ({delta})",
       "lost": "Loses {rate}",
-      "power": "Power"
+      "power": "Power",
+      "actualOfTarget": "{actual} of target {at}",
+      "belt": "Belt",
+      "purity": "Node"
     },
     "panel": {
       "save": "Save of {date}: {buildings} buildings, {machines} with productivity",
@@ -1325,7 +1332,7 @@
       "changes": "Changes",
       "compareWith": "Compare with",
       "comparePrevious": "The save before",
-      "slider": "Save",
+      "slider": "Saves",
       "comparedWith": "Compared with {date}:",
       "added": "{count, plural, one {+{n} building} other {+{n} buildings}}",
       "removed": "{count, plural, one {−{n} removed} other {−{n} removed}}",
@@ -1333,9 +1340,23 @@
       "lines": "Belts, pipes, roads +{added} −{removed}",
       "nothingToCompare": "No other save to compare with.",
       "better": "{count, plural, one {{n} better} other {{n} better}}",
-      "worse": "{count, plural, one {{n} worse} other {{n} worse}}"
+      "worse": "{count, plural, one {{n} worse} other {{n} worse}}",
+      "toChanges": "Go to the changes",
+      "comparedMark": "compared"
     },
     "noProduction": "Buildings without production",
-    "reasonsLabel": "Reasons"
+    "reasonsLabel": "Reasons",
+    "kindShort": {
+      "production": "Production",
+      "extraction": "Extraction",
+      "power": "Power",
+      "building": "Building",
+      "logistics": "Logistics",
+      "structure": "Foundation"
+    },
+    "highlight": {
+      "count": "{count, plural, one {{n} building marked} other {{n} buildings marked}}",
+      "clear": "Clear the marking"
+    }
   }
 }

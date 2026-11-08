@@ -1,12 +1,13 @@
 import { indexBuildings, type BuildingsFile } from '../../src/shared/buildings.js';
 import type { FactorySnapshot } from '../../src/shared/factory/snapshot.js';
-import { diffGeometry } from '../../src/web/features/factory/map/diff.js';
+import { changesBox, diffGeometry, type DiffOverlay } from '../../src/web/features/factory/map/diff.js';
 import { buildingLook, detailAt, metresPerMapUnit, PICTURE_MIN_PX, scaledLineWidth } from '../../src/web/features/factory/map/lod.js';
-import { routePath } from '../../src/web/features/factory/map/routes.js';
+import { routePath, vehicleRoute } from '../../src/web/features/factory/map/routes.js';
 import {
   boundsOfIds, buildScene, floorRect, insideOutline, mapTransform, pickBuilding, placeBuilding, rectCorners, splitBoxes,
 } from '../../src/web/features/factory/map/scene.js';
-import { lineAlpha, lineStyle, lineWidthPx, machineBand, mapKind, productivityOf } from '../../src/web/features/factory/map/style.js';
+import { BANDS } from '../../src/shared/factory/analysis.js';
+import { bandLook, lineAlpha, lineStyle, lineWidthPx, machineBand, mapKind, productivityOf } from '../../src/web/features/factory/map/style.js';
 
 /** A 256 000 cm square world: one map unit is 1000 cm (10 m). */
 const BOUNDS = { minX: 0, minY: 0, maxX: 256_000, maxY: 256_000 };
@@ -231,5 +232,68 @@ describe('vehicle routes on the roads', () => {
     const s = snapshot({ splines: [road('ab', 0, 0, 1000, 0)], stations: [station('A', 0, 0), station('Z', 90_000, 0)] });
     expect(routePath(s, ['A', 'Z'])[0]).toEqual([{ x: 0, y: 0 }, { x: 90_000, y: 0 }]);
     expect(routePath(s, ['A'])).toEqual([]);
+  });
+});
+
+describe('factory map productivity looks', () => {
+  it('draws problems on top and gives every band a second cue besides its colour', () => {
+    const ranks = BANDS.map(b => bandLook(b).rank);
+    expect(new Set(ranks).size).toBe(BANDS.length);
+    expect(bandLook('idle').rank).toBe(Math.max(...ranks));
+    expect(bandLook('full').tint).toBeLessThan(bandLook('idle').tint);
+    // Full and nearly full differ by more than their colour (dots), as do throttled (stripes) and standing (cross).
+    expect(new Set(BANDS.map(b => bandLook(b).pattern)).size).toBe(BANDS.length);
+    expect(new Set(BANDS.map(b => bandLook(b).dot)).size).toBe(BANDS.length);
+  });
+
+  it('keeps paused machines and their product apart in the scene', () => {
+    const analysis = {
+      byId: new Map([['c1', { outputs: [{ item: 'Desc_IronScrew_C', nominal: 60, actual: 30, lost: 30 }], reasons: ['starved'] }]]),
+    } as unknown as Parameters<typeof buildScene>[3];
+    const scene = buildScene(snapshot({
+      buildings: [
+        { id: 'c1', cls: 'Build_ConstructorMk1_C', x: 10_000, y: 10_000, z: 0, yaw: 0, prod: { clock: 1, productivity: 0.5 } },
+        { id: 'c2', cls: 'Build_ConstructorMk1_C', x: 20_000, y: 10_000, z: 0, yaw: 0, prod: { clock: 1, productivity: 0, paused: true } },
+      ],
+    }), INDEX, BOUNDS, analysis);
+    expect(scene.byId.get('c1')).toMatchObject({ paused: false, product: 'Desc_IronScrew_C', reasons: ['starved'] });
+    expect(scene.byId.get('c2')).toMatchObject({ paused: true, product: undefined });
+  });
+});
+
+describe('the selected vehicle\'s route', () => {
+  it('marks the legs into stops where the vehicle moves nothing', () => {
+    const traffic = (items: number) => [{ vehicle: 'v', avgSecBetweenDocks: 60, avgItemsPerDock: items }];
+    const scene = buildScene(snapshot({
+      stations: [
+        { id: 'A', cls: 'Build_TruckStation_C', x: 10_000, y: 10_000, z: 0, yaw: 0, loading: true, traffic: traffic(100) },
+        { id: 'B', cls: 'Build_TruckStation_C', x: 50_000, y: 10_000, z: 0, yaw: 0, loading: false, traffic: traffic(0) },
+      ],
+      vehicles: [{ id: 'v', cls: 'BP_Truck_C', x: 5000, y: 5000, z: 0, yaw: 0, autopilot: true, route: ['A', 'B'] }],
+    }), INDEX, BOUNDS);
+    const route = vehicleRoute(scene, 'v')!;
+    // A → B ends where nothing moves, B → A does not.
+    expect(route.legs.map(l => l.zero)).toEqual([true, false]);
+    expect(route.stops.map(s => [s.label, s.zero])).toEqual([['1', false], ['2', true]]);
+    expect(vehicleRoute(scene, 'nope')).toBeNull();
+  });
+});
+
+describe('going to the changes', () => {
+  const empty = { added: new Set<string>(), removed: [], productivity: new Map(), floorAdded: new Float32Array(), floorRemoved: new Float32Array(), linesAdded: new Set<string>(), linesRemoved: [] };
+  it('frames the busiest area of added, removed and changed buildings, else the changed floor', () => {
+    const scene = buildScene(snapshot({
+      buildings: [
+        { id: 'c1', cls: 'Build_ConstructorMk1_C', x: 10_000, y: 10_000, z: 0, yaw: 0, prod: { clock: 1, productivity: 1 } },
+        { id: 'c2', cls: 'Build_ConstructorMk1_C', x: 90_000, y: 10_000, z: 0, yaw: 0, prod: { clock: 1, productivity: 1 } },
+      ],
+    }), INDEX, BOUNDS);
+    const ghost = (id: string, x: number) => placeBuilding({ id, cls: 'Build_ConstructorMk1_C', x, y: 10_000, z: 0, yaw: 0 }, INDEX.get('Build_ConstructorMk1_C'), scene.t);
+    // c1 and a ghost next to it outweigh the lone change at c2, 80 map units away.
+    const diff: DiffOverlay = { ...empty, added: new Set(['c1', 'c2']), removed: [ghost('g', 14_000)] };
+    const box = changesBox(scene, diff)!;
+    expect([box.minX, box.minY, box.maxX, box.maxY].map(v => Math.round(v * 10) / 10)).toEqual([9.6, 9.5, 14.4, 10.5]);
+    expect(changesBox(scene, { ...empty, floorAdded: new Float32Array([1, 2, 3, 2, 3, 4, 1, 4]) })).toEqual({ minX: 1, minY: 2, maxX: 3, maxY: 4 });
+    expect(changesBox(scene, empty)).toBeNull();
   });
 });

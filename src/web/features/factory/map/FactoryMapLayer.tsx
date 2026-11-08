@@ -5,20 +5,20 @@ import { ImageOverlay, Pane, useMap } from 'react-leaflet';
 import type { FactorySnapshot } from '../../../../shared/factory/snapshot.js';
 import type { WorldCtx } from '../../../app/feature.js';
 import { useUiStore } from '../../../app/store.js';
-import { useIsMobile } from '../../../app/useMediaQuery.js';
+import { useIsMobile, useMediaQuery } from '../../../app/useMediaQuery.js';
 import { IMAGE_BOUNDS } from '../../map/imageBounds.js';
 import { prefersReducedMotion } from '../../map/motion.js';
 import { requestDetailZoom } from '../../map/zoom.js';
 import { useItemIcons, type ItemIcons } from '../../machineWiki/icons.js';
 import { useFactoryWorld } from '../timeline.js';
 import { useFactoryView } from '../view.js';
-import { placeDiff } from './diff.js';
+import { changesBox, placeDiff } from './diff.js';
 import { useMapData } from './mapData.js';
 import { FactoryCanvasLayer, FOG_PANE, FOG_PANE_Z, type FactoryFrame } from './FactoryCanvasLayer.js';
 import { pickFactory } from './pick.js';
 import { factoryPicture, onFactoryPictureLoad } from './pictures.js';
-import { boundsOfIds, type Scene, type SceneBuilding, type SceneStation } from './scene.js';
-import { routePath } from './routes.js';
+import { boundsOfIds, type Scene, type SceneStation } from './scene.js';
+import { vehicleRoute } from './routes.js';
 import { useFactoryMap, ZOOM_KEY, type FactorySelection } from './useFactoryMap.js';
 import { HoverTip } from './HoverTip.js';
 import { langOf, vehicleName } from './names.js';
@@ -54,12 +54,32 @@ export function FactoryMapLayer({ ctx }: { ctx: WorldCtx }) {
     if (highlightSeq > fittedSeq && !visible) useFactoryMap.getState().setVisible(true);
   }, [highlightSeq, fittedSeq, visible]);
 
+  // Esc closes the info window, unless something else (a dialog, a field, the search) took the key.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!useFactoryMap.getState().selection || !escapeClosesInfo(e)) return;
+      e.preventDefault();
+      useFactoryMap.getState().select(null);
+    };
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   // A collectible selected on the map closes the building's info (one box at a time).
   useEffect(() => useUiStore.subscribe((s, prev) => {
     if (s.selectedActor !== null && s.selectedActor !== prev.selectedActor) useFactoryMap.getState().select(null);
   }), []);
 
   return visible ? <ActiveFactory ctx={ctx} /> : null;
+}
+
+/**
+ * Whether an Esc press is the info window's to close it: not when something handled it already, nor when it comes from
+ * a field (the search, a select) or from inside a dialog.
+ */
+export function escapeClosesInfo(e: Pick<KeyboardEvent, 'key' | 'defaultPrevented' | 'target'>): boolean {
+  if (e.key !== 'Escape' || e.defaultPrevented) return false;
+  const target = e.target instanceof Element ? e.target : null;
+  return !target?.closest('input, select, textarea, [contenteditable="true"], dialog, [role="dialog"], [role="alertdialog"]');
 }
 
 /** The factory layers while they are on (the dataset parts and snapshots load only then). */
@@ -80,26 +100,28 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   const scene = data.scene;
   const icons = useItemIcons(version, !!scene);
   const [hover, setHover] = useState<FactorySelection | null>(null);
+  const [pulse, setPulse] = useState<number | null>(null);
+  const coarse = useMediaQuery('(pointer: coarse)');
+  const fitChangesSeq = useFactoryMap(s => s.fitChangesSeq);
+  /** When the map last fitted to something (`performance.now()`): a selection made with it needs no pan on top. */
+  const lastFit = useRef(-Infinity);
 
   // "On the map" from the Fabrik page: fit once the scene is there. A vehicle among the ids (a route: the vehicle and
   // its stations) is selected, so its route shows.
   useEffect(() => {
     if (highlightSeq <= fittedSeq || !scene) return;
-    useFactoryMap.getState().setFittedSeq(highlightSeq);
+    const fm = useFactoryMap.getState();
+    fm.setFittedSeq(highlightSeq);
+    // Machines to look at: the colours that tell their productivity.
+    if (highlightIds.some(id => scene.byId.get(id)?.band)) fm.setColorMode('productivity');
     const vehicles = highlightIds.filter(id => scene.vehicleById.has(id));
-    if (vehicles.length === 1) useFactoryMap.getState().select({ kind: 'vehicle', id: vehicles[0]! });
+    if (vehicles.length === 1 && fm.selection?.id !== vehicles[0]) fm.select({ kind: 'vehicle', id: vehicles[0]! });
     const box = boundsOfIds(scene, highlightIds);
     if (!box) return;
-    const pad = 0.6;
-    const fit = L.latLngBounds(ll(box.minX - pad, box.maxY + pad), ll(box.maxX + pad, box.minY - pad));
-    map.fitBounds(fit, {
-      paddingTopLeft: [24, 24],
-      // Clear of the timeline at the bottom, on wide screens also of the info window on the right (a vehicle is
-      // selected), on phones of the sheet.
-      paddingBottomRight: mobile ? [24, 24 + Math.round(map.getSize().y / 2)] : [vehicles.length === 1 ? 372 : 24, 120],
-      maxZoom: FIT_MAX_ZOOM,
-      animate: !prefersReducedMotion(),
-    });
+    lastFit.current = performance.now();
+    fitBox(map, box, mobile, vehicles.length === 1);
+    // The halo pulses once where the map lands (a steady halo with reduced motion).
+    setPulse(prefersReducedMotion() ? null : performance.now());
   }, [map, highlightSeq, fittedSeq, scene, highlightIds, mobile]);
 
   const highlight = useMemo(() => new Set(highlightIds), [highlightIds]);
@@ -107,21 +129,61 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     () => (data.geometry && data.compare && data.buildings && scene ? placeDiff(data.diff, data.geometry, data.compare, data.buildings, scene.t) : null),
     [data.diff, data.geometry, data.compare, data.buildings, scene],
   );
+  // "Go to the changes": fit to the changed buildings (else to the changed floor pieces).
+  const fittedChanges = useRef(fitChangesSeq);
+  useEffect(() => {
+    if (fitChangesSeq === fittedChanges.current || !scene || !diff) return;
+    fittedChanges.current = fitChangesSeq;
+    const box = changesBox(scene, diff);
+    if (box) {
+      lastFit.current = performance.now();
+      fitBox(map, box, mobile, false);
+    }
+  }, [map, fitChangesSeq, scene, diff, mobile]);
+
+  // A selection made anywhere stays in view: pan the map so the building is clear of the info window.
+  useEffect(() => {
+    if (!scene || !selection) return;
+    const at = selection.kind === 'vehicle' ? scene.vehicleById.get(selection.id) : scene.byId.get(selection.id);
+    if (!at) return;
+    let id = requestAnimationFrame(() => {
+      id = requestAnimationFrame(() => {
+        if (performance.now() - lastFit.current < 1500) return;
+        const box = document.querySelector('.ficsmap-factory-info')?.getBoundingClientRect();
+        const mapBox = map.getContainer().getBoundingClientRect();
+        const size = map.getSize();
+        const pad = 24;
+        let right = pad, bottom = pad;
+        if (box && box.width > 0) {
+          // On the right (wide screens) or at the bottom (phones, a sheet above the sheet's peek).
+          if (box.left - mapBox.left > size.x / 2) right = Math.max(pad, mapBox.right - box.left + pad);
+          else bottom = Math.max(pad, mapBox.bottom - box.top + pad);
+        }
+        map.panInside(ll(at.cx, at.cy), { paddingTopLeft: [pad, pad], paddingBottomRight: [right, bottom], animate: !prefersReducedMotion() });
+      });
+    });
+    return () => cancelAnimationFrame(id);
+    // Only when the selection changes, not on every new scene of the same selection.
+  }, [map, selection?.kind, selection?.id]);
+
   const route = useMemo(() => (scene && selection?.kind === 'vehicle' ? vehicleRoute(scene, selection.id) : null), [scene, selection]);
   const number = useMemo(() => new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0 }), [i18n.language]);
 
   const frame = useMemo((): FactoryFrame => ({
     scene,
     layers, colorMode, diff, highlight,
+    pulse: highlight.size > 0 ? pulse : null,
     selected: selection?.id ?? null,
     hover: hover?.id ?? null,
     route,
-    picture: (sb, px) => pictureOf(icons, sb, px),
+    picture: (sb, px) => pictureOf(icons, sb.entry?.icon, px),
+    itemPicture: (item, px) => pictureOf(icons, item, px),
     label: sb => sb.entry?.name[lang] ?? sb.b.cls,
     stationLabel: st => stationLabel(st, t, number),
     vehicleLabel: v => (scene ? vehicleName(scene, v.v.id, lang) : v.v.cls),
+    fontPx: coarse ? 13 : 12,
     loading: data.loading,
-  }), [scene, layers, colorMode, diff, highlight, selection, hover, route, icons, lang, t, number, data.loading]);
+  }), [scene, layers, colorMode, diff, highlight, pulse, selection, hover, route, icons, lang, t, number, coarse, data.loading]);
 
   const frameRef = useRef(frame);
   const sceneRef = useRef(scene);
@@ -172,14 +234,12 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     };
     const onDragStart = () => { dragging = true; onOut(); };
     const onDragEnd = () => { dragging = false; };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') useFactoryMap.getState().select(null); };
     map.on('mousemove', onMove);
     map.on('mouseout', onOut);
     map.on('preclick', onPreClick);
     map.on('click', onClick);
     map.on('dragstart', onDragStart);
     map.on('dragend', onDragEnd);
-    document.addEventListener('keydown', onKey);
     return () => {
       map.off('mousemove', onMove);
       map.off('mouseout', onOut);
@@ -187,7 +247,6 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
       map.off('click', onClick);
       map.off('dragstart', onDragStart);
       map.off('dragend', onDragEnd);
-      document.removeEventListener('keydown', onKey);
       cancelAnimationFrame(frameId);
       unsubscribeImages();
       container.classList.remove(HOVER_CLASS);
@@ -213,36 +272,50 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   );
 }
 
-function pictureOf(icons: ItemIcons | null, sb: SceneBuilding, px: number): HTMLImageElement | null {
-  const cls = sb.entry?.icon;
+function pictureOf(icons: ItemIcons | null, cls: string | undefined, px: number): HTMLImageElement | null {
   if (!icons || !cls || !icons.has(cls)) return null;
   // Device pixels, so pictures stay sharp on 2x screens.
   return factoryPicture(icons.urls(cls, px * (window.devicePixelRatio || 1)).src);
 }
 
-/** "↑ 312 /min" (loading) or "↓ …" (unloading), with the player's name for the station first when it has one. */
-export function stationLabel(st: SceneStation, t: (k: string, o?: Record<string, unknown>) => string, number: Intl.NumberFormat): string {
-  const rate = st.state === 'idle' ? t('factoryMap.station.idleShort')
-    : t('factoryMap.station.rateShort', { rate: number.format(st.flow.itemsPerMin ?? 0), dir: st.s.loading === false ? '↓' : '↑' });
-  return st.s.name ? `${st.s.name} · ${rate}` : rate;
+/** A station's line on its plate (`FactoryFrame.stationLabel`). */
+export interface StationLabel {
+  text: string;
+  /** No vehicle stops here, or vehicles dock and move nothing: drawn in the danger colour. */
+  problem: boolean;
+  /** What lies in the station (the most), for its picture in front of the line; null when empty or unknown. */
+  item: string | null;
 }
 
-/** The selected vehicle's way along the roads between its stops, in map units, and its stops with their numbers. */
-function vehicleRoute(scene: Scene, id: string): FactoryFrame['route'] {
-  const v = scene.vehicleById.get(id);
-  if (!v || v.v.route.length === 0) return null;
-  const legs = routePath(scene.snapshot, v.v.route).map(leg => {
-    const out = new Float32Array(leg.length * 2);
-    leg.forEach((p, i) => { out[i * 2] = scene.t.x(p.x); out[i * 2 + 1] = scene.t.y(p.y); });
-    return out;
+/** How full its vehicles leave or arrive (the mean of the visits that know it), 0..1, or null. */
+export function stationFill(st: SceneStation): number | null {
+  const fills = st.flow.visits.map(v => v.fill).filter((f): f is number => f !== null && f !== undefined);
+  return fills.length > 0 ? fills.reduce((a, b) => a + b, 0) / fills.length : null;
+}
+
+/**
+ * "↑ 312 /min · 80 %" (loading, how full) or "↓ …" (unloading), with the player's name for the station first when it
+ * has one and the picture of what lies in it; a problem station (no vehicles, nothing moved) in red.
+ */
+export function stationLabel(st: SceneStation, t: (k: string, o?: Record<string, unknown>) => string, number: Intl.NumberFormat): StationLabel {
+  const dir = st.s.loading === false ? '↓' : '↑';
+  const fill = stationFill(st);
+  const rate = st.state === 'idle' ? t('factoryMap.station.idleShort')
+    : fill !== null && st.state === 'active'
+      ? t('factoryMap.station.rateFillShort', { rate: number.format(st.flow.itemsPerMin ?? 0), dir, fill: number.format(Math.round(fill * 100)) })
+      : t('factoryMap.station.rateShort', { rate: number.format(st.flow.itemsPerMin ?? 0), dir });
+  return { text: st.s.name ? `${st.s.name} · ${rate}` : rate, problem: st.state !== 'active', item: st.flow.cargo?.[0]?.item ?? null };
+}
+
+/** Fits the map to a box of map units, clear of the timeline, the info window (`withInfo`) and on phones the sheet. */
+function fitBox(map: L.Map, box: { minX: number; minY: number; maxX: number; maxY: number }, mobile: boolean, withInfo: boolean): void {
+  const pad = 0.6;
+  map.fitBounds(L.latLngBounds(ll(box.minX - pad, box.maxY + pad), ll(box.maxX + pad, box.minY - pad)), {
+    paddingTopLeft: [24, 72],
+    paddingBottomRight: mobile ? [24, 24 + Math.round(map.getSize().y / 2)] : [withInfo ? 372 : 24, 140],
+    maxZoom: FIT_MAX_ZOOM,
+    animate: !prefersReducedMotion(),
   });
-  const labels = new Map<string, number[]>();
-  v.v.route.forEach((sid, i) => (labels.get(sid) ?? labels.set(sid, []).get(sid)!).push(i + 1));
-  const stops = [...labels].flatMap(([sid, nums]) => {
-    const st = scene.stationById.get(sid);
-    return st ? [{ cx: st.cx, cy: st.cy, label: nums.join('·') }] : [];
-  });
-  return { legs, stops };
 }
 
 const fogCache = new WeakMap<FactorySnapshot, Promise<string | null>>();

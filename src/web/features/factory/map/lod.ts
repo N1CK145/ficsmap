@@ -41,7 +41,7 @@ export const OUTLINES_FROM = 5;
 export const LINES_FROM = 4;
 export const POWER_FROM = 5;
 export const SOFT_FROM = 8;
-export const STATION_LABELS_FROM = 5;
+export const STATION_LABELS_FROM = 6;
 export const VEHICLE_LABELS_FROM = 6;
 export const MARKER_LABELS_FROM = 3;
 
@@ -58,12 +58,14 @@ export function detailAt(zoom: number): Detail {
   };
 }
 
-/** A building's picture shows once its shorter side is this many CSS px. */
+/** A building's picture shows once its shorter side is this many CSS px (the game picture only at `labelled`). */
 export const PICTURE_MIN_PX = 24;
 /** Its name shows once its shorter side is this many CSS px (the picture then moves up). */
 export const LABEL_MIN_PX = 64;
-/** Issue glyphs show on buildings at least this large; smaller ones only get their colour. */
-export const GLYPH_MIN_PX = 10;
+/** Reason glyphs show (in the productivity mode) on buildings at least this large; smaller ones keep colour and pattern. */
+export const GLYPH_MIN_PX = 18;
+/** From this zoom a machine's tile carries the picture of the item it makes in a corner. */
+export const PRODUCT_PIN_ZOOM = 8;
 
 export type BuildingLook = 'dot' | 'box' | 'picture' | 'labelled';
 

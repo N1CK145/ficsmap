@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useId, type ReactNode, type Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from './icons.js';
 import { IconButton } from './IconButton.js';
@@ -14,6 +14,11 @@ export interface WindowTitleBarProps {
   title: ReactNode;
   /** The title's id, for the window's aria-labelledby. */
   titleId?: string;
+  /**
+   * A ref to the title. With it the title can take the focus from a script (tabIndex -1), so a window opened from a
+   * button can move the focus into itself.
+   */
+  titleRef?: Ref<HTMLHeadingElement>;
   /** Heading level of the title; h2 by default. */
   level?: 2 | 3;
   /** A picture or icon before the title (decorative). */
@@ -33,14 +38,14 @@ export interface WindowTitleBarProps {
  * The title bar of a window: an orange rule on top, the title in condensed capitals, optional icon, subtitle and
  * actions, and the × on the right. Dialogs and the item panel use it; `Window` puts it on a frame.
  */
-export function WindowTitleBar({ title, titleId, level = 2, icon, subtitle, actions, onClose, closeLabel, tone = 'accent' }: WindowTitleBarProps) {
+export function WindowTitleBar({ title, titleId, titleRef, level = 2, icon, subtitle, actions, onClose, closeLabel, tone = 'accent' }: WindowTitleBarProps) {
   const { t } = useTranslation();
   const Heading = level === 2 ? 'h2' : 'h3';
   return (
     <div className={`flex shrink-0 items-center gap-2.5 border-t-2 border-b border-b-line bg-raised py-1.5 pr-1.5 pl-3 ${tone === 'danger' ? 'border-t-conflict' : 'border-t-accent'}`}>
       {icon !== undefined && <span aria-hidden="true" className="flex shrink-0 items-center">{icon}</span>}
       <div className="min-w-0 flex-1 py-0.5">
-        <Heading id={titleId} className="font-display text-lg leading-tight font-semibold tracking-wider [overflow-wrap:anywhere] uppercase">{title}</Heading>
+        <Heading id={titleId} ref={titleRef} tabIndex={titleRef ? -1 : undefined} className={`font-display text-lg leading-tight font-semibold tracking-wider [overflow-wrap:anywhere] uppercase ${titleRef ? 'focus:outline-none' : ''}`}>{title}</Heading>
         {subtitle !== undefined && <p className="truncate text-sm text-muted">{subtitle}</p>}
       </div>
       {actions}

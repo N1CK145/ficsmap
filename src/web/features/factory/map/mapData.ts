@@ -78,9 +78,10 @@ export function useMapData(worldId: string, version: string, bounds: WorldBounds
   const diff = useFactoryDiff(compared, current);
   const snapshot = shown.data;
   const analysis = current?.analysis ?? null;
+  const routes = current?.routes ?? null;
   const scene = useMemo(
-    () => (snapshot && buildings && bounds ? sceneOf(snapshot, buildings, bounds, analysis) : null),
-    [snapshot, buildings, bounds, analysis],
+    () => (snapshot && buildings && bounds ? sceneOf(snapshot, buildings, bounds, analysis, routes) : null),
+    [snapshot, buildings, bounds, analysis, routes],
   );
   const geometry = useMemo(() => (snapshot && compareQ.data ? geometryDiffOf(compareQ.data, snapshot) : null), [snapshot, compareQ.data]);
   // While the next snapshot downloads, the last one stays on the map (drawn faded).
