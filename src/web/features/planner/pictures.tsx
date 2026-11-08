@@ -40,15 +40,24 @@ export function Picture({ cls, px, dashed = false, className = '' }: { cls: stri
  * corner (`pin` px), as the game shows a machine's recipe.
  */
 export function StepPicture({ step, px, pin }: { step: PlanStep; px: number; pin: number }) {
-  const icons = useContext(IconsContext);
   const picture = stepPicture(step);
-  const pinned = picture.cls !== step.item && icons?.has(step.item);
+  return <PinnedPicture cls={picture.cls} item={picture.cls !== step.item ? step.item : undefined} px={px} pin={pin} dashed={picture.dashed} />;
+}
+
+/**
+ * A building's picture with the item it makes pinned to its bottom right corner (`pin` px), as the game shows a
+ * machine's recipe; without `item`, or without a picture of it, only the building. The planner's steps and the
+ * factory's production lines use it.
+ */
+export function PinnedPicture({ cls, item, px, pin, dashed = false }: { cls: string; item?: string; px: number; pin: number; dashed?: boolean }) {
+  const icons = useContext(IconsContext);
+  const pinned = item !== undefined && icons?.has(item);
   return (
     <span className="relative shrink-0">
-      <Picture cls={picture.cls} px={px} dashed={picture.dashed} />
+      <Picture cls={cls} px={px} dashed={dashed} />
       {pinned && (
-        <span data-pin={step.item} className="absolute -right-1.5 -bottom-1.5 flex chamfer border border-line bg-panel p-px">
-          <GameIcon cls={step.item} px={pin} />
+        <span data-pin={item} className="absolute -right-1.5 -bottom-1.5 flex chamfer border border-line bg-panel p-px">
+          <GameIcon cls={item} px={pin} />
         </span>
       )}
     </span>

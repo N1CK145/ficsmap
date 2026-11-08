@@ -1066,6 +1066,69 @@
       "since": "{delta} seit {date}",
       "inefficientPaused": "{count, number} ineffizient, {paused, number} pausiert"
     },
+    "lines": {
+      "title": "Produktionsstränge",
+      "subtitle": "{count, plural, one {# Strang} other {# Stränge}} · {machines, plural, one {# Maschine} other {# Maschinen}}",
+      "listLabel": "Produktionsstränge",
+      "more": "{list} +{count, number}",
+      "view": "Strang zeigen als",
+      "viewDiagram": "Diagramm",
+      "viewMap": "Karte",
+      "groupTitle": "{count, number}× {name}",
+      "rateOf": "{actual} von {nominal}",
+      "rateOfCapacity": "{rate} von {capacity}",
+      "of": "von {value}",
+      "connection": "Verbindung",
+      "makes": "Stellt her",
+      "needs": "Braucht",
+      "members": "Gebäude dieser Gruppe",
+      "groupsLabel": "Gruppen dieses Strangs",
+      "close": "{name} schließen",
+      "none": "In diesem Spielstand gibt es keine Produktionsstränge: Keine Maschinen sind über Förderbänder oder Rohre verbunden.",
+      "noLinks": "Verbindungen fehlen in diesem Spielstand. Importiere den Spielstand erneut, um die Produktionsstränge zu sehen.",
+      "reimport": "Spielstand erneut importieren",
+      "noLinksMember": "{owner} besitzt diese Welt und kann ihn erneut importieren.",
+      "kind": {
+        "splitter": "Splitter",
+        "merger": "Fusionator",
+        "junction": "Pipeline-Kreuzung",
+        "pump": "Pipeline-Pumpe",
+        "valve": "Ventil",
+        "storage": "Lager",
+        "tank": "Flüssigkeitsspeicher",
+        "station": "Station",
+        "sink": "AWESOME-Schredder",
+        "other": "Logistik"
+      },
+      "band": {
+        "idle": "Steht",
+        "throttled": "Teillast",
+        "high": "Fast voll",
+        "full": "Voll",
+        "paused": "Pausiert"
+      },
+      "bottleneck": {
+        "badge": "Engpass",
+        "edge": "Engpass: {belt} zwischen {from} und {to}",
+        "edgeFlow": "Engpass: {belt} zwischen {from} und {to} ({flow}, voll)",
+        "group": "Engpass: {group} · {why}",
+        "demand": "es wird weniger abgenommen, als sie herstellt"
+      },
+      "diagram": {
+        "label": "Produktionsstrang {name}",
+        "hint": "Zulieferung oben, Produkte unten; an jedem Förderband und Rohr die Menge pro Minute und seine Kapazität. Wähle eine Gruppe, um ihre Maschinen zu sehen; die Pfeiltasten wechseln zwischen den Gruppen, Escape schließt die Gruppe."
+      },
+      "legend": {
+        "load": "Dicker = vollere Förderbänder und Rohre",
+        "full": "Voll (≥ 95 %)",
+        "byproduct": "Nebenprodukt",
+        "loop": "Zurück in den Strang",
+        "hidden": "{count, plural, one {# Pumpe, Ventil oder Verteiler} other {# Pumpen, Ventile und Verteiler}} ohne Abzweig ausgeblendet",
+        "estimated": "Mengen über Splitter, Fusionatoren und Zwischenlager sind geschätzt: Der Spielstand sagt nicht, welche Maschine wohin liefert."
+      },
+      "logisticsInDiagram": "{count, plural, one {# Logistikgebäude} other {# Logistikgebäude}} (Splitter, Lager, Stationen) im Diagramm darunter.",
+      "machinesOnly": "Nur Maschinen"
+    },
     "items": {
       "title": "Ineffiziente Gegenstände",
       "subtitle": "{losing, plural, =0 {Alle Gegenstände laufen voll} one {# Gegenstand unter Soll} other {# Gegenstände unter Soll}}{shortage, plural, =0 {} other {, davon # mit Mangel}}{full, plural, =0 {} other {, # laufen voll}}",

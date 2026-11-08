@@ -12,6 +12,7 @@ export { FACTORY_PAGE, FactoryPage } from './FactoryPage.js';
 export { defaultCompareId, resolveTimeline, stepId, useFactoryWorld, useTimeline } from './timeline.js';
 export type { TimelineSelection } from './timeline.js';
 export { useFactoryView } from './view.js';
+export { LINE_PARAM, linePath } from './lineDiagram.js';
 
 /** "Factory" in the world's navigation, right after the map. */
 export const factoryTool = pageTool({ id: 'factory', order: 35, labelKey: 'factory.title', hintKey: 'factory.hint', page: FACTORY_PAGE, icon: createElement(FactoryIcon) });

@@ -14,15 +14,18 @@ export interface FactoryViewState {
   highlight: readonly string[];
   /** Bumped on every `showOnMap`, so the map fits again even when the same ids are highlighted twice. */
   highlightSeq: number;
+  /** The production line shown on the map (`ProductionLine.id`); null = none. */
+  lineId: string | null;
   select(id: number | null): void;
   compareWith(id: number | null): void;
   showOnMap(ids: readonly string[]): void;
   clearHighlight(): void;
+  selectLine(id: string | null): void;
   /** Back to the defaults (on leaving a world). */
   reset(): void;
 }
 
-const DEFAULTS = { selectedId: null, compareId: null, highlight: [] as readonly string[], highlightSeq: 0 };
+const DEFAULTS = { selectedId: null, compareId: null, highlight: [] as readonly string[], highlightSeq: 0, lineId: null as string | null };
 
 export const useFactoryView = create<FactoryViewState>(set => ({
   ...DEFAULTS,
@@ -30,5 +33,6 @@ export const useFactoryView = create<FactoryViewState>(set => ({
   compareWith: id => set({ compareId: id }),
   showOnMap: ids => set(s => ({ highlight: [...ids], highlightSeq: s.highlightSeq + 1 })),
   clearHighlight: () => set({ highlight: [] }),
+  selectLine: id => set({ lineId: id }),
   reset: () => set(DEFAULTS),
 }));

@@ -61,14 +61,20 @@ interface FactoryPageState {
   sort: MachineSort;
   /** Items whose machines are unfolded in "Inefficient items". */
   expanded: string[];
+  /** The production line whose diagram is shown (`ProductionLine.id`); null = the first. */
+  line: string | null;
+  /** The line diagram shows only machines (no splitters, mergers, pumps); null = only for large lines. */
+  machinesOnly: boolean | null;
   enterWorld(worldId: string): void;
   setFilter(patch: Partial<Pick<FactoryPageState, 'cls' | 'reason' | 'state'>>): void;
   clearFilters(): void;
   setSort(sort: MachineSort): void;
   toggleItem(item: string): void;
+  setLine(id: string | null): void;
+  setMachinesOnly(on: boolean): void;
 }
 
-/** The factory page's own state (filters, sort, unfolded rows), kept while the map is shown; reset per world. */
+/** The factory page's own state (filters, sort, unfolded rows, the production line shown), kept while the map is shown; reset per world. */
 export const useFactoryPage = create<FactoryPageState>()((set, get) => ({
   worldId: null,
   cls: null,
@@ -76,13 +82,17 @@ export const useFactoryPage = create<FactoryPageState>()((set, get) => ({
   state: null,
   sort: 'productivity',
   expanded: [],
+  line: null,
+  machinesOnly: null,
   enterWorld: worldId => {
     if (get().worldId === worldId) return;
-    set({ worldId, cls: null, reason: null, state: null, sort: 'productivity', expanded: [] });
+    set({ worldId, cls: null, reason: null, state: null, sort: 'productivity', expanded: [], line: null, machinesOnly: null });
   },
   setFilter: patch => set(patch),
   clearFilters: () => set({ cls: null, reason: null, state: null }),
   setSort: sort => set({ sort }),
+  setLine: line => set({ line }),
+  setMachinesOnly: on => set({ machinesOnly: on }),
   toggleItem: item => set(s => ({ expanded: s.expanded.includes(item) ? s.expanded.filter(i => i !== item) : [...s.expanded, item] })),
 }));
 
