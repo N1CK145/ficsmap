@@ -23,6 +23,8 @@ import { lineById, lineGeometry, lineName, lineOf, pickLineSpline, sceneLineById
 import { LINES_FROM } from './lod.js';
 import { vehicleRoute } from './routes.js';
 import { useFactoryMap, ZOOM_KEY, type FactorySelection } from './useFactoryMap.js';
+import { filterDiff } from './height.js';
+import { useHeight } from './useHeight.js';
 import { HoverTip } from './HoverTip.js';
 import { langOf, stationNumber, vehicleName } from './names.js';
 
@@ -151,6 +153,10 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   const bounds = ctx.index.ds.bounds;
   const data = useMapData(ctx.worldId, version, bounds, true);
   const scene = data.scene;
+  // With a height range only what lies in it is drawn, picked and lit (`shown`); fits, names and numbers stay on the
+  // whole scene.
+  const height = useHeight(ctx.worldId, scene, { deferred: true, settled: !data.loading });
+  const shown = height.shown;
   const icons = useItemIcons(version, !!scene);
   const [hover, setHover] = useState<FactorySelection | null>(null);
   /** The belt or pipe of a production line under the pointer when no building is (spline id). */
@@ -191,6 +197,7 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     () => (data.geometry && data.compare && data.buildings && scene ? placeDiff(data.diff, data.geometry, data.compare, data.buildings, scene.t) : null),
     [data.diff, data.geometry, data.compare, data.buildings, scene],
   );
+  const shownDiff = useMemo(() => (diff && shown !== scene ? filterDiff(diff, height.range, height.profile) : diff), [diff, shown, scene, height.range, height.profile]);
   // The areas of changes, densest first; the timeline's "Go to the changes" steps through them.
   const areas = useMemo(() => (scene && diff ? changeAreas(scene, diff) : []), [scene, diff]);
   useEffect(() => { useFactoryMap.getState().setChangeAreaCount(areas.length); }, [areas]);
@@ -222,12 +229,13 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     whenSized(map, () => fitBox(map, box, mobile, true));
   }, [map, fittedLineId, scene, lines, lineId, mobile]);
 
-  // Closing or choosing anything ends the hover: its tip and lit line never outlive what was pointed at.
+  // Closing or choosing anything ends the hover, and so does another height range (what was pointed at may be gone):
+  // its tip and lit line never outlive what was pointed at.
   const selectionId = selection?.id ?? null;
   useEffect(() => {
     setHover(null);
     setHoverBelt(null);
-  }, [selectionId, lineId]);
+  }, [selectionId, lineId, shown]);
 
   // The line of the building under the pointer lights up (the panel's list marks its row too).
   useEffect(() => {
@@ -238,9 +246,9 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   useEffect(() => () => useFactoryMap.getState().hoverLine(null), []);
 
   const frameLine = useMemo((): FrameLine | null => {
-    const line = scene ? shownLine(lines, hoverLineId, lineId) : undefined;
-    return scene && line ? { geom: lineGeometry(scene, line), focus: hover?.kind === 'building' ? hover.id : null } : null;
-  }, [scene, lines, hoverLineId, lineId, hover]);
+    const line = shown ? shownLine(lines, hoverLineId, lineId) : undefined;
+    return shown && line ? { geom: lineGeometry(shown, line), focus: hover?.kind === 'building' ? hover.id : null } : null;
+  }, [shown, lines, hoverLineId, lineId, hover]);
 
   // A selection made anywhere stays in view: pan the map so the building is clear of the info window. A line chosen by
   // a tap on the map does the same for the building (or belt) tapped, so a second tap reaches it, not the card.
@@ -283,8 +291,9 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   const number = useMemo(() => new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0 }), [i18n.language]);
 
   const frame = useMemo((): FactoryFrame => ({
-    scene,
-    layers, colorMode, diff, highlight,
+    scene: shown,
+    below: height.below,
+    layers, colorMode, diff: shownDiff, highlight,
     pulse: highlight.size > 0 ? pulse : null,
     selected: selection?.id ?? null,
     hover: hover?.id ?? null,
@@ -297,10 +306,11 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     vehicleLabel: v => (scene ? vehicleName(scene, v.v.id, lang) : v.v.cls),
     fontPx: coarse ? 14 : 13,
     loading: data.loading,
-  }), [scene, layers, colorMode, diff, highlight, pulse, selection, hover, route, frameLine, icons, lang, t, number, coarse, data.loading]);
+  }), [scene, shown, height.below, layers, colorMode, shownDiff, highlight, pulse, selection, hover, route, frameLine, icons, lang, t, number, coarse, data.loading]);
 
   const frameRef = useRef(frame);
-  const sceneRef = useRef(scene);
+  /** The scene the pointer picks from: what is drawn (within the height range). */
+  const sceneRef = useRef(shown);
   const linesRef = useRef(lines);
   linesRef.current = lines;
   const analysisRef = useRef(data.analysis);
@@ -394,9 +404,9 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   // Before paint, so the layer never draws a frame with stale data.
   useLayoutEffect(() => {
     frameRef.current = frame;
-    sceneRef.current = scene;
+    sceneRef.current = shown;
     layerRef.current?.redraw();
-  }, [frame, scene]);
+  }, [frame, shown]);
 
   const hoverLine = hover?.kind === 'building' ? lineOf(lines, hover.id, lineId) : undefined;
   const hoverLineText = hoverLine && data.labels
@@ -407,7 +417,7 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     <>
       {layers.fog && scene.snapshot.fog && <Fog snapshot={scene.snapshot} />}
       {hover && hover.id !== selection?.id && (
-        <HoverTip scene={scene} hit={hover} lang={lang} line={hoverLineText} cluster={hoverLine ? lineGeometry(scene, hoverLine).buildings : undefined} />
+        <HoverTip scene={scene} hit={hover} lang={lang} line={hoverLineText} cluster={hoverLine ? lineGeometry(shown ?? scene, hoverLine).buildings : undefined} />
       )}
     </>
   );

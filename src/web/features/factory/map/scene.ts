@@ -101,6 +101,12 @@ export interface SceneBuilding {
    * inset and dimmed under the upper one and gives only the upper one a name (`stackUnder`).
    */
   under: boolean;
+  /**
+   * The body's vertical extent in world cm (`zMin` its foot, `zMax` its top): the hard boxes' heights (all boxes when it
+   * has only soft ones; a lift from its foot to its top end), else just its base. The height range filter reads it.
+   */
+  zMin: number;
+  zMax: number;
 }
 
 export interface SceneLine {
@@ -110,6 +116,9 @@ export interface SceneLine {
   /** x, y per point, map units. */
   pts: Float32Array;
   minX: number; minY: number; maxX: number; maxY: number;
+  /** Lowest and highest point in world cm (a polyline passes every height in between). */
+  zMin: number;
+  zMax: number;
 }
 
 export interface SceneStation {
@@ -139,7 +148,7 @@ export interface SceneVehicle {
 
 export interface ScenePoint { cx: number; cy: number }
 
-export interface SceneCrate extends ScenePoint { id: string; kind: string; c: SnapshotCrate }
+export interface SceneCrate extends ScenePoint { id: string; kind: string; z: number; c: SnapshotCrate }
 
 export interface Scene {
   snapshot: FactorySnapshot;
@@ -148,9 +157,13 @@ export interface Scene {
   byId: Map<string, SceneBuilding>;
   /** Floor pieces (lightweight and actor foundations, ramps, walls), 8 numbers per piece, lowest first. */
   floor: Float32Array;
+  /** Each floor piece's level in world cm, the surface one stands on (`floorLevel`), in the order of `floor`. */
+  floorZ: Float32Array;
   lines: SceneLine[];
   /** Power lines: x1, y1, x2, y2 per line, map units. */
   power: Float32Array;
+  /** Each power line's lower and upper end in world cm (zMin, zMax per line). */
+  powerZ: Float32Array;
   stations: SceneStation[];
   stationById: Map<string, SceneStation>;
   vehicles: SceneVehicle[];
@@ -169,7 +182,18 @@ export interface Scene {
 export const GRID = 0.5;
 const cellKey = (gx: number, gy: number) => (gx + 2048) * 8192 + (gy + 2048);
 
-function bboxOf(pts: ArrayLike<number>): { minX: number; minY: number; maxX: number; maxY: number } {
+/** Lowest and highest z of a flat x, y, z point list (world cm). */
+export function zRangeOf(xyz: ArrayLike<number>): { zMin: number; zMax: number } {
+  let zMin = Infinity, zMax = -Infinity;
+  for (let i = 2; i < xyz.length; i += 3) {
+    const z = xyz[i]!;
+    if (z < zMin) zMin = z;
+    if (z > zMax) zMax = z;
+  }
+  return Number.isFinite(zMin) ? { zMin, zMax } : { zMin: 0, zMax: 0 };
+}
+
+export function bboxOf(pts: ArrayLike<number>): { minX: number; minY: number; maxX: number; maxY: number } {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (let i = 0; i < pts.length; i += 2) {
     const x = pts[i]!, y = pts[i + 1]!;
@@ -179,6 +203,40 @@ function bboxOf(pts: ArrayLike<number>): { minX: number; minY: number; maxX: num
     if (y > maxY) maxY = y;
   }
   return { minX, minY, maxX, maxY };
+}
+
+/**
+ * The vertical extent of a building in world cm: its body's boxes (`splitBoxes`' rule: the hard ones, else all), a
+ * lift from its foot to its other end (`height`, up or down), else only its base.
+ */
+export function zExtent(b: Pick<SnapshotBuilding, 'z' | 'height'>, entry: Pick<BuildingEntry, 'footprint'> | undefined): { zMin: number; zMax: number } {
+  if (b.height !== undefined && b.height !== 0) return { zMin: Math.min(b.z, b.z + b.height), zMax: Math.max(b.z, b.z + b.height) };
+  const all = entry?.footprint?.boxes ?? [];
+  const hard = all.filter(x => !x.soft);
+  const boxes = hard.length > 0 ? hard : all;
+  if (boxes.length === 0) return { zMin: b.z, zMax: b.z };
+  let lo = Infinity, hi = -Infinity;
+  for (const x of boxes) {
+    if (x.min[2] < lo) lo = x.min[2];
+    if (x.max[2] > hi) hi = x.max[2];
+  }
+  return { zMin: b.z + Math.min(lo, 0), zMax: b.z + Math.max(hi, 0) };
+}
+
+/**
+ * The level of a floor piece in world cm, the surface one stands on: the top of a piece whose boxes are centred on its
+ * origin (foundations, ramps: a 4 m foundation at z reaches from z - 2 m to z + 2 m, its machines stand at z + 2 m),
+ * else its base (walls, railings and pillars stand on their origin).
+ */
+export function floorLevel(entry: Pick<BuildingEntry, 'footprint'> | undefined, z: number): number {
+  const boxes = entry?.footprint?.boxes ?? [];
+  if (boxes.length === 0) return z;
+  let lo = Infinity, hi = -Infinity;
+  for (const x of boxes) {
+    if (x.min[2] < lo) lo = x.min[2];
+    if (x.max[2] > hi) hi = x.max[2];
+  }
+  return lo < 0 ? z + hi : z;
 }
 
 /** A building placed on the map: its boxes, outline, kind and productivity. */
@@ -203,6 +261,7 @@ export function placeBuilding(b: SnapshotBuilding, entry: BuildingEntry | undefi
     minSide: Math.min(w, d), maxSide: Math.max(w, d),
     ...box,
     under: false,
+    ...zExtent(b, entry),
   };
 }
 
@@ -230,17 +289,19 @@ export function buildScene(
 ): Scene {
   const t = mapTransform(bounds);
   const buildings: SceneBuilding[] = [];
-  const floorPieces: { z: number; pts: number[] }[] = [];
+  const floorPieces: { z: number; level: number; pts: number[] }[] = [];
   for (const l of snapshot.lightweight) {
-    const r = floorRect(index.get(l.cls));
+    const entry = index.get(l.cls);
+    const r = floorRect(entry);
     for (let i = 0; i + 3 < l.xyzYaw.length; i += 4) {
-      floorPieces.push({ z: l.xyzYaw[i + 2]!, pts: toMapUnits(rectCorners(l.xyzYaw[i]!, l.xyzYaw[i + 1]!, l.xyzYaw[i + 3]!, r), t) });
+      const z = l.xyzYaw[i + 2]!;
+      floorPieces.push({ z, level: floorLevel(entry, z), pts: toMapUnits(rectCorners(l.xyzYaw[i]!, l.xyzYaw[i + 1]!, l.xyzYaw[i + 3]!, r), t) });
     }
   }
   for (const b of snapshot.buildings) {
     const entry = index.get(b.cls);
     if (entry?.category === 'structure') {
-      floorPieces.push({ z: b.z, pts: toMapUnits(rectCorners(b.x, b.y, b.yaw, floorRect(entry)), t) });
+      floorPieces.push({ z: b.z, level: floorLevel(entry, b.z), pts: toMapUnits(rectCorners(b.x, b.y, b.yaw, floorRect(entry)), t) });
       continue;
     }
     buildings.push(placeBuilding(b, entry, t, analysis));
@@ -249,7 +310,8 @@ export function buildScene(
   buildings.sort((a, b) => a.b.z - b.b.z);
   floorPieces.sort((a, b) => a.z - b.z);
   const floor = new Float32Array(floorPieces.length * 8);
-  floorPieces.forEach((p, i) => floor.set(p.pts, i * 8));
+  const floorZ = new Float32Array(floorPieces.length);
+  floorPieces.forEach((p, i) => { floor.set(p.pts, i * 8); floorZ[i] = p.level; });
 
   const lines: SceneLine[] = [];
   for (const s of snapshot.splines) {
@@ -260,17 +322,21 @@ export function buildScene(
       pts[j] = t.x(s.pts[i]!);
       pts[j + 1] = t.y(s.pts[i + 1]!);
     }
-    lines.push({ id: s.id, cls: s.cls, style, pts, ...bboxOf(pts) });
+    lines.push({ id: s.id, cls: s.cls, style, pts, ...bboxOf(pts), ...zRangeOf(s.pts) });
   }
   // Higher tiers on top.
   lines.sort((a, b) => a.style.tier - b.style.tier);
 
-  const power = new Float32Array((snapshot.powerLines.length / 6) * 4);
-  for (let i = 0, j = 0; i + 5 < snapshot.powerLines.length; i += 6, j += 4) {
-    power[j] = t.x(snapshot.powerLines[i]!);
-    power[j + 1] = t.y(snapshot.powerLines[i + 1]!);
-    power[j + 2] = t.x(snapshot.powerLines[i + 3]!);
-    power[j + 3] = t.y(snapshot.powerLines[i + 4]!);
+  const pl = snapshot.powerLines;
+  const power = new Float32Array((pl.length / 6) * 4);
+  const powerZ = new Float32Array((pl.length / 6) * 2);
+  for (let i = 0, j = 0, k = 0; i + 5 < pl.length; i += 6, j += 4, k += 2) {
+    power[j] = t.x(pl[i]!);
+    power[j + 1] = t.y(pl[i + 1]!);
+    power[j + 2] = t.x(pl[i + 3]!);
+    power[j + 3] = t.y(pl[i + 4]!);
+    powerZ[k] = Math.min(pl[i + 2]!, pl[i + 5]!);
+    powerZ[k + 1] = Math.max(pl[i + 2]!, pl[i + 5]!);
   }
 
   const routes = routeAnalysis ?? analyzeRoutes(snapshot);
@@ -286,21 +352,10 @@ export function buildScene(
     return { v, flow: routes.vehicles[i]!, entry, cx: t.x(v.x), cy: t.y(v.y), outline: toMapUnits(rectCorners(v.x, v.y, v.yaw, local), t) };
   });
 
-  const grid = new Map<number, number[]>();
-  buildings.forEach((sb, i) => {
-    for (let gx = Math.floor(sb.minX / GRID); gx <= Math.floor(sb.maxX / GRID); gx++) {
-      for (let gy = Math.floor(sb.minY / GRID); gy <= Math.floor(sb.maxY / GRID); gy++) {
-        const k = cellKey(gx, gy);
-        const cell = grid.get(k);
-        if (cell) cell.push(i);
-        else grid.set(k, [i]);
-      }
-    }
-  });
-
+  const grid = gridOf(buildings);
   stackUnder(buildings, grid, t);
 
-  const crates = snapshot.crates.map((c, i): SceneCrate => ({ id: c.id ?? `crate-${i}`, kind: c.kind, c, cx: t.x(c.x), cy: t.y(c.y) }));
+  const crates = snapshot.crates.map((c, i): SceneCrate => ({ id: c.id ?? `crate-${i}`, kind: c.kind, z: c.z, c, cx: t.x(c.x), cy: t.y(c.y) }));
 
   const all: number[] = [];
   for (const sb of buildings) all.push(sb.minX, sb.minY, sb.maxX, sb.maxY);
@@ -311,7 +366,7 @@ export function buildScene(
   return {
     snapshot, t, buildings,
     byId: new Map(buildings.map(sb => [sb.b.id, sb])),
-    floor, lines, power,
+    floor, floorZ, lines, power, powerZ,
     stations, stationById: new Map(stations.map(s => [s.s.id, s])),
     vehicles, vehicleById: new Map(vehicles.map(v => [v.v.id, v])),
     markers: snapshot.markers.map(m => ({ m, cx: t.x(m.x), cy: t.y(m.y) })),
@@ -333,6 +388,22 @@ export function sceneOf(
   const scene = buildScene(snapshot, index, bounds, analysis, routes);
   cache.set(snapshot, { index, bounds, analysis, routes, scene });
   return scene;
+}
+
+/** The hit-test grid over buildings: per `GRID` cell the indexes of the buildings whose box touches it. */
+export function gridOf(buildings: readonly SceneBuilding[]): Map<number, number[]> {
+  const grid = new Map<number, number[]>();
+  buildings.forEach((sb, i) => {
+    for (let gx = Math.floor(sb.minX / GRID); gx <= Math.floor(sb.maxX / GRID); gx++) {
+      for (let gy = Math.floor(sb.minY / GRID); gy <= Math.floor(sb.maxY / GRID); gy++) {
+        const k = cellKey(gx, gy);
+        const cell = grid.get(k);
+        if (cell) cell.push(i);
+        else grid.set(k, [i]);
+      }
+    }
+  });
+  return grid;
 }
 
 /** A building counts as standing on top of another when it is at least this much higher (cm; a floor is 4 m). */
