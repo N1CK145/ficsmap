@@ -1,7 +1,7 @@
 import { plan, type PlanInput, type PlanSettings } from '../../src/shared/planner.js';
 import { indexRecipes } from '../../src/shared/recipes.js';
 import {
-  DIAGRAM_DEFAULTS, diagramColumns, diagramLinks, layoutDiagram, pack, type DiagramLayout, type DiagramStep,
+  DIAGRAM_DEFAULTS, diagramLinks, diagramRows, layoutDiagram, pack, type DiagramLayout, type DiagramStep, type Point,
 } from '../../src/web/features/planner/diagramLayout.js';
 import { RECIPE_DATA } from '../fixtures/recipeData.js';
 
@@ -21,21 +21,28 @@ const step = (item: string, depth: number, inputs: [string, number][] = [], extr
 
 const node = (l: DiagramLayout, item: string) => l.nodes.find(n => n.item === item)!;
 const edge = (l: DiagramLayout, from: string, to: string) => l.edges.find(e => e.from === from && e.to === to)!;
-const column = (l: DiagramLayout, c: number) => l.nodes.filter(n => n.column === c).map(n => n.item);
+const row = (l: DiagramLayout, r: number) => l.nodes.filter(n => n.row === r).map(n => n.item);
+/** The rectangle a label may take. */
+const labelBox = (e: DiagramLayout['edges'][number]) => ({
+  left: e.label.x - e.label.width / 2, right: e.label.x + e.label.width / 2,
+  top: e.label.y - DIAGRAM_DEFAULTS.labelHeight / 2, bottom: e.label.y + DIAGRAM_DEFAULTS.labelHeight / 2,
+});
 
 describe('planner diagram layout', () => {
-  it('puts the wanted items left, their ingredients right and extraction in the last column', () => {
+  it('puts extraction in the top row, what is made from it below and the wanted items at the bottom', () => {
     const steps = planSteps({ targets: [{ item: 'plate', rate: 30 }], choices: { plate: { kind: 'recipe', recipe: 'R_PlateAlt' } } });
     expect(steps.find(s => s.item === 'water')!.depth).toBe(1);
-    // Water is extracted: it joins the ore at the right end, not the ingot.
-    expect(Object.fromEntries(diagramColumns(steps))).toEqual({ plate: 0, ingot: 1, water: 2, ore: 2 });
+    // Water is extracted: it joins the ore in the top row, not the ingot.
+    expect(Object.fromEntries(diagramRows(steps))).toEqual({ plate: 2, ingot: 1, water: 0, ore: 0 });
     const l = layoutDiagram(steps);
-    expect(l.columns).toBe(3);
-    expect(node(l, 'plate').x).toBeLessThan(node(l, 'ingot').x);
-    expect(node(l, 'ingot').x).toBeLessThan(node(l, 'ore').x);
-    expect(node(l, 'water').x).toBe(node(l, 'ore').x);
-    // A wanted item nothing else uses stays left, extracted or not.
-    expect(Object.fromEntries(diagramColumns(planSteps({ targets: [{ item: 'ore', rate: 60 }] })))).toEqual({ ore: 0 });
+    expect(l.rows).toBe(3);
+    expect(node(l, 'ore').y).toBeLessThan(node(l, 'ingot').y);
+    expect(node(l, 'ingot').y).toBeLessThan(node(l, 'plate').y);
+    expect(node(l, 'water').y).toBe(node(l, 'ore').y);
+    // A wanted item nothing else uses stays with the wanted items, extracted or not.
+    expect(Object.fromEntries(diagramRows(planSteps({ targets: [{ item: 'ore', rate: 60 }] })))).toEqual({ ore: 0 });
+    expect(Object.fromEntries(diagramRows(planSteps({ targets: [{ item: 'ingot', rate: 30 }, { item: 'water', rate: 60 }] }))))
+      .toEqual({ ingot: 1, ore: 0, water: 1 });
   });
 
   it('draws every item once; a shared intermediate gets an edge per consumer', () => {
@@ -48,6 +55,24 @@ describe('planner diagram layout', () => {
       { from: 'ore', to: 'ingot', rate: expect.closeTo(40), kind: 'input', loop: false },
     ]);
     expect(l.edges).toHaveLength(3);
+  });
+
+  it('points the edges down, from the bottom of the producer into the top of the consumer', () => {
+    const l = layoutDiagram(planSteps({ targets: [{ item: 'plate', rate: 60 }] }));
+    for (const [from, to] of [['ore', 'ingot'], ['ingot', 'plate']] as const) {
+      const e = edge(l, from, to);
+      const [a, b] = [node(l, from), node(l, to)];
+      expect(e.points[0]).toEqual({ x: expect.any(Number), y: a.y + a.height });
+      expect(e.points.at(-1)).toEqual({ x: expect.any(Number), y: b.y });
+      // The last piece is straight down; the label sits on it, above the arrowhead.
+      const [p, q] = e.points.slice(-2) as [Point, Point];
+      expect(p.x).toBe(q.x);
+      expect(p.y).toBeLessThan(q.y);
+      expect(e.label.x).toBe(q.x);
+      expect(labelBox(e).bottom).toBeLessThan(b.y);
+      expect(labelBox(e).top).toBeGreaterThan(a.y + a.height);
+      expect(e.path).toMatch(/^M.* L/);
+    }
   });
 
   it('adds by-product edges, marks loop edges and leaves out flows of nothing', () => {
@@ -67,73 +92,112 @@ describe('planner diagram layout', () => {
     expect(ll.find(e => e.from === 'fuel' && e.to === 'rubber')!.loop).toBe(false);
   });
 
-  it('draws a loop inside its column as an arc on the right, ending at the arrowhead', () => {
+  it('points a by-product for a step further up into the bottom of that step', () => {
+    const l = layoutDiagram(planSteps({
+      targets: [{ item: 'plastic', rate: 60 }, { item: 'fuel', rate: 4 }], choices: { fuel: { kind: 'recipe', recipe: 'R_ResFuel' } },
+    }));
+    const [plastic, residue] = [node(l, 'plastic'), node(l, 'residue')];
+    expect(residue.row).toBeLessThan(plastic.row);
+    const e = edge(l, 'plastic', 'residue');
+    expect(e.points[0]!.y).toBe(plastic.y);
+    expect(e.points.at(-1)!.y).toBe(residue.y + residue.height);
+    expect(labelBox(e).top).toBeGreaterThan(residue.y + residue.height);
+  });
+
+  it('draws a loop inside its row as an arc above it, ending at the arrowhead', () => {
     const l = layoutDiagram(planSteps({
       targets: [{ item: 'rubber', rate: 60 }],
       choices: { rubber: { kind: 'recipe', recipe: 'R_RecRubber' }, plastic: { kind: 'recipe', recipe: 'R_RecPlastic' } },
     }));
     const rubber = node(l, 'rubber');
-    expect(node(l, 'plastic').column).toBe(rubber.column);
+    expect(node(l, 'plastic').row).toBe(rubber.row);
     const e = edge(l, 'plastic', 'rubber');
-    expect(e.points.at(-1)!.x).toBe(rubber.x + rubber.width);
-    expect(Math.min(...e.points.map(p => p.x))).toBe(rubber.x + rubber.width);
-    expect(e.label.x).toBeGreaterThan(rubber.x + rubber.width);
+    expect(e.points.at(-1)!.y).toBe(rubber.y);
+    expect(Math.max(...e.points.map(p => p.y))).toBe(rubber.y);
+    expect(e.label.y).toBeLessThan(rubber.y);
     expect(e.path).toMatch(/^M.* C.* L/);
   });
 
-  it('orders a column by the nodes using it, so edges do not cross', () => {
+  it('orders a row by the nodes using it, so edges do not cross', () => {
     const steps = [step('A', 0, [['Y', 1]]), step('B', 0, [['X', 1]]), step('X', 1), step('Y', 1)];
     const l = layoutDiagram(steps);
-    expect(column(l, 0)).toEqual(['A', 'B']);
-    expect(column(l, 1)).toEqual(['Y', 'X']);
-    // Straight across: each input as high as its consumer.
-    expect(node(l, 'Y').y).toBe(node(l, 'A').y);
-    expect(node(l, 'X').y).toBe(node(l, 'B').y);
+    expect(row(l, 1)).toEqual(['A', 'B']);
+    expect(row(l, 0)).toEqual(['Y', 'X']);
+    // Straight down: each input above its consumer.
+    expect(node(l, 'Y').x).toBe(node(l, 'A').x);
+    expect(node(l, 'X').x).toBe(node(l, 'B').x);
   });
 
-  it('routes an edge spanning columns between the nodes there, with the label next to its consumer', () => {
+  it('routes an edge spanning rows between the nodes there, with the label above its consumer', () => {
     const steps = [step('T', 0, [['A', 1], ['R', 2]]), step('A', 1, [['B', 1]]), step('B', 2, [['R', 1]]), step('R', 3)];
     const l = layoutDiagram(steps);
     const t = node(l, 'T');
     const r = node(l, 'R');
     const e = edge(l, 'R', 'T');
-    expect(e.points[0]).toEqual({ x: r.x, y: expect.any(Number) });
-    expect(e.points.at(-1)!.x).toBe(t.x + t.width);
-    expect(e.label.x - e.label.width / 2).toBeGreaterThan(t.x + t.width);
-    expect(e.label.x + e.label.width / 2).toBeLessThanOrEqual(t.x + t.width + DIAGRAM_DEFAULTS.stub);
-    // Where it passes the columns of A and B, it stays clear of them.
+    expect(e.points[0]).toEqual({ x: expect.any(Number), y: r.y + r.height });
+    expect(e.points.at(-1)!.y).toBe(t.y);
+    expect(labelBox(e).bottom).toBeLessThan(t.y);
+    // Where it passes the rows of A and B, it stays clear of them.
     for (const n of [node(l, 'A'), node(l, 'B')]) {
-      for (const p of e.points.filter(q => q.x >= n.x && q.x <= n.x + n.width)) {
-        expect(p.y < n.y || p.y > n.y + n.height).toBe(true);
+      for (const p of e.points.filter(q => q.y >= n.y && q.y <= n.y + n.height)) {
+        expect(p.x < n.x || p.x > n.x + n.width).toBe(true);
       }
     }
   });
 
-  it('keeps the nodes of a column apart and everything inside the drawing', () => {
+  it('staggers the labels of several edges into one node so they do not overlap', () => {
+    const steps = [step('T', 0, [['A', 1], ['B', 2], ['C', 3], ['D', 4]]), step('A', 1), step('B', 1), step('C', 1), step('D', 1)];
+    const l = layoutDiagram(steps);
+    const t = node(l, 'T');
+    const into = l.edges.filter(e => e.to === 'T');
+    expect(new Set(into.map(e => e.points.at(-1)!.x)).size).toBe(4);
+    for (const e of into) {
+      expect(e.points.at(-1)!.x).toBeGreaterThan(t.x);
+      expect(e.points.at(-1)!.x).toBeLessThan(t.x + t.width);
+      expect(labelBox(e).bottom).toBeLessThan(t.y);
+    }
+    for (let i = 0; i < into.length; i++) {
+      for (let j = i + 1; j < into.length; j++) {
+        const [a, b] = [labelBox(into[i]!), labelBox(into[j]!)];
+        const overlap = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+        expect(overlap).toBe(false);
+      }
+    }
+    // The rows move apart to make room for the labels.
+    expect(t.y - (node(l, 'A').y + node(l, 'A').height)).toBeGreaterThan(DIAGRAM_DEFAULTS.rowGap + 2 * DIAGRAM_DEFAULTS.labelHeight);
+  });
+
+  it('keeps the nodes of a row apart and everything inside the drawing', () => {
     const l = layoutDiagram(planSteps({
       targets: [{ item: 'plate', rate: 60 }, { item: 'rubber', rate: 30 }, { item: 'glow', rate: 1 }],
       choices: { plate: { kind: 'recipe', recipe: 'R_PlateAlt' }, rubber: { kind: 'recipe', recipe: 'R_RecRubber' }, plastic: { kind: 'recipe', recipe: 'R_RecPlastic' } },
     }));
-    for (let c = 0; c < l.columns; c++) {
-      const ns = l.nodes.filter(n => n.column === c);
+    for (let r = 0; r < l.rows; r++) {
+      const ns = l.nodes.filter(n => n.row === r);
       ns.forEach((n, i) => {
         expect(n.order).toBe(i);
-        if (i > 0) expect(n.y).toBeGreaterThanOrEqual(ns[i - 1]!.y + ns[i - 1]!.height + DIAGRAM_DEFAULTS.rowGap - 1e-6);
+        if (i > 0) expect(n.x).toBeGreaterThanOrEqual(ns[i - 1]!.x + ns[i - 1]!.width + DIAGRAM_DEFAULTS.columnGap - 1e-6);
       });
     }
+    // Listed by row from the top.
+    expect(l.nodes.map(n => n.row)).toEqual([...l.nodes.map(n => n.row)].sort((a, b) => a - b));
     for (const n of l.nodes) {
       expect(n.x).toBeGreaterThanOrEqual(0);
       expect(n.y).toBeGreaterThanOrEqual(0);
       expect(n.x + n.width).toBeLessThanOrEqual(l.width);
       expect(n.y + n.height).toBeLessThanOrEqual(l.height);
     }
-    for (const e of l.edges) for (const p of e.points) expect(p.x <= l.width && p.y <= l.height && p.x >= 0 && p.y >= 0).toBe(true);
+    for (const e of l.edges) {
+      for (const p of e.points) expect(p.x <= l.width && p.y <= l.height && p.x >= 0 && p.y >= 0).toBe(true);
+      const b = labelBox(e);
+      expect(b.left >= 0 && b.top >= 0 && b.right <= l.width && b.bottom <= l.height).toBe(true);
+    }
   });
 
   it('is deterministic and handles an empty plan', () => {
     const input = { targets: [{ item: 'plate', rate: 60 }, { item: 'glow', rate: 2 }] };
     expect(layoutDiagram(planSteps(input))).toEqual(layoutDiagram(planSteps(input)));
-    expect(layoutDiagram([])).toEqual({ nodes: [], edges: [], columns: 0, width: 0, height: 0 });
+    expect(layoutDiagram([])).toEqual({ nodes: [], edges: [], rows: 0, width: 0, height: 0 });
   });
 
   it('packs positions in order with minimum distances, as close to the wanted ones as possible', () => {

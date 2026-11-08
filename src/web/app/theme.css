@@ -81,3 +81,13 @@
     @apply bg-bg text-fg antialiased;
   }
 }
+
+/* The planner's step panel: one production cycle filling up, like the game's machine window (motion-safe only). */
+@keyframes planner-cycle {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
