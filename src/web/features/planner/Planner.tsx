@@ -164,8 +164,8 @@ function Steps({ steps, index, lang, minerId, defaultPurity, limits }: StepsProp
   );
   return (
     <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
-      {/* The table keeps a readable width; its panel docks beside it. */}
-      <Window level={3} title={t('planner.steps')} actions={fitButton || undefined} className={`min-w-0 flex-1 ${view === 'list' ? 'xl:max-w-[64rem]' : ''}`} bodyClassName="">
+      {/* Full width like the diagram (tool pages use the whole width); the step panel docks beside it. */}
+      <Window level={3} title={t('planner.steps')} actions={fitButton || undefined} className="min-w-0 flex-1" bodyClassName="">
         {view === 'diagram' ? (
           <PlanDiagram
             steps={steps} index={index} lang={lang} selected={step ? step.item : null} defaultPurity={defaultPurity}
