@@ -1,7 +1,7 @@
 import type { BuildingIndex } from '../../../../shared/buildings.js';
 import type { FactoryDiff } from '../../../../shared/factory/analysis.js';
 import type { FactorySnapshot } from '../../../../shared/factory/snapshot.js';
-import { floorRect, placeBuilding, rectCorners, toMapUnits, type MapTransform, type SceneBuilding, type SceneLine } from './scene.js';
+import { floorRect, placeBuilding, rectCorners, toMapUnits, type MapTransform, type Scene, type SceneBuilding, type SceneLine } from './scene.js';
 import { lineStyle } from './style.js';
 
 /**
@@ -118,5 +118,54 @@ export function diffCounts(fd: FactoryDiff | null, geo: GeometryDiff | null) {
     floorRemoved: geo?.floorRemoved.length ?? 0,
     linesAdded: geo?.linesAdded.size ?? 0,
     linesRemoved: geo?.linesRemoved.length ?? 0,
+  };
+}
+
+type Box = { minX: number; minY: number; maxX: number; maxY: number };
+
+/** Cell size of the search for the busiest area of changes, map units (about 180 m in 1.2). */
+const CHANGE_CELL = 6;
+
+/**
+ * Where "Go to the changes" leads: the busiest area of changes (added, removed and better or worse buildings; without
+ * those the changed floor pieces), so a base that grew in many places still lands on something readable. The area is
+ * the densest cell with its eight neighbours; the box covers the changes in it.
+ */
+export function changesBox(scene: Scene, diff: DiffOverlay): Box | null {
+  let boxes: Box[] = [];
+  for (const id of [...diff.added, ...diff.productivity.keys()]) {
+    const sb = scene.byId.get(id);
+    if (sb) boxes.push(sb);
+  }
+  boxes.push(...diff.removed);
+  if (boxes.length === 0) {
+    for (const q of [diff.floorAdded, diff.floorRemoved]) {
+      for (let i = 0; i + 7 < q.length; i += 8) {
+        const xs = [q[i]!, q[i + 2]!, q[i + 4]!, q[i + 6]!], ys = [q[i + 1]!, q[i + 3]!, q[i + 5]!, q[i + 7]!];
+        boxes.push({ minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) });
+      }
+    }
+  }
+  if (boxes.length === 0) return null;
+  const cellOf = (b: Box) => [Math.floor((b.minX + b.maxX) / 2 / CHANGE_CELL), Math.floor((b.minY + b.maxY) / 2 / CHANGE_CELL)] as const;
+  const counts = new Map<string, number>();
+  for (const b of boxes) {
+    const [cx, cy] = cellOf(b);
+    counts.set(`${cx},${cy}`, (counts.get(`${cx},${cy}`) ?? 0) + 1);
+  }
+  let best: readonly [number, number] = [0, 0], bestN = -1;
+  for (const key of counts.keys()) {
+    const [cx, cy] = key.split(',').map(Number) as [number, number];
+    let n = 0;
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) n += counts.get(`${cx + dx},${cy + dy}`) ?? 0;
+    if (n > bestN) { bestN = n; best = [cx, cy]; }
+  }
+  boxes = boxes.filter(b => {
+    const [cx, cy] = cellOf(b);
+    return Math.abs(cx - best[0]) <= 1 && Math.abs(cy - best[1]) <= 1;
+  });
+  return {
+    minX: Math.min(...boxes.map(b => b.minX)), minY: Math.min(...boxes.map(b => b.minY)),
+    maxX: Math.max(...boxes.map(b => b.maxX)), maxY: Math.max(...boxes.map(b => b.maxY)),
   };
 }

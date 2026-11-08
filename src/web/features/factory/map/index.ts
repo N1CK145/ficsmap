@@ -5,6 +5,7 @@ import { toggleTool } from '../../../app/tools.js';
 import { FactoryInfo } from './FactoryInfo.js';
 import { FactoryMapLayer } from './FactoryMapLayer.js';
 import { FactoryPanel } from './FactoryPanel.js';
+import { HighlightChip } from './HighlightChip.js';
 import { FactoryIcon } from '../icons.js';
 import { FactoryTimeline } from './Timeline.js';
 import { useFactoryMap } from './useFactoryMap.js';
@@ -25,6 +26,7 @@ export const factoryMapFeature: FeatureModule = {
   mapLayers: [{ id: 'factory-map', order: 4, Component: FactoryMapLayer }],
   mapOverlays: [
     { id: 'factory-timeline', order: 20, Component: FactoryTimeline },
+    { id: 'factory-highlight', order: 25, Component: HighlightChip },
     { id: 'factory-info', order: 30, Component: FactoryInfo },
   ],
 };

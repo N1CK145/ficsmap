@@ -3,7 +3,9 @@ import type {
   FactorySnapshot, SnapshotBuilding, SnapshotMarker, SnapshotStation, SnapshotVehicle,
 } from '../../../../shared/factory/snapshot.js';
 import type { WorldBounds } from '../../../../shared/types.js';
-import { analyzeRoutes, reasonsOf, type Band, type FactoryAnalysis, type Reason, type StationFlow, type VehicleFlow } from '../../../../shared/factory/analysis.js';
+import {
+  analyzeRoutes, reasonsOf, type Band, type FactoryAnalysis, type Reason, type RouteAnalysis, type StationFlow, type VehicleFlow,
+} from '../../../../shared/factory/analysis.js';
 import { lineStyle, machineBand, mapKind, productivityOf, type LineStyle, type MapKind } from './style.js';
 
 /**
@@ -76,6 +78,10 @@ export interface SceneBuilding {
   band: Band | null;
   /** Why a machine is below full productivity, main reason first (the page's reasons). */
   reasons: Reason[];
+  /** Paused by the player: a neutral state on the map, not a problem colour. */
+  paused: boolean;
+  /** The item it makes (its first output in the page's analysis: the recipe's main product, an extractor's resource). */
+  product: string | undefined;
   cx: number;
   cy: number;
   /** The body's boxes, 8 numbers (4 corners) per box, map units. */
@@ -107,7 +113,10 @@ export interface SceneStation {
   cy: number;
   /** Its vehicles' throughput (`analyzeRoutes`, as on the factory page). */
   flow: StationFlow;
-  /** `idle`: no vehicle docks here; `empty`: vehicles dock but move nothing (empty runs); `active` otherwise. */
+  /**
+   * `idle`: no vehicle docks here; `empty`: vehicles dock but move nothing (empty runs); `active` otherwise. The page's
+   * `StationFlow.problem` when the analysis has one.
+   */
   state: 'idle' | 'empty' | 'active';
 }
 
@@ -172,8 +181,10 @@ export function placeBuilding(b: SnapshotBuilding, entry: BuildingEntry | undefi
   return {
     b, entry,
     kind: mapKind(entry?.category),
-    band: machineBand(b.prod),
+    band: analysis?.byId.get(b.id)?.band ?? machineBand(b.prod),
     reasons: reasonsFor(b, analysis),
+    paused: analysis?.byId.get(b.id)?.paused ?? b.prod?.paused === true,
+    product: analysis?.byId.get(b.id)?.outputs[0]?.item,
     cx: t.x(b.x), cy: t.y(b.y),
     hard: (hard.length > 0 ? hard : [local]).flatMap(corners),
     soft: soft.flatMap(corners),
@@ -198,8 +209,13 @@ function reasonsFor(b: SnapshotBuilding, analysis: FactoryAnalysis | null | unde
   return analysis?.byId.get(b.id)?.reasons ?? reasonsOf(b.prod, productivityOf(b.prod));
 }
 
-/** `analysis`: the snapshot's analysis when the dataset has recipes (refines the reasons of extractors). */
-export function buildScene(snapshot: FactorySnapshot, index: BuildingIndex, bounds: WorldBounds, analysis?: FactoryAnalysis | null): Scene {
+/**
+ * `analysis`: the snapshot's analysis when the dataset has recipes (refines the reasons of extractors); `routes`: the
+ * page's route analysis (with stack sizes, so it knows how full vehicles are), else the map works it out without.
+ */
+export function buildScene(
+  snapshot: FactorySnapshot, index: BuildingIndex, bounds: WorldBounds, analysis?: FactoryAnalysis | null, routeAnalysis?: RouteAnalysis | null,
+): Scene {
   const t = mapTransform(bounds);
   const buildings: SceneBuilding[] = [];
   const floorPieces: { z: number; pts: number[] }[] = [];
@@ -245,10 +261,11 @@ export function buildScene(snapshot: FactorySnapshot, index: BuildingIndex, boun
     power[j + 3] = t.y(snapshot.powerLines[i + 4]!);
   }
 
-  const routes = analyzeRoutes(snapshot);
+  const routes = routeAnalysis ?? analyzeRoutes(snapshot);
   const stations = snapshot.stations.map((s, i): SceneStation => {
     const flow = routes.stations[i]!;
-    const state = flow.visits.length === 0 ? 'idle' : (flow.itemsPerMin ?? 0) <= 0 ? 'empty' : 'active';
+    const problem = flow.problem !== undefined ? flow.problem : flow.visits.length === 0 ? 'noVehicles' : (flow.itemsPerMin ?? 0) <= 0 ? 'nothingMoved' : null;
+    const state = problem === 'noVehicles' ? 'idle' : problem === 'nothingMoved' ? 'empty' : 'active';
     return { s, cx: t.x(s.x), cy: t.y(s.y), flow, state };
   });
   const vehicles = snapshot.vehicles.map((v, i): SceneVehicle => {
@@ -287,14 +304,18 @@ export function buildScene(snapshot: FactorySnapshot, index: BuildingIndex, boun
   };
 }
 
-const cache = new WeakMap<FactorySnapshot, { index: BuildingIndex; bounds: WorldBounds; analysis: FactoryAnalysis | null; scene: Scene }>();
+const cache = new WeakMap<FactorySnapshot, {
+  index: BuildingIndex; bounds: WorldBounds; analysis: FactoryAnalysis | null; routes: RouteAnalysis | null; scene: Scene;
+}>();
 
 /** The scene of a snapshot, built once per snapshot, building index, bounds and analysis. */
-export function sceneOf(snapshot: FactorySnapshot, index: BuildingIndex, bounds: WorldBounds, analysis: FactoryAnalysis | null = null): Scene {
+export function sceneOf(
+  snapshot: FactorySnapshot, index: BuildingIndex, bounds: WorldBounds, analysis: FactoryAnalysis | null = null, routes: RouteAnalysis | null = null,
+): Scene {
   const hit = cache.get(snapshot);
-  if (hit && hit.index === index && hit.bounds === bounds && hit.analysis === analysis) return hit.scene;
-  const scene = buildScene(snapshot, index, bounds, analysis);
-  cache.set(snapshot, { index, bounds, analysis, scene });
+  if (hit && hit.index === index && hit.bounds === bounds && hit.analysis === analysis && hit.routes === routes) return hit.scene;
+  const scene = buildScene(snapshot, index, bounds, analysis, routes);
+  cache.set(snapshot, { index, bounds, analysis, routes, scene });
   return scene;
 }
 

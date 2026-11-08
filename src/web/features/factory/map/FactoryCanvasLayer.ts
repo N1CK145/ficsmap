@@ -1,12 +1,14 @@
 import L from 'leaflet';
+import type { Band } from '../../../../shared/factory/analysis.js';
 import type { DiffOverlay } from './diff.js';
 import {
-  drawCrate, drawLabel, drawReasonGlyph, drawMarkerPin, drawStationSymbol, drawVehicleArrow, fitText, readFactoryPalette, shade,
-  type FactoryPalette,
+  bandPattern, drawCrate, drawMarkerPin, drawPlate, drawReasonGlyph, drawStationSymbol, drawVehicleArrow, fitText, lighten,
+  overlaps, plateRect, readFactoryPalette, shade, type FactoryPalette, type PlateLine, type Rect,
 } from './draw.js';
-import { buildingLook, detailAt, GLYPH_MIN_PX, pxPerMapUnit, scaledLineWidth } from './lod.js';
+import { buildingLook, detailAt, GLYPH_MIN_PX, PRODUCT_PIN_ZOOM, pxPerMapUnit, scaledLineWidth } from './lod.js';
+import { greyPicture } from './pictures.js';
 import type { Scene, SceneBuilding, SceneStation, SceneVehicle } from './scene.js';
-import { lineAlpha, lineWidthPx, type LineKind } from './style.js';
+import { bandLook, lineAlpha, lineWidthPx, PAUSED_LOOK, type BandLook, type BandPattern, type LineKind } from './style.js';
 import type { ColorMode, FactoryLayer } from './useFactoryMap.js';
 
 export const FACTORY_PANE = 'ficsmap-factory';
@@ -19,6 +21,13 @@ export const FACTORY_PANE_Z = 410;
 export const FOG_PANE = 'ficsmap-factory-fog';
 export const FOG_PANE_Z = 300;
 
+/** The selected vehicle's route: legs between its stops and the stops themselves, map units. */
+export interface FrameRoute {
+  /** x, y per point; `zero`: the leg ends at a stop where this vehicle moves nothing (drawn in the danger colour). */
+  legs: { pts: Float32Array; zero: boolean }[];
+  stops: { cx: number; cy: number; label: string; zero: boolean }[];
+}
+
 /** What one frame draws; the React layer keeps it current. */
 export interface FactoryFrame {
   scene: Scene | null;
@@ -26,16 +35,22 @@ export interface FactoryFrame {
   colorMode: ColorMode;
   diff: DiffOverlay | null;
   highlight: ReadonlySet<string>;
+  /** When the highlight was last set (`performance.now()`): its halo pulses once. Null: no pulse (or reduced motion). */
+  pulse: number | null;
   /** The selected building or vehicle id. */
   selected: string | null;
   hover: string | null;
-  /** The selected vehicle's way between its stops (map units, x, y per point) and its stops in order. */
-  route: { legs: Float32Array[]; stops: { cx: number; cy: number; label: string }[] } | null;
+  route: FrameRoute | null;
   /** The building's picture at about `px` CSS px, or null (none, or not loaded yet). */
   picture(sb: SceneBuilding, px: number): HTMLImageElement | null;
+  /** An item's picture (a machine's product) at about `px` CSS px, or null. */
+  itemPicture(item: string, px: number): HTMLImageElement | null;
   label(sb: SceneBuilding): string;
-  stationLabel(st: SceneStation): string | null;
+  /** A station's line on its plate: red for a problem station, with the picture of what lies in it. */
+  stationLabel(st: SceneStation): { text: string; problem: boolean; item: string | null } | null;
   vehicleLabel(v: SceneVehicle): string;
+  /** Label text size in CSS px: 12, 13 on coarse pointers. */
+  fontPx: number;
   /** A newer snapshot is loading: the shown one is drawn faded. */
   loading: boolean;
 }
@@ -47,16 +62,37 @@ const CULL_PX = 64;
 const DOT_PX = 3;
 /** Zoom from which belt and pipe attachments, poles and signs show their picture. */
 const MINOR_PICTURE_ZOOM = 10;
+/** Stations closer than this many CSS px share one label plate. */
+const STATION_CLUSTER_PX = 40;
+/** How long the highlight's halo pulse runs, ms. */
+const PULSE_MS = 1100;
+
+/** The productivity fill key of a building: `p:paused`, `p:<band>` or `p:np` (no production). */
+export function prodFillKey(sb: SceneBuilding): string {
+  if (sb.paused) return 'p:paused';
+  return sb.band ? `p:${sb.band}` : 'p:np';
+}
+
+/** The look of a productivity fill key, or null for buildings without production. */
+function lookOfKey(key: string): BandLook | null {
+  if (key === 'p:np') return null;
+  if (key === 'p:paused') return PAUSED_LOOK;
+  return bandLook(key.slice(2) as Band);
+}
 
 /**
  * Fill groups are drawn in this order, so machines lie on top of the small logistics parts around them (and hit tests
- * prefer them the same way, see `pickBuilding`).
+ * prefer them the same way, see `pickBuilding`); in the productivity mode problems lie on top of healthy machines.
  */
 function fillRank(key: string): number {
-  return key === 'k:logistics' || key === 'p:np' ? 0 : key === 'k:building' ? 1 : 2;
+  if (key.startsWith('p:')) {
+    const look = lookOfKey(key);
+    return look ? 2 + look.rank : 0;
+  }
+  return key === 'k:logistics' ? 0 : key === 'k:building' ? 1 : 2;
 }
-const LABEL_FONT = '600 11px "Barlow Condensed", sans-serif';
-const STATION_FONT = '600 12px "Barlow Condensed", sans-serif';
+
+const font = (px: number, weight = 600) => `${weight} ${px}px "Barlow Condensed", sans-serif`;
 
 interface Chunk {
   minX: number; minY: number; maxX: number; maxY: number;
@@ -129,7 +165,7 @@ function pathsOf(scene: Scene): Paths {
     const c = chunkFor(chunks, sb.cx, sb.cy);
     c.buildings.push(i);
     grow(c, sb.minX, sb.minY, sb.maxX, sb.maxY);
-    const prodKey = sb.band ? `p:${sb.band}` : 'p:np';
+    const prodKey = prodFillKey(sb);
     for (const key of [`k:${sb.kind}`, prodKey]) {
       addQuads(getOr(c.fills, key, () => new Path2D()), sb.hard);
       if (sb.soft.length > 0) addQuads(getOr(c.soft, key, () => new Path2D()), sb.soft);
@@ -153,30 +189,7 @@ function pathsOf(scene: Scene): Paths {
   return out;
 }
 
-/**
- * Hatches for machines below 90 %, the second cue next to their colour: standing machines cross-hatched, throttled
- * ones with single diagonals.
- */
-function hatchPattern(ctx: CanvasRenderingContext2D, color: string, cross: boolean): CanvasPattern | null {
-  const c = document.createElement('canvas');
-  c.width = 8;
-  c.height = 8;
-  const g = c.getContext('2d');
-  if (!g) return null;
-  g.strokeStyle = color;
-  g.lineWidth = 1.6;
-  g.beginPath();
-  g.moveTo(-2, 10); g.lineTo(10, -2);
-  g.moveTo(-2, 2); g.lineTo(2, -2);
-  g.moveTo(6, 10); g.lineTo(10, 6);
-  if (cross) {
-    g.moveTo(-2, -2); g.lineTo(10, 10);
-    g.moveTo(6, -2); g.lineTo(10, 2);
-    g.moveTo(-2, 6); g.lineTo(2, 10);
-  }
-  g.stroke();
-  return ctx.createPattern(c, 'repeat');
-}
+type Box = { minX: number; minY: number; maxX: number; maxY: number };
 
 /**
  * The factory of one snapshot on one canvas in its own pane: the floor plan, lines, buildings (dots, boxes, boxes with
@@ -189,7 +202,7 @@ export class FactoryCanvasLayer extends L.Layer {
   private frame = 0;
   private animatingZoom = false;
   private palette: FactoryPalette | null = null;
-  private hatch: { idle: CanvasPattern | null; throttled: CanvasPattern | null } | null = null;
+  private patterns = new Map<string, CanvasPattern | null>();
   /** Duration of the last draw in ms (for measurements). */
   lastDrawMs = 0;
 
@@ -258,6 +271,13 @@ export class FactoryCanvasLayer extends L.Layer {
     this.redraw();
   }
 
+  /** A band pattern in a colour, made once. */
+  private pattern(ctx: CanvasRenderingContext2D, kind: Exclude<BandPattern, 'none'>, color: string): CanvasPattern | null {
+    const key = `${kind}|${color}`;
+    if (!this.patterns.has(key)) this.patterns.set(key, bandPattern(ctx, kind, color));
+    return this.patterns.get(key) ?? null;
+  }
+
   private draw(): void {
     const map = this._map as L.Map | undefined;
     const canvas = this.canvas;
@@ -281,7 +301,6 @@ export class FactoryCanvasLayer extends L.Layer {
     const p = this.palette;
     const f = this.getFrame();
     if (!p || !f.scene) return;
-    this.hatch ??= { idle: hatchPattern(ctx, p.bg, true), throttled: hatchPattern(ctx, p.bg, false) };
 
     const zoom = map.getZoom();
     const s = pxPerMapUnit(zoom);
@@ -290,19 +309,22 @@ export class FactoryCanvasLayer extends L.Layer {
       minX: (-CULL_PX - o.x) / s, minY: (-CULL_PX - o.y) / s,
       maxX: (size.x + CULL_PX - o.x) / s, maxY: (size.y + CULL_PX - o.y) / s,
     };
-    const inView = (a: { minX: number; minY: number; maxX: number; maxY: number }) =>
-      a.maxX >= view.minX && a.minX <= view.maxX && a.maxY >= view.minY && a.minY <= view.maxY;
+    const inView = (a: Box) => a.maxX >= view.minX && a.minX <= view.maxX && a.maxY >= view.minY && a.minY <= view.maxY;
+    const onScreen = (x: number, y: number) => x >= -CULL_PX && y >= -CULL_PX && x <= size.x + CULL_PX && y <= size.y + CULL_PX;
     const d = detailAt(zoom);
     const scene = f.scene;
     const chunks = pathsOf(scene).chunks.filter(inView);
     const L_ = f.layers;
+    const fade = f.loading ? 0.55 : 1;
     /** Into map units: paths are in map units, line widths in CSS px / s. */
     const mapSpace = () => ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * o.x, dpr * o.y);
     const screenSpace = () => ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const sx = (mx: number) => o.x + mx * s;
     const sy = (my: number) => o.y + my * s;
+    const lineH = f.fontPx + 5;
+    const labelFont = font(f.fontPx);
 
-    ctx.globalAlpha = f.loading ? 0.55 : 1;
+    ctx.globalAlpha = fade;
 
     // Floor plan.
     if (L_.floor) {
@@ -328,7 +350,7 @@ export class FactoryCanvasLayer extends L.Layer {
         if (!lineOn(kind)) continue;
         const style = { kind, tier: Number(tierS) };
         ctx.strokeStyle = p.lines[kind];
-        ctx.globalAlpha = lineAlpha(style) * (f.loading ? 0.55 : 1);
+        ctx.globalAlpha = lineAlpha(style) * fade;
         const px = kind === 'road' || kind === 'rail' ? Math.max(1, scaledLineWidth(lineWidthPx(style), zoom) * (zoom < 4 ? 0.5 : 1)) : scaledLineWidth(lineWidthPx(style), zoom);
         ctx.lineWidth = px / s;
         ctx.setLineDash(kind === 'hyper' ? [4 / s, 3 / s] : []);
@@ -336,118 +358,178 @@ export class FactoryCanvasLayer extends L.Layer {
       }
     }
     ctx.setLineDash([]);
-    ctx.globalAlpha = f.loading ? 0.55 : 1;
+    ctx.globalAlpha = fade;
 
     // Power lines.
     if (L_.power && d.power) {
       ctx.strokeStyle = p.power;
-      ctx.globalAlpha = 0.7 * (f.loading ? 0.55 : 1);
+      ctx.globalAlpha = 0.7 * fade;
       ctx.lineWidth = 1 / s;
       for (const c of chunks) if (c.power) ctx.stroke(c.power);
-      ctx.globalAlpha = f.loading ? 0.55 : 1;
+      ctx.globalAlpha = fade;
     }
 
     // Buildings.
     const prodMode = f.colorMode === 'productivity';
-    const fillOf = (key: string): string => {
-      const [mode, v] = key.split(':') as [string, string];
-      if (mode === 'k') return p.kinds[v as keyof FactoryPalette['kinds']];
-      return v === 'np' ? p.kinds.logistics : p.bands[v as keyof FactoryPalette['bands']];
+    const changes = f.diff !== null;
+    const bandColor = (key: string): string => {
+      if (key === 'p:paused') return p.edge;
+      if (key === 'p:np') return p.kinds.logistics;
+      return p.bands[key.slice(2) as Band] ?? p.kinds.building;
     };
+    const fillOf = (key: string): string => (key.startsWith('k:') ? p.kinds[key.slice(2) as keyof FactoryPalette['kinds']] : bandColor(key));
     if (L_.buildings) {
       if (d.dots) {
         screenSpace();
-        for (const c of chunks) {
-          for (const i of c.buildings) {
-            const sb = scene.buildings[i]!;
-            if (!prodMode ? sb.kind === 'logistics' || sb.kind === 'building' : !sb.b.prod) continue;
-            ctx.fillStyle = prodMode ? p.bands[sb.band!] : p.kinds[sb.kind];
-            ctx.fillRect(sx(sb.cx) - DOT_PX / 2, sy(sb.cy) - DOT_PX / 2, DOT_PX, DOT_PX);
+        if (prodMode && !changes) this.drawProblemDots(ctx, scene, chunks, sx, sy, p);
+        else {
+          for (const c of chunks) {
+            for (const i of c.buildings) {
+              const sb = scene.buildings[i]!;
+              if (sb.kind === 'logistics' || sb.kind === 'building') continue;
+              ctx.fillStyle = changes ? p.kinds.logistics : p.kinds[sb.kind];
+              ctx.fillRect(sx(sb.cx) - DOT_PX / 2, sy(sb.cy) - DOT_PX / 2, DOT_PX, DOT_PX);
+            }
           }
         }
       } else {
         mapSpace();
-        const prefix = prodMode ? 'p:' : 'k:';
+        // With changes marked, every building is drawn in one neutral grey; the changes add their colours on top.
+        const prefix = prodMode && !changes ? 'p:' : 'k:';
         for (const c of chunks) {
           for (const [key, path] of [...c.fills].sort((a, b) => fillRank(a[0]) - fillRank(b[0]))) {
             if (!key.startsWith(prefix)) continue;
+            if (changes) {
+              ctx.globalAlpha = 0.55 * fade;
+              ctx.fillStyle = p.kinds.logistics;
+              ctx.fill(path);
+              if (d.outlines) {
+                ctx.globalAlpha = 0.8 * fade;
+                ctx.strokeStyle = shade(p.kinds.logistics, 0.4);
+                ctx.lineWidth = 1 / s;
+                ctx.stroke(path);
+              }
+              continue;
+            }
             const fill = fillOf(key);
-            const faint = key === 'p:np';
-            ctx.globalAlpha = (faint ? 0.45 : 0.92) * (f.loading ? 0.55 : 1);
+            if (prefix === 'k:') {
+              // The blueprint look: a translucent body with a crisp, lighter 1 px edge.
+              ctx.globalAlpha = (d.outlines ? 0.75 : 0.9) * fade;
+              ctx.fillStyle = fill;
+              ctx.fill(path);
+              if (d.outlines) {
+                ctx.globalAlpha = fade;
+                ctx.strokeStyle = lighten(fill, 0.35);
+                ctx.lineWidth = 1 / s;
+                ctx.stroke(path);
+              }
+              continue;
+            }
+            const look = lookOfKey(key);
+            if (!look) {
+              // Buildings without production stay faint.
+              ctx.globalAlpha = 0.3 * fade;
+              ctx.fillStyle = fill;
+              ctx.fill(path);
+              continue;
+            }
+            ctx.globalAlpha = look.tint * fade;
             ctx.fillStyle = fill;
             ctx.fill(path);
-            if (d.outlines) {
-              ctx.strokeStyle = shade(fill, 0.55);
+            if (look.pattern !== 'none') {
+              const pat = this.pattern(ctx, look.pattern, look.pattern === 'cross' ? p.bg : fill);
+              if (pat) {
+                pat.setTransform(new DOMMatrix().scale(1 / s));
+                ctx.fillStyle = pat;
+                ctx.globalAlpha = (look.pattern === 'cross' ? 0.5 : 0.9) * fade;
+                ctx.fill(path);
+              }
+            }
+            if (d.outlines || look.rank > 0) {
+              ctx.globalAlpha = (look.rank === 0 ? 0.85 : 1) * fade;
+              ctx.strokeStyle = fill;
               ctx.lineWidth = 1 / s;
               ctx.stroke(path);
-            }
-            const hatch = key === 'p:idle' ? this.hatch.idle : key === 'p:throttled' ? this.hatch.throttled : null;
-            if (hatch) {
-              hatch.setTransform(new DOMMatrix().scale(1 / s));
-              ctx.fillStyle = hatch;
-              ctx.globalAlpha = 0.6 * (f.loading ? 0.55 : 1);
-              ctx.fill(path);
             }
           }
           if (d.softBoxes) {
             for (const [key, path] of c.soft) {
               if (!key.startsWith(prefix)) continue;
-              ctx.globalAlpha = 0.35 * (f.loading ? 0.55 : 1);
-              ctx.fillStyle = fillOf(key);
+              ctx.globalAlpha = (prefix === 'p:' ? 0.6 * (lookOfKey(key)?.tint ?? 0.3) : 0.35) * fade;
+              ctx.fillStyle = changes ? p.kinds.logistics : fillOf(key);
               ctx.fill(path);
             }
           }
         }
-        ctx.globalAlpha = f.loading ? 0.55 : 1;
+        ctx.globalAlpha = fade;
       }
     }
 
-    // Changes: everything else fades a little, then added (green), removed (red ghosts) and productivity changes.
-    if (f.diff) this.drawDiff(ctx, f.diff, f, p, chunks, s, mapSpace, screenSpace, sx, sy, inView, d.dots);
+    // Changes: everything else under a light veil, then added (green), removed (red ghosts) and productivity changes.
+    if (f.diff) this.drawDiff(ctx, f.diff, f, p, chunks, s, mapSpace, screenSpace, sx, sy, inView, d.dots, fillOf);
 
-    // Per-building detail: pictures, names and issue glyphs.
+    // Per-building detail: pictures, names, product pins and reason glyphs.
     if (L_.buildings && !d.dots) {
       screenSpace();
       for (const c of chunks) {
         for (const i of c.buildings) {
           const sb = scene.buildings[i]!;
           if (!inView(sb)) continue;
-          this.drawBuildingDetail(ctx, sb, zoom, s, sx(sb.cx), sy(sb.cy), f, p, prodMode);
+          this.drawBuildingDetail(ctx, sb, zoom, s, sx(sb.cx), sy(sb.cy), f, p, prodMode && !changes, labelFont);
         }
       }
     }
 
-    // Highlight (the Fabrik page's "On the map"), hover and selection.
+    // Highlight (the Fabrik page's "On the map"): a bright edge with a soft glow and a dark casing, and one pulse.
     screenSpace();
+    ctx.globalAlpha = 1;
+    let pulsing = false;
     if (f.highlight.size > 0) {
+      const k = f.pulse === null ? 1 : (performance.now() - f.pulse) / PULSE_MS;
+      pulsing = k < 1;
       for (const id of f.highlight) {
         const sb = scene.byId.get(id);
-        if (sb) this.outline(ctx, sb, s, o, p.fg, 3, d.dots, 1, true);
+        if (!sb) continue;
+        this.outline(ctx, sb, s, o, p.fg, 2.5, d.dots, 1, true, true);
+        if (pulsing) this.outline(ctx, sb, s, o, p.fg, 2, d.dots, (1 - k) * 0.9, false, false, 4 + 22 * k);
       }
     }
     if (f.hover && f.hover !== f.selected) {
       const sb = scene.byId.get(f.hover);
       if (sb) this.outline(ctx, sb, s, o, p.fg, 1.5, d.dots, 0.75);
     }
+    // The selection under the stations, vehicles and labels, so it never hides a plate.
+    if (f.selected) {
+      const sb = scene.byId.get(f.selected);
+      if (sb) this.outline(ctx, sb, s, o, p.fg, 2.5, d.dots, 1, true);
+    }
+
+    // Labels never cover each other: placed greedily, the selected first, then stations, vehicles and markers.
+    const placed: Rect[] = [];
+    const place = (r: Rect, force = false) => {
+      if (!force && placed.some(q => overlaps(q, r))) return false;
+      placed.push(r);
+      return true;
+    };
 
     // Roads layer: the selected vehicle's route, stations and vehicles.
     if (L_.roads) {
-      if (f.route) this.drawRoute(ctx, f.route, p, sx, sy);
-      ctx.globalAlpha = f.loading ? 0.55 : 1;
+      if (f.route) this.drawRoute(ctx, f.route, p, sx, sy, f.fontPx);
+      ctx.globalAlpha = fade;
+      const sym = zoom < 4 ? 10 : 16;
+      const shown: { st: SceneStation; x: number; y: number }[] = [];
       for (const st of scene.stations) {
         const x = sx(st.cx), y = sy(st.cy);
-        if (x < -CULL_PX || y < -CULL_PX || x > size.x + CULL_PX || y > size.y + CULL_PX) continue;
-        const ring = st.state === 'active' ? p.fg : st.state === 'empty' ? p.conflict : p.muted;
-        const sym = zoom < 4 ? 10 : 16;
+        if (!onScreen(x, y)) continue;
+        // Problem stations (no vehicles, nothing moved) in red; without vehicles also dashed.
+        const ring = st.state === 'active' ? p.fg : p.conflict;
         drawStationSymbol(ctx, x, y, sym, st.s.loading, ring, p, st.state === 'idle');
-        if (d.stationLabels) {
-          const text = f.stationLabel(st);
-          if (text) drawLabel(ctx, text, x, y + sym / 2 + 11, STATION_FONT, p);
-        }
+        shown.push({ st, x, y });
       }
+      const vehicles: { v: SceneVehicle; x: number; y: number; sel: boolean }[] = [];
       for (const v of scene.vehicles) {
         const x = sx(v.cx), y = sy(v.cy);
-        if (x < -CULL_PX || y < -CULL_PX || x > size.x + CULL_PX || y > size.y + CULL_PX) continue;
+        if (!onScreen(x, y)) continue;
         const sel = f.selected === v.v.id;
         if (zoom >= 8) {
           // The body's outline at its real size under the arrow.
@@ -467,101 +549,245 @@ export class FactoryCanvasLayer extends L.Layer {
         if (sel) {
           ctx.beginPath();
           ctx.arc(x, y, 13, 0, Math.PI * 2);
+          ctx.strokeStyle = p.bg;
+          ctx.lineWidth = 5;
+          ctx.stroke();
           ctx.strokeStyle = p.fg;
           ctx.lineWidth = 2;
           ctx.stroke();
         }
         drawVehicleArrow(ctx, x, y, zoom < 4 ? 12 : 16, v.v.yaw, v.v.autopilot ? p.vehicle : p.muted, p);
-        // Right of the arrow: a station's label sits under its symbol, where vehicles often stand.
-        if (d.vehicleLabels || sel) drawLabel(ctx, f.vehicleLabel(v), x + 12, y - 12, LABEL_FONT, p, p.fg, 'left');
+        vehicles.push({ v, x, y, sel });
       }
-    }
-
-    if (f.selected) {
-      const sb = scene.byId.get(f.selected);
-      if (sb) this.outline(ctx, sb, s, o, p.accent, 2.5, d.dots, 1, true);
+      ctx.font = labelFont;
+      // The selected vehicle's name always shows.
+      for (const it of vehicles) {
+        if (!it.sel) continue;
+        const r = plateRect(ctx, [{ text: f.vehicleLabel(it.v), color: p.fg }], it.x + 12, it.y - 12 - lineH / 2, lineH, 'left');
+        place(r, true);
+        drawPlate(ctx, [{ text: f.vehicleLabel(it.v), color: p.fg }], r, lineH, p);
+      }
+      if (d.stationLabels) {
+        // Stations next to each other share one plate: loading lines first, then unloading.
+        const clusters: { x: number; y: number; items: typeof shown }[] = [];
+        for (const it of shown) {
+          const c = clusters.find(k => Math.hypot(k.x - it.x, k.y - it.y) < STATION_CLUSTER_PX);
+          if (c) c.items.push(it);
+          else clusters.push({ x: it.x, y: it.y, items: [it] });
+        }
+        for (const c of clusters) {
+          const order = (st: SceneStation) => (st.s.loading === false ? 1 : st.s.loading === true ? 0 : 2);
+          const lines: PlateLine[] = c.items
+            .slice()
+            .sort((a, b) => order(a.st) - order(b.st))
+            .flatMap(({ st }) => {
+              const l = f.stationLabel(st);
+              return l ? [{ text: l.text, color: l.problem ? p.conflict : p.fg, icon: l.item ? f.itemPicture(l.item, lineH - 3) : null }] : [];
+            });
+          if (lines.length === 0) continue;
+          const cx = c.items.reduce((a, it) => a + it.x, 0) / c.items.length;
+          const bottom = Math.max(...c.items.map(it => it.y)) + sym / 2 + 3;
+          const r = plateRect(ctx, lines, cx, bottom, lineH);
+          if (place(r)) drawPlate(ctx, lines, r, lineH, p);
+        }
+      }
+      if (d.vehicleLabels) {
+        for (const it of vehicles) {
+          if (it.sel) continue;
+          const line = [{ text: f.vehicleLabel(it.v), color: p.fg }];
+          // Right of the arrow, else left of it.
+          let r = plateRect(ctx, line, it.x + 12, it.y - 12 - lineH / 2, lineH, 'left');
+          if (!place(r)) {
+            r = plateRect(ctx, line, it.x - 12, it.y - 12 - lineH / 2, lineH, 'left');
+            r = { ...r, x: it.x - 12 - r.w };
+            if (!place(r)) continue;
+          }
+          drawPlate(ctx, line, r, lineH, p);
+        }
+      }
     }
 
     // Markers and crates.
     if (L_.markers) {
+      ctx.font = labelFont;
       for (const m of scene.markers) {
         const x = sx(m.cx), y = sy(m.cy);
-        if (x < -CULL_PX || y < -CULL_PX || x > size.x + CULL_PX || y > size.y + CULL_PX) continue;
+        if (!onScreen(x, y)) continue;
         const stamp = m.m.kind === 'RT_Stamp';
         drawMarkerPin(ctx, x, y, m.m.color, stamp, p);
-        if (d.markerLabels && m.m.name) drawLabel(ctx, m.m.name, x, y + 16, LABEL_FONT, p);
+        if (d.markerLabels && m.m.name) {
+          const line = [{ text: m.m.name, color: p.fg }];
+          const r = plateRect(ctx, line, x, y + 9, lineH);
+          if (place(r)) drawPlate(ctx, line, r, lineH, p);
+        }
       }
     }
     if (L_.crates) {
       for (const c of scene.crates) {
         const x = sx(c.cx), y = sy(c.cy);
-        if (x < -CULL_PX || y < -CULL_PX || x > size.x + CULL_PX || y > size.y + CULL_PX) continue;
+        if (!onScreen(x, y)) continue;
         drawCrate(ctx, x, y, p);
       }
     }
     ctx.globalAlpha = 1;
     this.lastDrawMs = performance.now() - t0;
+    if (pulsing) this.redraw();
+  }
+
+  /**
+   * The productivity mode zoomed out: machines as marks whose shape says the band, so it is never colour alone.
+   * Standing: a red ×; throttled: a diamond; nearly full: a small square; full and paused: a tiny dot. Drawn in rank
+   * order, so problems lie on top.
+   */
+  private drawProblemDots(
+    ctx: CanvasRenderingContext2D, scene: Scene, chunks: Chunk[], sx: (v: number) => number, sy: (v: number) => number, p: FactoryPalette,
+  ): void {
+    const byRank = new Map<number, { sb: SceneBuilding; look: BandLook }[]>();
+    for (const c of chunks) {
+      for (const i of c.buildings) {
+        const sb = scene.buildings[i]!;
+        if (!sb.b.prod || !sb.band) continue;
+        const look = sb.paused ? PAUSED_LOOK : bandLook(sb.band);
+        (byRank.get(look.rank) ?? byRank.set(look.rank, []).get(look.rank)!).push({ sb, look });
+      }
+    }
+    for (const rank of [...byRank.keys()].sort((a, b) => a - b)) {
+      for (const { sb, look } of byRank.get(rank)!) {
+        const x = sx(sb.cx), y = sy(sb.cy);
+        const color = sb.paused ? p.edge : p.bands[sb.band!] ?? p.kinds.building;
+        ctx.fillStyle = color;
+        switch (look.dot) {
+          case 'none': break;
+          case 'tiny':
+            ctx.globalAlpha = 0.7;
+            ctx.fillRect(x - 1, y - 1, 2, 2);
+            ctx.globalAlpha = 1;
+            break;
+          case 'square':
+            ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
+            break;
+          case 'diamond':
+            ctx.beginPath();
+            ctx.moveTo(x, y - 4.5); ctx.lineTo(x + 4.5, y); ctx.lineTo(x, y + 4.5); ctx.lineTo(x - 4.5, y);
+            ctx.closePath();
+            ctx.strokeStyle = p.bg;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.fill();
+            break;
+          case 'cross':
+            ctx.beginPath();
+            ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4);
+            ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4);
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = p.bg;
+            ctx.lineWidth = 4.5;
+            ctx.stroke();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2.25;
+            ctx.stroke();
+            break;
+        }
+      }
+    }
   }
 
   private drawBuildingDetail(
-    ctx: CanvasRenderingContext2D, sb: SceneBuilding, zoom: number, s: number, x: number, y: number, f: FactoryFrame, p: FactoryPalette, prodMode: boolean,
+    ctx: CanvasRenderingContext2D, sb: SceneBuilding, zoom: number, s: number, x: number, y: number, f: FactoryFrame, p: FactoryPalette,
+    glyphs: boolean, labelFont: string,
   ): void {
+    // Stations are their symbol and plate (roads layer); their picture and name would sit under the plate.
+    if (f.layers.roads && f.scene?.stationById.has(sb.b.id)) return;
     // Belt and pipe attachments, poles and signs: a picture only at the closest zoom, never a name (clarity first).
     const minor = sb.kind === 'logistics';
     const raw = buildingLook(zoom, sb.minSide);
     const look = minor ? (zoom >= MINOR_PICTURE_ZOOM && raw !== 'box' ? 'picture' : 'box') : raw;
     const side = sb.minSide * s;
+    // The item it makes, pinned to a corner from `PRODUCT_PIN_ZOOM` on; picture and name move up to make room.
+    const pin = !minor && sb.product && zoom >= PRODUCT_PIN_ZOOM && side >= 20 ? Math.round(Math.max(14, Math.min(32, side * 0.3))) : 0;
+    const lift = look === 'labelled' && pin > 0 ? Math.min(pin * 0.6, side * 0.12) : 0;
     let picTop = y;
     let picSize = 0;
-    if (look === 'picture' || look === 'labelled') {
-      picSize = Math.min(look === 'labelled' ? side * 0.45 : side * 0.7, 96);
+    // The game render only at the closest detail, in greys and faded, so it never competes with the colours.
+    if (look === 'labelled' || (minor && look === 'picture')) {
+      picSize = Math.min(look === 'labelled' ? side * 0.45 - lift * 0.5 : side * 0.7, 96);
       const img = f.picture(sb, picSize);
       if (img) {
-        picTop = look === 'labelled' ? y - picSize * 0.65 : y - picSize / 2;
-        ctx.drawImage(img, x - picSize / 2, picTop, picSize, picSize);
+        picTop = look === 'labelled' ? y - picSize * 0.65 - lift : y - picSize / 2;
+        ctx.globalAlpha = 0.6;
+        ctx.drawImage(greyPicture(img), x - picSize / 2, picTop, picSize, picSize);
+        ctx.globalAlpha = 1;
       }
     }
     if (look === 'labelled') {
       ctx.save();
-      ctx.font = LABEL_FONT;
+      ctx.font = labelFont;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const text = fitText(ctx, f.label(sb), Math.max(side, sb.maxSide * s * 0.5) - 6);
+      const text = fitText(ctx, f.label(sb), Math.max(side, sb.maxSide * s * 0.5) - 8);
       if (text) {
+        const h = f.fontPx + 4;
         ctx.fillStyle = p.bg;
         ctx.globalAlpha = 0.8;
         const tw = ctx.measureText(text).width;
-        const ty = y + picSize * 0.5;
-        ctx.fillRect(x - tw / 2 - 2, ty - 7, tw + 4, 14);
+        const ty = y + picSize * 0.5 - lift;
+        ctx.fillRect(x - tw / 2 - 3, ty - h / 2, tw + 6, h);
         ctx.globalAlpha = 1;
         ctx.fillStyle = p.fg;
         ctx.fillText(text, x, ty + 0.5);
       }
       ctx.restore();
     }
-    // Reason glyphs: in the productivity mode on every machine large enough that is not full; in the category mode only
-    // on machines below 90 %.
+    // The item it makes, in colour, pinned to the tile's lower right corner (as the planner's nodes show a recipe):
+    // six Constructors side by side become screws, rods and plates.
+    if (pin > 0 && sb.product) {
+      const img = f.itemPicture(sb.product, pin);
+      if (img) {
+        const q = sb.outline;
+        // The corner of the outline furthest right and down on screen.
+        let bx = -Infinity, by = -Infinity;
+        for (let k = 0; k < 8; k += 2) {
+          const cx = x + (q[k]! - sb.cx) * s, cy = y + (q[k + 1]! - sb.cy) * s;
+          if (cx + cy > bx + by) { bx = cx; by = cy; }
+        }
+        const pad = 3;
+        const left = Math.min(bx, x + sb.maxSide * s) - pin - pad - 4, top = by - pin - pad - 4;
+        ctx.fillStyle = p.panel;
+        ctx.strokeStyle = p.edge;
+        ctx.lineWidth = 1;
+        ctx.fillRect(left, top, pin + 4, pin + 4);
+        ctx.strokeRect(left + 0.5, top + 0.5, pin + 3, pin + 3);
+        ctx.drawImage(img, left + 2, top + 2, pin, pin);
+      }
+    }
+    // Reason glyphs: only in the productivity mode and on buildings large enough to carry them.
     const reasons = sb.reasons;
-    if (sb.band && reasons.length > 0 && side >= GLYPH_MIN_PX && (prodMode || sb.band === 'idle' || sb.band === 'throttled')) {
-      const r = Math.min(9, Math.max(5, side / 6));
+    if (glyphs && sb.band && reasons.length > 0 && side >= GLYPH_MIN_PX) {
+      const r = Math.min(9, Math.max(6, side / 6));
       const shown = side >= 48 ? reasons.slice(0, 3) : reasons.slice(0, 1);
+      const ring = sb.paused ? p.edge : p.bands[sb.band] ?? p.kinds.building;
       const gx = picSize > 0 ? x + picSize / 2 : x;
       const gy = picSize > 0 ? picTop : y;
-      shown.forEach((k, i) => drawReasonGlyph(ctx, gx + i * (r * 2 + 2) - (picSize > 0 ? 0 : (shown.length - 1) * (r + 1)), gy, r, k, p.bands[sb.band!], p));
+      shown.forEach((k, i) => drawReasonGlyph(ctx, gx + i * (r * 2 + 2) - (picSize > 0 ? 0 : (shown.length - 1) * (r + 1)), gy, r, k, ring, p));
     }
   }
 
-  /** An outline a little outside the building (a ring around its dot when zoomed out); `casing` adds a dark edge under it. */
+  /**
+   * An outline a little outside the building (a ring around its dot when zoomed out); `casing` adds a dark edge under
+   * it, `glow` a soft wide halo, `grow` CSS px more distance (the highlight's pulse).
+   */
   private outline(
     ctx: CanvasRenderingContext2D, sb: SceneBuilding, s: number, o: L.Point, color: string, width: number, dots: boolean, alpha = 1, casing = false,
+    glow = false, grow = 0,
   ): void {
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.beginPath();
-    if (dots) ctx.arc(o.x + sb.cx * s, o.y + sb.cy * s, 7, 0, Math.PI * 2);
+    if (dots) ctx.arc(o.x + sb.cx * s, o.y + sb.cy * s, (glow ? 9 : 7) + grow, 0, Math.PI * 2);
     else {
       const q = sb.outline;
-      const pad = 2 + width / 2;
+      // Small buildings get a halo no smaller than about 18 px, so a marked miner still stands out zoomed out.
+      const pad = 2 + width / 2 + grow + (glow ? Math.max(0, (18 - sb.minSide * s) / 2) : 0);
       const cx = o.x + sb.cx * s, cy = o.y + sb.cy * s;
       for (let k = 0; k < 8; k += 2) {
         const x = o.x + q[k]! * s, y = o.y + q[k + 1]! * s;
@@ -571,6 +797,14 @@ export class FactoryCanvasLayer extends L.Layer {
         else ctx.lineTo(px, py);
       }
       ctx.closePath();
+    }
+    ctx.lineJoin = 'round';
+    if (glow) {
+      ctx.globalAlpha = alpha * 0.28;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width + 9;
+      ctx.stroke();
+      ctx.globalAlpha = alpha;
     }
     if (casing && this.palette) {
       ctx.strokeStyle = this.palette.bg;
@@ -586,12 +820,12 @@ export class FactoryCanvasLayer extends L.Layer {
   private drawDiff(
     ctx: CanvasRenderingContext2D, diff: DiffOverlay, f: FactoryFrame, p: FactoryPalette, chunks: Chunk[], s: number,
     mapSpace: () => void, screenSpace: () => void, sx: (v: number) => number, sy: (v: number) => number,
-    inView: (a: { minX: number; minY: number; maxX: number; maxY: number }) => boolean, dots: boolean,
+    inView: (a: Box) => boolean, dots: boolean, fillOf: (key: string) => string,
   ): void {
     const scene = f.scene!;
-    // A veil over what did not change.
+    // A light veil over what did not change (the buildings under it are already grey).
     screenSpace();
-    ctx.globalAlpha = 0.45;
+    ctx.globalAlpha = 0.3;
     ctx.fillStyle = p.bg;
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     ctx.globalAlpha = 1;
@@ -640,19 +874,23 @@ export class FactoryCanvasLayer extends L.Layer {
       ctx.stroke(ghosts);
       ctx.setLineDash([]);
     }
-    // Added and changed buildings at full strength again, added ones outlined green.
+    // Added and changed buildings in their colours, added ones outlined green.
     const prodMode = f.colorMode === 'productivity';
     const added = new Path2D();
-    for (const c of chunks) {
-      for (const i of c.buildings) {
-        const sb = scene.buildings[i]!;
-        if (!diff.added.has(sb.b.id) && !diff.productivity.has(sb.b.id)) continue;
-        if (dots) continue;
-        const path = new Path2D();
-        addQuads(path, sb.hard);
-        ctx.fillStyle = prodMode ? (sb.band ? p.bands[sb.band] : p.kinds.logistics) : p.kinds[sb.kind];
-        ctx.fill(path);
-        if (diff.added.has(sb.b.id)) addQuads(added, sb.outline);
+    if (!dots) {
+      for (const c of chunks) {
+        for (const i of c.buildings) {
+          const sb = scene.buildings[i]!;
+          const isAdded = diff.added.has(sb.b.id);
+          if (!isAdded && !diff.productivity.has(sb.b.id)) continue;
+          const path = new Path2D();
+          addQuads(path, sb.hard);
+          ctx.fillStyle = prodMode || !isAdded ? fillOf(prodFillKey(sb)) : p.kinds[sb.kind];
+          ctx.globalAlpha = 0.9;
+          ctx.fill(path);
+          ctx.globalAlpha = 1;
+          if (isAdded) addQuads(added, sb.outline);
+        }
       }
     }
     ctx.strokeStyle = p.free;
@@ -675,46 +913,60 @@ export class FactoryCanvasLayer extends L.Layer {
     for (const [id, dir] of diff.productivity) {
       const sb = scene.byId.get(id);
       if (!sb || !inView(sb)) continue;
-      const x = sx(sb.minX) + 6, y = sy(sb.maxY) - 6;
+      const x = sx(sb.minX) + 7, y = sy(sb.maxY) - 7;
       ctx.beginPath();
-      if (dir > 0) { ctx.moveTo(x, y - 5); ctx.lineTo(x + 5, y + 4); ctx.lineTo(x - 5, y + 4); }
-      else { ctx.moveTo(x, y + 5); ctx.lineTo(x + 5, y - 4); ctx.lineTo(x - 5, y - 4); }
+      if (dir > 0) { ctx.moveTo(x, y - 6); ctx.lineTo(x + 6, y + 5); ctx.lineTo(x - 6, y + 5); }
+      else { ctx.moveTo(x, y + 6); ctx.lineTo(x + 6, y - 5); ctx.lineTo(x - 6, y - 5); }
       ctx.closePath();
       ctx.fillStyle = dir > 0 ? p.free : p.conflict;
       ctx.strokeStyle = p.bg;
-      ctx.lineWidth = 1.5;
-      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
       ctx.stroke();
+      ctx.fill();
     }
   }
 
-  private drawRoute(ctx: CanvasRenderingContext2D, route: NonNullable<FactoryFrame['route']>, p: FactoryPalette, sx: (v: number) => number, sy: (v: number) => number): void {
+  /** The selected vehicle's route in the text colour on a dark casing; legs into stops that move nothing in red. */
+  private drawRoute(ctx: CanvasRenderingContext2D, route: FrameRoute, p: FactoryPalette, sx: (v: number) => number, sy: (v: number) => number, fontPx: number): void {
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    for (const [color, width] of [[p.bg, 7], [p.accent, 3.5]] as const) {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = width;
-      ctx.globalAlpha = color === p.bg ? 0.7 : 1;
+    const trace = (legs: FrameRoute['legs']) => {
       ctx.beginPath();
-      for (const leg of route.legs) {
-        ctx.moveTo(sx(leg[0]!), sy(leg[1]!));
-        for (let i = 2; i + 1 < leg.length; i += 2) ctx.lineTo(sx(leg[i]!), sy(leg[i + 1]!));
+      for (const { pts } of legs) {
+        ctx.moveTo(sx(pts[0]!), sy(pts[1]!));
+        for (let i = 2; i + 1 < pts.length; i += 2) ctx.lineTo(sx(pts[i]!), sy(pts[i + 1]!));
       }
-      ctx.stroke();
-    }
+    };
+    trace(route.legs);
+    ctx.strokeStyle = p.bg;
+    ctx.globalAlpha = 0.75;
+    ctx.lineWidth = 7;
+    ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.font = '700 11px "Barlow Condensed", sans-serif';
+    ctx.lineWidth = 3.5;
+    trace(route.legs.filter(l => !l.zero));
+    ctx.strokeStyle = p.fg;
+    ctx.stroke();
+    trace(route.legs.filter(l => l.zero));
+    ctx.strokeStyle = p.conflict;
+    ctx.stroke();
+    ctx.font = font(fontPx, 700);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    const h = fontPx + 5;
     for (const st of route.stops) {
       const x = sx(st.cx) + 14, y = sy(st.cy) - 14;
-      const w = Math.max(16, ctx.measureText(st.label).width + 8);
+      const w = Math.max(h, ctx.measureText(st.label).width + 8);
       ctx.beginPath();
-      ctx.roundRect(x - w / 2, y - 8, w, 16, 8);
-      ctx.fillStyle = p.accent;
+      ctx.roundRect(x - w / 2, y - h / 2, w, h, h / 2);
+      ctx.fillStyle = st.zero ? p.conflict : p.fg;
+      ctx.strokeStyle = p.bg;
+      ctx.lineWidth = 2;
+      ctx.stroke();
       ctx.fill();
-      ctx.fillStyle = p.onAccent;
+      ctx.fillStyle = p.bg;
       ctx.fillText(st.label, x, y + 0.5);
     }
     ctx.restore();

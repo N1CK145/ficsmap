@@ -321,7 +321,7 @@
     "copied": "Kopiert"
   },
   "import": {
-    "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur: die Liste der gesammelten Objekte; Name, Datum und Build des Spielstands; zu den Rohstoffvorkommen die Ressource oder Reinheit, die dein Spielstand festlegt, sowie welcher Extraktor auf welchem Vorkommen steht (Gebäude, Taktrate, Energiefragmente); und für die Fabrik-Karte, was wo gebaut ist (Gebäude mit ihrer Produktivität, Förderbänder, Rohrleitungen, Stromleitungen, Wege, Stationen, Fahrzeuge, Kartenmarkierungen, Schildertexte und die erkundete Fläche). Keine Spielernamen und keine Spielerpositionen.",
+    "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur: die Liste der gesammelten Objekte; Name, Datum und Build des Spielstands; zu den Rohstoffvorkommen die Ressource oder Reinheit, die dein Spielstand festlegt, sowie welcher Extraktor auf welchem Vorkommen steht (Gebäude, Taktrate, Energiefragmente); und für den Fabrikplan, was wo gebaut ist (Gebäude mit ihrer Produktivität, Förderbänder, Rohrleitungen, Stromleitungen, Wege, Stationen, Fahrzeuge, Kartenmarkierungen, Schildertexte und die erkundete Fläche). Keine Spielernamen und keine Spielerpositionen.",
     "button": "Importieren",
     "title": "Spielstand importieren",
     "chooseFolder": "Spielstand-Ordner wählen",
@@ -362,12 +362,12 @@
     "review": "Konflikte prüfen",
     "dismiss": "Ausblenden",
     "createImportFailed": "Welt erstellt, aber der Import ist fehlgeschlagen. Du kannst ihn auf der Karte noch einmal starten.",
-    "factoryFailed": "Import fertig, aber die Fabrik dieses Spielstands ließ sich nicht für die Fabrik-Karte speichern.",
+    "factoryFailed": "Import fertig, aber die Fabrik dieses Spielstands ließ sich nicht für den Fabrikplan speichern.",
     "older": {
       "open": "Ältere Spielstände hinzufügen…",
-      "teaser": "Geh auf der Fabrik-Karte durch die Geschichte deiner Fabrik: Füge ältere Spielstände dieser Welt hinzu.",
+      "teaser": "Geh im Fabrikplan durch die Geschichte deiner Fabrik: Füge ältere Spielstände dieser Welt hinzu.",
       "title": "Ältere Spielstände hinzufügen",
-      "intro": "Fügt die Fabrik älterer Spielstände zum Zeitstrahl der Fabrik-Karte hinzu. Abgehakte Objekte und Rohstoffvorkommen bleiben, wie sie sind: Die setzt nur der Import deines neuesten Spielstands.",
+      "intro": "Fügt die Fabrik älterer Spielstände zum Zeitstrahl des Fabrikplans hinzu. Abgehakte Objekte und Rohstoffvorkommen bleiben, wie sie sind: Die setzt nur der Import deines neuesten Spielstands.",
       "filesLabel": "Spielstand-Dateien wählen",
       "multiHint": "Du kannst mehrere Dateien auf einmal wählen. Sie werden nacheinander gelesen, die älteste zuerst.",
       "progress": "{current, number} von {total, number}",
@@ -1270,7 +1270,10 @@
         "empty": "Fahrzeuge docken hier, bewegen aber nichts: Leerfahrten.",
         "active": "In Betrieb. Die Werte sind die Durchschnitte des Spiels pro Fahrzeug."
       },
-      "every": "alle {time}"
+      "every": "alle {time}",
+      "kind": "Station",
+      "rateFillShort": "{dir} {rate} /min · {fill} %",
+      "cargo": "Liegt bereit"
     },
     "vehicle": {
       "kind": "Fahrzeug",
@@ -1284,7 +1287,8 @@
       "unloads": "Entlädt",
       "route": "Route ({count, plural, one {# Halt} other {# Halte}})",
       "noRoute": "Keine gespeicherte Route.",
-      "roundTrip": "Rundfahrt (geschätzt)"
+      "roundTrip": "Rundfahrt (geschätzt)",
+      "cargo": "Hat geladen"
     },
     "info": {
       "close": "Schließen",
@@ -1301,7 +1305,10 @@
       "signText": "Text",
       "change": "Vorher {before} ({delta})",
       "lost": "Verliert {rate}",
-      "power": "Strom"
+      "power": "Strom",
+      "actualOfTarget": "Ist {actual} von Soll {at}",
+      "belt": "Förderband",
+      "purity": "Vorkommen"
     },
     "panel": {
       "save": "Spielstand vom {date}: {buildings} Gebäude, {machines} mit Produktivität",
@@ -1325,7 +1332,7 @@
       "changes": "Änderungen",
       "compareWith": "Vergleichen mit",
       "comparePrevious": "Dem Spielstand davor",
-      "slider": "Spielstand",
+      "slider": "Spielstände",
       "comparedWith": "Verglichen mit {date}:",
       "added": "{count, plural, one {+{n} Gebäude} other {+{n} Gebäude}}",
       "removed": "{count, plural, one {−{n} entfernt} other {−{n} entfernt}}",
@@ -1333,9 +1340,23 @@
       "lines": "Förderbänder, Rohre, Wege +{added} −{removed}",
       "nothingToCompare": "Kein anderer Spielstand zum Vergleichen.",
       "better": "{count, plural, one {{n} besser} other {{n} besser}}",
-      "worse": "{count, plural, one {{n} schlechter} other {{n} schlechter}}"
+      "worse": "{count, plural, one {{n} schlechter} other {{n} schlechter}}",
+      "toChanges": "Zu den Änderungen",
+      "comparedMark": "verglichen"
     },
     "noProduction": "Gebäude ohne Produktion",
-    "reasonsLabel": "Gründe"
+    "reasonsLabel": "Gründe",
+    "kindShort": {
+      "production": "Produktion",
+      "extraction": "Rohstoffgewinnung",
+      "power": "Strom",
+      "building": "Gebäude",
+      "logistics": "Logistik",
+      "structure": "Fundament"
+    },
+    "highlight": {
+      "count": "{count, plural, one {{n} Gebäude markiert} other {{n} Gebäude markiert}}",
+      "clear": "Markierung aufheben"
+    }
   }
 }

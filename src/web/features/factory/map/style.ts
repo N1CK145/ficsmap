@@ -58,8 +58,43 @@ export const BAND_TOKEN: Record<Band, string> = {
   full: 'free',
 };
 
-/** Bands below 90 % (standing, throttled) also get a hatch on the map, so colour is never the only cue. */
-export const HATCHED: ReadonlySet<Band> = new Set<Band>(['idle', 'throttled']);
+/** The pattern drawn over a building's tint in the productivity mode. */
+export type BandPattern = 'none' | 'dots' | 'stripes' | 'cross';
+/** The mark of a machine in the dot view (zoomed out): problems as shapes, healthy machines tiny or not at all. */
+export type DotShape = 'none' | 'tiny' | 'square' | 'diamond' | 'cross';
+
+export interface BandLook {
+  /** Opacity of the band colour's tint. */
+  tint: number;
+  pattern: BandPattern;
+  dot: DotShape;
+  /** Drawn later (on top) the larger it is, so problems are never covered by healthy machines. */
+  rank: number;
+}
+
+/**
+ * How each band looks in the productivity mode: problems pop, healthy machines recede, and every band has a second cue
+ * besides its colour. Full: a faint tint with an edge in the band colour. Nearly full: a stronger tint with sparse
+ * dots. Throttled: diagonal stripes. Standing: solid with a cross-hatch. A band added later falls back to `FALLBACK_LOOK`.
+ */
+export const BAND_LOOK: Partial<Record<Band, BandLook>> = {
+  full: { tint: 0.2, pattern: 'none', dot: 'tiny', rank: 0 },
+  high: { tint: 0.42, pattern: 'dots', dot: 'square', rank: 1 },
+  throttled: { tint: 0.32, pattern: 'stripes', dot: 'diamond', rank: 2 },
+  idle: { tint: 0.95, pattern: 'cross', dot: 'cross', rank: 3 },
+};
+export const FALLBACK_LOOK: BandLook = { tint: 0.5, pattern: 'none', dot: 'square', rank: 1 };
+
+export function bandLook(band: Band): BandLook {
+  return BAND_LOOK[band] ?? FALLBACK_LOOK;
+}
+
+/**
+ * Paused machines: their own state in neutral grey with the pause glyph, not a problem colour (the player chose it).
+ * The same grey as the page's `STATE_FILL.paused`.
+ */
+export const PAUSED_TOKEN = 'edge';
+export const PAUSED_LOOK: BandLook = { tint: 0.7, pattern: 'none', dot: 'tiny', rank: 0 };
 
 /** Belts, pipes, hypertubes, roads and rails as the map draws them. */
 export type LineKind = 'belt' | 'pipe' | 'hyper' | 'road' | 'rail';
