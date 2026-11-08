@@ -51,7 +51,8 @@ describe('upload tokens api', () => {
     expect(created.token).toEqual({ id: expect.any(Number), label: 'Gaming PC', anySession: true, createdAt: 9_000, createdBy: 'user-owner-1', lastUsedAt: null });
     // Only the hash is stored.
     const row = deps.db.prepare('SELECT * FROM upload_tokens').get() as Record<string, unknown>;
-    expect(JSON.stringify(row)).not.toContain(created.secret.split('_').pop());
+    // The secret part may itself contain '_' (base64url), so take it with the token pattern, not by splitting.
+    expect(JSON.stringify(row)).not.toContain(UPLOAD_TOKEN_RE.exec(created.secret)![2]);
 
     const list = await app.inject({ url: tokens, headers: { cookie: owner } });
     expect(list.json()).toEqual([created.token]);
