@@ -118,32 +118,6 @@ body:not(.leaflet-dragging) .ficsmap-map.ficsmap-marker-hover {
   right: calc(348px + 10px);
 }
 
-/* Biome labels (biomes feature): faint, centred on the biome, never in the way of the mouse. */
-.ficsmap-biome-label {
-  pointer-events: none;
-  overflow: visible;
-}
-
-.ficsmap-biome-label__text {
-  display: block;
-  width: max-content;
-  transform: translate(-50%, -50%);
-  color: var(--color-muted);
-  font-family: var(--font-display);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-shadow: 0 0 3px var(--color-bg);
-  opacity: 0.8;
-  pointer-events: none;
-}
-
-/* The invisible biome hit areas must not replace the map's grab, marker and mode cursors
-   (.leaflet-interactive sets pointer; this selector is more specific). */
-.ficsmap-map .leaflet-interactive.ficsmap-biome-hit {
-  cursor: inherit;
-}
-
 /* Mobile (spec §10.11): the bottom sheet's 112 px peek (PEEK_PX) covers the bottom of the map, which
    reaches the bottom of the screen. The zoom keys take the 44 px touch size; the features' controls
    move down with them (10 px margin + 89 px bar + gap). */

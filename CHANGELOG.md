@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Map: the biomes are no longer drawn on the map (no names, outlines or dimming outside a chosen biome); the biome panel in the sidebar stays, and choosing a biome there still zooms the map to it.
 - Planner: the production steps diagram takes the rest of the screen below it, and at least 1.5 times its former height (the diagram at 100 %, at most 70 % of the screen).
 - Factory map: a click on a machine of another production line chooses that line and opens the machine's window at once (before, a second click was needed).
 
