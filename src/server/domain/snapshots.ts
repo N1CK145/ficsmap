@@ -80,6 +80,27 @@ const Vehicle = z.object({
   slots: Count.max(10_000).optional(),
 });
 
+/** Items seen on a belt (class → count); at most 256 classes. */
+const ItemCounts = z.record(Cls, Count).refine(r => Object.keys(r).length <= 256, 'too many items');
+
+const Link = z.object({
+  from: Id,
+  to: Id,
+  fromPort: Str(128).optional(),
+  toPort: Str(128).optional(),
+  kind: z.enum(['belt', 'pipe']),
+  via: z.array(Id).max(10_000),
+  slowest: Cls.optional(),
+  items: ItemCounts.optional(),
+  fluid: Cls.optional(),
+});
+
+const Circuit = z.object({
+  id: Num,
+  buildings: z.array(Id).max(200_000),
+  fuseTriggered: z.boolean().optional(),
+});
+
 const Marker = z.object({
   name: Str(256),
   x: Num, y: Num, z: Num,
@@ -107,6 +128,8 @@ export const SnapshotSchema = z.object({
   pathNetworks: z.array(z.object({ id: Num, nodes: Count, segments: z.array(Id).max(100_000) })).max(1_000),
   stations: z.array(Station).max(10_000),
   vehicles: z.array(Vehicle).max(10_000),
+  links: z.array(Link).max(200_000).optional(),
+  circuits: z.array(Circuit).max(10_000).optional(),
   markers: z.array(Marker).max(10_000),
   crates: z.array(z.object({ x: Num, y: Num, z: Num, kind: Str(128) })).max(10_000),
   fog: z.string().max(8 * 2 ** 20).regex(/^[A-Za-z0-9+/]*={0,2}$/).optional(),
