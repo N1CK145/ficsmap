@@ -1,24 +1,30 @@
 import { useId, useMemo, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { countNodes, isRandomized, OCCUPANCIES, PURITIES, summarizeExtractors } from '../../../shared/resourceNodes.js';
+import { IconsContext, useItemIcons } from '../machineWiki/icons.js';
+import { useRecipes } from '../planner/useRecipes.js';
 import { useMe } from '../worlds/queries.js';
 import { ShardPips } from './Extractors.js';
 import { useNodeSettingsText } from './nodeSettings.js';
-import { PurityPips, ResourceSwatch } from './PurityPips.js';
-import { resourceToken, sortResources, useResourceLabels } from './resourceStyle.js';
+import { PurityPips, ResourceIcon } from './PurityPips.js';
+import { useRateTexts } from './rates.js';
+import { PURITY_TEXT, resourceToken, sortResources, useResourceLabels } from './resourceStyle.js';
 import { useNodeFilter, useNodeLayer, useWorldNodes } from './useResourceNodes.js';
 
 const ROW = 'flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm select-none focus-ring hover:bg-bg';
 
 /**
- * The Resource nodes panel: the layer switch, the filters by resource (Alt-click: only this one) and by
- * purity with their counts, and what the last save import changed. With extractors from a save import also a
- * filter for nodes with or without one, and how many of each building stand on nodes with how many Power Shards.
+ * The Resource nodes panel: the layer switch, the filters by resource (Alt-click: only this one, each with the
+ * resource's picture) and by purity (in its colour, with the miners' rates on such a node) with their counts, and
+ * what the last save import changed. With extractors from a save import also a filter for nodes with or without one,
+ * and how many of each building stand on nodes with how many Power Shards.
  */
 export function ResourceNodesPanel({ worldId }: { worldId: string }) {
   const { t } = useTranslation();
   const version = useMe().data?.datasetVersion;
   const data = useWorldNodes(version ?? '', worldId, version !== undefined);
+  const icons = useItemIcons(version ?? '', !!data);
+  const rates = useRateTexts(useRecipes(version ?? '', !!data).index);
   const filter = useNodeFilter(data?.extractors);
   const visible = useNodeLayer(s => s.visible);
   const { toggle, toggleResource, showOnlyResource, setAllResources, togglePurity, setOccupancy } = useNodeLayer.getState();
@@ -60,20 +66,22 @@ export function ResourceNodesPanel({ worldId }: { worldId: string }) {
             <button type="button" className="rounded px-1 focus-ring hover:text-fg" onClick={() => setAllResources(false, resources)}>{t('resourceNodes.noneShown')}</button>
           </span>
         </div>
-        <ul aria-labelledby={resLabel} className="flex flex-col">
-          {resources.map(id => {
-            const on = !filter.hiddenResources.has(id);
-            return (
-              <li key={id}>
-                <button type="button" aria-pressed={on} title={t('resourceNodes.resourceHint')} onClick={e => onResource(e, id)} className={`${ROW} ${on ? 'text-fg' : 'text-muted'}`}>
-                  <span className={on ? '' : 'opacity-40'}><ResourceSwatch token={resourceToken(id)} /></span>
-                  <span className="min-w-0 flex-1 truncate">{labelOf(id).name}</span>
-                  <span className="shrink-0 font-display tabular-nums">{t('resourceNodes.count', { count: counts.byResource.get(id) ?? 0 })}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <IconsContext.Provider value={icons}>
+          <ul aria-labelledby={resLabel} className="flex flex-col">
+            {resources.map(id => {
+              const on = !filter.hiddenResources.has(id);
+              return (
+                <li key={id}>
+                  <button type="button" aria-pressed={on} title={t('resourceNodes.resourceHint')} onClick={e => onResource(e, id)} className={`${ROW} ${on ? 'text-fg' : 'text-muted'}`}>
+                    <span className={`inline-flex ${on ? '' : 'opacity-40'}`}><ResourceIcon id={id} token={resourceToken(id)} /></span>
+                    <span className="min-w-0 flex-1 truncate">{labelOf(id).name}</span>
+                    <span className="shrink-0 font-display tabular-nums">{t('resourceNodes.count', { count: counts.byResource.get(id) ?? 0 })}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </IconsContext.Provider>
       </div>
 
       <div>
@@ -81,11 +89,13 @@ export function ResourceNodesPanel({ worldId }: { worldId: string }) {
         <ul aria-labelledby={purityLabel} className="flex flex-col">
           {PURITIES.map(p => {
             const on = filter.purities.has(p);
+            const rate = rates.purity(p);
             return (
               <li key={p}>
-                <button type="button" aria-pressed={on} onClick={() => togglePurity(p)} className={`${ROW} ${on ? 'text-fg' : 'text-muted'}`}>
+                <button type="button" aria-pressed={on} title={rate?.hint} onClick={() => togglePurity(p)} className={`${ROW} ${on ? 'text-fg' : 'text-muted'}`}>
                   <PurityPips purity={p} className={`w-6 ${on ? '' : 'opacity-40'}`} />
-                  <span className="min-w-0 flex-1 truncate">{t(`resourceNodes.purity.${p}`)}</span>
+                  <span className={`min-w-0 flex-1 truncate ${on ? PURITY_TEXT[p] : ''}`}>{t(`resourceNodes.purity.${p}`)}</span>
+                  {rate && <span className="shrink-0 text-xs text-muted tabular-nums" data-testid="purity-rate">{rate.range}</span>}
                   <span className="shrink-0 font-display tabular-nums">{t('resourceNodes.count', { count: counts.byPurity[p] })}</span>
                 </button>
               </li>

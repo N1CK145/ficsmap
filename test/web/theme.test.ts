@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { COLLECTIBLE_TYPES } from '../../src/shared/collectibleTypes.js';
-import { RESOURCE_TOKENS } from '../../src/web/features/resourceNodes/resourceStyle.js';
+import { luminance } from '../../src/web/features/resourceNodes/drawNode.js';
+import { PURITY_TOKENS, RESOURCE_TOKENS } from '../../src/web/features/resourceNodes/resourceStyle.js';
 
 // Vitest stubs CSS imports (also `?raw`), so the file is read directly (tests run from the repo root).
 const css = readFileSync(resolve(process.cwd(), 'src/web/app/theme.css'), 'utf8');
@@ -13,6 +14,27 @@ describe('theme.css', () => {
 
   it('defines a colour token for every resource of the resource node layer', () => {
     for (const t of RESOURCE_TOKENS) expect(css, t).toMatch(new RegExp(`--color-${t}:\\s*#[0-9A-Fa-f]{6};`));
+  });
+
+  it('defines the purity colours, readable on the dark map and panels and distinct from each other', () => {
+    const color = (token: string) => new RegExp(`--color-${token}:\\s*(#[0-9A-Fa-f]{6});`).exec(css)?.[1];
+    const ratio = (a: string, b: string) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    const values = Object.values(PURITY_TOKENS).map(t => {
+      const c = color(t);
+      expect(c, t).toBeDefined();
+      return c!;
+    });
+    expect(new Set(values).size).toBe(3);
+    for (const c of values) {
+      // As a ring on the dark map background and as text on panels at least 4.5:1 (the same holds for bg text on it).
+      expect(ratio(c, color('bg')!), c).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(c, color('panel')!), c).toBeGreaterThanOrEqual(4.5);
+      expect(c).not.toBe(color('accent'));
+      expect(c).not.toBe(color('conflict'));
+    }
   });
 
   it('defines the Power Shard colour the resource node layer reads', () => {

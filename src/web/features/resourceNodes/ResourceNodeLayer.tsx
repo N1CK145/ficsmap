@@ -4,13 +4,18 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMap } from 'react-leaflet';
 import { worldToLatLng, UNITS_PER_METER } from '../../../shared/geo.js';
+import { pressurizerClock } from '../../../shared/nodeRates.js';
 import { filterNodes, type ExtractorInfo, type ResourceNode } from '../../../shared/resourceNodes.js';
 import type { WorldCtx } from '../../app/feature.js';
+import { IconsContext, useItemIcons } from '../machineWiki/icons.js';
+import { useRecipes } from '../planner/useRecipes.js';
 import { NodeCanvasLayer } from './NodeCanvasLayer.js';
 import type { DrawExtractor, DrawNode } from './drawNode.js';
 import { ExtractorList, useExtractorLabel } from './Extractors.js';
-import { PurityPips, ResourceSwatch } from './PurityPips.js';
-import { resourceToken, useResourceLabels, type ResourceLabel } from './resourceStyle.js';
+import { NODE_IMAGE_PX, nodeImage } from './nodeImages.js';
+import { PurityPips, ResourceIcon } from './PurityPips.js';
+import { useRateTexts, type RateTexts } from './rates.js';
+import { PURITY_TEXT, resourceToken, useResourceLabels, type ResourceLabel } from './resourceStyle.js';
 import { useNodeFilter, useNodeLayer, useWorldNodes } from './useResourceNodes.js';
 
 const HOVER_CLASS = 'ficsmap-node-hover';
@@ -18,19 +23,33 @@ const HOVER_CLASS = 'ficsmap-node-hover';
 const BOX_OFFSET = 14;
 
 /**
- * The resource nodes on the map while the layer is switched on, filtered by resource and purity. Hovering a
- * node shows its resource, purity and position; a click (or tap) pins that box until a click elsewhere or
- * Escape.
+ * The resource nodes on the map while the layer is switched on, filtered by resource and purity, each as the game's
+ * picture of its resource in a ring of its purity's colour (pictures and recipe data load with the layer). Hovering a
+ * node shows its resource, purity with the extraction rates, and position; a click (or tap) pins that box until a
+ * click elsewhere or Escape.
  */
 export function ResourceNodeLayer({ ctx }: { ctx: WorldCtx }) {
   const map = useMap();
   const visible = useNodeLayer(s => s.visible);
-  const data = useWorldNodes(ctx.me.datasetVersion, ctx.worldId, visible);
+  const version = ctx.me.datasetVersion;
+  const data = useWorldNodes(version, ctx.worldId, visible);
+  const icons = useItemIcons(version, visible && !!data);
+  const recipes = useRecipes(version, visible && !!data).index;
+  const rates = useRateTexts(recipes);
   const extractors = data?.extractors;
   const filter = useNodeFilter(extractors);
   const labelOf = useResourceLabels(data?.file);
   const extractorLabel = useExtractorLabel();
   const bounds = ctx.index.ds.bounds;
+
+  // Each resource's picture URL; all are loaded up front (once per session), so the canvas has them when it draws.
+  const iconUrls = useMemo(() => {
+    const out = new Map<string, string>();
+    if (!icons || !data) return out;
+    for (const { id } of data.file.resources) if (icons.has(id)) out.set(id, icons.urls(id, NODE_IMAGE_PX).src);
+    return out;
+  }, [icons, data]);
+  useEffect(() => { for (const url of iconUrls.values()) nodeImage(url); }, [iconUrls]);
 
   const shown = useMemo(() => (data && visible ? filterNodes(data.nodes, filter) : []), [data, visible, filter]);
   const byName = useMemo(() => new Map(shown.map(n => [n.name, n])), [shown]);
@@ -38,13 +57,15 @@ export function ResourceNodeLayer({ ctx }: { ctx: WorldCtx }) {
     const out = shown.map((n): DrawNode => {
       const [lat, lng] = worldToLatLng(n.x, n.y, bounds);
       const d: DrawNode = { id: n.name, lat, lng, kind: n.kind, purity: n.purity, token: resourceToken(n.resource), label: labelOf(n.resource).short, changed: !!n.original };
+      const icon = iconUrls.get(n.resource);
+      if (icon) d.icon = icon;
       const on = extractors?.get(n.name);
       if (on) d.extractor = extractorTag(on, extractorLabel);
       return d;
     });
     // Cores first, so their satellites are drawn on top.
     return out.sort((a, b) => Number(b.kind === 'core') - Number(a.kind === 'core'));
-  }, [shown, bounds, labelOf, extractors, extractorLabel]);
+  }, [shown, bounds, labelOf, extractors, extractorLabel, iconUrls]);
 
   const [hover, setHover] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string | null>(null);
@@ -105,7 +126,14 @@ export function ResourceNodeLayer({ ctx }: { ctx: WorldCtx }) {
 
   const node = active === null ? undefined : byName.get(active);
   if (!visible || !node) return null;
-  return <NodeInfo node={node} extractors={extractors?.get(node.name)} label={labelOf} pinned={pinned !== null} ctx={ctx} />;
+  return (
+    <IconsContext.Provider value={icons}>
+      <NodeInfo
+        node={node} extractors={extractors?.get(node.name)} pressurizer={extractors ? pressurizerClock(node, extractors) : null}
+        label={labelOf} rates={rates} pinned={pinned !== null} ctx={ctx}
+      />
+    </IconsContext.Provider>
+  );
 }
 
 /**
@@ -119,9 +147,14 @@ export function extractorTag(list: readonly ExtractorInfo[], short: (kind: Extra
   return { label: short(first.kind) + suffix, shards: list.reduce((n, e) => n + (e.shards ?? 0), 0) };
 }
 
-/** Follows its node while the map moves (a pinned box stays while panning). */
-function NodeInfo({ node, extractors, label, pinned, ctx }: {
-  node: ResourceNode; extractors: readonly ExtractorInfo[] | undefined; label: (id: string) => ResourceLabel; pinned: boolean; ctx: WorldCtx;
+/**
+ * Follows its node while the map moves (a pinned box stays while panning). The purity in its colour with what each
+ * fitting extractor gets out of the node at 100 %, and per extractor from the save import what it gets at its clock
+ * speed (a well extractor at its pressurizer's, `pressurizer`).
+ */
+function NodeInfo({ node, extractors, pressurizer, label, rates, pinned, ctx }: {
+  node: ResourceNode; extractors: readonly ExtractorInfo[] | undefined; pressurizer: number | null; label: (id: string) => ResourceLabel;
+  rates: RateTexts; pinned: boolean; ctx: WorldCtx;
 }) {
   const { t, i18n } = useTranslation();
   const map = useMap();
@@ -137,6 +170,7 @@ function NodeInfo({ node, extractors, label, pinned, ctx }: {
   const metres = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0 });
   const m = (units: number) => metres.format(units / UNITS_PER_METER);
   const res = label(node.resource);
+  const rateText = rates.node(node);
   // Right of the node, or left of it near the right edge; clamped vertically by CSS translate.
   const right = p.x < size.x - 240;
   return (
@@ -148,14 +182,15 @@ function NodeInfo({ node, extractors, label, pinned, ctx }: {
       style={{ left: right ? p.x + BOX_OFFSET : undefined, right: right ? undefined : size.x - p.x + BOX_OFFSET, top: p.y, transform: 'translateY(-50%)' }}
     >
       <div className="flex items-center gap-1.5 font-semibold">
-        <ResourceSwatch token={resourceToken(node.resource)} hollow={node.kind === 'core'} />
+        <ResourceIcon id={node.resource} token={resourceToken(node.resource)} hollow={node.kind === 'core'} px={20} />
         <span>{res.name}</span>
       </div>
       <div className="text-muted">{t(`resourceNodes.kinds.${node.kind}`)}</div>
       {node.purity !== null && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-x-1.5" data-testid="node-purity">
           <PurityPips purity={node.purity} />
-          <span>{t(`resourceNodes.purity.${node.purity}`)}</span>
+          <span className={`font-semibold ${PURITY_TEXT[node.purity]}`}>{t(`resourceNodes.purity.${node.purity}`)}</span>
+          {rateText !== null && <span className="tabular-nums" data-testid="node-rates">· {rateText}</span>}
         </div>
       )}
       <div className="tabular-nums">{t('item.coords', { x: m(node.x), y: m(node.y), z: m(node.z) })}</div>
@@ -169,7 +204,7 @@ function NodeInfo({ node, extractors, label, pinned, ctx }: {
       )}
       {extractors && extractors.length > 0 && (
         <div className="mt-1 border-t border-line pt-1">
-          <ExtractorList extractors={extractors} />
+          <ExtractorList extractors={extractors} rateOf={e => rates.placed(node, e, pressurizer)} />
         </div>
       )}
     </div>

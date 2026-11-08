@@ -36,14 +36,18 @@ export function ShardPips({ shards, slots = MAX_SHARDS }: { shards: number; slot
   );
 }
 
-/** The extractors on one node: building, clock speed and Power Shards (what the save holds; nothing derived). */
-export function ExtractorList({ extractors }: { extractors: readonly ExtractorInfo[] }) {
+/**
+ * The extractors on one node: building, clock speed and Power Shards as the save holds them, and with `rateOf` what
+ * each gets out of the node (from the recipe data; null leaves the line out).
+ */
+export function ExtractorList({ extractors, rateOf }: { extractors: readonly ExtractorInfo[]; rateOf?: (e: ExtractorInfo) => string | null }) {
   const { t, i18n } = useTranslation();
   const percent = new Intl.NumberFormat(i18n.language, { style: 'percent', maximumFractionDigits: 4 });
   return (
     <ul className="flex flex-col gap-0.5" data-testid="node-extractors">
       {groupExtractors(extractors).map(({ info, count }, i) => {
         const name = t(`resourceNodes.extractorKinds.${info.kind}`);
+        const rate = rateOf?.(info) ?? null;
         return (
           <li key={i}>
             <div className="font-semibold">{count > 1 ? t('resourceNodes.times', { name, count }) : name}</div>
@@ -54,6 +58,7 @@ export function ExtractorList({ extractors }: { extractors: readonly ExtractorIn
                 <span>{t('resourceNodes.shards', { count: info.shards })}</span>
               </div>
             )}
+            {rate !== null && <div className="tabular-nums" data-testid="extractor-rate">{rate}</div>}
           </li>
         );
       })}

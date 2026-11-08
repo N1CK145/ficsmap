@@ -1,11 +1,11 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ResourceNodesFile } from '../../../shared/resourceNodes.js';
+import type { Purity, ResourceNodesFile } from '../../../shared/resourceNodes.js';
 
 /**
  * Per resource its colour token (theme.css `--color-res-*`), in list order: solid ores, then fluids and
- * gases, then geysers. The colour is the second cue; every marker also carries the resource's short label
- * (from zoom 4) and the purity pips, and the hover box names both.
+ * gases, then geysers. A node shows its resource as the game's picture; the colour is for the panel's swatches
+ * and for the disk (with the short label from zoom 4) a node shows when the dataset has no picture of it.
  */
 const STYLES: readonly (readonly [id: string, token: string])[] = [
   ['Desc_OreIron_C', 'res-iron'],
@@ -28,6 +28,12 @@ const ORDER = new Map(STYLES.map(([id], i) => [id, i]));
 
 /** Every colour token the layer uses (for reading them from the stylesheet and the theme test). */
 export const RESOURCE_TOKENS: readonly string[] = [...new Set(STYLES.map(s => s[1])), 'muted'];
+
+/** Per purity its colour token (theme.css `--color-purity-*`): impure red, normal orange, pure green. */
+export const PURITY_TOKENS: Readonly<Record<Purity, string>> = { impure: 'purity-impure', normal: 'purity-normal', pure: 'purity-pure' };
+
+/** The text colour class per purity (written out, so Tailwind finds them). */
+export const PURITY_TEXT: Readonly<Record<Purity, string>> = { impure: 'text-purity-impure', normal: 'text-purity-normal', pure: 'text-purity-pure' };
 
 /** The colour token of a resource; resources this version does not know yet are grey. */
 export function resourceToken(id: string): string {
