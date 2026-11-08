@@ -41,7 +41,9 @@ export interface FactorySnapshot {
   crates: { x: number; y: number; z: number; kind: string }[];
   /**
    * The explored area (fog of war) as a base64 PNG, one channel (grey = how explored, 0 = never seen), in the map's
-   * square at the save's resolution (512 × 512 in 1.2). Missing when the save has none.
+   * square at the save's resolution (512 × 512 in 1.2). Rows run along y (first row = the map's north edge, minY),
+   * columns along x (minX first), covering the dataset's world bounds (`map.json` `world`). Missing when the save
+   * has none.
    */
   fog?: string;
 }
@@ -129,7 +131,10 @@ export interface SnapshotVehicle {
   name?: string;
   x: number; y: number; z: number; yaw: number;
   autopilot: boolean;
-  /** Fuel item class and the amount in its fuel slot (MJ as the save stores it). */
+  /**
+   * Fuel item class and the number of items in its fuel slot (fluids in litres, as inventories store them); when the
+   * slot is empty, the vehicle's chosen fuel type with amount 0.
+   */
   fuel?: { item: string; amount?: number };
   /** The route: station ids in order (unknown waypoints left out). */
   route: string[];
