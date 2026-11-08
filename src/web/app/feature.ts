@@ -50,8 +50,8 @@ export interface ToolState {
   available: boolean;
   /** For a switch: whether it is on (aria-pressed, a filled button). Leave it out for a plain action. */
   pressed?: boolean;
-  /** A click: flip the switch, or run the action (open a dialog, a panel, ...). */
-  run(): void;
+  /** A click: flip the switch, or run the action. Not used by a tool that leads to a world page (`Tool.page`): that one is a link. */
+  run?(): void;
 }
 
 /**
@@ -69,10 +69,15 @@ export interface Tool {
   /** `aria-keyshortcuts`, e.g. "Q"; the feature handles the key itself. */
   shortcut?: string;
   /**
-   * Opens something of its own (a dialog such as the planner) instead of switching the map. On wide screens
-   * such tools are listed in the Tools menu next to the map switches' buttons, so the top bar stays short.
+   * Not a map switch (a world page such as the planner, or something else of its own). On wide screens such tools are
+   * listed in the Tools menu next to the map switches' buttons, so the top bar stays short.
    */
   action?: boolean;
+  /**
+   * The id of the world page (`FeatureModule.pages`) the tool leads to: the tool is a link to that page, marked as the
+   * current page (`aria-current="page"`) while it is shown. `pageTool()` (app/tools.ts) builds one.
+   */
+  page?: string;
   /** A hook, called by the tool's own button component on every render. */
   useTool(ctx: WorldCtx): ToolState;
 }
@@ -99,7 +104,11 @@ export interface SearchEntry {
   weight?: number;
   /** A small icon in front of the label (decorative). */
   icon?: ReactNode;
-  /** What choosing the entry does besides highlighting its `actors` (select the item, scope the biome, ...). */
+  /**
+   * What choosing the entry does besides highlighting its `actors` (select the item, scope the biome, ...). An entry
+   * with `actors` is about the map: chosen on a world page, the search shows the map first, then calls this. Act on the
+   * map through requests the map carries out once it is shown (`focusItem`, `setBiomeScope`, `useMapFit`).
+   */
   onSelect?(ctx: WorldCtx): void;
 }
 
@@ -112,6 +121,24 @@ export interface SearchProvider {
    * large files. Return the same array while nothing changed; the search prepares it once.
    */
   useEntries(ctx: WorldCtx, active: boolean): readonly SearchEntry[] | undefined;
+}
+/**
+ * A page of its own under the world's URL, `/w/:id/<id>` (the production planner: `/w/:id/planner`). It takes the
+ * whole main area at full width instead of the sidebar, the map and the item panel (on mobile also the bottom sheets),
+ * under a page heading with a way back to the map. The world layout around it stays mounted (event stream, stores,
+ * header with the search and the tools), so a page keeps its state in a store and finds it again on the next visit.
+ */
+export interface WorldPage {
+  /** Unique; also the page's path segment under `/w/:id`: short, lower-case English (`planner`, `vehicles`, `wiki`). */
+  id: string;
+  /**
+   * A route path below the page's own segment for deep links into the page, e.g. `:entry?` for `/w/:id/wiki/:entry?`.
+   * The page reads it with `useParams()`.
+   */
+  subPath?: string;
+  /** The page heading (also the name of its `main` landmark). */
+  titleKey: string;
+  Component: FC<{ ctx: WorldCtx }>;
 }
 export interface SettingsSection { id: string; order: number; ownerOnly: boolean; Component: FC<{ ctx: WorldCtx }> }
 export type SseHandlerMap = { [K in SseEvent['type']]: (e: Extract<SseEvent, { type: K }>, ctx: WorldCtx) => void };
@@ -133,6 +160,8 @@ export interface FeatureModule {
   headerItems?: HeaderItem[];
   /** Switches and actions in the top bar's tool navigation (desktop: buttons, mobile: a menu). */
   tools?: Tool[];
+  /** Pages of their own under the world's URL (`/w/:id/<id>`), shown at full width in place of the map. */
+  pages?: WorldPage[];
   /** Sources of results for the header search. */
   searchProviders?: SearchProvider[];
   settingsSections?: SettingsSection[];

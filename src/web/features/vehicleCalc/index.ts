@@ -1,20 +1,16 @@
-import type { FeatureModule, MapMode, Tool } from '../../app/feature.js';
+import type { FeatureModule, MapMode } from '../../app/feature.js';
+import { pageTool } from '../../app/tools.js';
 import { PickBanner } from './PickBanner.js';
-import { PICK_MODE, useVehicleCalc } from './useVehicleCalc.js';
-import { VehicleCalcHost } from './VehicleCalcDialog.js';
+import { PickReturn } from './PickReturn.js';
+import { PICK_MODE, useVehicleCalc, VEHICLES_PAGE } from './useVehicleCalc.js';
+import { VehicleCalcPage } from './VehicleCalcPage.js';
 import { VehicleRouteLayer } from './VehicleRouteLayer.js';
 
-export { VehicleCalcDialog } from './VehicleCalcDialog.js';
-export { PICK_MODE, useVehicleCalc } from './useVehicleCalc.js';
+export { VehicleCalcPage } from './VehicleCalcPage.js';
+export { PICK_MODE, useVehicleCalc, VEHICLES_PAGE, vehiclesPath } from './useVehicleCalc.js';
 
-/** "Vehicles" in the tool navigation: opens the calculator. */
-export const vehicleCalcTool: Tool = {
-  id: 'vehicle-calc', order: 50, labelKey: 'vehicleCalc.open', hintKey: 'vehicleCalc.openHint', action: true,
-  useTool: () => {
-    const show = useVehicleCalc(s => s.show);
-    return { available: true, run: () => show() };
-  },
-};
+/** "Vehicles" in the tool navigation: leads to the calculator page. */
+export const vehicleCalcTool = pageTool({ id: 'vehicle-calc', order: 50, labelKey: 'vehicleCalc.open', hintKey: 'vehicleCalc.openHint', page: VEHICLES_PAGE });
 
 /**
  * Picking the route's start and destination on the map: a click on the map gives that point, a click on a marker
@@ -29,17 +25,21 @@ export const pickRouteMode: MapMode = {
 
 /**
  * Vehicle calculator: what one vehicle does on a route (trip times, fuel, stacks per minute), the vehicles needed for
- * a throughput, or the throughput of a number of vehicles, from the dataset's `transport.json`. The route length is
- * typed or picked on the map (PICK_MODE; the straight line between start and destination), and the picked route
- * stays on the map. Self-contained: its own open state, form and route (`useVehicleCalc`) and dialog (a header item,
- * so it renders in the top layer), opened from the tool navigation; anything else can open it with
- * `useVehicleCalc.getState().show(routeMeters?)`.
+ * a throughput, or the throughput of a number of vehicles, from the dataset's `transport.json`. A world page
+ * (`/w/:id/vehicles`) at full width, reached from the tool navigation. The route length is typed or picked on the
+ * map: "Pick on the map" goes to the map in PICK_MODE (the straight line between start and destination), and the
+ * destination, Esc or Cancel bring the calculator page back (`PickReturn`). The picked route stays on the map.
+ * Self-contained: its form and route live in `useVehicleCalc`; anything else can open it by navigating to
+ * `vehiclesPath(worldId)`.
  */
 export const vehicleCalcFeature: FeatureModule = {
   id: 'vehicleCalc',
   tools: [vehicleCalcTool],
-  headerItems: [{ id: 'vehicle-calc-dialog', order: 1000, Component: VehicleCalcHost }],
+  pages: [{ id: VEHICLES_PAGE, titleKey: 'vehicleCalc.title', Component: VehicleCalcPage }],
   mapModes: [pickRouteMode],
-  // Over the route planner's line (110).
-  mapLayers: [{ id: 'vehicle-route', order: 115, Component: VehicleRouteLayer }],
+  mapLayers: [
+    // Over the route planner's line (110).
+    { id: 'vehicle-route', order: 115, Component: VehicleRouteLayer },
+    { id: 'vehicle-pick-return', order: 116, Component: PickReturn },
+  ],
 };

@@ -1,14 +1,17 @@
-import { Fragment, useId, useMemo, type MouseEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   descriptorClass, entryTierKeys, groupByCategory, matchesQuery, matchesTiers, perMinute, selectedUpTo, statRows, tierOf,
   tierOptions, toggleTier, upToTier, wikiUrl,
   type ItemAmount, type Lang, type MachineCategory, type MachineData, type MachineEntry, type TierKey, type WikiRecipe,
 } from '../../../shared/machines.js';
+import { useMediaQuery } from '../../app/useMediaQuery.js';
 import { Button } from '../../components/Button.js';
 import { GameIcon } from './icons.js';
 
 const INPUT = 'h-10 w-full min-w-0 rounded border border-line bg-bg px-3 text-fg focus-ring';
+/** From this width the picture grid stays beside an open entry (Tailwind's `xl`). */
+const WIDE_QUERY = '(min-width: 1280px)';
 
 /** Category accents (theme tokens `--color-cat-*`), written out in full so Tailwind generates every class. */
 const CATEGORY: Record<MachineCategory, { text: string; bar: string; tint: string; border: string; hover: string }> = {
@@ -67,9 +70,11 @@ function TierBadge({ tier, id, hidden = false }: { tier: TierKey; id?: string; h
 }
 
 /**
- * The wiki: search, tier filter, the entries as picture cards grouped by category, and the selected entry's details.
- * With an entry open, the list becomes a narrow column beside it on wider screens; on phones the list or the details,
- * with a way back to the list.
+ * The wiki: search, tier filter, the entries as picture cards grouped by category, and the selected entry's details
+ * beside them. With an entry open, the picture grid stays on wide screens and the entry takes a column of reading
+ * width on the right; on medium screens the list becomes a narrow column; there both scroll on their own. On phones
+ * the list or the details, with a way back to the list. The list stays mounted when an entry opens, so the focus stays
+ * on the chosen card.
  */
 export function MachineWiki({ data, selected, query, tiers = [], onSelect, onQuery, onTiers = () => {} }: {
   data: MachineData; selected: string | null; query: string; tiers?: TierKey[];
@@ -78,14 +83,24 @@ export function MachineWiki({ data, selected, query, tiers = [], onSelect, onQue
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === 'de' ? 'de' : 'en';
   const searchId = useId();
+  const wide = useMediaQuery(WIDE_QUERY);
+  const detailRef = useRef<HTMLDivElement>(null);
   const shown = useMemo(() => data.machines.filter(m => matchesQuery(m, query) && matchesTiers(m, tiers)), [data.machines, query, tiers]);
   const groups = useMemo(() => groupByCategory(shown), [shown]);
   const options = useMemo(() => tierOptions(data.machines), [data.machines]);
   const entry = data.machines.find(m => m.id === selected) ?? null;
+  const entryId = entry?.id;
+  // Another entry starts at its top.
+  useEffect(() => {
+    const el = detailRef.current;
+    if (!entryId || !el) return;
+    el.scrollTop = 0;
+    el.scrollIntoView?.({ block: 'nearest' });
+  }, [entryId]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className={`flex flex-col gap-3 ${entry ? 'max-sm:hidden' : ''}`}>
+    <div className={`flex flex-col gap-4 ${entry ? 'sm:h-full' : ''}`}>
+      <div className={`flex shrink-0 flex-col gap-3 ${entry ? 'max-sm:hidden' : ''}`}>
         <div className="flex flex-col gap-1">
           <label htmlFor={searchId} className="text-sm font-medium">{t('machineWiki.search')}</label>
           <input id={searchId} type="search" value={query} onChange={e => onQuery(e.target.value)} className={INPUT}
@@ -94,19 +109,16 @@ export function MachineWiki({ data, selected, query, tiers = [], onSelect, onQue
         <TierFilter options={options} tiers={tiers} onTiers={onTiers} />
         <p className="text-xs text-muted" aria-live="polite">{t('machineWiki.showing', { shown: shown.length, total: data.machines.length })}</p>
       </div>
-      {entry ? (
-        <div className="grid gap-4 sm:grid-cols-[minmax(13rem,16rem)_1fr]">
-          <EntryList groups={groups} layout="column" selected={selected} lang={lang} onSelect={onSelect} className="max-sm:hidden" />
-          <div className="min-w-0">
+      {!entry && <p className="text-sm text-muted">{t('machineWiki.pick')}</p>}
+      <div className={entry ? 'grid gap-4 sm:min-h-0 sm:flex-1 sm:grid-cols-[minmax(13rem,16rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_minmax(26rem,42rem)]' : ''}>
+        <EntryList groups={groups} layout={entry && !wide ? 'column' : 'grid'} selected={selected} lang={lang} onSelect={onSelect}
+          className={entry ? 'max-sm:hidden sm:overflow-y-auto sm:pr-1' : ''} />
+        {entry && (
+          <div ref={detailRef} className="min-w-0 sm:overflow-y-auto sm:pr-1">
             <EntryDetail data={data} entry={entry} lang={lang} onBack={() => onSelect(null)} />
           </div>
-        </div>
-      ) : (
-        <>
-          <p className="text-sm text-muted">{t('machineWiki.pick')}</p>
-          <EntryList groups={groups} layout="grid" selected={selected} lang={lang} onSelect={onSelect} />
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -169,8 +181,7 @@ function EntryList({ groups, layout, selected, lang, onSelect, className = '' }:
   const { t } = useTranslation();
   const id = useId();
   return (
-    <nav aria-label={t('machineWiki.listLabel')}
-      className={`flex flex-col gap-4 ${layout === 'column' ? 'sm:max-h-[70vh] sm:overflow-y-auto sm:pr-1' : ''} ${className}`}>
+    <nav aria-label={t('machineWiki.listLabel')} className={`flex flex-col gap-4 ${className}`}>
       {groups.length === 0 && <p className="text-sm text-muted">{t('machineWiki.noMatch')}</p>}
       {groups.map(g => {
         const c = CATEGORY[g.category];
@@ -181,7 +192,7 @@ function EntryList({ groups, layout, selected, lang, onSelect, className = '' }:
               {t(`machineWiki.category.${g.category}`)}
               <span aria-hidden="true" className="font-normal text-muted tabular-nums">{g.entries.length}</span>
             </h3>
-            <ul className={layout === 'grid' ? 'grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5' : 'flex flex-col gap-0.5'}>
+            <ul className={layout === 'grid' ? 'grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-2' : 'flex flex-col gap-0.5'}>
               {g.entries.map(m => (
                 <li key={m.id}>
                   <EntryButton entry={m} layout={layout} current={m.id === selected} lang={lang} onSelect={onSelect} />

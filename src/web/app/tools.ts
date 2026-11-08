@@ -27,3 +27,23 @@ export function toggleTool({ useToggle, useAvailable, ...meta }: ToggleToolOptio
     },
   };
 }
+
+export interface PageToolOptions {
+  id: string; order: number; labelKey: string; hintKey?: string; icon?: ReactNode;
+  /** The id of the world page (`FeatureModule.pages`) the tool leads to. */
+  page: string;
+  /** A hook: whether the page applies at all. Default: always. */
+  useAvailable?: (ctx: WorldCtx) => boolean;
+}
+
+/**
+ * A tool that leads to a world page (`/w/:id/<page>`): a link in the tool navigation (in the Tools menu on wide
+ * screens too, like other tools that are not map switches), marked as the current page while that page is shown.
+ */
+export function pageTool({ useAvailable, ...meta }: PageToolOptions): Tool {
+  return {
+    ...meta,
+    action: true,
+    useTool: ctx => ({ available: useAvailable ? useAvailable(ctx) : true }),
+  };
+}

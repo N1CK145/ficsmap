@@ -57,10 +57,14 @@ function PlannerBody({ index, lang }: { index: RecipeIndex; lang: Lang }) {
   const stale = result !== null && !result.ok && result.error !== 'no-targets' && result.error !== 'unknown-item' ? lastOk.current : null;
   const shown = result?.ok ? result : stale;
 
+  // On a wide page the form takes the top (wanted items beside the extractor settings), so the diagram below gets the
+  // whole width; narrower, everything is stacked.
   return (
     <div className="flex flex-col gap-5">
-      <Targets index={index} lang={lang} />
-      <ExtractorSettings minerId={minerId} miners={miners.map(m => ({ value: m.id, label: m.name[lang] }))} limits={limits} />
+      <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
+        <Targets index={index} lang={lang} />
+        <ExtractorSettings minerId={minerId} miners={miners.map(m => ({ value: m.id, label: m.name[lang] }))} limits={limits} />
+      </div>
       {result && !result.ok && <PlanError result={result} index={index} lang={lang} limits={limits} />}
       {stale && <p className="text-sm text-muted">{t('planner.lastWorking')}</p>}
       {shown && (
@@ -110,7 +114,7 @@ function Steps({ steps, index, lang, minerId, defaultClock }: { steps: PlanStep[
           )}
         </>
       ) : (
-        <ol className="flex flex-col gap-2">
+        <ol className="grid gap-2 xl:grid-cols-2 2xl:grid-cols-3">
           {steps.map(st => <StepRow key={st.item} step={st} index={index} lang={lang} minerId={minerId} defaultClock={defaultClock} />)}
         </ol>
       )}
@@ -381,46 +385,49 @@ function Totals({ result, index, lang }: { result: Extract<PlanResult, { ok: tru
   return (
     <section aria-labelledby="planner-totals" className="flex flex-col gap-3">
       <h3 id="planner-totals" className="font-display text-lg font-semibold">{t('planner.totals')}</h3>
-      <div>
-        <h4 className="font-semibold">{t('planner.raw')}</h4>
-        {totals.raw.length === 0 ? <p className="text-sm text-muted">{t('planner.none')}</p> : (
-          <ul className="divide-y divide-line text-sm">
-            {totals.raw.map(r => (
-              <li key={`${r.item}:${r.extractor}`} className={row}>
-                <span>{itemName(index, r.item, lang)} <span className="text-muted">· {t('planner.machines', { count: r.machinesCeil, name: buildingName(r.extractor) })}{exactNote(r.machinesCeil, r.machines)}</span></span>
-                <span className="tabular-nums">{formatRate(index, r.item, r.rate, lang, t)}</span>
-              </li>
-            ))}
-          </ul>
+      {/* Side by side on a wide page. */}
+      <div className="grid gap-x-8 gap-y-3 md:grid-cols-2 2xl:grid-cols-4">
+        <div>
+          <h4 className="font-semibold">{t('planner.raw')}</h4>
+          {totals.raw.length === 0 ? <p className="text-sm text-muted">{t('planner.none')}</p> : (
+            <ul className="divide-y divide-line text-sm">
+              {totals.raw.map(r => (
+                <li key={`${r.item}:${r.extractor}`} className={row}>
+                  <span>{itemName(index, r.item, lang)} <span className="text-muted">· {t('planner.machines', { count: r.machinesCeil, name: buildingName(r.extractor) })}{exactNote(r.machinesCeil, r.machines)}</span></span>
+                  <span className="tabular-nums">{formatRate(index, r.item, r.rate, lang, t)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {totals.external.length > 0 && (
+          <div>
+            <h4 className="font-semibold">{t('planner.externalInputs')}</h4>
+            <ul className="divide-y divide-line text-sm">
+              {totals.external.map(f => (
+                <li key={f.item} className={row}><span>{itemName(index, f.item, lang)}</span><span className="tabular-nums">{formatRate(index, f.item, f.rate, lang, t)}</span></li>
+              ))}
+            </ul>
+          </div>
         )}
-      </div>
-      {totals.external.length > 0 && (
+        {totals.byproducts.length > 0 && (
+          <div>
+            <h4 className="font-semibold">{t('planner.surplus')}</h4>
+            <ul className="divide-y divide-line text-sm">
+              {totals.byproducts.map(f => (
+                <li key={f.item} className={row}><span>{itemName(index, f.item, lang)}</span><span className="tabular-nums">{formatRate(index, f.item, f.rate, lang, t)}</span></li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div>
-          <h4 className="font-semibold">{t('planner.externalInputs')}</h4>
+          <h4 className="font-semibold">{t('planner.buildings')}</h4>
           <ul className="divide-y divide-line text-sm">
-            {totals.external.map(f => (
-              <li key={f.item} className={row}><span>{itemName(index, f.item, lang)}</span><span className="tabular-nums">{formatRate(index, f.item, f.rate, lang, t)}</span></li>
+            {totals.machines.map(m => (
+              <li key={m.building} className={row}><span>{buildingName(m.building)}</span><span className="tabular-nums">{count(m.machinesCeil, m.machines)}</span></li>
             ))}
           </ul>
         </div>
-      )}
-      {totals.byproducts.length > 0 && (
-        <div>
-          <h4 className="font-semibold">{t('planner.surplus')}</h4>
-          <ul className="divide-y divide-line text-sm">
-            {totals.byproducts.map(f => (
-              <li key={f.item} className={row}><span>{itemName(index, f.item, lang)}</span><span className="tabular-nums">{formatRate(index, f.item, f.rate, lang, t)}</span></li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <div>
-        <h4 className="font-semibold">{t('planner.buildings')}</h4>
-        <ul className="divide-y divide-line text-sm">
-          {totals.machines.map(m => (
-            <li key={m.building} className={row}><span>{buildingName(m.building)}</span><span className="tabular-nums">{count(m.machinesCeil, m.machines)}</span></li>
-          ))}
-        </ul>
       </div>
       <p className="text-sm">
         <span className="font-semibold">{t('planner.totalPower')}:</span> <span className="tabular-nums">{powerText(totals.power, lang, t)}</span>

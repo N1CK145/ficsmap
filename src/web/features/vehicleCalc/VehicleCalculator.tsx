@@ -92,113 +92,119 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
   const setVehicle = (id: VehicleId) => onChange({ vehicle: id });
 
   return (
-    <form onSubmit={e => e.preventDefault()} className="flex flex-col gap-4" noValidate>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field id={ids.route} label={t('vehicleCalc.route')}>
-          <div className="flex items-center gap-2">
-            <input id={ids.route} type="number" inputMode="decimal" min={0} step="any" value={form.route}
-              onChange={e => onChange({ route: e.target.value })} className={INPUT} />
-            <span className="text-sm text-muted">{t('vehicleCalc.unit.m')}</span>
-          </div>
-        </Field>
-        <Field id={ids.vehicle} label={t('vehicleCalc.vehicle')}>
-          <select id={ids.vehicle} value={vehicle.id} onChange={e => setVehicle(e.target.value as VehicleId)} className={INPUT}>
-            {data.vehicles.map(v => <option key={v.id} value={v.id}>{v.name[lang]}</option>)}
-          </select>
-        </Field>
-      </div>
-      {picker}
-
-      <Field id={ids.item} label={t('vehicleCalc.item')} hintId={ids.itemHint}
-        hint={itemTyped && !item ? t('vehicleCalc.itemUnknown') : item && !load ? t('vehicleCalc.cannotCarry', { vehicle: vehicle.name[lang], item: item.name[lang] }) : t('vehicleCalc.itemHint')}>
-        <div className="flex items-center gap-2">
-          <input id={ids.item} list={ids.items} value={form.item} autoComplete="off" placeholder={t('vehicleCalc.itemPlaceholder')}
-            aria-describedby={ids.itemHint} aria-invalid={itemTyped && (!item || !load)}
-            onChange={e => onChange({ item: e.target.value })} className={INPUT} />
-          {itemTyped && (
-            <button type="button" onClick={() => onChange({ item: '' })} aria-label={t('vehicleCalc.itemClear')}
-              className="size-10 shrink-0 rounded border border-line text-muted hover:text-fg focus-ring">
-              <span aria-hidden="true">×</span>
-            </button>
-          )}
+    // Side by side on a wide page: the inputs on the left, what they give on the right (staying in view while the
+    // inputs scroll); stacked on narrower screens.
+    <form onSubmit={e => e.preventDefault()} className="grid gap-6 lg:grid-cols-2 lg:items-start" noValidate>
+      <div className="flex min-w-0 flex-col gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field id={ids.route} label={t('vehicleCalc.route')}>
+            <div className="flex items-center gap-2">
+              <input id={ids.route} type="number" inputMode="decimal" min={0} step="any" value={form.route}
+                onChange={e => onChange({ route: e.target.value })} className={INPUT} />
+              <span className="text-sm text-muted">{t('vehicleCalc.unit.m')}</span>
+            </div>
+          </Field>
+          <Field id={ids.vehicle} label={t('vehicleCalc.vehicle')}>
+            <select id={ids.vehicle} value={vehicle.id} onChange={e => setVehicle(e.target.value as VehicleId)} className={INPUT}>
+              {data.vehicles.map(v => <option key={v.id} value={v.id}>{v.name[lang]}</option>)}
+            </select>
+          </Field>
         </div>
-        <datalist id={ids.items}>
-          {sortedItems.map(i => <option key={i.id} value={i.name[lang]} />)}
-        </datalist>
-      </Field>
+        {picker}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field id={ids.speed} label={t('vehicleCalc.speed')} hintId={ids.speedHint}
-          hint={speedDefault === null ? t('vehicleCalc.speedMissing') : t(`vehicleCalc.speedDefault.${speedDefault.source}`, {
-            speed: kmh(speedDefault.mps), limit: kmh(vehicle.straightPathSpeed ?? 0), fuel: fuel?.name[lang],
-          })}>
+        <Field id={ids.item} label={t('vehicleCalc.item')} hintId={ids.itemHint}
+          hint={itemTyped && !item ? t('vehicleCalc.itemUnknown') : item && !load ? t('vehicleCalc.cannotCarry', { vehicle: vehicle.name[lang], item: item.name[lang] }) : t('vehicleCalc.itemHint')}>
           <div className="flex items-center gap-2">
-            <input id={ids.speed} type="number" inputMode="decimal" min={0} step="any" value={speed} aria-describedby={ids.speedHint}
-              onChange={e => onChange({ speed: { ...form.speed, [vehicle.id]: e.target.value } })} className={INPUT} />
-            <span className="text-sm text-muted">{t('vehicleCalc.unit.kmh')}</span>
+            <input id={ids.item} list={ids.items} value={form.item} autoComplete="off" placeholder={t('vehicleCalc.itemPlaceholder')}
+              aria-describedby={ids.itemHint} aria-invalid={itemTyped && (!item || !load)}
+              onChange={e => onChange({ item: e.target.value })} className={INPUT} />
+            {itemTyped && (
+              <button type="button" onClick={() => onChange({ item: '' })} aria-label={t('vehicleCalc.itemClear')}
+                className="size-10 shrink-0 rounded border border-line text-muted hover:text-fg focus-ring">
+                <span aria-hidden="true">×</span>
+              </button>
+            )}
           </div>
+          <datalist id={ids.items}>
+            {sortedItems.map(i => <option key={i.id} value={i.name[lang]} />)}
+          </datalist>
         </Field>
-        <Field id={ids.stop} label={t('vehicleCalc.stop')} hintId={ids.stopHint}
-          hint={vehicle.stopSource === null ? t('vehicleCalc.stopMissing') : t(`vehicleCalc.stopSource.${vehicle.stopSource}`, { seconds: round1(vehicle.stopSeconds ?? 0) })}>
-          <div className="flex items-center gap-2">
-            <input id={ids.stop} type="number" inputMode="decimal" min={0} step="any" value={stop} aria-describedby={ids.stopHint}
-              onChange={e => onChange({ stop: { ...form.stop, [vehicle.id]: e.target.value } })} className={INPUT} />
-            <span className="text-sm text-muted">{t('vehicleCalc.unit.s')}</span>
-          </div>
-        </Field>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field id={ids.speed} label={t('vehicleCalc.speed')} hintId={ids.speedHint}
+            hint={speedDefault === null ? t('vehicleCalc.speedMissing') : t(`vehicleCalc.speedDefault.${speedDefault.source}`, {
+              speed: kmh(speedDefault.mps), limit: kmh(vehicle.straightPathSpeed ?? 0), fuel: fuel?.name[lang],
+            })}>
+            <div className="flex items-center gap-2">
+              <input id={ids.speed} type="number" inputMode="decimal" min={0} step="any" value={speed} aria-describedby={ids.speedHint}
+                onChange={e => onChange({ speed: { ...form.speed, [vehicle.id]: e.target.value } })} className={INPUT} />
+              <span className="text-sm text-muted">{t('vehicleCalc.unit.kmh')}</span>
+            </div>
+          </Field>
+          <Field id={ids.stop} label={t('vehicleCalc.stop')} hintId={ids.stopHint}
+            hint={vehicle.stopSource === null ? t('vehicleCalc.stopMissing') : t(`vehicleCalc.stopSource.${vehicle.stopSource}`, { seconds: round1(vehicle.stopSeconds ?? 0) })}>
+            <div className="flex items-center gap-2">
+              <input id={ids.stop} type="number" inputMode="decimal" min={0} step="any" value={stop} aria-describedby={ids.stopHint}
+                onChange={e => onChange({ stop: { ...form.stop, [vehicle.id]: e.target.value } })} className={INPUT} />
+              <span className="text-sm text-muted">{t('vehicleCalc.unit.s')}</span>
+            </div>
+          </Field>
+        </div>
+
+        {fuel && vehicle.fuel && (
+          <Field id={ids.fuel} label={t('vehicleCalc.fuel')} hintId={ids.fuelHint}
+            hint={t(`vehicleCalc.fuelHint.${vehicle.fuel.source}`, { perMetre: vehicle.fuel.perMetreMJ, trip: vehicle.fuel.perTripMJ, energy: fuel.energyMJ })}>
+            <select id={ids.fuel} value={fuel.id} aria-describedby={ids.fuelHint} onChange={e => onChange({ [fuelField]: e.target.value })} className={INPUT}>
+              {sortedFuels.map(f => <option key={f.id} value={f.id}>{f.name[lang]}</option>)}
+            </select>
+          </Field>
+        )}
+
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium" aria-hidden="true">{t('vehicleCalc.goal')}</span>
+          <SegmentedControl<CalcGoal>
+            label={t('vehicleCalc.goal')}
+            value={form.goal}
+            onChange={goal => onChange({ goal })}
+            options={[{ value: 'vehicles', label: t('vehicleCalc.goalVehicles') }, { value: 'rate', label: t('vehicleCalc.goalRate') }]}
+          />
+        </div>
+
+        {form.goal === 'vehicles' ? (
+          <Field id={ids.amount} label={t('vehicleCalc.target')}>
+            <div className="flex items-center gap-2">
+              <input id={ids.amount} type="number" inputMode="decimal" min={0} step="any" value={form.target}
+                onChange={e => onChange({ target: e.target.value })} className={INPUT} />
+              <span className="shrink-0 text-sm text-muted">{t(`vehicleCalc.unit.${unit}`)}</span>
+            </div>
+          </Field>
+        ) : (
+          <Field id={ids.amount} label={t(vehicle.id === 'freightCar' ? 'vehicleCalc.countFreightCars' : 'vehicleCalc.count')}>
+            <input id={ids.amount} type="number" inputMode="numeric" min={0} step={1} value={form.count}
+              onChange={e => onChange({ count: e.target.value })} className={INPUT} />
+          </Field>
+        )}
       </div>
 
-      {fuel && vehicle.fuel && (
-        <Field id={ids.fuel} label={t('vehicleCalc.fuel')} hintId={ids.fuelHint}
-          hint={t(`vehicleCalc.fuelHint.${vehicle.fuel.source}`, { perMetre: vehicle.fuel.perMetreMJ, trip: vehicle.fuel.perTripMJ, energy: fuel.energyMJ })}>
-          <select id={ids.fuel} value={fuel.id} aria-describedby={ids.fuelHint} onChange={e => onChange({ [fuelField]: e.target.value })} className={INPUT}>
-            {sortedFuels.map(f => <option key={f.id} value={f.id}>{f.name[lang]}</option>)}
-          </select>
-        </Field>
-      )}
-
-      <section aria-labelledby={ids.trip} className="rounded border-2 border-accent/60 bg-bg p-3">
-        <h3 id={ids.trip} className="font-display text-lg font-semibold">{t(`vehicleCalc.trip.title.${noun}`)}</h3>
-        <div role="status" aria-labelledby={ids.trip} className="mt-2 text-sm">
-          {one && load
-            ? <TripResult one={one} oneWay={oneWaySeconds(trip)} load={load} fuelName={fuel?.name[lang]} />
-            : <p className="text-muted">{t('vehicleCalc.trip.incomplete')}</p>}
-        </div>
-        {byFuel.length > 0 && <FuelTable rows={byFuel} selected={fuel?.id ?? null} lang={lang} />}
-      </section>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium" aria-hidden="true">{t('vehicleCalc.goal')}</span>
-        <SegmentedControl<CalcGoal>
-          label={t('vehicleCalc.goal')}
-          value={form.goal}
-          onChange={goal => onChange({ goal })}
-          options={[{ value: 'vehicles', label: t('vehicleCalc.goalVehicles') }, { value: 'rate', label: t('vehicleCalc.goalRate') }]}
-        />
-      </div>
-
-      {form.goal === 'vehicles' ? (
-        <Field id={ids.amount} label={t('vehicleCalc.target')}>
-          <div className="flex items-center gap-2">
-            <input id={ids.amount} type="number" inputMode="decimal" min={0} step="any" value={form.target}
-              onChange={e => onChange({ target: e.target.value })} className={INPUT} />
-            <span className="shrink-0 text-sm text-muted">{t(`vehicleCalc.unit.${unit}`)}</span>
+      <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-0">
+        <section aria-labelledby={ids.trip} className="rounded border-2 border-accent/60 bg-bg p-3">
+          <h3 id={ids.trip} className="font-display text-lg font-semibold">{t(`vehicleCalc.trip.title.${noun}`)}</h3>
+          <div role="status" aria-labelledby={ids.trip} className="mt-2 text-sm">
+            {one && load
+              ? <TripResult one={one} oneWay={oneWaySeconds(trip)} load={load} fuelName={fuel?.name[lang]} />
+              : <p className="text-muted">{t('vehicleCalc.trip.incomplete')}</p>}
           </div>
-        </Field>
-      ) : (
-        <Field id={ids.amount} label={t(vehicle.id === 'freightCar' ? 'vehicleCalc.countFreightCars' : 'vehicleCalc.count')}>
-          <input id={ids.amount} type="number" inputMode="numeric" min={0} step={1} value={form.count}
-            onChange={e => onChange({ count: e.target.value })} className={INPUT} />
-        </Field>
-      )}
+          {byFuel.length > 0 && <FuelTable rows={byFuel} selected={fuel?.id ?? null} lang={lang} />}
+        </section>
 
-      <section aria-labelledby={ids.result} className="rounded border border-line bg-bg p-3">
-        <h3 id={ids.result} className="font-display text-lg font-semibold">{t('vehicleCalc.result.title')}</h3>
-        <div role="status" aria-labelledby={ids.result} className="mt-1 text-sm">
-          {result && load ? <Result result={result} load={load} goal={form.goal} noun={noun} fuelName={fuel?.name[lang]} /> : <p className="text-muted">{t('vehicleCalc.result.incomplete')}</p>}
-        </div>
-        {vehicle.id === 'freightCar' && <p className="mt-2 text-xs text-muted">{t('vehicleCalc.freightCarNote')}</p>}
-      </section>
+        <section aria-labelledby={ids.result} className="rounded border border-line bg-bg p-3">
+          <h3 id={ids.result} className="font-display text-lg font-semibold">{t('vehicleCalc.result.title')}</h3>
+          <div role="status" aria-labelledby={ids.result} className="mt-1 text-sm">
+            {result && load ? <Result result={result} load={load} goal={form.goal} noun={noun} fuelName={fuel?.name[lang]} /> : <p className="text-muted">{t('vehicleCalc.result.incomplete')}</p>}
+          </div>
+          {vehicle.id === 'freightCar' && <p className="mt-2 text-xs text-muted">{t('vehicleCalc.freightCarNote')}</p>}
+        </section>
+      </div>
     </form>
   );
 }

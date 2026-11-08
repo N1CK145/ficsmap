@@ -1,5 +1,5 @@
 import L from 'leaflet';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Marker, Polygon, useMap } from 'react-leaflet';
 import type { WorldCtx } from '../../app/feature.js';
@@ -25,7 +25,7 @@ function readColors(): Colors {
 /**
  * Biomes on the map (spec §10.4): faint labels at zoom 0–2, a thin outline on the hovered biome (map
  * or sidebar), and for the scoped biome an orange outline, a mask over everything outside it, and a
- * fit of the view when the scope changes. The polygons are invisible hit areas; clicks bubble to the
+ * fit of the view when the scope is set (`biomeFitRequest`, also when it was set while the map was not shown). The polygons are invisible hit areas; clicks bubble to the
  * map as usual, so marker clicks keep working. Rendered inside the map.
  */
 export function BiomeLayer({ ctx }: { ctx: WorldCtx }) {
@@ -34,6 +34,7 @@ export function BiomeLayer({ ctx }: { ctx: WorldCtx }) {
   const { i18n } = useTranslation();
   const shapes = useBiomeShapes(ctx.me.datasetVersion);
   const scope = useUiStore(s => s.biomeScope);
+  const fitRequest = useUiStore(s => s.biomeFitRequest);
   const setScope = useUiStore(s => s.setBiomeScope);
   const hovered = useBiomeHover(s => s.hovered);
   const setHovered = useBiomeHover(s => s.setHovered);
@@ -54,17 +55,13 @@ export function BiomeLayer({ ctx }: { ctx: WorldCtx }) {
 
   const biomes = useMemo(() => shapes?.features.map(f => ({ idx: f.properties.idx, rings: ringsOf(f) })) ?? [], [shapes]);
 
-  // Fit when the scope changes, not for a scope restored with the view (that keeps its viewport).
-  const fitted = useRef(scope);
+  // Fit when the scope is set, not for a scope restored with the view (that keeps its viewport); a request made while
+  // the map was not shown (a search result on a tool page, the list view) is carried out when it is.
   useEffect(() => {
-    if (scope === fitted.current) return;
-    if (scope === null) {
-      fitted.current = null;
-      return;
-    }
-    const rings = biomes.find(b => b.idx === scope)?.rings;
+    if (fitRequest === null) return;
+    const rings = biomes.find(b => b.idx === fitRequest)?.rings;
     if (!rings) return;
-    fitted.current = scope;
+    useUiStore.getState().clearBiomeFitRequest();
     // On mobile the lower half is under the bottom sheet the biome was picked in.
     const [px, py] = FIT_PADDING;
     map.fitBounds(ringBounds(rings), {
@@ -72,7 +69,7 @@ export function BiomeLayer({ ctx }: { ctx: WorldCtx }) {
       paddingBottomRight: mobile ? [px, py + Math.round(map.getSize().y / 2)] : FIT_PADDING,
       animate: !prefersReducedMotion(),
     });
-  }, [scope, biomes, map, mobile]);
+  }, [fitRequest, biomes, map, mobile]);
 
   const scoped = scope === null ? undefined : biomes.find(b => b.idx === scope);
   return (

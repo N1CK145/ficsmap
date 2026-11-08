@@ -69,7 +69,7 @@ export function ItemPicker({ index, lang, value, onChange, label }: ItemPickerPr
       const item = results[active];
       if (open && item) { e.preventDefault(); choose(item); }
     } else if (e.key === 'Escape' && open) {
-      // Close the list only, not the dialog around it.
+      // Close the list only; page-wide Esc handlers leave this press alone.
       e.preventDefault();
       e.stopPropagation();
       setOpen(false);

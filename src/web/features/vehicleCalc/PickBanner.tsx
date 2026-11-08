@@ -5,7 +5,7 @@ import { useVehicleCalc } from './useVehicleCalc.js';
 
 /**
  * The banner of the vehicle route's pick mode: what to pick next (a status region, so it is announced), and Cancel.
- * Esc cancels as well; both leave the mode and bring the calculator back with the route it had.
+ * Esc cancels as well; both leave the mode and go back to the calculator page with the route it had (`PickReturn`).
  */
 export function PickBanner() {
   const { t } = useTranslation();

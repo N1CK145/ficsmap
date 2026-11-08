@@ -21,7 +21,7 @@ function pin(letter: 'A' | 'B'): L.DivIcon {
 
 /**
  * The vehicle calculator's route on the map: the start (A) and the destination (B) with the straight line between
- * them, shown while they are set, also while the dialog is closed. A and B can be dragged; the calculator follows.
+ * them, shown while they are set (the calculator is a page of its own). A and B can be dragged; the calculator follows.
  * While points are picked (PICK_MODE) only the start picked so far is shown.
  */
 export function VehicleRouteLayer({ ctx }: { ctx: WorldCtx }) {

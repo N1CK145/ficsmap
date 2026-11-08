@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 import { create } from 'zustand';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset } from '../../src/shared/dataset.js';
@@ -8,8 +9,8 @@ import type { FeatureModule, Tool, WorldCtx } from '../../src/web/app/feature.js
 import { FeaturesProvider } from '../../src/web/app/FeaturesContext.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { useUiStore } from '../../src/web/app/store.js';
-import { toggleTool } from '../../src/web/app/tools.js';
-import { ToolsNav, WIDE_QUERY } from '../../src/web/features/worlds/ToolsNav.js';
+import { pageTool, toggleTool } from '../../src/web/app/tools.js';
+import { ToolButton, ToolsNav, WIDE_QUERY } from '../../src/web/features/worlds/ToolsNav.js';
 import { stubMatchMedia } from './matchMedia.js';
 
 const W = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
@@ -135,6 +136,53 @@ describe('ToolsNav', () => {
     expect(screen.queryByRole('menu')).toBeNull();
     expect(seen).toEqual([true]);
     expect(screen.getByRole('button', { name: 'Tools' })).toHaveFocus();
+  });
+
+  it('links a tool to its world page, marked as the current page while it is shown, in the menu too', async () => {
+    stubMatchMedia({ [WIDE_QUERY]: true });
+    const tool = pageTool({ id: 'planner', order: 50, labelKey: 'planner.button', hintKey: 'planner.hint', page: 'planner' });
+    const features: FeatureModule[] = [nodesFeature, { id: 'planner', tools: [tool], pages: [{ id: 'planner', titleKey: 'planner.title', Component: () => null }] }];
+    const ctx: WorldCtx = {
+      worldId: W, world: {} as WorldDto, me: ME, index: indexDataset({ version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true, biomes: [], items: [], aliases: {} }),
+      queryClient: new QueryClient(), navigate: () => {}, toast: { show: () => {} },
+    };
+    const Nav = () => <ToolsNav ctx={ctx} mobile={false} />;
+    const router = createMemoryRouter([{ path: '/w/:id/*', Component: Nav }], { initialEntries: [`/w/${W}`] });
+    render(
+      <QueryClientProvider client={ctx.queryClient}>
+        <FeaturesProvider features={features}><RouterProvider router={router} /></FeaturesProvider>
+      </QueryClientProvider>,
+    );
+    // On wide screens it is in the Tools menu, like the other tools that are not map switches.
+    const nav = screen.getByRole('navigation', { name: 'Tools' });
+    expect(within(nav).getAllByRole('button').map(b => b.textContent)).toEqual(['Caves', 'Tools']);
+    await userEvent.click(within(nav).getByRole('button', { name: 'Tools' }));
+    const item = screen.getByRole('menuitem', { name: 'Planner' });
+    expect(item.tagName).toBe('A');
+    expect(item).toHaveAttribute('href', `/w/${W}/planner`);
+    expect(item).toHaveAttribute('title', 'Production planner: from the items you need down to miners and pumps');
+    expect(item).not.toHaveAttribute('aria-current');
+    expect(item).toHaveFocus();
+    // Space works as on any menu item.
+    await userEvent.keyboard(' ');
+    expect(router.state.location.pathname).toBe(`/w/${W}/planner`);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(within(nav).getByRole('button', { name: 'Tools' })).toHaveFocus();
+    await userEvent.click(within(nav).getByRole('button', { name: 'Tools' }));
+    expect(screen.getByRole('menuitem', { name: 'Planner' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('shows a page tool as a link button outside the menu', () => {
+    const tool = pageTool({ id: 'planner', order: 50, labelKey: 'planner.button', page: 'planner' });
+    const features: FeatureModule[] = [{ id: 'planner', tools: [tool], pages: [{ id: 'planner', titleKey: 'planner.title', Component: () => null }] }];
+    const ctx = { worldId: W } as WorldCtx;
+    const Button = () => <ToolButton tool={tool} ctx={ctx} />;
+    render(
+      <FeaturesProvider features={features}>
+        <RouterProvider router={createMemoryRouter([{ path: '/w/:id/*', Component: Button }], { initialEntries: [`/w/${W}/planner`] })} />
+      </FeaturesProvider>,
+    );
+    expect(screen.getByRole('link', { name: 'Planner' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('is an icon button with the same menu on mobile', async () => {
