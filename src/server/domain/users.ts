@@ -1,5 +1,6 @@
 import type { Db } from '../db/db.js';
 import type { DiscordProfile } from '../auth/discord.js';
+import { cleanPrefs, type UserPrefs } from '../../shared/prefs.js';
 
 export interface UserRow {
   id: number;
@@ -49,5 +50,25 @@ export function findOrCreateUser(db: Db, p: DiscordProfile, opts: FindOrCreateOp
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(userId, PROVIDER, p.id, p.username, email, verified, opts.now, opts.now);
     return { kind: 'ok', userId, created: true };
+  })();
+}
+
+/** The user's stored preferences; invalid or unknown stored keys are left out. */
+export function getPrefs(db: Db, userId: number): UserPrefs {
+  const row = db.prepare('SELECT prefs FROM users WHERE id = ?').get(userId) as { prefs: string } | undefined;
+  if (!row) return {};
+  try {
+    return cleanPrefs(JSON.parse(row.prefs));
+  } catch {
+    return {};
+  }
+}
+
+/** Merges `patch` (already validated) into the stored preferences and returns the result. */
+export function updatePrefs(db: Db, userId: number, patch: UserPrefs): UserPrefs {
+  return db.transaction(() => {
+    const prefs = cleanPrefs({ ...getPrefs(db, userId), ...patch });
+    db.prepare('UPDATE users SET prefs = ? WHERE id = ?').run(JSON.stringify(prefs), userId);
+    return prefs;
   })();
 }

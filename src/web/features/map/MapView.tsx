@@ -12,6 +12,7 @@ import { latLngToWorld, worldToLatLng } from '../../../shared/geo.js';
 import { collect, type MapMode, type WorldCtx } from '../../app/feature.js';
 import { useFeatures } from '../../app/FeaturesContext.js';
 import { loadView, saveView, type PersistedView } from '../../app/persist.js';
+import { getWheelSpeed } from '../../app/prefs.js';
 import { useUiStore, type UiState } from '../../app/store.js';
 import { useRemotePulse } from '../live/pulse.js';
 import { hasMismatch, isCollected, useMarks, type MarksCache } from '../marks/useMarks.js';
@@ -22,6 +23,7 @@ import { CONFLICT_PULSE_MS, newConflicts } from './conflictPulse.js';
 import { DOT_ZOOM, markerState, markerVisual, podBadge, type MarkerState } from './markerStyle.js';
 import { MarkerLayer, type DrawMarker } from './MarkerLayer.js';
 import { prefersReducedMotion } from './motion.js';
+import { WHEEL_COOLDOWN_MS, WHEEL_ZOOM_IDLE, wheelZoomStep } from './wheelZoom.js';
 import { currentMaxZoom } from './zoom.js';
 
 const MAX_BOUNDS = L.latLngBounds(IMAGE_BOUNDS).pad(0.1);
@@ -72,6 +74,8 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
         maxZoom={currentMaxZoom()}
         // Whole zoom levels only: scaled tiles at fractional zooms show seams.
         zoomSnap={1}
+        // Our own wheel zoom at the user's speed (WheelZoom below).
+        scrollWheelZoom={false}
         maxBounds={MAX_BOUNDS}
         zoomControl={false}
         attributionControl={false}
@@ -105,6 +109,7 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
         )}
         <ViewPersistence worldId={ctx.worldId} />
         <SizeWatcher />
+        <WheelZoom />
       </MapContainer>
       <div ref={setOverlay} className="pointer-events-none absolute inset-0 z-[1000]" />
     </div>
@@ -405,6 +410,71 @@ function SizeWatcher() {
     const observer = new ResizeObserver(() => map.invalidateSize());
     observer.observe(map.getContainer());
     return () => observer.disconnect();
+  }, [map]);
+  return null;
+}
+
+/**
+ * The mouse wheel (and a touchpad pinch, which browsers send as ctrl+wheel) zooms by whole levels at the user's speed
+ * (app/prefs.ts, wheelZoom.ts) around the pointer, instead of Leaflet's `scrollWheelZoom`. A zoom asked for while the
+ * previous one still animates waits for its end (Leaflet would drop it); only one such step waits.
+ */
+function WheelZoom() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    let state = WHEEL_ZOOM_IDLE;
+    let around = L.point(container.clientWidth / 2, container.clientHeight / 2);
+    let animating = false;
+    let waiting = 0;
+    let tickTimer: ReturnType<typeof setTimeout> | undefined;
+    let animTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const zoomBy = (levels: number) => {
+      if (animating) {
+        // One step waits, the biggest asked for: so a fling zooms at most a step per animation.
+        waiting = Math.sign(levels) === Math.sign(waiting) && Math.abs(waiting) > Math.abs(levels) ? waiting : levels;
+        return;
+      }
+      const zoom = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), map.getZoom() + levels));
+      if (zoom === map.getZoom()) return;
+      const animate = !prefersReducedMotion();
+      animating = animate;
+      // In case zoomend never comes (the zoom was not animated after all, or the map went away).
+      if (animate) animTimer = setTimeout(onZoomEnd, 400);
+      map.setZoomAround(around, zoom, { animate });
+    };
+    function onZoomEnd() {
+      clearTimeout(animTimer);
+      if (!animating) return;
+      animating = false;
+      const levels = waiting;
+      waiting = 0;
+      if (levels !== 0) zoomBy(levels);
+    }
+    const step = (input: WheelEvent | null) => {
+      const r = wheelZoomStep(state, input, { speed: getWheelSpeed(), now: Date.now(), pagePx: container.clientHeight });
+      state = r.state;
+      if (r.levels === 0) return;
+      zoomBy(r.levels);
+      // Zoom what fills up during the cooldown once it is over.
+      clearTimeout(tickTimer);
+      tickTimer = setTimeout(() => step(null), WHEEL_COOLDOWN_MS);
+    };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      around = map.mouseEventToContainerPoint(e);
+      step(e);
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    map.on('zoomend', onZoomEnd);
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+      map.off('zoomend', onZoomEnd);
+      clearTimeout(tickTimer);
+      clearTimeout(animTimer);
+    };
   }, [map]);
   return null;
 }

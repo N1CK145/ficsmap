@@ -97,6 +97,11 @@ CREATE INDEX upload_tokens_world ON upload_tokens(world_id);
   `
 ALTER TABLE world_members ADD COLUMN role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('member','admin'));
 `,
+  // 7: the user's own preferences (src/shared/prefs.ts) as a JSON object, e.g. {"wheelSpeed":1.5}; a missing key has
+  // its default. Written by PATCH /api/me/prefs (src/server/domain/users.ts).
+  `
+ALTER TABLE users ADD COLUMN prefs TEXT NOT NULL DEFAULT '{}';
+`,
 ];
 
 export function migrate(db: Db): void {

@@ -10,6 +10,7 @@ import type { FeatureModule, WorldCtx } from '../../src/web/app/feature.js';
 import { FeaturesProvider } from '../../src/web/app/FeaturesContext.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { loadView, saveView } from '../../src/web/app/persist.js';
+import { receivePrefs, usePrefsStore } from '../../src/web/app/prefs.js';
 import { queryKeys } from '../../src/web/app/queryKeys.js';
 import { useUiStore } from '../../src/web/app/store.js';
 import { markerClickClaims } from '../../src/web/features/map/clickClaims.js';
@@ -272,3 +273,74 @@ describe('MapView view persistence', () => {
     }
   });
 });
+
+describe('MapView wheel zoom', () => {
+  beforeAll(() => { initI18n(['en']); });
+  beforeEach(() => {
+    localStorage.clear();
+    useUiStore.getState().enterWorld(WORLD);
+    usePrefsStore.setState({ saved: {}, local: {}, status: 'idle' });
+    probedMap = null;
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(512);
+    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(512);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    usePrefsStore.setState({ saved: {}, local: {}, status: 'idle' });
+  });
+
+  /** One wheel event on the map, down (zoom out) for a positive delta. */
+  const wheel = (map: L.Map, deltaY: number, deltaMode = 0) => {
+    const event = new WheelEvent('wheel', { deltaY, deltaMode, clientX: 256, clientY: 256, bubbles: true, cancelable: true });
+    act(() => { map.getContainer().dispatchEvent(event); });
+    return event;
+  };
+
+  it('replaces Leaflet\'s wheel zoom and keeps the page from scrolling or zooming', () => {
+    renderMap();
+    const map = probedMap!;
+    expect(map.scrollWheelZoom.enabled()).toBe(false);
+    expect(wheel(map, -100).defaultPrevented).toBe(true);
+  });
+
+  it('zooms one level per mouse notch at 1×, in and out', () => {
+    renderMap();
+    const map = probedMap!;
+    const start = map.getZoom();
+    wheel(map, -100);
+    expect(map.getZoom()).toBe(start + 1);
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 1000);
+    wheel(map, 100);
+    expect(map.getZoom()).toBe(start);
+  });
+
+  it('needs two notches for a level at 0.5×', () => {
+    act(() => { receivePrefs({ wheelSpeed: 0.5 }); });
+    renderMap();
+    const map = probedMap!;
+    const start = map.getZoom();
+    wheel(map, -100);
+    expect(map.getZoom()).toBe(start);
+    wheel(map, -100);
+    expect(map.getZoom()).toBe(start + 1);
+  });
+
+  it('zooms two levels per notch at 2×, and a Firefox notch (3 lines) like a 100 px one', () => {
+    act(() => { receivePrefs({ wheelSpeed: 2 }); });
+    renderMap();
+    const map = probedMap!;
+    const start = map.getZoom();
+    wheel(map, -3, 1);
+    expect(map.getZoom()).toBe(start + 2);
+  });
+
+  it('stays within the map\'s zoom limits', () => {
+    act(() => { receivePrefs({ wheelSpeed: 3 }); });
+    renderMap();
+    const map = probedMap!;
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 1000);
+    wheel(map, 100);
+    expect(map.getZoom()).toBe(map.getMinZoom());
+  });
+});
+

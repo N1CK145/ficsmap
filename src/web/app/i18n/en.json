@@ -43,6 +43,21 @@
     "signedInAs": "Signed in as {email} via Discord",
     "signOut": "Sign out"
   },
+  "profile": {
+    "title": "Profile settings",
+    "back": "Back",
+    "loadFailed": "Your profile could not be loaded.",
+    "controls": "Controls",
+    "wheelSpeed": "Mouse wheel speed",
+    "wheelSpeedValue": "{speed, number, ::.0#}×",
+    "wheelSpeedHint": "How far one turn of the mouse wheel zooms on the map and in the diagrams.",
+    "wheelSpeedReset": "Default",
+    "wheelSpeedResetLabel": "Reset the mouse wheel speed to the default ({speed, number, ::.0#}×)",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "saveFailed": "Not saved. The setting applies on this device for now.",
+    "languageHint": "Remembered on this device."
+  },
   "worlds": {
     "title": "Your worlds",
     "new": "+ New world",
