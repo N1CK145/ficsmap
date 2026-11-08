@@ -1597,7 +1597,9 @@
       "title": "Run it",
       "bash": {
         "run": "Run in the file's folder",
-        "note": "Runs until you stop it with Ctrl+C; with --once it uploads once and exits (for cron, say). With the package inotify-tools it notices new saves at once."
+        "steamInstall": "Or run it only while Satisfactory runs (Steam on Linux, Steam Deck too): 1. put the file in ~/ficsmap",
+        "steam": "2. In Steam: right-click Satisfactory → Properties → General → Launch options, enter this line",
+        "note": "Runs until you stop it with Ctrl+C; with --once it uploads once and exits (for cron, say). With the package inotify-tools it notices new saves at once. From Steam's launch options it starts with the game and stops a minute after you quit; what it does is in ~/ficsmap/watch.log (follow it: tail -f ~/ficsmap/watch.log)."
       },
       "powershell": {
         "run": "Run in PowerShell in the file's folder",

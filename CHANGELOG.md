@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Automatic upload, Linux: the world settings show how to run the watcher only while Satisfactory runs, with the line for Steam's launch options (it starts the watcher with a clean environment, logs to `~/ficsmap/watch.log` and stops it a minute after the game exits).
+
 ### Fixed
 
 - Watcher script (bash) started from Steam's launch options could not reach the server: it inherited Steam's library paths, so curl loaded Steam's old libcurl ("undefined symbol: curl_mime_filename"). The script now drops `LD_LIBRARY_PATH` and `LD_PRELOAD` at start. README: how to start the watcher with the game from Steam's launch options.

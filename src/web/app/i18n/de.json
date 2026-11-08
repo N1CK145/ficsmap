@@ -1597,7 +1597,9 @@
       "title": "Starten",
       "bash": {
         "run": "Im Ordner der Datei ausführen",
-        "note": "Läuft, bis du es mit Strg+C beendest; mit --once lädt es einmal hoch und endet (etwa für cron). Mit dem Paket inotify-tools bemerkt es neue Spielstände sofort."
+        "steamInstall": "Oder nur mitlaufen lassen, solange Satisfactory läuft (Steam unter Linux, auch Steam Deck): 1. Datei nach ~/ficsmap legen",
+        "steam": "2. In Steam: Rechtsklick auf Satisfactory → Eigenschaften → Allgemein → Startoptionen, diese Zeile eintragen",
+        "note": "Läuft, bis du es mit Strg+C beendest; mit --once lädt es einmal hoch und endet (etwa für cron). Mit dem Paket inotify-tools bemerkt es neue Spielstände sofort. Über die Steam-Startoptionen startet es mit dem Spiel und endet eine Minute nach dem Beenden; was es tut, steht in ~/ficsmap/watch.log (mitlesen: tail -f ~/ficsmap/watch.log)."
       },
       "powershell": {
         "run": "In PowerShell im Ordner der Datei ausführen",
