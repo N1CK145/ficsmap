@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.1] - 2026-11-08
 
 ### Added
 
@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The world DTO's `isOwner` is replaced by `role` (`owner`, `admin` or `member`).
 - Upload keys stop working when the user who created them loses admin rights, leaves or is removed from the world.
+- `DATASET_VERSION` defaults to `latest`: the server serves the newest dataset folder named like a game version (e.g. `1.2.5.0` over `1.2.4.1`), so a new dataset can be copied next to the old one and is used after a restart; a folder name still pins one. Before, the server refused to start with more than one dataset folder unless the version was set.
 
 ## [0.2.0] - 2026-11-08
 
