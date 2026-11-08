@@ -11,7 +11,7 @@ import { ChangesSection } from './ChangesSection.js';
 import { useFactoryData, useFactoryDiff, useSnapshotAnalysis, type SnapshotAnalysis } from './data.js';
 import { nearestBiome, useFactoryFormat, type FactoryFormat } from './format.js';
 import { ItemsSection } from './ItemsSection.js';
-import { LocateContext } from './parts.js';
+import { LocateContext, NONE } from './parts.js';
 import { MachinesSection } from './MachinesSection.js';
 import { RoutesSection } from './RoutesSection.js';
 import { Timeline } from './Timeline.js';
@@ -29,9 +29,9 @@ function useLastReady<T>(value: T | null | undefined): T | null | undefined {
 
 /**
  * The factory page ("Fabrik", `/w/:id/factory`): the timeline of the world's saves on top, then the answer first: the
- * figures (machines, mean productivity, standing, throttled, power, with the change against the compared save), the
- * changes while comparing, the inefficient items (largest loss first), the machines by class with the inefficient
- * ones, and the vehicle routes. The snapshot choice and "Show on map" live in the shared factory view (`view.ts`), so
+ * figures (machines, mean productivity, stopped, part load, power capacity, with the change against the compared save),
+ * the changes while comparing, the inefficient items (shortages first), the machines by class with the inefficient
+ * ones, and the stations and vehicles. The snapshot choice and "Show on map" live in the shared factory view (`view.ts`), so
  * the factory map follows the page and the other way round.
  */
 export function FactoryPage({ ctx }: { ctx: WorldCtx }) {
@@ -100,11 +100,16 @@ function Kpis({ totals, diff, since, fmt }: { totals: FactoryTotals; diff: Facto
   const delta = (text: string | null) => (text !== null && since !== null ? t('factory.kpi.since', { delta: text, date: fmt.dateShort(since) }) : undefined);
   return (
     <dl aria-label={t('factory.kpi.label')} className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-      <StatTile label={t('factory.kpi.machines')} sub={delta(d ? fmt.intDelta(d.machines) : null) ?? t('factory.kpi.inefficient', { count: totals.inefficient })}>
+      <StatTile
+        label={t('factory.kpi.machines')}
+        sub={delta(d ? fmt.intDelta(d.machines) : null)
+          ?? (totals.paused > 0 ? t('factory.kpi.inefficientPaused', { count: totals.inefficient, paused: totals.paused }) : t('factory.kpi.inefficient', { count: totals.inefficient }))}
+      >
         {fmt.int(totals.machines)}
       </StatTile>
+      {/* The same mean as the timeline's points and tooltip (`FactoryTotals.avgProductivity`). */}
       <StatTile label={t('factory.kpi.avg')} main sub={delta(d?.avgProductivity != null ? fmt.pctDelta(d.avgProductivity) : null) ?? t('factory.kpi.avgHint')}>
-        {totals.avgProductivity === null ? '–' : fmt.pct(totals.avgProductivity)}
+        {totals.avgProductivity === null ? NONE : fmt.pct(totals.avgProductivity)}
       </StatTile>
       <StatTile label={t('factory.kpi.idle')} sub={delta(d ? fmt.intDelta(d.idle) : null) ?? t('factory.kpi.idleHint')}>
         <TileValue value={fmt.int(totals.bands.idle)} unit={pctOf(totals.bands.idle, totals.machines, fmt)} />
@@ -116,9 +121,9 @@ function Kpis({ totals, diff, since, fmt }: { totals: FactoryTotals; diff: Facto
         <StatTile
           label={t('factory.kpi.power')}
           className="max-sm:col-span-2"
-          sub={delta(d?.power != null ? fmt.intDelta(Math.round(d.power)) : null) ?? t('factory.kpi.powerHint', { value: fmt.mw(totals.power.producible) })}
+          sub={delta(d?.power != null ? fmt.intDelta(Math.round(d.power)) : null) ?? t('factory.kpi.powerHint')}
         >
-          <TileValue value={fmt.int(totals.power.produced)} unit="MW" />
+          <TileValue value={fmt.int(totals.power.producible)} unit="MW" />
         </StatTile>
       )}
     </dl>

@@ -15,6 +15,11 @@ export interface GameItem {
   id: string;
   name: Names;
   form: ItemForm;
+  /**
+   * How many fit in one inventory slot (the game's `mCachedStackSize`): pieces for solids, m³ for fluids. Missing in
+   * datasets built before it was added.
+   */
+  stackSize?: number;
 }
 
 /** An amount per production cycle (fluids in m³). */
@@ -68,6 +73,16 @@ export interface GameExtractor {
   onNode: boolean;
 }
 
+/** A conveyor belt or lift tier: what it carries per minute (the game's `mSpeed` / 2). */
+export interface GameBelt {
+  /** Building class, e.g. `Build_ConveyorBeltMk2_C`. */
+  id: string;
+  name: Names;
+  kind: 'belt' | 'lift';
+  /** Items per minute. */
+  rate: number;
+}
+
 /** Clock speed values from the Docs, 1 = 100 %. */
 export interface ClockData {
   /** Lowest clock speed: `mMinPotential`, the same for every production building and extractor. */
@@ -91,6 +106,8 @@ export interface RecipeData {
    * `power * c^powerExponent`. Present whenever there is a resource well extractor.
    */
   wellPressurizer?: { id: string; name: Names; power: number; powerExponent: number };
+  /** Conveyor belts and lifts with their rate, slowest first; missing in datasets built before it was added. */
+  belts?: GameBelt[];
 }
 
 export interface RecipeIndex {

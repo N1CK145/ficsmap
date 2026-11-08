@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { bandOf, filterMachines, REASONS, type Band, type FactoryAnalysis, type MachineFlow } from '../../../shared/factory/analysis.js';
+import { bandOf, filterMachines, REASONS, type FactoryAnalysis, type MachineFlow, type MachineState, type Reason } from '../../../shared/factory/analysis.js';
 import type { RecipeIndex } from '../../../shared/recipes.js';
 import { Button } from '../../components/Button.js';
 import { CloseIcon } from '../../components/icons.js';
@@ -12,12 +12,12 @@ import type { FactoryLabels } from './data.js';
 import type { FactoryFormat } from './format.js';
 import { ReasonIcon } from './icons.js';
 import { MachineLine } from './ItemsSection.js';
-import { BandBar, BAND_TEXT, ReasonBadge, ShowOnMap } from './parts.js';
+import { BandBar, BAND_TEXT, ReasonBadge, ShowOnMap, stateKey, STATE_FILL } from './parts.js';
 import { useFactoryPage, type MachineSort } from './timeline.js';
 
 const FIRST_ROWS = 15;
-/** Bands the filter offers (full machines are not what anyone looks for here). */
-const FILTER_BANDS: Band[] = ['idle', 'throttled', 'high'];
+/** States the filter offers (full machines are not what anyone looks for here). */
+const FILTER_STATES: MachineState[] = ['idle', 'throttled', 'high', 'paused'];
 
 const CHIP = 'inline-flex h-8 items-center gap-1.5 chamfer border px-2.5 text-sm transition-colors focus-ring max-[899px]:h-11';
 const chip = (on: boolean) => `${CHIP} ${on ? 'border-accent bg-accent/15 text-fg' : 'border-line bg-bg text-muted hover:border-edge hover:text-fg'}`;
@@ -34,24 +34,50 @@ export function sortMachines(list: readonly MachineFlow[], sort: MachineSort, na
 }
 
 /**
- * "Machines": one card per machine class (picture, count, mean productivity, how many stand, run throttled or full, and
- * their reasons), filter chips for the reasons and productivity bands, and the list of inefficient machines (below
- * 90 % or with an issue), sortable, each with "Show on map". A card filters the list to its class.
+ * The list a filter shows: without a reason or state chosen the inefficient machines (of the chosen class), with one
+ * every machine that has it; so a chip's count is the length of the list it gives.
+ */
+export function machineList(machines: readonly MachineFlow[], f: { cls: string | null; reason: Reason | null; state: MachineState | null }): MachineFlow[] {
+  const base = f.reason || f.state ? machines : machines.filter(m => m.inefficient);
+  return filterMachines(base, f);
+}
+
+/** Chip counts within the other filters: per reason (each machine once per reason it has) and per state. */
+export function chipCounts(machines: readonly MachineFlow[], f: { cls: string | null; reason: Reason | null; state: MachineState | null }) {
+  const reasons: Partial<Record<Reason, number>> = {};
+  for (const m of filterMachines(machines, { cls: f.cls, state: f.state })) for (const r of m.reasons) reasons[r] = (reasons[r] ?? 0) + 1;
+  const states: Partial<Record<MachineState, number>> = {};
+  for (const m of filterMachines(machines, { cls: f.cls, reason: f.reason })) states[m.state] = (states[m.state] ?? 0) + 1;
+  return { reasons, states };
+}
+
+/**
+ * "Machines": one card per machine class (picture, count, how many are inefficient, mean productivity, how many stand,
+ * run at part load or full, are paused, and their reasons), filter chips for the reasons and states, and the list of
+ * inefficient machines (see `MachineFlow.inefficient`), sortable, each with "Show on map". A card filters the list to
+ * its class; the chips count within the chosen class (and the other chip), the same rule as on the map: a machine
+ * counts for every reason it has.
  */
 export function MachinesSection({ worldId, analysis, labels, fmt, recipes }: {
   worldId: string; analysis: FactoryAnalysis; labels: FactoryLabels; fmt: FactoryFormat; recipes: RecipeIndex | null;
 }) {
   const { t } = useTranslation();
-  const { cls, reason, band, sort, setFilter, clearFilters, setSort } = useFactoryPage();
+  const { cls, reason, state, sort, setFilter, clearFilters, setSort } = useFactoryPage();
   const [all, setAll] = useState(false);
   const lang = fmt.lang;
-  const list = useMemo(() => {
-    const base = band ? analysis.machines : analysis.machines.filter(m => m.inefficient);
-    return sortMachines(filterMachines(base, { cls, reason, band }), sort, m => labels.building(m.cls, lang));
-  }, [analysis, cls, reason, band, sort, labels, lang]);
+  const list = useMemo(
+    () => sortMachines(machineList(analysis.machines, { cls, reason, state }), sort, m => labels.building(m.cls, lang)),
+    [analysis, cls, reason, state, sort, labels, lang],
+  );
+  const counts = useMemo(() => chipCounts(analysis.machines, { cls, reason, state }), [analysis, cls, reason, state]);
   const shown = all ? list : list.slice(0, FIRST_ROWS);
-  const filtered = cls !== null || reason !== null || band !== null;
-  const reasonsHere = REASONS.filter(r => (analysis.totals.reasons[r] ?? 0) > 0);
+  const filtered = cls !== null || reason !== null || state !== null;
+  // Paused is offered as a state (next to the bands), not twice.
+  const reasonsHere = REASONS.filter(r => r !== 'paused' && ((counts.reasons[r] ?? 0) > 0 || reason === r));
+  const statesHere = FILTER_STATES.filter(b => (counts.states[b] ?? 0) > 0 || state === b);
+  const heading = state || reason
+    ? t('factory.machines.filtered', { filter: state ? t(stateKey(state)) : t(`factory.reason.${reason}`) })
+    : t('factory.machines.inefficient');
   const recipeName = (m: MachineFlow) => {
     const out = m.outputs[0];
     const item = out ? labels.item(out.item, lang) : undefined;
@@ -81,14 +107,17 @@ export function MachinesSection({ worldId, analysis, labels, fmt, recipes }: {
                   <Picture cls={labels.buildingPicture(c.cls)} px={32} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{cname}</span>
-                    <span className="block text-xs text-muted tabular-nums max-[899px]:text-sm">{t('factory.machines.count', { count: c.count })}</span>
+                    <span className="block text-xs text-muted tabular-nums max-[899px]:text-sm">
+                      {t('factory.machines.count', { count: c.count })}
+                      {c.inefficient > 0 && <span className="text-fg"> · {t('factory.machines.inefficientCount', { count: c.inefficient })}</span>}
+                    </span>
                   </span>
                   <span className="text-right">
                     <span className={`block font-display text-xl leading-none font-semibold tabular-nums ${BAND_TEXT[bandOf(c.avgProductivity)]}`}>{fmt.pct(c.avgProductivity)}</span>
                     <span className="block text-xs text-muted">{t('factory.machines.avg')}</span>
                   </span>
                 </span>
-                <BandBar bands={c.bands} />
+                <BandBar bands={c.bands} paused={c.paused} />
                 {Object.keys(c.reasons).length > 0 && (
                   <span className="flex flex-wrap gap-1">
                     {REASONS.filter(r => c.reasons[r]).map(r => <ReasonBadge key={r} reason={r} count={c.reasons[r]} />)}
@@ -102,21 +131,22 @@ export function MachinesSection({ worldId, analysis, labels, fmt, recipes }: {
 
       <section aria-labelledby="factory-inefficient" className="flex flex-col gap-2">
         <SectionHeading as="h3" id="factory-inefficient" end={t('factory.machines.listCount', { count: list.length })}>
-          {band ? t(`factory.band.${band}`) : t('factory.machines.inefficient')}
+          {heading}
         </SectionHeading>
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t('factory.machines.filters')}>
           {reasonsHere.map(r => (
             <button key={r} type="button" aria-pressed={reason === r} className={chip(reason === r)} onClick={() => setFilter({ reason: reason === r ? null : r })} title={t(`factory.reasonHint.${r}`)}>
               <ReasonIcon reason={r} />
               {t(`factory.reason.${r}`)}
-              <span className="tabular-nums text-muted">{analysis.totals.reasons[r]}</span>
+              <span className="tabular-nums text-muted">{counts.reasons[r] ?? 0}</span>
             </button>
           ))}
           <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" />
-          {FILTER_BANDS.map(b => (
-            <button key={b} type="button" aria-pressed={band === b} className={chip(band === b)} onClick={() => setFilter({ band: band === b ? null : b })}>
-              {t(`factory.band.${b}`)}
-              <span className="tabular-nums text-muted">{analysis.totals.bands[b]}</span>
+          {statesHere.map(b => (
+            <button key={b} type="button" aria-pressed={state === b} className={chip(state === b)} onClick={() => setFilter({ state: state === b ? null : b })}>
+              <span aria-hidden="true" className={`inline-block size-2 ${STATE_FILL[b]}`} />
+              {t(stateKey(b))}
+              <span className="tabular-nums text-muted">{counts.states[b] ?? 0}</span>
             </button>
           ))}
           {cls !== null && (

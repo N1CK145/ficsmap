@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import type { ClockData, ExtractorKind, GameExtractor, GameItem, GameMachine, GameRecipe, ItemAmount, ItemForm, Names, RecipeData } from '../src/shared/recipes.js';
+import type { ClockData, ExtractorKind, GameBelt, GameExtractor, GameItem, GameMachine, GameRecipe, ItemAmount, ItemForm, Names, RecipeData } from '../src/shared/recipes.js';
 
 /**
  * Builds `recipes.json` (see src/shared/recipes.ts) from the game's own class dump,
@@ -44,6 +44,7 @@ export function readDocs(path: string): DocsClass[] {
 
 const MANUFACTURERS = new Set(['FGBuildableManufacturer', 'FGBuildableManufacturerVariablePower']);
 const EXTRACTORS = new Set(['FGBuildableResourceExtractor', 'FGBuildableWaterPump', 'FGBuildableFrackingExtractor']);
+const BELTS: Record<string, GameBelt['kind']> = { FGBuildableConveyorBelt: 'belt', FGBuildableConveyorLift: 'lift' };
 const FORMS: Record<string, ItemForm> = { RF_SOLID: 'solid', RF_LIQUID: 'liquid', RF_GAS: 'gas' };
 /** The game stores fluid amounts in litres; recipes.json has m³. */
 const LITRES_PER_M3 = 1000;
@@ -220,8 +221,23 @@ export function buildRecipeData(en: readonly DocsClass[], de: readonly DocsClass
     const c = byName.get(id);
     const form = formOf(id);
     if (!c || !form) continue; // reported above
-    items.push({ id, name: names(c), form });
+    const item: GameItem = { id, name: names(c), form };
+    // mCachedStackSize is the slot size in the game's unit (litres for fluids).
+    const stack = num(c, 'mCachedStackSize');
+    if (stack > 0) item.stackSize = form === 'solid' ? stack : clean(stack / LITRES_PER_M3);
+    items.push(item);
   }
+
+  // Conveyor belts and lifts: mSpeed is in half items per minute (Mk.1: 120 → 60/min).
+  const belts: GameBelt[] = [];
+  for (const c of en) {
+    const kind = BELTS[c.native];
+    if (!kind) continue;
+    const speed = num(c, 'mSpeed');
+    if (!(speed > 0)) { problems.push(`${c.fields.ClassName}: mSpeed ${str(c, 'mSpeed') || 'missing'}`); continue; }
+    belts.push({ id: c.fields.ClassName, name: names(c), kind, rate: clean(speed / 2) });
+  }
+  belts.sort((a, b) => a.rate - b.rate || a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id));
 
   if (recipes.length === 0) problems.push('no recipes found');
   if (!extractors.some(e => e.kind === 'miner')) problems.push('no miners found');
@@ -229,6 +245,7 @@ export function buildRecipeData(en: readonly DocsClass[], de: readonly DocsClass
 
   const data: RecipeData = { format: 1, source, clock, items, recipes, machines, extractors };
   if (wellPressurizer) data.wellPressurizer = wellPressurizer;
+  if (belts.length > 0) data.belts = belts;
   return data;
 }
 
@@ -242,7 +259,8 @@ export function recipeSummary(d: RecipeData): string {
   const alternates = d.recipes.filter(r => r.alternate).length;
   return `${d.recipes.length} recipes (${alternates} alternates), ${d.items.length} items, ${d.machines.length} buildings, `
     + `${d.extractors.length} extractors (${d.extractors.map(e => `${e.name.en} ${e.rate}/min`).join(', ')}), `
-    + `clock speed from ${d.clock.min * 100} %, +${d.clock.perShard * 100} % per Power Shard`;
+    + `clock speed from ${d.clock.min * 100} %, +${d.clock.perShard * 100} % per Power Shard, `
+    + `${d.items.filter(i => i.stackSize !== undefined).length} stack sizes, belts ${(d.belts ?? []).filter(b => b.kind === 'belt').map(b => `${b.rate}/min`).join(', ') || 'none'}`;
 }
 
 export function writeRecipes(docsDir: string, outDir: string): RecipeData {

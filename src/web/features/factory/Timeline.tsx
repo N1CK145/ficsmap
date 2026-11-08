@@ -6,6 +6,7 @@ import { fieldClass } from '../../components/Field.js';
 import { BackIcon } from '../../components/icons.js';
 import { Window } from '../../components/Window.js';
 import type { FactoryFormat } from './format.js';
+import { NONE } from './parts.js';
 import { defaultCompareId, stepId, type TimelineSelection } from './timeline.js';
 import { useFactoryView } from './view.js';
 
@@ -69,7 +70,7 @@ export function Timeline({ sel, fmt, loading }: { sel: TimelineSelection; fmt: F
   const pick = (id: number | null) => select(id !== null && id === ordered[ordered.length - 1]?.id ? null : id);
   const describe = (s: SnapshotSummary) => t('factory.timeline.point', {
     date: fmt.dateTime(s.saveTime), buildings: fmt.int(s.buildings),
-    productivity: s.avgProductivity === null ? '–' : fmt.pct(s.avgProductivity),
+    productivity: s.avgProductivity === null ? NONE : fmt.pct(s.avgProductivity),
   });
   const hovered = hover !== null ? ordered[hover] : undefined;
 
@@ -145,7 +146,7 @@ export function Timeline({ sel, fmt, loading }: { sel: TimelineSelection; fmt: F
               <p className="text-muted tabular-nums">
                 {t('factory.timeline.tooltip', {
                   buildings: fmt.int(hovered.buildings), machines: fmt.int(hovered.machines),
-                  productivity: hovered.avgProductivity === null ? '–' : fmt.pct(hovered.avgProductivity),
+                  productivity: hovered.avgProductivity === null ? NONE : fmt.pct(hovered.avgProductivity),
                 })}
               </p>
             </div>

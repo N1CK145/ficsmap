@@ -122,7 +122,12 @@ export interface SnapshotStation {
   loading?: boolean;
   /** Per vehicle that uses it, as the station tracks it. */
   traffic: { vehicle: string; avgSecBetweenDocks?: number; avgItemsPerDock?: number; capacityStacks?: number; capacityFluid?: number }[];
+  /** What lay in the station's own inventory when saved, per item (missing in older snapshots and when empty). */
+  cargo?: SnapshotCargo[];
 }
+
+/** Items of one class in an inventory: the count (fluids in litres, as inventories store them). Most first. */
+export interface SnapshotCargo { item: string; count: number }
 
 export interface SnapshotVehicle {
   id: string;
@@ -138,6 +143,10 @@ export interface SnapshotVehicle {
   fuel?: { item: string; amount?: number };
   /** The route: station ids in order (unknown waypoints left out). */
   route: string[];
+  /** What its storage held when saved, per item (missing in older snapshots and when empty). */
+  cargo?: SnapshotCargo[];
+  /** Slots of its storage (missing in older snapshots). */
+  slots?: number;
 }
 
 export interface SnapshotMarker {

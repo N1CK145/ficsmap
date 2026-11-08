@@ -294,6 +294,8 @@ describe('stations, vehicles, routes, path networks', () => {
     },
   });
   const fuel = inventory(tractor.instanceName, 'FuelInventory', [['Desc_TurboFuel_C', 99]]);
+  const storage = inventory(tractor.instanceName, 'StorageInventory', [['Desc_SteelPipe_C', 108], ['', 0], ['Desc_SteelPlate_C', 78], ['Desc_SteelPipe_C', 92]]);
+  const stationStore = inventory(st1.instanceName, 'inventory', [['Desc_Cement_C', 35], ['', 0]]);
   const node = (n: number, net: number, cls = 'Build_VehiclePathNode_Default_C') => obj('Buildable/Vehicle', cls, n, { properties: { mPathNetworkID: f(net) } });
   const seg = (n: number, from: FactoryObject) => obj('Buildable/Vehicle', 'Build_VehiclePath_Universal_C', n, { properties: {
     mStartNode: ref(from.instanceName), mSplinePoints: { values: [
@@ -303,22 +305,25 @@ describe('stations, vehicles, routes, path networks', () => {
   const s = extractFactory(save([
     st1, st2, ident(1, st1, G1, { historyType: 11, tableId: 'Buildables_Data', textKey: 'Transport/RoadVehicles/Infrastructure/TruckStation' }),
     ident(2, st2, G2, { flags: 18, historyType: -1, hasCultureInvariantString: true, value: 'Base' }),
-    tractor, vident, fuel, n1, n2, n3, seg(1, n1), seg(2, n2), seg(3, n3),
+    tractor, vident, fuel, storage, stationStore, n1, n2, n3, seg(1, n1), seg(2, n2), seg(3, n3),
   ]));
 
-  it('stations: default name left out, renamed kept, GUID, mode, traffic', () => {
+  it('stations: default name left out, renamed kept, GUID, mode, traffic, cargo', () => {
     expect(s.stations).toEqual([
       { id: 'Build_TruckStation_C_1', cls: 'Build_TruckStation_C', x: 5, y: 6, z: 7, yaw: 160, nodeGuid: guidHex(G1), loading: false,
-        traffic: [{ vehicle: 'BP_Tractor_C_1', avgSecBetweenDocks: 92.9, avgItemsPerDock: 150.5, capacityStacks: 25 }] },
+        traffic: [{ vehicle: 'BP_Tractor_C_1', avgSecBetweenDocks: 92.9, avgItemsPerDock: 150.5, capacityStacks: 25 }],
+        cargo: [{ item: 'Desc_Cement_C', count: 35 }] },
       { id: 'Build_TruckStation_C_2', cls: 'Build_TruckStation_C', name: 'Base', x: 0, y: 0, z: 0, yaw: 0, nodeGuid: guidHex(G2), loading: true, traffic: [] },
     ]);
     expect(s.buildings.map(b => b.id)).toEqual(['Build_TruckStation_C_1', 'Build_TruckStation_C_2']);
   });
 
-  it('vehicles: name, autopilot, fuel and route through the stations’ path node GUIDs; no owner', () => {
+  it('vehicles: name, autopilot, fuel, cargo and route through the stations’ path node GUIDs; no owner', () => {
     expect(s.vehicles).toEqual([{
       id: 'BP_Tractor_C_1', cls: 'BP_Tractor_C', name: 'Iron run', x: 100, y: 200, z: 300, yaw: -90, autopilot: true,
       fuel: { item: 'Desc_TurboFuel_C', amount: 99 }, route: ['Build_TruckStation_C_1', 'Build_TruckStation_C_2'],
+      // its storage summed per item, most first, and its size in slots
+      cargo: [{ item: 'Desc_SteelPipe_C', count: 200 }, { item: 'Desc_SteelPlate_C', count: 78 }], slots: 4,
     }]);
     expect(JSON.stringify(s)).not.toContain('PlayerState');
   });
