@@ -13,7 +13,7 @@ import { useDatasetQuery } from '../map/useDataset.js';
 import { useMe } from '../worlds/queries.js';
 import { WORLD_NAME_MAX, type CreateFromSaveProps } from '../worlds/CreateWorldDialog.js';
 import { useImportBanner } from './ImportBanner.js';
-import { EMPTY_MARKS, importRequest, SaveSummary } from './ImportDialog.js';
+import { EMPTY_MARKS, importRequest, SaveSummary, uploadFactoryAfterImport } from './ImportDialog.js';
 import { computePreview } from './preview.js';
 import { SaveSource } from './SaveSource.js';
 import { datasetUrlFor, useSaveParser } from './useSaveParser.js';
@@ -74,6 +74,7 @@ function Flow({ version, index, onClose }: { version: string; index: DatasetInde
     try {
       const out = await api<ImportResultDto>('POST', `/api/worlds/${encodeURIComponent(world.id)}/import`, importRequest(fileName, result));
       useImportBanner.getState().show(world.id, { added: out.newlyChecked, conflicts: out.conflicts });
+      uploadFactoryAfterImport(world.id, result, queryClient, () => toast.show({ message: t('import.factoryFailed') }));
     } catch {
       toast.show({ message: t('import.createImportFailed') });
     }

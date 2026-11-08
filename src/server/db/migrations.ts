@@ -66,6 +66,19 @@ CREATE TABLE resource_node_extractors(world_id TEXT NOT NULL REFERENCES worlds O
       node TEXT NOT NULL, seq INT NOT NULL, kind TEXT NOT NULL, clock REAL, shards INT,
       PRIMARY KEY(world_id, node, seq)) WITHOUT ROWID;
 `,
+  // 4: factory snapshots (src/shared/factory/snapshot.ts), one per save and world: the snapshot as gzip-compressed
+  // JSON, its timeline summary (JSON: buildings, machines, avgProductivity, idle) and the stored size. A save is
+  // identified by session name and save time, so importing it again replaces its row. AUTOINCREMENT: ids are never
+  // reused, because GET /snapshots/:sid is cached as immutable by id.
+  `
+CREATE TABLE factory_snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,
+      world_id TEXT NOT NULL REFERENCES worlds ON DELETE CASCADE,
+      session_name TEXT NOT NULL, save_time INT NOT NULL,
+      imported_at INT NOT NULL, imported_by INT REFERENCES users ON DELETE SET NULL,
+      data BLOB NOT NULL, summary TEXT NOT NULL, bytes INT NOT NULL,
+      UNIQUE(world_id, session_name, save_time));
+CREATE INDEX factory_snapshots_world_time ON factory_snapshots(world_id, save_time);
+`,
 ];
 
 export function migrate(db: Db): void {

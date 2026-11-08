@@ -17,6 +17,7 @@ import { registerMarkRoutes } from './http/marks.js';
 import { registerImportRoutes } from './http/import.js';
 import { registerResourceNodeRoutes } from './http/resourceNodes.js';
 import { registerRouteRoutes } from './http/routes.js';
+import { registerSnapshotRoutes } from './http/snapshots.js';
 import { registerEventRoutes } from './http/events.js';
 import { registerInviteRoutes } from './http/invites.js';
 import { registerSpa } from './http/spa.js';
@@ -134,6 +135,7 @@ export async function buildApp(input: AppDeps): Promise<FastifyInstance> {
   registerImportRoutes(app, deps);
   registerResourceNodeRoutes(app, deps);
   registerRouteRoutes(app, deps);
+  registerSnapshotRoutes(app, deps);
   registerEventRoutes(app, deps);
   registerInviteRoutes(app, deps);
   await registerSpa(app, deps); // last: owns the not-found handler (SPA fallback)

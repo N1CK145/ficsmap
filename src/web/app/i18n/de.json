@@ -321,7 +321,7 @@
     "copied": "Kopiert"
   },
   "import": {
-    "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur: die Liste der gesammelten Objekte; Name, Datum und Build des Spielstands; und zu den Rohstoffvorkommen die Ressource oder Reinheit, die dein Spielstand festlegt, sowie welcher Extraktor auf welchem Vorkommen steht (Gebäude, Taktrate, Energiefragmente).",
+    "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur: die Liste der gesammelten Objekte; Name, Datum und Build des Spielstands; zu den Rohstoffvorkommen die Ressource oder Reinheit, die dein Spielstand festlegt, sowie welcher Extraktor auf welchem Vorkommen steht (Gebäude, Taktrate, Energiefragmente); und für die Fabrik-Karte, was wo gebaut ist (Gebäude mit ihrer Produktivität, Förderbänder, Rohrleitungen, Stromleitungen, Wege, Stationen, Fahrzeuge, Kartenmarkierungen, Schildertexte und die erkundete Fläche). Keine Spielernamen und keine Spielerpositionen.",
     "button": "Importieren",
     "title": "Spielstand importieren",
     "chooseFolder": "Spielstand-Ordner wählen",
@@ -361,7 +361,44 @@
     "banner": "Import fertig · +{added, number} · {conflicts, plural, =0 {keine Konflikte} one {# Konflikt (!)} other {# Konflikte (!)}}",
     "review": "Konflikte prüfen",
     "dismiss": "Ausblenden",
-    "createImportFailed": "Welt erstellt, aber der Import ist fehlgeschlagen. Du kannst ihn auf der Karte noch einmal starten."
+    "createImportFailed": "Welt erstellt, aber der Import ist fehlgeschlagen. Du kannst ihn auf der Karte noch einmal starten.",
+    "factoryFailed": "Import fertig, aber die Fabrik dieses Spielstands ließ sich nicht für die Fabrik-Karte speichern.",
+    "older": {
+      "open": "Ältere Spielstände hinzufügen…",
+      "teaser": "Geh auf der Fabrik-Karte durch die Geschichte deiner Fabrik: Füge ältere Spielstände dieser Welt hinzu.",
+      "title": "Ältere Spielstände hinzufügen",
+      "intro": "Fügt die Fabrik älterer Spielstände zum Zeitstrahl der Fabrik-Karte hinzu. Abgehakte Objekte und Rohstoffvorkommen bleiben, wie sie sind: Die setzt nur der Import deines neuesten Spielstands.",
+      "filesLabel": "Spielstand-Dateien wählen",
+      "multiHint": "Du kannst mehrere Dateien auf einmal wählen. Sie werden nacheinander gelesen, die älteste zuerst.",
+      "progress": "{current, number} von {total, number}",
+      "progressLabel": "Fortschritt beim Hinzufügen älterer Spielstände",
+      "listLabel": "Gewählte Spielstände",
+      "status": {
+        "queued": "Wartet",
+        "parsing": "Wird gelesen",
+        "uploading": "Wird hochgeladen",
+        "added": "Hinzugefügt",
+        "duplicate": "Schon vorhanden",
+        "otherSession": "Andere Sitzung",
+        "noFactory": "Keine Fabrikdaten",
+        "notASave": "Kein Spielstand",
+        "tooLarge": "Zu groß",
+        "limit": "Grenze erreicht",
+        "rateLimited": "Zu viele",
+        "failed": "Fehlgeschlagen",
+        "cancelled": "Abgebrochen"
+      },
+      "otherSessionNote": "Die Sitzung „{session}“ ist nicht „{expected}“ dieser Welt, darum wurde sie übersprungen.",
+      "addAnyway": "Trotzdem hinzufügen",
+      "noFactoryNote": "Diese ficsmap-Version liest noch keine Fabrikdaten aus Spielständen.",
+      "limitNote": "Diese Welt hat so viele Fabrik-Schnappschüsse, wie sie speichern kann. Lösche zuerst ältere.",
+      "rateLimitedNote": "Zu viele Spielstände für diese Welt in einer Stunde. Versuche den Rest später.",
+      "tooLargeNote": "Die Fabrik dieses Spielstands ist größer, als ficsmap speichern kann.",
+      "summary": "{added, plural, one {# Spielstand hinzugefügt} other {# Spielstände hinzugefügt}} · {skipped, plural, =0 {keiner übersprungen} other {# übersprungen}}",
+      "more": "Weitere Spielstände wählen",
+      "back": "Zurück zum Import",
+      "finish": "Fertig"
+    }
   },
   "conflicts": {
     "title": "Konflikte",

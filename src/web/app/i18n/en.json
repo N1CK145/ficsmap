@@ -321,7 +321,7 @@
     "copied": "Copied"
   },
   "import": {
-    "privacy": "Your save is read in your browser. Only this is sent to the server: the list of collected items; the save's name, date and game build; and for resource nodes the resource or purity your save sets and which extractor stands on which node (building, clock speed, Power Shards).",
+    "privacy": "Your save is read in your browser. Only this is sent to the server: the list of collected items; the save's name, date and game build; for resource nodes the resource or purity your save sets and which extractor stands on which node (building, clock speed, Power Shards); and for the factory map what is built where (buildings with their productivity, belts, pipes, power lines, roads, stations, vehicles, map markers, sign texts and the explored area). No player names or player positions.",
     "button": "Import",
     "title": "Import save",
     "chooseFolder": "Choose save folder",
@@ -361,7 +361,44 @@
     "banner": "Import done · +{added, number} · {conflicts, plural, =0 {no conflicts} one {# conflict (!)} other {# conflicts (!)}}",
     "review": "Review conflicts",
     "dismiss": "Dismiss",
-    "createImportFailed": "World created, but the import failed. You can import again from the map."
+    "createImportFailed": "World created, but the import failed. You can import again from the map.",
+    "factoryFailed": "Import done, but the factory of this save couldn't be saved for the factory map.",
+    "older": {
+      "open": "Add older saves…",
+      "teaser": "Step through your factory's history on the factory map: add older saves of this world.",
+      "title": "Add older saves",
+      "intro": "Adds the factory of older saves to the timeline of the factory map. Checks and resource nodes stay as they are: only the import of your newest save sets them.",
+      "filesLabel": "Choose save files",
+      "multiHint": "You can pick several files at once. They're read one after another, oldest first.",
+      "progress": "{current, number} of {total, number}",
+      "progressLabel": "Progress adding older saves",
+      "listLabel": "Chosen saves",
+      "status": {
+        "queued": "Waiting",
+        "parsing": "Reading",
+        "uploading": "Uploading",
+        "added": "Added",
+        "duplicate": "Already there",
+        "otherSession": "Other session",
+        "noFactory": "No factory data",
+        "notASave": "Not a save",
+        "tooLarge": "Too large",
+        "limit": "Limit reached",
+        "rateLimited": "Too many",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "otherSessionNote": "Session “{session}” isn't this world's “{expected}”, so it was skipped.",
+      "addAnyway": "Add anyway",
+      "noFactoryNote": "This version of ficsmap reads no factory data from saves yet.",
+      "limitNote": "This world holds as many factory snapshots as it can. Delete older ones first.",
+      "rateLimitedNote": "Too many saves for this world in one hour. Try the rest later.",
+      "tooLargeNote": "The factory of this save is larger than ficsmap can store.",
+      "summary": "{added, plural, one {# save added} other {# saves added}} · {skipped, plural, =0 {none skipped} other {# skipped}}",
+      "more": "Choose more saves",
+      "back": "Back to import",
+      "finish": "Done"
+    }
   },
   "conflicts": {
     "title": "Conflicts",

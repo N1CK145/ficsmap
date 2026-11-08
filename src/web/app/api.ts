@@ -12,7 +12,7 @@ export class ApiClientError extends Error {
 
 const KNOWN_CODES: ReadonlySet<string> = new Set(Object.keys({
   unauthorized: true, forbidden: true, not_found: true, invalid_body: true,
-  invalid_origin: true, rate_limited: true, invite_invalid: true, internal: true,
+  invalid_origin: true, rate_limited: true, invite_invalid: true, limit_reached: true, internal: true,
 } satisfies Record<ApiErrorCode, true>));
 
 /** The server rejects a mutation without a JSON content type, so these always send a body. */
@@ -25,12 +25,23 @@ const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
   const verb = method.toUpperCase();
   const payload = body === undefined && BODY_METHODS.has(verb) ? {} : body;
-  const headers: Record<string, string> = { accept: 'application/json' };
-  const init: RequestInit = { method: verb, credentials: 'same-origin', headers };
-  if (payload !== undefined) {
-    headers['content-type'] = 'application/json';
-    init.body = JSON.stringify(payload);
-  }
+  return payload === undefined
+    ? request<T>(verb, path)
+    : request<T>(verb, path, JSON.stringify(payload), { 'content-type': 'application/json' });
+}
+
+/**
+ * Like `api`, with a body that is already encoded (e.g. gzip-compressed JSON) and its own headers. A mutation still
+ * needs `content-type: application/json` (the server's CSRF check), so the caller sets it.
+ */
+export async function apiSend<T>(method: string, path: string, body: BodyInit, headers: Record<string, string>): Promise<T> {
+  return request<T>(method.toUpperCase(), path, body, headers);
+}
+
+async function request<T>(method: string, path: string, body?: BodyInit, extraHeaders: Record<string, string> = {}): Promise<T> {
+  const headers: Record<string, string> = { accept: 'application/json', ...extraHeaders };
+  const init: RequestInit = { method, credentials: 'same-origin', headers };
+  if (body !== undefined) init.body = body;
 
   let res: Response;
   try {
