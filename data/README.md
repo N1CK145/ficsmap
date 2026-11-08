@@ -1,5 +1,5 @@
 # data/
 
 The map dataset goes here as `data/<game-version>/` (git-ignored): `collectibles.min.json`, `map.json`,
-`biomes.geojson`, `crash-sites.json`, `tiles/`, `icons/` and optionally `caves.geojson`, `height/` (height map tiles), `recipes.json` (production planner), `machines.json` (machine and vehicle wiki) and `icons/items/` (its pictures). It is built from your own game install with
+`biomes.geojson`, `crash-sites.json`, `tiles/`, `icons/` and optionally `caves.geojson`, `height/` (height map tiles), `recipes.json` (production planner), `machines.json` (machine and vehicle wiki), `buildings.json` (factory map) and `icons/items/` (pictures). It is built from your own game install with
 `npm run dataset` (see the README, "Map dataset"). In Docker it is mounted read-only at `/app/data`.

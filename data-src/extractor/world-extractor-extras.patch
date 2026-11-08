@@ -1,16 +1,21 @@
 diff --git a/world-extractor-net/Program.cs b/world-extractor-net/Program.cs
-index 5af71fd..c8301c2 100644
+index 5af71fd..a29d402 100644
 --- a/world-extractor-net/Program.cs
 +++ b/world-extractor-net/Program.cs
-@@ -7,6 +7,7 @@ using CUE4Parse.Encryption.Aes;
+@@ -7,8 +7,12 @@ using CUE4Parse.Encryption.Aes;
  using CUE4Parse.FileProvider;
  using CUE4Parse.MappingsProvider.Usmap;
  using CUE4Parse.UE4.Assets.Exports;
++using CUE4Parse.UE4.Assets;
 +using CUE4Parse.UE4.Assets.Exports.Component.StaticMesh;
++using CUE4Parse.UE4.Assets.Exports.StaticMesh;
  using CUE4Parse.UE4.Assets.Exports.Texture;
  using CUE4Parse.UE4.Assets.Objects;
++using CUE4Parse.UE4.Objects.Core.i18N;
  using CUE4Parse.UE4.Objects.Core.Math;
-@@ -30,10 +31,18 @@ using SkiaSharp;
+ using CUE4Parse.UE4.Objects.Core.Misc;
+ using CUE4Parse.UE4.Objects.Engine;
+@@ -30,10 +34,19 @@ using SkiaSharp;
  //   --map-out           a directory with the in-game map as a 256px WebP tile pyramid
  //                       (tiles/{z}/{x}/{y}.webp) plus map.json (content id, zoom range and the world
  //                       rectangle the image covers, read from the level's minimap capture actor).
@@ -20,17 +25,18 @@ index 5af71fd..c8301c2 100644
 +//   --map-areas-out     a directory with the game's map area raster (which area every spot belongs to), see MapAreas.
 +//   --transport-out     transport.json: capacity, timing, speed and drone fuel values of the transport vehicles, see TransportData.
 +//   --icons-out         a directory with the icon of every item, building and vehicle descriptor (WebP per size), see DescriptorIcons.
++//   --buildings-out     buildings-raw.json: clearance boxes, grid sizes, mesh bounds and descriptors of every buildable and vehicle, see BuildingsData.
  //
  // Usage:
  //   WorldExtractor --install-dir <game install> --out <default-world.json>
 -//                  [--collectibles-out <collectibles.json>] [--map-out <dir>]
 +//                  [--collectibles-out <collectibles.json>] [--map-out <dir>] [--caves-out <caves.json>]
 +//                  [--cave-geometry-out <dir>] [--heightmap-out <dir>] [--map-areas-out <dir>] [--transport-out <file>]
-+//                  [--icons-out <dir>]
++//                  [--icons-out <dir>] [--buildings-out <file>]
  //                  [--engine-candidates GAME_UE5_6,GAME_UE5_5] [--game-version 1.2.3.1]
  
  var opts = Args.Parse(args);
-@@ -41,6 +50,13 @@ string installDir = opts.Require("install-dir");
+@@ -41,6 +54,14 @@ string installDir = opts.Require("install-dir");
  string outPath = opts.Require("out");
  string? collectiblesPath = opts.Get("collectibles-out");
  string? mapDir = opts.Get("map-out");
@@ -41,10 +47,11 @@ index 5af71fd..c8301c2 100644
 +string? mapAreasDir = opts.Get("map-areas-out");
 +string? transportPath = opts.Get("transport-out");
 +string? iconsDir = opts.Get("icons-out");
++string? buildingsPath = opts.Get("buildings-out");
  
  string paksDir = Path.Combine(installDir, "FactoryGame", "Content", "Paks");
  string usmapPath = Path.Combine(installDir, "CommunityResources", "FactoryGame.usmap");
-@@ -62,7 +78,6 @@ const string levelPath = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persis
+@@ -62,7 +83,6 @@ const string levelPath = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persis
  
  var (provider, level, engine) = OpenLevel(paksDir, usmapPath, candidates);
  Console.WriteLine($"Engine: {engine} | mounted files: {provider.Files.Count} | game version: {gameVersion}");
@@ -52,7 +59,7 @@ index 5af71fd..c8301c2 100644
  var resourceNodes = new List<ResourceNode>();
  var geysers = new List<GeyserNode>();
  var cores = new List<FrackingCore>();
-@@ -71,6 +86,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
+@@ -71,6 +91,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
  UObject? scannableGenerator = null;
  UObject? minimapCapture = null;
  int skipped = 0;
@@ -61,7 +68,7 @@ index 5af71fd..c8301c2 100644
  
  foreach (var actorIndex in level.Actors)
  {
-@@ -99,6 +116,9 @@ foreach (var actorIndex in level.Actors)
+@@ -99,6 +121,9 @@ foreach (var actorIndex in level.Actors)
              satellites.Add((actor.Get<FPackageIndex>("mCore").Name, ResourceClass(actor),
                  new GeyserNode(actor.Name, Location(actor), Purity(actor))));
              break;
@@ -71,7 +78,7 @@ index 5af71fd..c8301c2 100644
          case "BP_WorldScannableDataGenerator_C":
              scannableGenerator = actor;
              break;
-@@ -146,6 +166,64 @@ if (collectiblesPath is not null)
+@@ -146,6 +171,72 @@ if (collectiblesPath is not null)
          $"{collectibles.DropPods.Count} drop pods, {collectibles.CreatureSpawners.Count} creature spawners -> {collectiblesPath}");
  }
  
@@ -126,6 +133,14 @@ index 5af71fd..c8301c2 100644
 +        $"{icons.Missing.Count} without an icon -> {iconsDir}");
 +}
 +
++if (buildingsPath is not null)
++{
++    var b = BuildingsData.Read(provider, installDir, gameVersion);
++    File.WriteAllText(buildingsPath, JsonSerializer.Serialize(b, Json.Options));
++    Console.WriteLine($"Buildings: {b.Buildings.Count} buildables ({b.Buildings.Values.Count(x => x.Clearance is { Count: > 0 })} with clearance boxes, " +
++        $"{b.Buildings.Values.Count(x => x.Mesh is not null)} with mesh bounds), {b.Vehicles.Count} vehicles, {b.Failed.Count} notes -> {buildingsPath}");
++}
++
 +if (heightmapDir is not null)
 +{
 +    if (minimapCapture is null) throw new Exception("BP_MinimapCaptureActor_C not found in the level.");
@@ -136,7 +151,7 @@ index 5af71fd..c8301c2 100644
  if (mapDir is not null)
  {
      if (minimapCapture is null) throw new Exception("BP_MinimapCaptureActor_C not found in the level.");
-@@ -163,6 +241,31 @@ static float[] Location(UObject actor)
+@@ -163,6 +254,31 @@ static float[] Location(UObject actor)
      return [loc.X, loc.Y, loc.Z];
  }
  
@@ -168,7 +183,7 @@ index 5af71fd..c8301c2 100644
  static string ResourceClass(UObject actor) => actor.Get<FPackageIndex>("mResourceClass").Name;
  
  static string Purity(UObject actor) => actor.GetOrDefault<FName>("mPurity", new FName("RP_Normal")).ToString();
-@@ -372,7 +475,7 @@ static class MapTiler
+@@ -372,7 +488,7 @@ static class MapTiler
      }
  
      /** A top-down orthographic capture: the image is OrthoWidth world units wide and as tall, centred on the capture. */
@@ -177,7 +192,7 @@ index 5af71fd..c8301c2 100644
      {
          var root = captureActor.Get<FPackageIndex>("RootComponent").Load()!;
          var capture = captureActor.Get<FPackageIndex>("CaptureComponent2D").Load()!;
-@@ -390,12 +493,8 @@ static class MapTiler
+@@ -390,12 +506,8 @@ static class MapTiler
          {
              try
              {
@@ -192,7 +207,7 @@ index 5af71fd..c8301c2 100644
              }
              catch (Exception e)
              {
-@@ -428,64 +527,67 @@ record PickupContent(string? Item, int Amount);
+@@ -428,64 +540,67 @@ record PickupContent(string? Item, int Amount);
  /** What each loose item pickup holds, from the world partition cells that contain the pickups. */
  static class PickupContents
  {
@@ -294,7 +309,7 @@ index 5af71fd..c8301c2 100644
      }
  }
  
-@@ -534,8 +636,156 @@ static class MapIcons
+@@ -534,8 +649,156 @@ static class MapIcons
              }
              catch (Exception e) { Console.Error.WriteLine($"WARN: creature descriptor {file}: {e.Message}"); }
          }
@@ -451,7 +466,7 @@ index 5af71fd..c8301c2 100644
  }
  
  // ---- output model (matches Konsl/satisfactory-world-generator default-world.json) ----
-@@ -599,6 +849,1142 @@ record MapInfo(
+@@ -599,6 +862,1674 @@ record MapInfo(
      [property: JsonPropertyName("world")] MapBounds World,
      [property: JsonPropertyName("icons")] Dictionary<string, string> Icons);
  
@@ -1589,6 +1604,538 @@ index 5af71fd..c8301c2 100644
 +            f.GetOrDefault<FPackageIndex>("Item")?.Name ?? throw new Exception("Drone fuel type without an item"),
 +            f.TryGetValue(out float speed, "TravelSpeed") ? speed : null)).ToList();
 +    }
++}
++
++// --buildings-out <file>: what the 2D factory map needs to draw every buildable and vehicle a save can hold, read from the
++// blueprints in the paks (buildings.json in ficsmap's dataset is built from this and the game's Docs):
++//   per buildable class (every Build_*.uasset blueprint, any case, e.g. BUILD_Potty_mk1; abstract base classes left out) and per
++//   vehicle class (the class a vehicle descriptor places, see descriptor):
++//   nativeClass      the first C++ class in the parent chain (FGBuildableManufacturer, ...)
++//   parents          the parent blueprints between the class and its native class
++//   descriptor       the descriptor whose mBuildableClass / mVehicleClass is this class (descriptors from the Docs'
++//                    FGBuildingDescriptor and FGVehicleDescriptor lists; the Factory Carts' FGEquipmentDescriptor through
++//                    its dispenser's mGolfCartClass), with its build menu mCategory, mSubCategories and mMenuPriority;
++//                    null when no descriptor builds it (HUB parts, lift attachments, path nodes, ...)
++//   displayName      the class default object's mDisplayName (FText source text, English); null when no blueprint in the
++//                    chain sets it. Only English: the paks carry no German Game.locres (1.2.5.0 has en-US, ie and io)
++//   clearance        mClearanceData as the blueprint sets it: per entry the box (local cm), Type, ExcludeForSnapping and
++//                    RelativeTransform; null when no blueprint in the chain sets it (the C++ default, not in the paks)
++//   grid             mWidth, mDepth, mHeight, mElevation (cm) and mSize (pillars, cm) where a blueprint in the chain sets them
++//   mesh             the axis-aligned bounds (actor space, cm) of the static meshes the blueprint places: its instance data
++//                    (mInstanceDataCDO, how most 1.0+ buildables render) and the static mesh components of its construction
++//                    script (with their parents' relative transforms; hidden ones and ones without collision left out);
++//                    for classes without either, a skeletal root mesh's imported bounds (vehicles), else the mesh a few
++//                    known properties name (see MeshProperties). null when there is none.
++//   refs             the buildables and vehicles the class default objects name in their properties (directly, or through a
++//                    recipe's product descriptor: the HUB names its terminal, craft bench, storage and biomass burner by
++//                    recipe), e.g. so parts without a name of their own can be shown under their owner's name
++// Blueprint defaults are stored as deltas, so a value a class does not set is taken from its parent blueprint.
++static class BuildingsData
++{
++    public record Vec([property: JsonPropertyName("x")] double X, [property: JsonPropertyName("y")] double Y, [property: JsonPropertyName("z")] double Z);
++
++    public record Transform(
++        [property: JsonPropertyName("translation")] Vec Translation,
++        [property: JsonPropertyName("rotation")] double[] Rotation,
++        [property: JsonPropertyName("scale")] Vec Scale);
++
++    public record Clearance(
++        [property: JsonPropertyName("min")] Vec Min,
++        [property: JsonPropertyName("max")] Vec Max,
++        [property: JsonPropertyName("type")] string? Type,
++        [property: JsonPropertyName("excludeForSnapping")] bool? ExcludeForSnapping,
++        [property: JsonPropertyName("transform")] Transform? RelativeTransform);
++
++    public record Grid(
++        [property: JsonPropertyName("width")] float? Width,
++        [property: JsonPropertyName("depth")] float? Depth,
++        [property: JsonPropertyName("height")] float? Height,
++        [property: JsonPropertyName("elevation")] float? Elevation,
++        [property: JsonPropertyName("size")] Vec? Size);
++
++    public record MeshBounds(
++        [property: JsonPropertyName("min")] Vec Min,
++        [property: JsonPropertyName("max")] Vec Max,
++        [property: JsonPropertyName("source")] string Source,
++        [property: JsonPropertyName("meshes")] List<string> Meshes);
++
++    public record Descriptor(
++        [property: JsonPropertyName("class")] string Class,
++        [property: JsonPropertyName("category")] string? Category,
++        [property: JsonPropertyName("subCategories")] List<string> SubCategories,
++        [property: JsonPropertyName("menuPriority")] float? MenuPriority);
++
++    public record Building(
++        [property: JsonPropertyName("asset")] string Asset,
++        [property: JsonPropertyName("nativeClass")] string? NativeClass,
++        [property: JsonPropertyName("parents")] List<string> Parents,
++        [property: JsonPropertyName("descriptor")] Descriptor? Descriptor,
++        [property: JsonPropertyName("displayName")] string? DisplayName,
++        [property: JsonPropertyName("clearance")] List<Clearance>? Clearance,
++        [property: JsonPropertyName("grid")] Grid? Grid,
++        [property: JsonPropertyName("mesh")] MeshBounds? Mesh,
++        [property: JsonPropertyName("refs")] List<string> Refs);
++
++    public record Info(
++        [property: JsonPropertyName("gameVersion")] string GameVersion,
++        [property: JsonPropertyName("buildings")] SortedDictionary<string, Building> Buildings,
++        [property: JsonPropertyName("vehicles")] SortedDictionary<string, Building> Vehicles,
++        [property: JsonPropertyName("failed")] SortedDictionary<string, string> Failed);
++
++    const string DocsFile = "CommunityResources/Docs/en-US.json";
++    const string Content = "FactoryGame/Content/";
++    static readonly string[] DescriptorNatives = ["FGBuildingDescriptor", "FGVehicleDescriptor", "FGEquipmentDescriptor"];
++
++    // Classes whose meshes are not placed by instance data or construction script components but built at runtime from
++    // these properties (conveyor lifts and the elevator from bottom/mid/top pieces; the elevator's are on its sparse data object, passthroughs from a cap, pipe and hypertube
++    // supports from a support mesh, conveyor poles from pole variations). The first one a class sets is used, at the actor's
++    // origin unless the property carries its own RelativeTransform; it is only the piece at the base, not the whole height.
++    static readonly string[] MeshProperties = ["mBottomMesh", "mCapMesh", "mSupportMeshInstanceData", "mPoleVariations"];
++
++    public static Info Read(IFileProvider provider, string installDir, string gameVersion)
++    {
++        string docsPath = Path.Combine(installDir, DocsFile);
++        if (!File.Exists(docsPath)) throw new Exception($"--buildings-out needs the game's Docs: {docsPath} not found.");
++
++        // Package paths by asset name (case-insensitive: BUILD_Potty_mk1).
++        var packages = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
++        foreach (var f in provider.Files.Keys)
++        {
++            if (!f.EndsWith(".uasset", StringComparison.OrdinalIgnoreCase) || !f.StartsWith(Content + "FactoryGame/", StringComparison.OrdinalIgnoreCase)) continue;
++            packages.TryAdd(Path.GetFileNameWithoutExtension(f), f[..^".uasset".Length]);
++        }
++
++        var failed = new SortedDictionary<string, string>(StringComparer.Ordinal);
++        // Descriptors: which descriptor builds which class.
++        var descriptorOf = new Dictionary<string, Descriptor>(StringComparer.OrdinalIgnoreCase);
++        var vehicleClasses = new SortedSet<string>(StringComparer.Ordinal);
++        using (var docs = JsonDocument.Parse(File.ReadAllText(docsPath)))
++        {
++            foreach (var group in docs.RootElement.EnumerateArray())
++            {
++                string native = Regex.Match(group.GetProperty("NativeClass").GetString() ?? "", @"\.(\w+)'?$").Groups[1].Value;
++                if (!DescriptorNatives.Contains(native)) continue;
++                foreach (var c in group.GetProperty("Classes").EnumerateArray())
++                {
++                    string cls = c.GetProperty("ClassName").GetString()!;
++                    try
++                    {
++                        if (!packages.TryGetValue(cls[..^2], out var pkg)) { failed[cls] = "descriptor package not found"; continue; }
++                        var chain = Chain(provider, pkg);
++                        if (chain.Count == 0) { failed[cls] = "descriptor blueprint not loadable"; continue; }
++                        string? built = FirstObject(chain, "mBuildableClass") ?? FirstObject(chain, "mVehicleClass");
++                        // The Factory Carts are equipment: the descriptor's mEquipmentClass is a dispenser whose
++                        // mGolfCartClass is the vehicle it places.
++                        if (built is null && native == "FGEquipmentDescriptor")
++                        {
++                            string? equip = FirstObjectPath(chain, "mEquipmentClass");
++                            var equipChain = equip is not null && packages.TryGetValue(equip, out var ep) ? Chain(provider, ep) : [];
++                            built = FirstObject(equipChain, "mGolfCartClass");
++                            if (built is null) continue; // other equipment
++                            vehicleClasses.Add(built);
++                        }
++                        if (built is null) { failed[cls] = "descriptor has no mBuildableClass or mVehicleClass"; continue; }
++                        if (native == "FGVehicleDescriptor") vehicleClasses.Add(built);
++                        var d = new Descriptor(chain[0].Class, FirstObject(chain, "mCategory"), SubCategories(chain), First(chain, c => c.Cdo.TryGetValue(out float v, "mMenuPriority") ? v : (float?)null));
++                        // Two descriptors for one class: keep the first in name order, note the other.
++                        if (descriptorOf.TryGetValue(built, out var other))
++                        {
++                            if (string.CompareOrdinal(other.Class, d.Class) > 0) (descriptorOf[built], d) = (d, other);
++                            failed[d.Class] = $"descriptor also builds {built} (kept {descriptorOf[built].Class})";
++                        }
++                        else descriptorOf[built] = d;
++                    }
++                    catch (Exception e) { failed[cls] = $"descriptor failed: {e.Message}"; }
++                }
++            }
++        }
++
++        var buildings = new SortedDictionary<string, Building>(StringComparer.Ordinal);
++        var vehicles = new SortedDictionary<string, Building>(StringComparer.Ordinal);
++        var meshBounds = new Dictionary<string, (Vec Min, Vec Max)?>(StringComparer.OrdinalIgnoreCase);
++        var rawRefs = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
++        foreach (var (name, pkg) in packages.OrderBy(p => p.Key, StringComparer.Ordinal))
++        {
++            bool isBuild = name.StartsWith("Build_", StringComparison.OrdinalIgnoreCase);
++            bool isVehicle = !isBuild && vehicleClasses.Contains(name + "_C");
++            if (!isBuild && !isVehicle) continue;
++            try
++            {
++                var chain = Chain(provider, pkg);
++                if (chain.Count == 0) continue; // not a blueprint (a mesh or texture named Build_...)
++                if (chain[0].Bgc.ClassFlags.HasFlag(EClassFlags.CLASS_Abstract)) continue; // a base class, never placed
++                string? nativeClass = chain[^1].NativeParent;
++                var building = new Building(
++                    "/" + pkg.Replace(Content, "Game/"),
++                    nativeClass,
++                    chain.Skip(1).Select(c => c.Class).ToList(),
++                    descriptorOf.GetValueOrDefault(chain[0].Class),
++                    DisplayName(chain),
++                    ClearanceOf(chain),
++                    GridOf(chain),
++                    MeshOf(provider, chain, meshBounds),
++                    []);
++                (isVehicle ? vehicles : buildings)[chain[0].Class] = building;
++                // What the class names, and what its hologram (the build gun preview that places it) names: lift variants
++                // of mergers and splitters, sign poles and path nodes are placed by another class's hologram.
++                var refs = chain.SelectMany(c => ClassRefs(c.Cdo)).ToHashSet(StringComparer.OrdinalIgnoreCase);
++                var holo = FirstObjectPath(chain, "mHologramClass");
++                if (holo is not null && packages.TryGetValue(holo, out var hp))
++                    foreach (var h in Chain(provider, hp)) refs.UnionWith(ClassRefs(h.Cdo));
++                rawRefs[chain[0].Class] = refs;
++            }
++            catch (Exception e)
++            {
++                failed[name + "_C"] = e.Message;
++                Console.Error.WriteLine($"WARN: buildable {name} failed: {e.Message}");
++            }
++        }
++        foreach (var v in vehicleClasses.Where(v => !vehicles.ContainsKey(v))) failed.TryAdd(v, "vehicle class of a descriptor, blueprint not found");
++
++        // Resolve references: buildables and vehicles directly, recipes through their first product's descriptor.
++        var builtBy = descriptorOf.ToDictionary(d => d.Value.Class, d => d.Key, StringComparer.OrdinalIgnoreCase);
++        var known = new HashSet<string>(buildings.Keys.Concat(vehicles.Keys), StringComparer.OrdinalIgnoreCase);
++        var recipeProduct = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
++        foreach (var (cls, refs) in rawRefs)
++        {
++            if (!known.Contains(cls)) continue;
++            var resolved = new SortedSet<string>(StringComparer.Ordinal);
++            foreach (var r in refs)
++            {
++                if (r.Equals(cls, StringComparison.OrdinalIgnoreCase)) continue;
++                if (known.Contains(r)) { resolved.Add(known.First(k => k.Equals(r, StringComparison.OrdinalIgnoreCase))); continue; }
++                if (!r.StartsWith("Recipe_", StringComparison.OrdinalIgnoreCase)) continue;
++                if (!recipeProduct.TryGetValue(r, out var built))
++                {
++                    // recipe -> product descriptor -> its mBuildableClass (also for descriptors the Docs do not list)
++                    string? product = packages.TryGetValue(r[..^2], out var rp) ? RecipeProduct(Chain(provider, rp)) : null;
++                    built = product is null ? null
++                        : builtBy.TryGetValue(product, out var b) ? b
++                        : packages.TryGetValue(product[..^2], out var dp) ? FirstObject(Chain(provider, dp), "mBuildableClass") : null;
++                    recipeProduct[r] = built;
++                }
++                if (built is not null && known.Contains(built) && !built.Equals(cls, StringComparison.OrdinalIgnoreCase))
++                    resolved.Add(known.First(k => k.Equals(built, StringComparison.OrdinalIgnoreCase)));
++            }
++            var list = (buildings.ContainsKey(cls) ? buildings : vehicles)[cls].Refs;
++            list.AddRange(resolved);
++        }
++        if (buildings.Count == 0) throw new Exception("No buildable blueprints found; the pak layout probably changed.");
++        return new Info(gameVersion, buildings, vehicles, failed);
++    }
++
++    record Level(string Class, UObject Cdo, UBlueprintGeneratedClass Bgc, IPackage Package, string? NativeParent);
++
++    /// The blueprint and its parent blueprints (nearest first), each with its class default object. The last level's
++    /// NativeParent is the C++ class the chain ends in.
++    static List<Level> Chain(IFileProvider provider, string package)
++    {
++        var chain = new List<Level>();
++        for (int depth = 0; depth < 12 && package.Length > 0; depth++)
++        {
++            if (!provider.TryLoadPackage(package + ".uasset", out var pkg)) break;
++            var cls = pkg.GetExports().OfType<UBlueprintGeneratedClass>().FirstOrDefault();
++            if (cls is null) break;
++            var cdo = cls.ClassDefaultObject.Load();
++            if (cdo is null) break;
++            // "/Script/FactoryGame.FGBuildableManufacturer" (C++) or "/Game/FactoryGame/.../BP_WheeledVehicle.BP_WheeledVehicle_C".
++            string superPath = cls.SuperStruct?.ResolvedObject?.GetPathName() ?? "";
++            bool native = !superPath.StartsWith("/Game/");
++            chain.Add(new Level(cls.Name, cdo, cls, pkg, native ? superPath[(superPath.LastIndexOf('.') + 1)..] : null));
++            if (native) break;
++            string next = Content + superPath["/Game/".Length..superPath.LastIndexOf('.')];
++            if (next.Equals(package, StringComparison.OrdinalIgnoreCase)) break;
++            package = next;
++        }
++        return chain;
++    }
++
++    static T? First<T>(List<Level> chain, Func<Level, T?> get) where T : struct
++    {
++        foreach (var c in chain) if (get(c) is T v) return v;
++        return null;
++    }
++
++    /// The class name an object property of the first blueprint that sets it points to.
++    static string? FirstObject(List<Level> chain, string property)
++    {
++        foreach (var c in chain)
++            if (c.Cdo.TryGetValue(out FPackageIndex v, property) && !v.IsNull) return v.Name;
++        return null;
++    }
++
++    /// The asset name of the class an object property of the first blueprint that sets it points to (Holo_X for Holo_X_C).
++    static string? FirstObjectPath(List<Level> chain, string property)
++    {
++        string? cls = FirstObject(chain, property);
++        return cls is not null && cls.EndsWith("_C") ? cls[..^2] : null;
++    }
++
++    /// The first product's item class of a recipe (mProduct[0].ItemClass).
++    static string? RecipeProduct(List<Level> chain)
++    {
++        foreach (var c in chain)
++            if (c.Cdo.TryGetValue(out FStructFallback[] products, "mProduct") && products.Length > 0
++                && products[0].TryGetValue(out FPackageIndex item, "ItemClass") && !item.IsNull) return item.Name;
++        return null;
++    }
++
++    /// Class names (`..._C`) that the object's properties point to, through arrays and structs.
++    static IEnumerable<string> ClassRefs(UObject obj)
++    {
++        var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
++        foreach (var p in obj.Properties) Collect(p.Tag?.GenericValue, found, 0);
++        return found;
++    }
++
++    static void Collect(object? value, HashSet<string> found, int depth)
++    {
++        if (value is null || depth > 6) return;
++        switch (value)
++        {
++            case FPackageIndex i when !i.IsNull:
++                if (i.Name.EndsWith("_C")) found.Add(i.Name);
++                break;
++            case FSoftObjectPath sp:
++                string path = sp.AssetPathName.Text;
++                string name = path[(path.LastIndexOf('.') + 1)..];
++                if (name.EndsWith("_C")) found.Add(name);
++                break;
++            case UScriptArray a:
++                foreach (var e in a.Properties) Collect(e.GenericValue, found, depth + 1);
++                break;
++            case FScriptStruct st when st.StructType is FStructFallback f:
++                foreach (var p in f.Properties) Collect(p.Tag?.GenericValue, found, depth + 1);
++                break;
++        }
++    }
++
++    static List<string> SubCategories(List<Level> chain)
++    {
++        foreach (var c in chain)
++            if (c.Cdo.TryGetValue(out FPackageIndex[] v, "mSubCategories")) return v.Where(i => !i.IsNull).Select(i => i.Name).ToList();
++        return [];
++    }
++
++    static string? DisplayName(List<Level> chain)
++    {
++        foreach (var c in chain)
++        {
++            if (!c.Cdo.TryGetValue(out FText text, "mDisplayName")) continue;
++            string? en = (text.TextHistory as FTextHistory.Base)?.SourceString ?? text.Text;
++            if (!string.IsNullOrEmpty(en)) return en;
++        }
++        return null;
++    }
++
++    static List<Clearance>? ClearanceOf(List<Level> chain)
++    {
++        foreach (var c in chain)
++        {
++            if (!c.Cdo.TryGetValue(out FStructFallback[] entries, "mClearanceData")) continue;
++            var list = new List<Clearance>();
++            foreach (var e in entries)
++            {
++                var box = e.GetOrDefault<FBox>("ClearanceBox");
++                if (box.IsValid == 0) continue;
++                string? type = e.TryGetValue(out FName t, "Type") ? t.Text : null;
++                bool? exclude = e.TryGetValue(out bool x, "ExcludeForSnapping") ? x : null;
++                Transform? rel = TransformProp(e, "RelativeTransform") is { } tr ? ToTransform(tr) : null;
++                list.Add(new Clearance(V(box.Min), V(box.Max), type?.Split("::").Last(), exclude, rel));
++            }
++            return list;
++        }
++        return null;
++    }
++
++    static Grid? GridOf(List<Level> chain)
++    {
++        float? F(string p) => First(chain, c => c.Cdo.TryGetValue(out float v, p) ? v : (float?)null);
++        Vec? size = null;
++        foreach (var c in chain)
++            if (c.Cdo.TryGetValue(out FVector s, "mSize")) { size = V(s); break; }
++        var g = new Grid(F("mWidth"), F("mDepth"), F("mHeight"), F("mElevation"), size);
++        return g is { Width: null, Depth: null, Height: null, Elevation: null, Size: null } ? null : g;
++    }
++
++    // ---- mesh bounds ----
++
++    static MeshBounds? MeshOf(IFileProvider provider, List<Level> chain, Dictionary<string, (Vec Min, Vec Max)?> cache)
++    {
++        var acc = new Bounds();
++        var meshes = new SortedSet<string>(StringComparer.Ordinal);
++        string? source = null;
++
++        // 1. Instance data (FGBuildable mInstanceDataCDO -> AbstractInstanceDataObject.Instances[]: StaticMesh, RelativeTransform).
++        foreach (var c in chain)
++        {
++            if (!c.Cdo.TryGetValue(out FPackageIndex idx, "mInstanceDataCDO") || idx.IsNull) continue;
++            var data = idx.Load();
++            if (data is null || !data.TryGetValue(out FStructFallback[] instances, "Instances")) break;
++            foreach (var inst in instances)
++            {
++                if (!inst.TryGetValue(out FPackageIndex mesh, "StaticMesh") || mesh.IsNull) continue;
++                var t = TransformProp(inst, "RelativeTransform") ?? FTransform.Identity;
++                if (AddMesh(acc, mesh, t, cache)) meshes.Add(mesh.Name);
++            }
++            source = "instanceData";
++            break;
++        }
++
++        // 2. Static mesh components of the construction scripts (this blueprint and its parents).
++        int before = meshes.Count;
++        foreach (var c in chain)
++        {
++            var scs = c.Bgc.SimpleConstructionScript?.Load();
++            if (scs is null || !scs.TryGetValue(out FPackageIndex[] roots, "RootNodes")) continue;
++            foreach (var root in roots) WalkNode(root.Load(), FTransform.Identity, acc, meshes, cache);
++        }
++        if (meshes.Count > before) source = source is null ? "components" : source + "+components";
++
++        // 3. A skeletal mesh as root component (vehicles): its imported bounds.
++        if (meshes.Count == 0)
++        {
++            foreach (var c in chain)
++            {
++                if (!c.Cdo.TryGetValue(out FPackageIndex rootIdx, "RootComponent") || rootIdx.Load() is not { } root) continue;
++                var skIdx = root.GetOrDefault<FPackageIndex>("SkeletalMesh") ?? root.GetOrDefault<FPackageIndex>("SkinnedAsset");
++                if (skIdx is null || skIdx.IsNull) continue;
++                var sk = skIdx.Load<CUE4Parse.UE4.Assets.Exports.SkeletalMesh.USkeletalMesh>();
++                if (sk is null || sk.ImportedBounds.BoxExtent.X <= 0) continue;
++                var b = sk.ImportedBounds;
++                foreach (var x in new[] { -1f, 1f })
++                foreach (var y in new[] { -1f, 1f })
++                foreach (var z in new[] { -1f, 1f })
++                    acc.Add(b.Origin + new FVector(x * b.BoxExtent.X, y * b.BoxExtent.Y, z * b.BoxExtent.Z));
++                meshes.Add(skIdx.Name);
++                source = "skeletalMesh";
++                break;
++            }
++        }
++
++        // 4. Known mesh properties of classes that build their meshes at runtime.
++        if (meshes.Count == 0)
++        {
++            foreach (var prop in MeshProperties)
++            {
++                // On the class default object, or on its sparse data object (the elevator keeps its meshes there).
++                var found = chain.SelectMany(c => c.Package.GetExports().Where(e => e.Name == c.Cdo.Name || e.ExportType.EndsWith("SparseData")))
++                    .Select(o => MeshProperty(o, prop)).FirstOrDefault(m => m is not null);
++                if (found is null) continue;
++                if (AddMesh(acc, found.Value.Mesh, found.Value.Transform, cache)) { meshes.Add(found.Value.Mesh.Name); source = prop; }
++                break;
++            }
++        }
++        if (meshes.Count == 0 || !acc.Valid) return null;
++        return new MeshBounds(acc.Min, acc.Max, source!, meshes.ToList());
++    }
++
++    static (FPackageIndex Mesh, FTransform Transform)? MeshProperty(UObject cdo, string prop)
++    {
++        if (cdo.TryGetValue(out FPackageIndex mesh, prop) && !mesh.IsNull) return (mesh, FTransform.Identity);
++        if (cdo.TryGetValue(out FStructFallback s, prop) && s.TryGetValue(out FPackageIndex m, "StaticMesh") && !m.IsNull)
++            return (m, TransformProp(s, "RelativeTransform") ?? FTransform.Identity);
++        if (cdo.TryGetValue(out FStructFallback[] arr, prop) && arr.Length > 0 && arr[0].TryGetValue(out FPackageIndex first, "StaticMesh") && !first.IsNull)
++            return (first, FTransform.Identity);
++        return null;
++    }
++
++    static void WalkNode(UObject? node, FTransform parent, Bounds acc, SortedSet<string> meshes, Dictionary<string, (Vec Min, Vec Max)?> cache)
++    {
++        if (node is null) return;
++        var transform = parent;
++        if (node.TryGetValue(out FPackageIndex tpl, "ComponentTemplate") && tpl.Load() is { } component)
++        {
++            var loc = component.GetOrDefault("RelativeLocation", FVector.ZeroVector);
++            var rot = component.GetOrDefault("RelativeRotation", FRotator.ZeroRotator);
++            var scale = component.GetOrDefault("RelativeScale3D", FVector.OneVector);
++            transform = Compose(new FTransform(rot.Quaternion(), loc, scale), parent);
++            // Visible meshes with collision: leaves out hidden helpers and effect meshes such as a locomotive's light shaft.
++            bool visible = component.GetOrDefault("bVisible", true) && !component.GetOrDefault("bHiddenInGame", false)
++                && !(component.TryGetValue(out FStructFallback body, "BodyInstance")
++                     && (body.GetOrDefault<FName>("CollisionProfileName").Text == "NoCollision"
++                         || body.GetOrDefault<FName>("CollisionEnabled").Text.EndsWith("NoCollision")));
++            if (visible && component.TryGetValue(out FPackageIndex mesh, "StaticMesh") && !mesh.IsNull && AddMesh(acc, mesh, transform, cache))
++                meshes.Add(mesh.Name);
++        }
++        if (node.TryGetValue(out FPackageIndex[] children, "ChildNodes"))
++            foreach (var child in children) WalkNode(child.Load(), transform, acc, meshes, cache);
++    }
++
++    /// child relative to parent -> child in the parent's space (the parent's rotation and scale applied to the child's offset).
++    static FTransform Compose(FTransform child, FTransform parent)
++    {
++        var q = parent.Rotation * child.Rotation;
++        var t = Rotate(parent.Rotation, child.Translation * parent.Scale3D) + parent.Translation;
++        return new FTransform(q, t, child.Scale3D * parent.Scale3D);
++    }
++
++    static bool AddMesh(Bounds acc, FPackageIndex meshIndex, FTransform t, Dictionary<string, (Vec Min, Vec Max)?> cache)
++    {
++        string key = meshIndex.ResolvedObject?.GetPathName() ?? meshIndex.Name;
++        if (!cache.TryGetValue(key, out var local))
++        {
++            var mesh = meshIndex.Load<UStaticMesh>();
++            // ExtendedBounds (the mesh's bounds as the engine uses them; RenderData.Bounds is empty for some meshes)
++            FVector? origin = null, extent = null;
++            if (mesh is not null && mesh.TryGetValue(out FStructFallback eb, "ExtendedBounds"))
++            {
++                origin = eb.GetOrDefault<FVector>("Origin");
++                extent = eb.GetOrDefault<FVector>("BoxExtent");
++            }
++            if ((extent is null || extent.Value.X + extent.Value.Y + extent.Value.Z <= 0) && mesh?.RenderData?.Bounds is { } rb)
++                (origin, extent) = (rb.Origin, rb.BoxExtent);
++            local = extent is null || extent.Value.X + extent.Value.Y + extent.Value.Z <= 0 ? null
++                : (V(origin!.Value - extent.Value), V(origin.Value + extent.Value));
++            cache[key] = local;
++        }
++        if (local is null) return false;
++        var (min, max) = local.Value;
++        foreach (var x in new[] { min.X, max.X })
++        foreach (var y in new[] { min.Y, max.Y })
++        foreach (var z in new[] { min.Z, max.Z })
++        {
++            var p = Rotate(t.Rotation, new FVector((float)x, (float)y, (float)z) * t.Scale3D) + t.Translation;
++            acc.Add(p);
++        }
++        return true;
++    }
++
++    static FVector Rotate(FQuat q, FVector v)
++    {
++        // v' = v + 2w (u x v) + 2 u x (u x v), u = (x, y, z) of the unit quaternion
++        var u = new FVector((float)q.X, (float)q.Y, (float)q.Z);
++        var c1 = FVector.CrossProduct(u, v);
++        var c2 = FVector.CrossProduct(u, c1);
++        return v + c1 * (2f * (float)q.W) + c2 * 2f;
++    }
++
++    class Bounds
++    {
++        double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
++        double maxX = double.MinValue, maxY = double.MinValue, maxZ = double.MinValue;
++        public bool Valid => minX <= maxX;
++        public void Add(FVector p)
++        {
++            minX = Math.Min(minX, p.X); minY = Math.Min(minY, p.Y); minZ = Math.Min(minZ, p.Z);
++            maxX = Math.Max(maxX, p.X); maxY = Math.Max(maxY, p.Y); maxZ = Math.Max(maxZ, p.Z);
++        }
++        public Vec Min => new(R(minX), R(minY), R(minZ));
++        public Vec Max => new(R(maxX), R(maxY), R(maxZ));
++    }
++
++    static double R(double v) => Math.Round(v, 3);
++    static Vec V(FVector v) => new(R(v.X), R(v.Y), R(v.Z));
++
++    /// A transform property; fields the data leaves out keep their defaults (no rotation, no offset, scale 1).
++    static FTransform? TransformProp(IPropertyHolder owner, string name)
++    {
++        if (owner.TryGetValue(out FStructFallback f, name))
++            return new FTransform(f.GetOrDefault("Rotation", FQuat.Identity), f.GetOrDefault("Translation", FVector.ZeroVector), f.GetOrDefault("Scale3D", FVector.OneVector));
++        return owner.TryGetValue(out FTransform t, name) ? t : null;
++    }
++
++    static Transform ToTransform(FTransform t) => new(V(t.Translation), [R(t.Rotation.X), R(t.Rotation.Y), R(t.Rotation.Z), R(t.Rotation.W)], V(t.Scale3D));
 +}
 +
  static class Json
