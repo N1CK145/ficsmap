@@ -215,6 +215,66 @@ describe('production lines on the factory page', () => {
     expect(within(await section()).getByRole('list', { name: 'Legend' })).toHaveTextContent('estimated');
   });
 
+  it('"Machines only" ends the flow in output nodes: the item, its rate and where it goes; Enter lists the buildings', async () => {
+    setup();
+    await user().click(within(await section()).getByRole('button', { name: 'Machines only' }));
+    const d = await diagram();
+    // The storage at the end makes way for the output of what it receives.
+    expect(within(d).queryByRole('button', { name: /^Output: Storage Container/ })).toBeNull();
+    const out = within(d).getByRole('button', { name: 'Output: Iron Plate, 20.0/min, to Storage Container' });
+    expect(out).toHaveTextContent('Output');
+    expect(out).toHaveTextContent('Iron Plate');
+    expect(out).toHaveTextContent('20.0/min');
+    expect(out).toHaveTextContent('→ Storage Container');
+    expect(out).toHaveStyle({ width: '208px' });
+    expect(out.className).toContain('border-accent');
+    const edge = d.querySelector('path[data-from="g-plate"][data-to="out:Desc_IronPlate_C"]')!;
+    expect(edge).toHaveAttribute('data-edge', 'flow');
+    expect(d.querySelector('[data-label-to="out:Desc_IronPlate_C"]')).toHaveTextContent('20.0/min of 60');
+
+    // Keyboard: Enter on the focused node opens its buildings.
+    out.focus();
+    await user().keyboard('{Enter}');
+    expect(out).toHaveAttribute('aria-expanded', 'true');
+    const panel = document.getElementById(out.getAttribute('aria-controls')!)!;
+    expect(within(panel).getByRole('heading', { name: 'Output: Iron Plate' })).toBeInTheDocument();
+    const takers = within(panel).getByRole('list', { name: 'Buildings taking it' });
+    expect(within(takers).getAllByRole('listitem')[0]).toHaveTextContent('Storage Container20.0/min');
+    await user().click(within(takers).getByRole('button', { name: 'Show Storage Container on the map' }));
+    expect(useFactoryView.getState().highlight).toEqual(['box']);
+  });
+
+  it('with all logistics the storage at the end is the output and says what it receives; the summary names it', async () => {
+    setup();
+    const d = await diagram();
+    const end = within(d).getByRole('button', { name: 'Output: Storage Container, receives Iron Plate 20.0/min' });
+    expect(end).toHaveTextContent('Output');
+    expect(end).toHaveTextContent('Iron Plate');
+    expect(end).toHaveTextContent('20.0/min');
+    // The belt into it names the item too.
+    const labels = [...d.querySelectorAll('[data-label-to="g-box"]')].map(l => l.textContent);
+    expect(labels).toContain('Iron Plate20.0/min of 60');
+    const summary = (await section()).querySelector('[data-line-summary]')!;
+    expect(summary).toHaveTextContent('Makes:');
+    expect(summary).toHaveTextContent('Iron Plate 20.0/min');
+    expect(summary).toHaveTextContent('To:Storage Container');
+    expect(within(await section()).getByRole('list', { name: 'Legend' })).toHaveTextContent('Output and input');
+  });
+
+  it('a product without a belt ends in a "not connected" output', async () => {
+    setup({ url: linePath(W, 'solo') });
+    const d = await diagram();
+    const out = await within(d).findByRole('button', { name: 'Output: Iron Plate, 20.0/min, not connected' });
+    expect(out).toHaveTextContent('→ not connected');
+    expect(d.querySelector('path[data-from="g-solo"][data-to="out:Desc_IronPlate_C"]')).toHaveAttribute('data-edge', 'unlinked');
+    expect((await section()).querySelector('[data-line-summary]')).toHaveTextContent('To:not connected');
+    expect(within(await section()).getByRole('list', { name: 'Legend' })).toHaveTextContent('Not connected');
+    await user().click(out);
+    const panel = document.getElementById(out.getAttribute('aria-controls')!)!;
+    expect(panel).toHaveTextContent('not connected 20.0/min');
+    expect(within(within(panel).getByRole('list', { name: 'Machines without a belt or pipeline for it' })).getByRole('button', { name: 'Show 1× Constructor on the map' })).toBeInTheDocument();
+  });
+
   it('moves between the groups with the arrow keys', async () => {
     setup();
     const smelters = await node('2× Smelter');
@@ -222,7 +282,7 @@ describe('production lines on the factory page', () => {
     fireEvent.keyDown(smelters, { key: 'ArrowDown' });
     expect(await node('Conveyor Merger')).toHaveFocus();
     fireEvent.keyDown(document.activeElement!, { key: 'End' });
-    expect(await node('Storage Container')).toHaveFocus();
+    expect(await node('Output: Storage Container')).toHaveFocus();
   });
 
   it('"Map" in the switch selects the line in the shared view and goes to the map', async () => {
@@ -302,6 +362,7 @@ describe('production lines on the factory page', () => {
     await userEvent.click(within(sec).getByRole('radio', { name: 'Left to right' }));
     const [smelters, plates] = [await node('2× Smelter'), await node('3× Constructor')];
     expect(parseFloat(smelters.style.left)).toBeLessThan(parseFloat(plates.style.left));
+    expect(parseFloat(plates.style.left)).toBeLessThan(parseFloat((await node('Output: Storage Container')).style.left));
     expect(await diagram()).toHaveAccessibleDescription(/^Inputs on the left, products on the right/);
     expect(localStorage.getItem('ficsmap:diagramDirection:lines')).toBe('right');
     expect(localStorage.getItem('ficsmap:diagramDirection:planner')).toBeNull();
@@ -322,5 +383,10 @@ describe('production lines on the factory page', () => {
     expect(within(d).getByRole('button', { name: /^3× Konstruktor, Eisenplatte, 20,0\/min von 40,0\/min, 33 % Teillast, Mangel 1, Pausiert 1$/ })).toBeInTheDocument();
     expect(d.querySelector('[data-label-to="g-plate"]')).toHaveTextContent('30,0/min von 120');
     expect(within(sec).getByRole('list', { name: 'Legende' })).toHaveTextContent('Voll (≥ 95 %)');
+    expect(within(d).getByRole('button', { name: 'Ausgang: Lagercontainer, erhält Eisenplatte 20,0/min' })).toHaveTextContent('Ausgang');
+    expect(sec.querySelector('[data-line-summary]')).toHaveTextContent('Erzeugt:');
+    expect(sec.querySelector('[data-line-summary]')).toHaveTextContent('Ziel:Lagercontainer');
+    await userEvent.click(within(sec).getByRole('button', { name: 'Nur Maschinen' }));
+    expect(within(d).getByRole('button', { name: 'Ausgang: Eisenplatte, 20,0/min, nach Lagercontainer' })).toHaveTextContent('→ Lagercontainer');
   });
 });

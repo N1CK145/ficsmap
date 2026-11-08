@@ -1178,7 +1178,9 @@
         "exact": "Voll, reicht genau",
         "neck": "Engpass",
         "idle": "{count, plural, one {# leeres Lager oder Station} other {# leere Lager und Stationen}} ausgeblendet",
-        "folded": "{count, plural, one {# Nebenprodukt-Verbindung} other {# Nebenprodukt-Verbindungen}} eingeklappt"
+        "folded": "{count, plural, one {# Nebenprodukt-Verbindung} other {# Nebenprodukt-Verbindungen}} eingeklappt",
+        "ends": "Ausgang und Eingang: was den Strang verlässt und was hineinkommt",
+        "unlinked": "Nicht angeschlossen: hergestellt, aber kein Förderband und keine Pipeline bringt es weg"
       },
       "logisticsInDiagram": "{count, plural, one {# Logistikgebäude} other {# Logistikgebäude}} (Splitter, Lager, Stationen) im Diagramm darunter.",
       "machinesOnly": "Nur Maschinen",
@@ -1204,7 +1206,32 @@
       "limit": "Grenze:",
       "byproducts": "Nebenprodukte",
       "moreRight": "mehr →",
-      "limitBadge": "Grenze"
+      "limitBadge": "Grenze",
+      "output": "Ausgang",
+      "input": "Eingang",
+      "unlinked": "nicht angeschlossen",
+      "unlinkedHint": "kein Förderband und keine Pipeline bringt es von den herstellenden Maschinen weg.",
+      "unlinkedMakers": "Maschinen ohne Förderband oder Pipeline dafür",
+      "outputName": "Ausgang: {item}, {rate}, nach {place}",
+      "outputNameUnlinked": "Ausgang: {item}, {rate}, nicht angeschlossen",
+      "inputName": "Eingang: {item}, {rate}, aus {place}",
+      "endOut": "Ausgang: {name}, erhält {items}",
+      "endIn": "Eingang: {name}, liefert {items}",
+      "outputTitle": "Ausgang: {item}",
+      "inputTitle": "Eingang: {item}",
+      "terminalOut": "Verlässt hier den Strang",
+      "terminalIn": "Kommt hier in den Strang",
+      "receivers": "Gebäude, die es aufnehmen",
+      "suppliers": "Gebäude, die es liefern",
+      "receives": "Erhält",
+      "gives": "Liefert",
+      "receivesNothing": "erhält nichts",
+      "givesNothing": "liefert nichts",
+      "summary": {
+        "makes": "Erzeugt:",
+        "to": "Ziel:",
+        "gets": "Bezieht:"
+      }
     },
     "items": {
       "title": "Ineffiziente Gegenstände",

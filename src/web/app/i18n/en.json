@@ -1178,7 +1178,9 @@
         "exact": "Full, just enough",
         "neck": "Bottleneck",
         "idle": "{count, plural, one {# empty storage or station} other {# empty storage and stations}} left out",
-        "folded": "{count, plural, one {# by-product link} other {# by-product links}} folded"
+        "folded": "{count, plural, one {# by-product link} other {# by-product links}} folded",
+        "ends": "Output and input: what leaves the line and what comes in",
+        "unlinked": "Not connected: made, but no belt or pipeline carries it away"
       },
       "logisticsInDiagram": "{count, plural, one {# logistics building} other {# logistics buildings}} (splitters, storage, stations) are in the diagram below.",
       "machinesOnly": "Machines only",
@@ -1204,7 +1206,32 @@
       "limit": "Limit:",
       "byproducts": "By-products",
       "moreRight": "more →",
-      "limitBadge": "Limit"
+      "limitBadge": "Limit",
+      "output": "Output",
+      "input": "Input",
+      "unlinked": "not connected",
+      "unlinkedHint": "no belt or pipeline carries it away from the machines making it.",
+      "unlinkedMakers": "Machines without a belt or pipeline for it",
+      "outputName": "Output: {item}, {rate}, to {place}",
+      "outputNameUnlinked": "Output: {item}, {rate}, not connected",
+      "inputName": "Input: {item}, {rate}, from {place}",
+      "endOut": "Output: {name}, receives {items}",
+      "endIn": "Input: {name}, gives {items}",
+      "outputTitle": "Output: {item}",
+      "inputTitle": "Input: {item}",
+      "terminalOut": "Leaves the line here",
+      "terminalIn": "Comes into the line here",
+      "receivers": "Buildings taking it",
+      "suppliers": "Buildings giving it",
+      "receives": "Receives",
+      "gives": "Gives",
+      "receivesNothing": "receives nothing",
+      "givesNothing": "gives nothing",
+      "summary": {
+        "makes": "Makes:",
+        "to": "To:",
+        "gets": "Gets:"
+      }
     },
     "items": {
       "title": "Inefficient items",

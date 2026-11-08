@@ -1,6 +1,7 @@
 import type { LineGroup, ProductionLine } from '../../src/shared/factory/lines.js';
 import {
-  bottleneckOf, compactLine, groupsTopDown, machinesOnly, passesThrough, isSaturated, lineGraph, linePath, loadOf, LOGISTICS_WIDTH, NODE_WIDTH,
+  bottleneckOf, compactLine, edgeItems, flowsAt, groupsTopDown, isUnlinked, lineEnds, lineTargets, lineTerminals, machinesOnly, passesThrough, isSaturated,
+  lineGraph, linePath, loadOf, LOGISTICS_WIDTH, NODE_WIDTH, TERMINAL_WIDTH, withTerminals,
 } from '../../src/web/features/factory/lineDiagram.js';
 import { layoutGraph } from '../../src/web/features/planner/diagramLayout.js';
 import { IRON_LINE } from '../web/lineFixtures.js';
@@ -127,5 +128,125 @@ describe('production line diagram', () => {
 
   it('links to a line on the factory page', () => {
     expect(linePath('w1', 'Build_A_C 2/3')).toBe('/w/w1/factory?line=Build_A_C%202%2F3');
+  });
+});
+
+/**
+ * Wire and cable: ingots from a storage (an input), a splitter sends wire to the cable makers, a storage and a merger;
+ * the merger puts cable and wire on one belt into a sink; some cable goes to a truck station; rods have no belt at all.
+ */
+const box = (id: string, stage: number, cls: string, kind: LineGroup['kind'], members = [id]) => g(id, stage, { cls, kind, logistics: true, members });
+const WIRE: ProductionLine = {
+  id: 'cable', products: [{ item: 'Cable', perMin: 40 }, { item: 'Wire', perMin: 30 }, { item: 'Rod', perMin: 10 }], inputs: [{ item: 'Ingot', perMin: 60 }],
+  buildings: [], machines: [], productivity: 1, nominal: 0, actual: 0,
+  groups: [
+    box('in', 0, 'Build_StorageContainerMk1_C', 'storage'),
+    g('wire', 1, { outputs: [{ item: 'Wire', perMin: 90 }] }),
+    g('rod', 1, { outputs: [{ item: 'Rod', perMin: 10 }] }),
+    box('split', 2, 'Build_ConveyorAttachmentSplitter_C', 'splitter'),
+    g('cable', 3, { outputs: [{ item: 'Cable', perMin: 40 }] }),
+    box('merge', 4, 'Build_ConveyorAttachmentMerger_C', 'merger'),
+    box('box', 3, 'Build_StorageContainerMk1_C', 'storage'),
+    box('station', 4, 'Build_TruckStation_C', 'station', ['st1']),
+    box('sink', 5, 'Build_ResourceSink_C', 'sink'),
+  ],
+  edges: [
+    { from: 'in', to: 'wire', item: 'Ingot', perMin: 60, capacity: 120, links: 1, via: ['b0'] },
+    { from: 'wire', to: 'split', item: 'Wire', perMin: 90, capacity: 120, links: 1, via: ['b1'] },
+    { from: 'split', to: 'cable', item: 'Wire', perMin: 60, capacity: 120, links: 1, via: ['b2'] },
+    { from: 'split', to: 'box', item: 'Wire', perMin: 20, capacity: 60, links: 1, via: ['b3'] },
+    { from: 'split', to: 'merge', item: 'Wire', perMin: 10, capacity: 60, links: 1, via: ['b4'] },
+    { from: 'cable', to: 'merge', item: 'Cable', perMin: 30, capacity: 60, links: 1, via: ['b5'] },
+    { from: 'cable', to: 'station', item: 'Cable', perMin: 10, capacity: 60, links: 1, via: ['b6'] },
+    {
+      from: 'merge', to: 'sink', item: 'Cable', items: [{ item: 'Cable', perMin: 30 }, { item: 'Wire', perMin: 10 }], perMin: 40, capacity: 60, links: 1, via: ['b7'],
+    },
+  ],
+};
+
+describe('outputs and inputs of a line', () => {
+  it('finds the ends and what each receives, a mixed belt by item', () => {
+    expect(lineEnds(WIRE)).toEqual({ receivers: new Set(['box', 'station', 'sink']), sources: new Set(['in']) });
+    expect(flowsAt(WIRE, 'sink', 'in')).toEqual([{ item: 'Cable', perMin: 30 }, { item: 'Wire', perMin: 10 }]);
+    expect(edgeItems({ item: 'X', perMin: 5 })).toEqual([{ item: 'X', perMin: 5 }]);
+    expect(edgeItems({})).toEqual([]);
+  });
+
+  it('gives each product an output with where it goes and the part without a belt, and each input its source', () => {
+    const terminals = lineTerminals(WIRE);
+    expect(terminals.map(x => `${x.id} ${x.perMin} unlinked ${x.unlinked} ${x.places.map(p => `${p.group}:${p.perMin}`).join(',')}`)).toEqual([
+      'in:Ingot 60 unlinked 0 in:60',
+      'out:Cable 40 unlinked 0 sink:30,station:10',
+      'out:Wire 30 unlinked 0 box:20,sink:10',
+      'out:Rod 10 unlinked 10 ',
+    ]);
+    // The part without a way out comes from the makers that have no belt for it.
+    expect(terminals.find(x => x.id === 'out:Rod')!.makers).toEqual(['rod']);
+    expect(lineTargets(terminals)).toEqual({
+      places: [{ cls: 'Build_ResourceSink_C', count: 1 }, { cls: 'Build_TruckStation_C', group: 'station', count: 1 }, { cls: 'Build_StorageContainerMk1_C', count: 1 }],
+      unlinked: true,
+    });
+  });
+
+  it('machines only: the storage, stations and sinks at the ends make way for output and input nodes', () => {
+    const { line: shown, terminals } = withTerminals(WIRE, machinesOnly(WIRE), true);
+    expect(shown.groups.map(x => x.id)).toEqual(['wire', 'rod', 'cable']);
+    const edge = (from: string, to: string) => shown.edges.find(e => e.from === from && e.to === to);
+    // Each maker's part of the mixed belt into the sink goes to the output of its own item.
+    expect(edge('wire', 'out:Wire')).toMatchObject({ item: 'Wire', perMin: 30, capacity: 120 });
+    expect(edge('cable', 'out:Cable')).toMatchObject({ item: 'Cable', perMin: 40, capacity: 120 });
+    expect(edge('in:Ingot', 'wire')).toMatchObject({ item: 'Ingot', perMin: 60, capacity: 120 });
+    // Rods leave by no belt: a drawn connection without a link.
+    expect(isUnlinked(edge('rod', 'out:Rod')!)).toBe(true);
+    expect(edge('rod', 'out:Rod')!.perMin).toBe(10);
+    expect(terminals.map(x => x.id)).toEqual(['in:Ingot', 'out:Cable', 'out:Wire', 'out:Rod']);
+
+    // Inputs in a row of their own at the top, outputs in one at the bottom, as wide as a storage at an end.
+    const graph = lineGraph(shown, { terminals });
+    expect(Object.fromEntries(graph.rows)).toEqual({ 'in:Ingot': 0, wire: 1, rod: 1, cable: 2, 'out:Cable': 3, 'out:Wire': 3, 'out:Rod': 3 });
+    expect(graph.nodes.filter(n => n.id.includes(':')).every(n => n.width === TERMINAL_WIDTH)).toBe(true);
+    expect(graph.links.map(l => `${l.from}>${l.to}`).sort()).toEqual([
+      'cable>out:Cable', 'in:Ingot>wire', 'rod>out:Rod', 'wire>cable', 'wire>out:Wire',
+    ]);
+  });
+
+  it('with all logistics the ends stay, drawn wide; only what has no belt gets an output node', () => {
+    const { line: shown, terminals } = withTerminals(WIRE, WIRE, false);
+    expect(shown.groups).toBe(WIRE.groups);
+    expect(terminals.map(x => `${x.id} ${x.perMin} ${x.places.length}`)).toEqual(['out:Rod 10 0']);
+    expect(shown.edges.slice(0, WIRE.edges.length)).toEqual(WIRE.edges);
+    expect(shown.edges.at(-1)).toMatchObject({ from: 'rod', to: 'out:Rod', perMin: 10, links: 0 });
+    const graph = lineGraph(shown, { terminals, ends: lineEnds(shown) });
+    const width = (id: string) => graph.nodes.find(n => n.id === id)!.width;
+    expect([width('box'), width('sink'), width('in'), width('split'), width('wire')]).toEqual([TERMINAL_WIDTH, TERMINAL_WIDTH, TERMINAL_WIDTH, LOGISTICS_WIDTH, NODE_WIDTH]);
+    expect(graph.rows.get('out:Rod')).toBe(6);
+  });
+
+  it('a product that goes into storage on the way (a cut storage the line goes on from) is no "not connected" output', () => {
+    const line: ProductionLine = {
+      ...WIRE, products: [{ item: 'Screw', perMin: 50 }], inputs: [],
+      groups: [g('s', 0, { outputs: [{ item: 'Screw', perMin: 50 }] }), box('buf', 1, 'Build_StorageContainerMk2_C', 'storage'), g('a', 2)],
+      edges: [
+        { from: 's', to: 'buf', item: 'Screw', perMin: 50, capacity: 60, links: 1, via: [] },
+        { from: 'buf', to: 'a', item: 'Screw', perMin: 40, capacity: 60, links: 1, via: [] },
+      ],
+    };
+    expect(lineTerminals(line).map(x => `${x.id} ${x.perMin} unlinked ${x.unlinked} ${x.places.map(p => `${p.group}:${p.perMin}`).join(',')}`)).toEqual([
+      'out:Screw 50 unlinked 0 buf:50',
+    ]);
+    // Machines only: the storage is gone, the output still has its makers before it.
+    const { line: shown } = withTerminals(line, machinesOnly(line), true);
+    expect(shown.edges.map(e => `${e.from}>${e.to}:${e.perMin}`)).toEqual(['s>a:40', 's>out:Screw:50']);
+    // With all logistics the storage stays a storage on the way, and no output node is needed.
+    expect(withTerminals(line, line, false).terminals).toEqual([]);
+  });
+
+  it('keeps the bottleneck on the belt into an end it replaces, and the line without ends as it is', () => {
+    const full: ProductionLine = { ...WIRE, bottleneck: { kind: 'edge', edge: 6, why: 'capacity' } };
+    const { line: shown } = withTerminals(full, machinesOnly(full), true);
+    expect(shown.edges[bottleneckOf(shown).edgeIndex!]).toMatchObject({ from: 'cable', to: 'out:Cable' });
+    // A line whose products all reach its ends and that has no inputs: outputs only.
+    const { terminals } = withTerminals(IRON_LINE, machinesOnly(IRON_LINE), true);
+    expect(terminals.map(x => `${x.id} ${x.perMin} ${x.places.map(p => p.group).join()}`)).toEqual(['out:Desc_IronPlate_C 20 g-box']);
   });
 });
