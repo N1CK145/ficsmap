@@ -24,7 +24,7 @@ export function Picture({ cls, px, dashed = false, className = '' }: { cls: stri
   return (
     <span
       data-picture={cls}
-      className={`flex shrink-0 items-center justify-center rounded bg-bg ${dashed ? 'border border-dashed border-muted' : ''} ${className}`}
+      className={`flex shrink-0 items-center justify-center chamfer bg-bg ${dashed ? 'border border-dashed border-muted' : ''} ${className}`}
       style={{ width: px + 8, height: px + 8 }}
     >
       <GameIcon cls={cls} px={px} placeholder />

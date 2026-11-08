@@ -5,10 +5,11 @@ import { initI18n } from '../../src/web/app/i18n/index.js';
 import { Badge, badgeClass } from '../../src/web/components/Badge.js';
 import { Button } from '../../src/web/components/Button.js';
 import { fieldClass, NumberField } from '../../src/web/components/Field.js';
+import { Fold } from '../../src/web/components/Fold.js';
 import { Header } from '../../src/web/components/Header.js';
 import { PageActions, PageActionsSlot } from '../../src/web/components/PageActions.js';
 import { SectionHeading } from '../../src/web/components/SectionHeading.js';
-import { StatList, StatRow } from '../../src/web/components/StatRow.js';
+import { StatList, StatRow, StatTile, TileValue } from '../../src/web/components/StatRow.js';
 import { Window, WindowTitleBar } from '../../src/web/components/Window.js';
 import { MemoryRouter } from 'react-router';
 
@@ -81,6 +82,37 @@ describe('StatRow', () => {
   });
 });
 
+describe('StatTile', () => {
+  it('is a term with its value and the line under it, the answer in the accent', () => {
+    render(
+      <dl>
+        <StatTile main label="Power" sub="varies"><TileValue value="2,550" unit="MW" /></StatTile>
+        <StatTile label="Buildings">365</StatTile>
+      </dl>,
+    );
+    expect(screen.getAllByRole('term').map(t => t.textContent)).toEqual(['Power', 'Buildings']);
+    expect(screen.getAllByRole('definition').map(d => d.textContent)).toEqual(['2,550 MW', 'varies', '365']);
+    expect(classes(screen.getByText('2,550'))).toContain('text-accent');
+  });
+});
+
+describe('Fold', () => {
+  it('is folded until its summary is clicked, shows the values in effect, and remembers being opened', async () => {
+    render(<Fold title="Extractors" summary="Miner Mk.1 · 100 %"><label>Clock <input /></label></Fold>);
+    const details = screen.getByText('Extractors').closest('details')!;
+    expect(details).not.toHaveAttribute('open');
+    expect(details.querySelector('summary')).toHaveTextContent('ExtractorsMiner Mk.1 · 100 %');
+    await userEvent.click(screen.getByText('Extractors'));
+    expect(details).toHaveAttribute('open');
+    expect(screen.getByLabelText('Clock')).toBeInTheDocument();
+  });
+
+  it('can start open', () => {
+    render(<Fold title="More" defaultOpen>x</Fold>);
+    expect(screen.getByText('More').closest('details')).toHaveAttribute('open');
+  });
+});
+
 describe('NumberField', () => {
   it('is a labelled number input that names its unit as its description and passes value changes through', async () => {
     function Controlled() {
@@ -100,6 +132,12 @@ describe('NumberField', () => {
     render(<NumberField label="Clock" hideLabel unit="%" defaultValue={100} />);
     expect(screen.getByRole('spinbutton', { name: 'Clock' })).toHaveValue(100);
     expect(classes(screen.getByText('Clock'))).toContain('sr-only');
+  });
+
+  it('takes a width for the box alone, so a long hint keeps the whole width', () => {
+    render(<NumberField label="Speed" unit="km/h" hint="A long explanation" boxClassName="max-w-48" />);
+    expect(classes(screen.getByRole('spinbutton', { name: 'Speed' }).parentElement!)).toContain('max-w-48');
+    expect(classes(screen.getByText('A long explanation').parentElement!)).not.toContain('max-w-48');
   });
 
   it('fieldClass gives the 3:1 edge and the focus ring, and keeps the caller layout classes', () => {

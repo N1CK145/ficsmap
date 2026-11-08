@@ -625,7 +625,7 @@
     "reset": "Neu anfangen",
     "extractors": "Extraktoren",
     "miner": "Miner",
-    "clock": "Taktrate der Extraktoren (%)",
+    "clock": "Taktrate der Extraktoren",
     "steps": "Produktionsschritte",
     "howMade": "Hergestellt mit",
     "option": {
@@ -634,7 +634,6 @@
       "byproduct": "{recipe} ({machine}, Nebenprodukt)",
       "external": "Von außen geliefert"
     },
-    "machines": "{count} × {name}",
     "exact": "genau {value}",
     "power": "{value} MW",
     "powerRange": "{min}–{max} MW",
@@ -650,8 +649,7 @@
     "buildings": "Gebäude",
     "totalPower": "Strom",
     "none": "Keine",
-    "roundedNote": "Gebäudezahlen sind je Schritt aufgerundet, die genaue Zahl steht daneben. Der Strom gilt für die genaue Zahl und die Taktrate. Nebenprodukte werden mit dem Bedarf anderer Schritte verrechnet; was übrig bleibt, steht unter Überschuss.",
-    "variableNote": "Ein Bereich: Der Strombedarf mancher Gebäude schwankt während jedes Zyklus.",
+    "roundedNote": "Gebäude sind je Schritt aufgerundet; der Strom gilt für die genaue Anzahl.",
     "wellNote": "{item}: ein {name} je Rohstoffquelle, {power} MW bei {clock, number} %{shards, plural, =0 {} one {, # Energiefragment} other {, # Energiefragmente}}; nicht im Strom eingerechnet.",
     "error": {
       "cycle": "Diese Rezepte bilden einen Kreislauf, der mindestens so viel verbraucht, wie er herstellt: {items}. Wähle für eines davon ein anderes Rezept oder lass eines von außen liefern.",
@@ -664,7 +662,8 @@
       "solid": "{value}/min",
       "fluid": "{value} m³/min",
       "perMin": "/min",
-      "fluidPerMin": "m³/min"
+      "fluidPerMin": "m³/min",
+      "mw": "MW"
     },
     "purity": "Reinheit des Rohstoffvorkommens",
     "purityOption": {
@@ -672,9 +671,9 @@
       "normal": "Normal ×{factor, number}",
       "pure": "Rein ×{factor, number}"
     },
-    "purityHint": "Faktoren aus dem Satisfactory-Wiki (in den Spieldaten stehen sie nicht). Gilt für Miner, Ölpumpen und Quellenextraktoren, nicht für Wasserextraktoren. Jeder Schritt kann eine eigene Reinheit haben.",
-    "clockHint": "{min, number} % bis {max, number} %: Über 100 % braucht jedes Gebäude ein Energiefragment je {per, number} % (höchstens {slots, number}). Standard für alle Extraktoren; bei einer Rohstoffquelle ist es die Taktrate ihres Quellenkompressors. Produktionsgebäude laufen mit 100 %, außer du stellst es je Schritt ein. Der Strom folgt dem Stromexponenten des Spiels.",
-    "stepClock": "Taktrate (%)",
+    "purityHint": "Faktoren aus dem Satisfactory-Wiki (nicht in den Spieldaten). Für Miner, Ölpumpen und Quellenextraktoren; jeder Schritt kann eine eigene haben.",
+    "clockHint": "{min, number} % bis {max, number} %. Über 100 % braucht jedes Gebäude ein Energiefragment je {per, number} % (höchstens {slots, number}). Bei einer Rohstoffquelle ist es die Taktrate ihres Quellenkompressors.",
+    "stepClock": "Taktrate",
     "shards": "{count, plural, one {# Energiefragment} other {# Energiefragmente}} je Gebäude",
     "fromByproducts": "{value} aus Nebenprodukten anderer Schritte",
     "autoLoop": "Automatisch von außen geliefert: Das Standardrezept bräuchte das Produkt des gewählten Rezepts wieder (Kreislauf).",
@@ -689,7 +688,7 @@
     },
     "diagram": {
       "label": "Produktionskette",
-      "hint": "Rohstoffe oben, die gewünschten Gegenstände unten; die Pfeile zeigen, was wohin geht, pro Minute. Wähle einen Schritt aus, um ihn wie im Maschinenfenster des Spiels zu sehen und Rezept, Taktrate oder Reinheit zu ändern; mit den Pfeiltasten wechselst du zwischen den Schritten.",
+      "hint": "Rohstoffe oben, deine Gegenstände unten, Mengen pro Minute. Wähle einen Schritt, um Rezept, Taktrate oder Reinheit zu ändern; die Pfeiltasten wechseln zwischen den Schritten.",
       "wanted": "gewünscht: {value}",
       "alt": "Alternativ",
       "alternate": "{recipe} (Alternativrezept)",
@@ -702,8 +701,8 @@
       "close": "Bearbeitung von {item} schließen",
       "legend": {
         "label": "Legende",
-        "input": "Geht in den Schritt, auf den der Pfeil zeigt, pro Minute",
-        "byproduct": "Nebenprodukt eines anderen Schritts",
+        "input": "Material pro Minute",
+        "byproduct": "Nebenprodukt",
         "loop": "Kreislauf",
         "wanted": "Gewünschter Gegenstand",
         "external": "Von außen geliefert",
@@ -732,8 +731,11 @@
       "pressurizerPower": "{name}: {value} MW je Rohstoffquelle, nicht in den Summen enthalten",
       "notModelled": "Im Plan nicht berücksichtigt"
     },
-    "gameModeNote": "Die Werte gelten für den Standard-Spielmodus; Einstellungen des Spielmodus (Rezeptkosten, Stromverbrauch, zufällige Reinheit der Rohstoffvorkommen) werden nicht berücksichtigt.",
-    "lastWorking": "Unten steht der letzte gültige Plan; korrigiere den Wert, dann wird er aktualisiert."
+    "gameModeNote": "Für den Standard-Spielmodus; Einstellungen des Spielmodus (Rezeptkosten, Stromverbrauch, zufällige Reinheit der Rohstoffvorkommen) werden nicht berücksichtigt.",
+    "lastWorking": "Unten steht der letzte gültige Plan; korrigiere den Wert, dann wird er aktualisiert.",
+    "variableShort": "schwankt während jedes Zyklus",
+    "empty": "Wähle einen Gegenstand und wie viele pro Minute: Hier stehen dann Rohstoffe, Gebäude und Strom, darunter die Produktionskette.",
+    "example": "Beispiel: {item}, {rate}"
   },
   "vehicleCalc": {
     "open": "Fahrzeuge",

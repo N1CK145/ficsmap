@@ -1,5 +1,7 @@
+import { createElement } from 'react';
 import type { FeatureModule, MapMode } from '../../app/feature.js';
 import { pageTool } from '../../app/tools.js';
+import { TruckIcon } from '../../components/icons.js';
 import { PickBanner } from './PickBanner.js';
 import { PickReturn } from './PickReturn.js';
 import { PICK_MODE, useVehicleCalc, VEHICLES_PAGE } from './useVehicleCalc.js';
@@ -10,7 +12,7 @@ export { VehicleCalcPage } from './VehicleCalcPage.js';
 export { PICK_MODE, useVehicleCalc, VEHICLES_PAGE, vehiclesPath } from './useVehicleCalc.js';
 
 /** "Vehicles" in the tool navigation: leads to the calculator page. */
-export const vehicleCalcTool = pageTool({ id: 'vehicle-calc', order: 50, labelKey: 'vehicleCalc.open', hintKey: 'vehicleCalc.openHint', page: VEHICLES_PAGE });
+export const vehicleCalcTool = pageTool({ id: 'vehicle-calc', order: 50, labelKey: 'vehicleCalc.open', hintKey: 'vehicleCalc.openHint', page: VEHICLES_PAGE, icon: createElement(TruckIcon) });
 
 /**
  * Picking the route's start and destination on the map: a click on the map gives that point, a click on a marker

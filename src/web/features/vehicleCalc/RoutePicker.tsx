@@ -7,6 +7,7 @@ import type { WorldCtx } from '../../app/feature.js';
 import { worldPath } from '../../app/pages.js';
 import { useUiStore } from '../../app/store.js';
 import { Button } from '../../components/Button.js';
+import { PinIcon } from '../../components/icons.js';
 import { useHeights } from '../coords/useHeights.js';
 import { PICK_STATE } from './PickReturn.js';
 import { useVehicleCalc } from './useVehicleCalc.js';
@@ -39,7 +40,7 @@ export function RoutePicker({ ctx }: { ctx: WorldCtx }) {
   if (!route) {
     return (
       <div className="flex flex-col items-start gap-1.5">
-        <Button variant="primary" onClick={startPicking}>{t('vehicleCalc.pick.button')}</Button>
+        <Button variant="primary" onClick={startPicking}><PinIcon />{t('vehicleCalc.pick.button')}</Button>
         <p className="text-xs text-muted">{t('vehicleCalc.pick.hint')}</p>
       </div>
     );
@@ -56,12 +57,12 @@ export function RoutePicker({ ctx }: { ctx: WorldCtx }) {
     : available === undefined || starts === undefined || ends === undefined ? t('vehicleCalc.routeInfo.loading')
       : g.climbMeters === null ? t('vehicleCalc.routeInfo.unknown') : undefined;
   const fact = 'flex min-w-0 flex-col';
-  const label = 'text-xs text-muted';
+  const label = 'font-display text-xs font-semibold tracking-wider text-muted uppercase';
   const value = 'font-display text-xl font-semibold leading-tight tabular-nums';
 
   return (
-    <section aria-labelledby={titleId} className="flex flex-col gap-3 rounded border border-line bg-bg p-3">
-      <h4 id={titleId} className="flex items-center gap-1.5 text-sm font-medium">
+    <section aria-labelledby={titleId} className="flex flex-col gap-3 chamfer border border-line bg-bg p-3">
+      <h4 id={titleId} className="flex items-center gap-1.5 text-sm font-semibold">
         <Pin letter="A" /><span aria-hidden="true" className="h-0.5 w-6 bg-cat-vehicles" /><Pin letter="B" />
         <span className="ml-1">{t('vehicleCalc.routeInfo.title')}</span>
       </h4>
@@ -91,7 +92,7 @@ export function RoutePicker({ ctx }: { ctx: WorldCtx }) {
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={startPicking}>{t('vehicleCalc.pick.again')}</Button>
+        <Button size="sm" onClick={startPicking}><PinIcon />{t('vehicleCalc.pick.again')}</Button>
         <Button size="sm" variant="ghost" onClick={clearRoute}>{t('vehicleCalc.pick.clear')}</Button>
       </div>
     </section>
