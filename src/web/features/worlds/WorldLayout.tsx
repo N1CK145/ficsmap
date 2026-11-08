@@ -248,15 +248,24 @@ function SidebarToggle({ sidebarId }: { sidebarId: string }) {
 /**
  * Mobile (spec §10.11): the sidebar panels in the bottom sheet (peek: progress chips, half: the
  * panels with a sticky [Next stop ›] while a route is open, full: the list view) and the selected
- * item in the item sheet above it. "Show on map" from the list drops the sheet to peek.
+ * item in the item sheet above it. "Show on map" from the list drops the sheet to peek; so does a map mode that
+ * takes points anywhere (MapMode.onMapClick), which also closes the item sheet, so the map is free to tap.
  */
 function MobileSheets({ ctx, panels }: { ctx: WorldCtx; panels: SidebarPanel[] }) {
   const { t } = useTranslation();
+  const features = useFeatures();
   const [snap, setSnap] = useState<Snap>('peek');
   const routeOpen = useRouteDraft(s => s.draft !== null);
-  useEffect(() => useUiStore.subscribe((s, prev) => {
-    if (s.focusRequest && !prev.focusRequest) setSnap('peek');
-  }), []);
+  useEffect(() => {
+    const pickModes = new Set(collect(features, 'mapModes').filter(m => m.onMapClick).map(m => m.id));
+    return useUiStore.subscribe((s, prev) => {
+      if (s.focusRequest && !prev.focusRequest) setSnap('peek');
+      if (s.interactionMode !== prev.interactionMode && pickModes.has(s.interactionMode)) {
+        setSnap('peek');
+        if (s.selectedActor !== null) useUiStore.getState().select(null);
+      }
+    });
+  }, [features]);
 
   return (
     <>

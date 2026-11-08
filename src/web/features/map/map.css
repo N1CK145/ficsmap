@@ -5,6 +5,12 @@
   font-family: inherit;
 }
 
+/* A map mode that takes points anywhere (MapMode.onMapClick): a crosshair instead of the grab hand. Before the
+   marker rule below, which wins over it (same specificity), so a marker that gives its position shows a pointer. */
+body:not(.leaflet-dragging) .ficsmap-map-pick .ficsmap-map {
+  cursor: crosshair;
+}
+
 /* A marker under the mouse; Leaflet's grab cursors win while the map is dragged. */
 body:not(.leaflet-dragging) .ficsmap-map.ficsmap-marker-hover {
   cursor: var(--ficsmap-marker-cursor, pointer);

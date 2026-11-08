@@ -712,6 +712,29 @@
     "unavailable": "This map dataset has no vehicle data. It is added when the dataset is built with the game's Docs files.",
     "failed": "The vehicle data could not be loaded.",
     "route": "Route length (one way)",
+    "pick": {
+      "button": "Pick on the map",
+      "again": "Pick again",
+      "clear": "Clear points",
+      "hint": "Choose a start and a destination on the map (a marker gives its position); the straight line between them becomes the route length.",
+      "start": "Vehicle calculator: choose the start on the map",
+      "end": "Vehicle calculator: now choose the destination",
+      "cancel": "Cancel",
+      "startPoint": "Start",
+      "endPoint": "Destination"
+    },
+    "routeInfo": {
+      "title": "Route on the map",
+      "straight": "Straight line",
+      "climb": "Height difference (to the destination)",
+      "length3d": "3D length",
+      "metres": "{value} m",
+      "loading": "…",
+      "unknown": "unknown",
+      "note": "The route length is the straight line between the points: exact for drones. Wheeled vehicles follow roads and drive further, so for them it is a lower bound; enter the real length if you know it. Drag A or B on the map to move a point.",
+      "typed": "The length was typed, so moving the points does not change it.",
+      "useStraight": "Use the straight line"
+    },
     "vehicle": "Vehicle",
     "item": "Item (optional)",
     "itemPlaceholder": "Any item",
@@ -757,12 +780,35 @@
     "rate": {
       "items": "{items, number} items/min ({stacks, number} stacks/min)",
       "stacks": "{value, number} stacks/min",
-      "m3": "{value, number} m³/min"
+      "m3": "{value, number} m³/min",
+      "itemsOnly": "{value, number} items/min"
     },
     "amount": {
       "items": "{value, number} items",
       "stacks": "{value, plural, one {# stack} other {# stacks}}",
       "m3": "{value, number} m³"
+    },
+    "trip": {
+      "title": {
+        "vehicles": "One vehicle on this route",
+        "freightCars": "One freight car on this route"
+      },
+      "oneWay": "One-way trip",
+      "roundTrip": "Round trip with stops",
+      "moves": "Moves",
+      "fuel": "Fuel per round trip",
+      "fuelValue": "{value, number} {fuel}",
+      "fuelPerMinute": "{value, number} per minute",
+      "incomplete": "Pick the route on the map or enter its length, and the speed and stop time, to see one trip."
+    },
+    "duration": {
+      "seconds": "{s, number} s",
+      "minutes": "{m, number} min {s, number} s"
+    },
+    "fuelTable": {
+      "caption": "The drone's speed depends on its fuel. With each fuel, at its speed from the game data:",
+      "speed": "Speed",
+      "kmh": "{value, number} km/h"
     },
     "result": {
       "title": "Result",
@@ -776,15 +822,9 @@
       "percent": "{share, number, percent}",
       "capacity": "They move up to",
       "throughput": "Throughput",
-      "perOne": {
-        "vehicles": "Per vehicle",
-        "freightCars": "Per freight car"
-      },
       "perTrip": "Load per trip",
-      "roundTrip": "Round trip",
-      "seconds": "{value, number} s",
       "fuel": "Fuel (estimated)",
-      "fuelValue": "{value, number} {fuel}/min ({perOne, number} per vehicle, {perTrip, number} per round trip)"
+      "fuelTotal": "{value, number} {fuel}/min"
     }
   },
   "search": {

@@ -8,7 +8,7 @@ import { AttributionControl, MapContainer, TileLayer, ZoomControl, useMap } from
 import { useShallow } from 'zustand/react/shallow';
 import { typeById, type CollectibleType } from '../../../shared/collectibleTypes.js';
 import type { DatasetIndex, Item } from '../../../shared/dataset.js';
-import { worldToLatLng } from '../../../shared/geo.js';
+import { latLngToWorld, worldToLatLng } from '../../../shared/geo.js';
 import { collect, type MapMode, type WorldCtx } from '../../app/feature.js';
 import { useFeatures } from '../../app/FeaturesContext.js';
 import { loadView, saveView, type PersistedView } from '../../app/persist.js';
@@ -50,7 +50,8 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
     modes: collect(features, 'mapModes'),
   }), [features]);
   const interactionMode = useUiStore(s => s.interactionMode);
-  const Banner = modes.find(m => m.id === interactionMode)?.Banner;
+  const activeMode = modes.find(m => m.id === interactionMode);
+  const Banner = activeMode?.Banner;
   // Read once: MapContainer takes its initial view only at creation.
   const [initial] = useState(() => {
     const v = loadView(ctx.worldId);
@@ -60,7 +61,7 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
   const [overlay, setOverlay] = useState<HTMLDivElement | null>(null);
 
   return (
-    <div className={`ficsmap-map-root absolute inset-0 ${Banner ? 'ficsmap-banner-on' : ''}`}>
+    <div className={`ficsmap-map-root absolute inset-0 ${Banner ? 'ficsmap-banner-on' : ''} ${activeMode?.onMapClick ? 'ficsmap-map-pick' : ''}`}>
       <MapContainer
         {...initial}
         crs={L.CRS.Simple}
@@ -222,18 +223,29 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
 
     const activeMode = () => modesRef.current.find(m => m.id === useUiStore.getState().interactionMode);
 
-    const onClick = (e: L.LeafletMouseEvent) => {
+    const pickAt = (e: L.LeafletMouseEvent) => {
       const pointerType = (e.originalEvent as Partial<PointerEvent>).pointerType;
-      const id = layer.pick(e.containerPoint.x, e.containerPoint.y, pointerType === 'touch' ? TOUCH_RADIUS : MOUSE_RADIUS);
-      if (id === null) return;
+      return layer.pick(e.containerPoint.x, e.containerPoint.y, pointerType === 'touch' ? TOUCH_RADIUS : MOUSE_RADIUS);
+    };
+
+    const onClick = (e: L.LeafletMouseEvent) => {
+      const mode = activeMode();
       const z = map.getZoom();
+      if (mode?.onMapClick) {
+        // Points anywhere: a marker icon gives its position, everything else (dots included) the clicked one.
+        const item = z < DOT_ZOOM ? undefined : ctxRef.current.index.byName.get(pickAt(e) ?? '');
+        if (item) mode.onMarkerClick(item, ctxRef.current);
+        else mode.onMapClick(latLngToWorld(e.latlng.lat, e.latlng.lng, ctxRef.current.index.ds.bounds), ctxRef.current);
+        return;
+      }
+      const id = pickAt(e);
+      if (id === null) return;
       if (z < DOT_ZOOM) {
         map.setZoomAround(e.latlng, z + 2);
         return;
       }
       const item = ctxRef.current.index.byName.get(id);
       if (!item) return;
-      const mode = activeMode();
       // Without a registered mode (only in tests) a click selects the item.
       if (mode) mode.onMarkerClick(item, ctxRef.current);
       else useUiStore.getState().select(item.name);
@@ -255,7 +267,9 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
       hoverFrame = requestAnimationFrame(() => {
         hoverFrame = 0;
         if (!hoverPoint || dragging) return;
-        setHover(layer.pick(hoverPoint.x, hoverPoint.y, MOUSE_RADIUS) !== null);
+        // A mode taking points anywhere does not snap to dots, so they get no pointer.
+        const dotsArePoints = activeMode()?.onMapClick !== undefined && map.getZoom() < DOT_ZOOM;
+        setHover(!dotsArePoints && layer.pick(hoverPoint.x, hoverPoint.y, MOUSE_RADIUS) !== null);
       });
     };
     const onMouseOut = () => {

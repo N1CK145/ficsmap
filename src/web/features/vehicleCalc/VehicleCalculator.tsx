@@ -1,6 +1,9 @@
 import { useId, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { calculate, DEFAULT_FUEL, defaultSpeed, loadFor, vehicleFuels, type CalcResult, type Load, type TransportData, type TransportFuel, type TransportItem, type TransportVehicle, type VehicleId } from '../../../shared/transport.js';
+import {
+  calculate, DEFAULT_FUEL, defaultSpeed, loadFor, oneWaySeconds, tripsByFuel, vehicleFuels,
+  type CalcResult, type FuelTrip, type Load, type TransportData, type TransportFuel, type TransportItem, type TransportVehicle, type TripInput, type VehicleId,
+} from '../../../shared/transport.js';
 import { SegmentedControl } from '../../components/SegmentedControl.js';
 import type { CalcForm, CalcGoal } from './useVehicleCalc.js';
 
@@ -42,13 +45,19 @@ function Field({ id, label, hint, hintId, children }: { id: string; label: React
 }
 
 /**
- * The vehicle calculator: route length, vehicle, optional item, speed and stop time, then either the
- * vehicles needed for a target rate or the rate of a number of vehicles. Pure maths in `shared/transport.ts`.
+ * The vehicle calculator: route length (typed, or picked on the map with `picker`), vehicle, optional item, speed and
+ * stop time; then what one vehicle does on the route (trip times, fuel, stacks per minute; for the drone per fuel),
+ * and either the vehicles needed for a target rate or the rate of a number of vehicles. Pure maths in
+ * `shared/transport.ts`.
  */
-export function VehicleCalculator({ data, form, onChange }: { data: TransportData; form: CalcForm; onChange(patch: Partial<CalcForm>): void }) {
+export function VehicleCalculator({ data, form, onChange, picker }: {
+  data: TransportData; form: CalcForm; onChange(patch: Partial<CalcForm>): void;
+  /** Under the route length: picking it on the map (RoutePicker). */
+  picker?: ReactNode;
+}) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === 'de' ? 'de' : 'en';
-  const ids = { route: useId(), vehicle: useId(), item: useId(), items: useId(), itemHint: useId(), speed: useId(), speedHint: useId(), stop: useId(), stopHint: useId(), fuel: useId(), fuelHint: useId(), amount: useId(), amountHint: useId(), result: useId() };
+  const ids = { route: useId(), vehicle: useId(), item: useId(), items: useId(), itemHint: useId(), speed: useId(), speedHint: useId(), stop: useId(), stopHint: useId(), fuel: useId(), fuelHint: useId(), amount: useId(), amountHint: useId(), trip: useId(), result: useId() };
 
   const vehicle = data.vehicles.find(v => v.id === form.vehicle) ?? data.vehicles[0];
   const item = findItem(data.items, form.item, lang);
@@ -68,14 +77,16 @@ export function VehicleCalculator({ data, form, onChange }: { data: TransportDat
   const stop = form.stop[vehicle.id] ?? defaultStop(vehicle);
   const load = loadFor(vehicle, item);
   const unit = load?.unit ?? 'stacks';
+  const trip: TripInput = { routeMeters: num(form.route), speedKmh: num(speed), stopSeconds: num(stop) };
+  const fuelInput = fuel && vehicle.fuel ? { perMetreMJ: vehicle.fuel.perMetreMJ, perTripMJ: vehicle.fuel.perTripMJ, energyMJ: fuel.energyMJ } : undefined;
+  // One vehicle on the route, whatever the goal.
+  const one = load ? calculate(trip, load, { kind: 'rate', vehicles: 1 }, fuelInput) : null;
   const result = load
-    ? calculate(
-      { routeMeters: num(form.route), speedKmh: num(speed), stopSeconds: num(stop) },
-      load,
-      form.goal === 'vehicles' ? { kind: 'vehicles', targetPerMinute: num(form.target) } : { kind: 'rate', vehicles: num(form.count) },
-      fuel && vehicle.fuel ? { perMetreMJ: vehicle.fuel.perMetreMJ, perTripMJ: vehicle.fuel.perTripMJ, energyMJ: fuel.energyMJ } : undefined,
-    )
+    ? calculate(trip, load, form.goal === 'vehicles' ? { kind: 'vehicles', targetPerMinute: num(form.target) } : { kind: 'rate', vehicles: num(form.count) }, fuelInput)
     : null;
+  // The drone's speed depends on its fuel: what it does with each (at the game's speed for it).
+  const byFuel = one && load && vehicle.fuel?.fuels ? tripsByFuel(vehicle, data.fuels ?? [], { routeMeters: trip.routeMeters, stopSeconds: trip.stopSeconds }, load) : [];
+  const noun = vehicle.id === 'freightCar' ? 'freightCars' : 'vehicles';
 
   const itemTyped = form.item.trim() !== '';
   const setVehicle = (id: VehicleId) => onChange({ vehicle: id });
@@ -96,6 +107,7 @@ export function VehicleCalculator({ data, form, onChange }: { data: TransportDat
           </select>
         </Field>
       </div>
+      {picker}
 
       <Field id={ids.item} label={t('vehicleCalc.item')} hintId={ids.itemHint}
         hint={itemTyped && !item ? t('vehicleCalc.itemUnknown') : item && !load ? t('vehicleCalc.cannotCarry', { vehicle: vehicle.name[lang], item: item.name[lang] }) : t('vehicleCalc.itemHint')}>
@@ -145,6 +157,16 @@ export function VehicleCalculator({ data, form, onChange }: { data: TransportDat
         </Field>
       )}
 
+      <section aria-labelledby={ids.trip} className="rounded border-2 border-accent/60 bg-bg p-3">
+        <h3 id={ids.trip} className="font-display text-lg font-semibold">{t(`vehicleCalc.trip.title.${noun}`)}</h3>
+        <div role="status" aria-labelledby={ids.trip} className="mt-2 text-sm">
+          {one && load
+            ? <TripResult one={one} oneWay={oneWaySeconds(trip)} load={load} fuelName={fuel?.name[lang]} />
+            : <p className="text-muted">{t('vehicleCalc.trip.incomplete')}</p>}
+        </div>
+        {byFuel.length > 0 && <FuelTable rows={byFuel} selected={fuel?.id ?? null} lang={lang} />}
+      </section>
+
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium" aria-hidden="true">{t('vehicleCalc.goal')}</span>
         <SegmentedControl<CalcGoal>
@@ -172,8 +194,8 @@ export function VehicleCalculator({ data, form, onChange }: { data: TransportDat
 
       <section aria-labelledby={ids.result} className="rounded border border-line bg-bg p-3">
         <h3 id={ids.result} className="font-display text-lg font-semibold">{t('vehicleCalc.result.title')}</h3>
-        <div role="status" className="mt-1 text-sm">
-          {result && load ? <Result result={result} load={load} goal={form.goal} freightCars={vehicle.id === 'freightCar'} fuelName={fuel?.name[lang]} /> : <p className="text-muted">{t('vehicleCalc.result.incomplete')}</p>}
+        <div role="status" aria-labelledby={ids.result} className="mt-1 text-sm">
+          {result && load ? <Result result={result} load={load} goal={form.goal} noun={noun} fuelName={fuel?.name[lang]} /> : <p className="text-muted">{t('vehicleCalc.result.incomplete')}</p>}
         </div>
         {vehicle.id === 'freightCar' && <p className="mt-2 text-xs text-muted">{t('vehicleCalc.freightCarNote')}</p>}
       </section>
@@ -190,10 +212,97 @@ function useRate() {
   };
 }
 
-function Result({ result, load, goal, freightCars, fuelName }: { result: CalcResult; load: Load; goal: CalcGoal; freightCars: boolean; fuelName: string | undefined }) {
+/** A duration: seconds under a minute, else minutes and whole seconds. */
+function useDuration() {
+  const { t } = useTranslation();
+  return (seconds: number) => {
+    if (seconds < 60) return t('vehicleCalc.duration.seconds', { s: round1(seconds) });
+    const total = Math.round(seconds);
+    return t('vehicleCalc.duration.minutes', { m: Math.floor(total / 60), s: total % 60 });
+  };
+}
+
+function Tile({ label, children, sub }: { label: ReactNode; children: ReactNode; sub?: ReactNode }) {
+  return (
+    <div className="flex flex-col rounded bg-panel px-3 py-2">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="text-lg leading-snug font-semibold tabular-nums">{children}</dd>
+      {sub && <dd className="text-xs text-muted tabular-nums">{sub}</dd>}
+    </div>
+  );
+}
+
+/**
+ * One vehicle on the route: the drive one way, the round trip with the stops, what it moves per minute (stacks, or
+ * m³ for fluids; with an item also items), the load per trip and the fuel per round trip.
+ */
+function TripResult({ one, oneWay, load, fuelName }: { one: CalcResult; oneWay: number; load: Load; fuelName: string | undefined }) {
+  const { t } = useTranslation();
+  const duration = useDuration();
+  const moves = load.unit === 'm3'
+    ? t('vehicleCalc.rate.m3', { value: round1(one.perVehiclePerMinute) })
+    : t('vehicleCalc.rate.stacks', { value: round1(one.stacksPerVehiclePerMinute ?? 0) });
+  return (
+    <dl className="grid grid-cols-2 gap-2">
+      <Tile label={t('vehicleCalc.trip.oneWay')}>{duration(oneWay)}</Tile>
+      <Tile label={t('vehicleCalc.trip.roundTrip')}>{duration(one.roundTripSeconds)}</Tile>
+      <Tile label={t('vehicleCalc.trip.moves')} sub={load.unit === 'items' ? t('vehicleCalc.rate.itemsOnly', { value: round1(one.perVehiclePerMinute) }) : undefined}>
+        {moves}
+      </Tile>
+      <Tile label={t('vehicleCalc.result.perTrip')}>{t(`vehicleCalc.amount.${load.unit}`, { value: round1(one.perTrip) })}</Tile>
+      {one.fuel && fuelName && (
+        <Tile label={t('vehicleCalc.trip.fuel')} sub={t('vehicleCalc.trip.fuelPerMinute', { value: roundFuel(one.fuel.perVehiclePerMinute) })}>
+          {t('vehicleCalc.trip.fuelValue', { value: roundFuel(one.fuel.perTrip), fuel: fuelName })}
+        </Tile>
+      )}
+    </dl>
+  );
+}
+
+/** The drone on the route with each of its fuels (speed from the game data); the selected fuel's row is marked. */
+function FuelTable({ rows, selected, lang }: { rows: readonly FuelTrip[]; selected: string | null; lang: 'en' | 'de' }) {
+  const { t, i18n } = useTranslation();
+  const duration = useDuration();
+  const n = new Intl.NumberFormat(i18n.language).format;
+  const cell = 'px-2 py-1 text-right whitespace-nowrap tabular-nums';
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
+        <caption className="pb-1 text-left text-xs text-muted">{t('vehicleCalc.fuelTable.caption')}</caption>
+        <thead>
+          <tr className="border-b border-line text-xs text-muted">
+            <th scope="col" className="px-2 py-1 text-left font-medium">{t('vehicleCalc.fuel')}</th>
+            <th scope="col" className="px-2 py-1 text-right font-medium">{t('vehicleCalc.fuelTable.speed')}</th>
+            <th scope="col" className="px-2 py-1 text-right font-medium">{t('vehicleCalc.trip.oneWay')}</th>
+            <th scope="col" className="px-2 py-1 text-right font-medium">{t('vehicleCalc.trip.roundTrip')}</th>
+            <th scope="col" className="px-2 py-1 text-right font-medium">{t('vehicleCalc.trip.fuel')}</th>
+            <th scope="col" className="px-2 py-1 text-right font-medium">{t('vehicleCalc.unit.stacks')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => {
+            const current = r.fuel.id === selected;
+            return (
+              <tr key={r.fuel.id} aria-current={current || undefined} className={`border-b border-line last:border-b-0 ${current ? 'bg-accent/15 font-semibold' : ''}`}>
+                <th scope="row" className={`px-2 py-1 text-left ${current ? 'border-l-2 border-accent' : 'font-normal'}`}>{r.fuel.name[lang]}</th>
+                <td className={cell}>{t('vehicleCalc.fuelTable.kmh', { value: kmh(r.speed) })}</td>
+                <td className={cell}>{duration(r.oneWaySeconds)}</td>
+                <td className={cell}>{duration(r.roundTripSeconds)}</td>
+                <td className={cell}>{n(roundFuel(r.fuelPerRoundTrip))}</td>
+                <td className={cell}>{n(round1(r.stacksPerMinute ?? 0))}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** All the vehicles: how many are needed (with the utilisation) or what they move, and the fuel they burn together. */
+function Result({ result, load, goal, noun, fuelName }: { result: CalcResult; load: Load; goal: CalcGoal; noun: 'vehicles' | 'freightCars'; fuelName: string | undefined }) {
   const { t } = useTranslation();
   const rate = useRate();
-  const noun = freightCars ? 'freightCars' : 'vehicles';
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
       {goal === 'vehicles' ? (
@@ -211,18 +320,10 @@ function Result({ result, load, goal, freightCars, fuelName }: { result: CalcRes
           <dd className="font-semibold">{rate(load, result.capacityPerMinute, result.capacityStacksPerMinute)}</dd>
         </>
       )}
-      <dt className="text-muted">{t(`vehicleCalc.result.perOne.${noun}`)}</dt>
-      <dd>{rate(load, result.perVehiclePerMinute, result.stacksPerVehiclePerMinute)}</dd>
-      <dt className="text-muted">{t('vehicleCalc.result.perTrip')}</dt>
-      <dd>{t(`vehicleCalc.amount.${load.unit}`, { value: round1(result.perTrip) })}</dd>
-      <dt className="text-muted">{t('vehicleCalc.result.roundTrip')}</dt>
-      <dd>{t('vehicleCalc.result.seconds', { value: round1(result.roundTripSeconds) })}</dd>
       {result.fuel && fuelName && (
         <>
           <dt className="text-muted">{t('vehicleCalc.result.fuel')}</dt>
-          <dd>{t('vehicleCalc.result.fuelValue', {
-            value: roundFuel(result.fuel.perMinute), perOne: roundFuel(result.fuel.perVehiclePerMinute), perTrip: roundFuel(result.fuel.perTrip), fuel: fuelName,
-          })}</dd>
+          <dd>{t('vehicleCalc.result.fuelTotal', { value: roundFuel(result.fuel.perMinute), fuel: fuelName })}</dd>
         </>
       )}
     </dl>
