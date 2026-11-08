@@ -1,14 +1,13 @@
 import { useContext } from 'react';
 import type { Purity } from '../../../shared/resourceNodes.js';
 import { GameIcon, IconsContext } from '../machineWiki/icons.js';
-import { pipOffsets } from './drawNode.js';
 import { PURITY_TEXT } from './resourceStyle.js';
 
-/** The purity as on the map: 1, 2 or 3 pips, in the purity's colour. Decorative; the text next to it names the purity. */
-export function PurityPips({ purity, className = '' }: { purity: Purity; className?: string }) {
+/** The purity as on the map: a dot in the purity's colour. Decorative; the text next to it names the purity. */
+export function PurityDot({ purity, className = '' }: { purity: Purity; className?: string }) {
   return (
-    <svg viewBox="-9 -3 18 6" width="18" height="6" aria-hidden="true" className={`shrink-0 ${PURITY_TEXT[purity]} ${className}`}>
-      {pipOffsets(purity, 6.2).map(dx => <circle key={dx} cx={dx} cy={0} r={2.4} fill="currentColor" />)}
+    <svg viewBox="-4 -4 8 8" width="10" height="10" aria-hidden="true" className={`shrink-0 ${PURITY_TEXT[purity]} ${className}`}>
+      <circle cx={0} cy={0} r={3.5} fill="currentColor" />
     </svg>
   );
 }

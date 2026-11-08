@@ -6,7 +6,7 @@ import { useRecipes } from '../planner/useRecipes.js';
 import { useMe } from '../worlds/queries.js';
 import { ShardPips } from './Extractors.js';
 import { useNodeSettingsText } from './nodeSettings.js';
-import { PurityPips, ResourceIcon } from './PurityPips.js';
+import { PurityDot, ResourceIcon } from './PurityPips.js';
 import { useRateTexts } from './rates.js';
 import { PURITY_TEXT, resourceToken, sortResources, useResourceLabels } from './resourceStyle.js';
 import { useNodeFilter, useNodeLayer, useWorldNodes } from './useResourceNodes.js';
@@ -93,7 +93,7 @@ export function ResourceNodesPanel({ worldId }: { worldId: string }) {
             return (
               <li key={p}>
                 <button type="button" aria-pressed={on} title={rate?.hint} onClick={() => togglePurity(p)} className={`${ROW} ${on ? 'text-fg' : 'text-muted'}`}>
-                  <PurityPips purity={p} className={`w-6 ${on ? '' : 'opacity-40'}`} />
+                  <PurityDot purity={p} className={on ? '' : 'opacity-40'} />
                   <span className={`min-w-0 flex-1 truncate ${on ? PURITY_TEXT[p] : ''}`}>{t(`resourceNodes.purity.${p}`)}</span>
                   {rate && <span className="shrink-0 text-xs text-muted tabular-nums" data-testid="purity-rate">{rate.range}</span>}
                   <span className="shrink-0 font-display tabular-nums">{t('resourceNodes.count', { count: counts.byPurity[p] })}</span>

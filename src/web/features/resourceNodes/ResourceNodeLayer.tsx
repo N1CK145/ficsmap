@@ -13,7 +13,7 @@ import { NodeCanvasLayer } from './NodeCanvasLayer.js';
 import type { DrawExtractor, DrawNode } from './drawNode.js';
 import { ExtractorList, useExtractorLabel } from './Extractors.js';
 import { NODE_IMAGE_PX, nodeImage } from './nodeImages.js';
-import { PurityPips, ResourceIcon } from './PurityPips.js';
+import { PurityDot, ResourceIcon } from './PurityPips.js';
 import { useRateTexts, type RateTexts } from './rates.js';
 import { PURITY_TEXT, resourceToken, useResourceLabels, type ResourceLabel } from './resourceStyle.js';
 import { useNodeFilter, useNodeLayer, useWorldNodes } from './useResourceNodes.js';
@@ -188,7 +188,7 @@ function NodeInfo({ node, extractors, pressurizer, label, rates, pinned, ctx }: 
       <div className="text-muted">{t(`resourceNodes.kinds.${node.kind}`)}</div>
       {node.purity !== null && (
         <div className="flex flex-wrap items-center gap-x-1.5" data-testid="node-purity">
-          <PurityPips purity={node.purity} />
+          <PurityDot purity={node.purity} />
           <span className={`font-semibold ${PURITY_TEXT[node.purity]}`}>{t(`resourceNodes.purity.${node.purity}`)}</span>
           {rateText !== null && <span className="tabular-nums" data-testid="node-rates">· {rateText}</span>}
         </div>

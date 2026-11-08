@@ -5,8 +5,8 @@ import type { NodeKind, Purity } from '../../../shared/resourceNodes.js';
  * Resource node markers as pure functions on a 2D context (CSS pixels around the node). A node is the game's picture
  * of its resource on a dark plate inside a ring in its purity's colour (impure red, normal orange, pure green); until
  * the picture is loaded, or when the dataset has none (geysers), a disk in the resource's colour with, from
- * LABEL_ZOOM, its short label. Purity is never colour-only: 1 (impure), 2 (normal) or 3 (pure) pips sit under the
- * node. A well's core has no purity: its ring is dashed and neutral, without pips. Below PIP_ZOOM nodes are dots in
+ * LABEL_ZOOM, its short label. The purity is the ring's colour (the user's choice: no pips). A well's core has no
+ * purity: its ring is dashed and neutral. Below PIP_ZOOM nodes are dots in
  * the purity colour whose size grows with the purity (cores are not drawn). A node with an extractor on it (last save
  * import) gets a small square above it, and from LABEL_ZOOM a tag naming the building (Mk.2, Oil, ...) with one
  * diamond per Power Shard next to it; a node the save import changed gets a light badge on its ring.
@@ -20,8 +20,6 @@ export function nodeSize(zoom: number): NodeSize {
   return zoom < PIP_ZOOM ? 'dot' : zoom < LABEL_ZOOM ? 'small' : 'full';
 }
 
-export const PURITY_PIPS: Record<Purity, 1 | 2 | 3> = { impure: 1, normal: 2, pure: 3 };
-
 /**
  * From zoom 2 a node looks like a collectible's icon marker (drawMarker.ts `ICON`), at the same size: the picture
  * (32 px) on a see-through plate in a 2 px ring, here in the purity's colour.
@@ -32,7 +30,6 @@ const RADIUS: Record<NodeSize, number> = { dot: 0, small: ICON_R, full: ICON_R }
 const RING: Record<Exclude<NodeSize, 'dot'>, number> = { small: ICON.ring, full: ICON.ring };
 const DOT_R: Record<Purity, number> = { impure: 3, normal: 4, pure: 5 };
 const SATELLITE_SCALE = 0.8;
-const PIP = { small: { r: 1.9, gap: 5 }, full: { r: 2.4, gap: 6.2 } } as const;
 /** The plate behind the picture: as on the collectible markers, lighter on cores. */
 const PLATE_ALPHA = { node: 0.75, core: 0.5 } as const;
 const CORE_DASH = [3, 2.5];
@@ -91,12 +88,6 @@ export function ringColor(n: Pick<DrawNode, 'purity'>, p: Pick<NodePalette, 'fg'
 export function nodeRadius(n: Pick<DrawNode, 'kind' | 'purity'>, size: NodeSize): number {
   if (size === 'dot') return n.kind === 'core' ? 0 : DOT_R[n.purity ?? 'normal'];
   return RADIUS[size] * (n.kind === 'satellite' ? SATELLITE_SCALE : 1);
-}
-
-/** The pip centres' x offsets for a purity, centred on 0. */
-export function pipOffsets(purity: Purity, gap: number): number[] {
-  const n = PURITY_PIPS[purity];
-  return Array.from({ length: n }, (_, i) => (i - (n - 1) / 2) * gap);
 }
 
 function circle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
@@ -167,19 +158,6 @@ export function drawNode(
   ctx.lineWidth = w;
   ctx.stroke();
   if (core) ctx.setLineDash([]);
-
-  if (n.purity !== null) {
-    const { r: pr, gap } = PIP[size];
-    const py = y + r + pr + 2.5;
-    for (const dx of pipOffsets(n.purity, gap)) {
-      circle(ctx, x + dx, py, pr);
-      ctx.fillStyle = p.fg;
-      ctx.fill();
-      ctx.strokeStyle = p.bg;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-  }
 
   if (n.extractor) drawExtractor(ctx, x, y - r, n.extractor, size, p);
 

@@ -13,7 +13,7 @@ import { initI18n } from '../../src/web/app/i18n/index.js';
 import { loadResourceNodeView } from '../../src/web/app/persist.js';
 import { queryKeys } from '../../src/web/app/queryKeys.js';
 import {
-  contrastOn, drawExtractor, drawNode, luminance, nodeRadius, nodeSize, pipOffsets, ringColor, type DrawNode, type NodePalette,
+  contrastOn, drawExtractor, drawNode, luminance, nodeRadius, nodeSize, ringColor, type DrawNode, type NodePalette,
 } from '../../src/web/features/resourceNodes/drawNode.js';
 import { resourceNodesFeature } from '../../src/web/features/resourceNodes/index.js';
 import { NodeCanvasLayer } from '../../src/web/features/resourceNodes/NodeCanvasLayer.js';
@@ -355,7 +355,7 @@ describe('purity colours, resource pictures and extraction rates', () => {
     expect(row(/Water/).querySelector('span[style*="--color-res-water"]')).not.toBeNull();
   });
 
-  it('panel: purity rows in their colour (text and pips) with the miners\' rates at 100 %', async () => {
+  it('panel: purity rows in their colour (text and dot) with the miners\' rates at 100 %', async () => {
     const user = userEvent.setup();
     const { wrap } = setup({ routes: EXTRAS });
     wrap(<ResourceNodesPanel worldId={W} />);
@@ -504,11 +504,11 @@ describe('drawNode', () => {
     expect(nodeRadius(n({ purity: 'normal' }), 'dot')).toBeLessThan(nodeRadius(n({ purity: 'pure' }), 'dot'));
   });
 
-  it('keeps 1, 2 or 3 pips under the node, so purity is not told by colour alone', () => {
-    for (const [purity, count] of [['impure', 1], ['normal', 2], ['pure', 3]] as const) {
+  it('draws no pips: the ring colour tells the purity', () => {
+    for (const purity of ['impure', 'normal', 'pure'] as const) {
       const { ctx, arcs } = stubCtx();
       drawNode(ctx, 0, 0, n({ purity }), 'full', palette, false, img);
-      expect(pips(arcs)).toBe(count);
+      expect(pips(arcs)).toBe(0);
     }
   });
 
@@ -596,10 +596,8 @@ describe('drawNode', () => {
     expect(extractorTag([{ kind: 'miner1', clock: 1, shards: 1 }, { kind: 'portable', clock: null, shards: null }], short)).toEqual({ label: 'MINER1+', shards: 1 });
   });
 
-  it('sizes by zoom and centres the pips', () => {
+  it('sizes by zoom', () => {
     expect([0, 1, 2, 3, 4, 7].map(nodeSize)).toEqual(['dot', 'dot', 'small', 'small', 'full', 'full']);
-    expect(pipOffsets('normal', 6)).toEqual([-3, 3]);
-    expect(pipOffsets('pure', 6)).toEqual([-6, 0, 6]);
   });
 
   it('picks a light label for dark fills and a dark one for light fills', () => {
