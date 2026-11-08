@@ -3,7 +3,8 @@ import { COLLECTIBLE_TYPES } from '../../shared/collectibleTypes.js';
 import type { CollectibleTypeId } from '../../shared/types.js';
 import type { PersistedView } from './persist.js';
 
-export type InteractionMode = 'inspect' | 'route';
+/** 'route': editing a route (routes feature); 'vehicle-route': picking a vehicle route's ends (vehicleCalc feature). */
+export type InteractionMode = 'inspect' | 'route' | 'vehicle-route';
 export type CollectedVisibility = 'show' | 'dim' | 'hide';
 export type MainView = 'map' | 'list';
 

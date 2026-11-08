@@ -1,5 +1,5 @@
 import {
-  calculate, defaultSpeed, driveSeconds, loadFor, perTrip, roundTripSeconds, tripEnergyMJ, vehicleFuels,
+  calculate, defaultSpeed, driveSeconds, loadFor, oneWaySeconds, perTrip, roundTripSeconds, tripEnergyMJ, tripsByFuel, vehicleFuels,
   type FuelUse, type TransportFuel, type TransportItem, type TransportVehicle,
 } from '../../src/shared/transport.js';
 
@@ -26,6 +26,7 @@ describe('vehicle calculator maths', () => {
     expect(roundTripSeconds({ routeMeters: 900, speedKmh: 36, stopSeconds: 48 })).toBe(228);
     expect(roundTripSeconds({ routeMeters: 0, speedKmh: 36, stopSeconds: 30 })).toBe(30);
     expect(driveSeconds({ routeMeters: 900, speedKmh: 36, stopSeconds: 48 })).toBe(180);
+    expect(oneWaySeconds({ routeMeters: 900, speedKmh: 36 })).toBe(90);
   });
 
   it('gives the load per trip in stacks, items or m³', () => {
@@ -140,6 +141,34 @@ describe('vehicle calculator maths', () => {
     // Vehicle data built before fuel use was added has no `fuel`.
     const { fuel: _, ...old } = TRUCK;
     expect(vehicleFuels(FUELS, old as TransportVehicle)).toEqual([]);
+  });
+
+  it('gives one drone on a route per fuel, at the speed of that fuel, fastest first', () => {
+    // 1000 m, 102 s at the ports. Battery: 75 m/s, 13.3 s each way, 128.7 s round trip, 36 000 MJ = 6 Batteries;
+    // Packaged Fuel: 50 m/s, 20 s each way, 142 s round trip, 48 Packaged Fuel. 9 stacks per trip.
+    const rows = tripsByFuel(DRONE, FUELS, { routeMeters: 1000, stopSeconds: 102 }, { unit: 'stacks', slots: 9 });
+    expect(rows.map(r => r.fuel.id)).toEqual(['Desc_Battery_C', 'Desc_Fuel_C']);
+    const [battery, fuel] = rows as [typeof rows[0], typeof rows[0]];
+    expect(battery.speed).toBe(75);
+    expect(battery.oneWaySeconds).toBeCloseTo(13.333);
+    expect(battery.roundTripSeconds).toBeCloseTo(128.667);
+    expect(battery.fuelPerRoundTrip).toBeCloseTo(6);
+    expect(battery.stacksPerMinute).toBeCloseTo(9 * 60 / 128.667);
+    expect(fuel).toMatchObject({ speed: 50, roundTripSeconds: 142, fuelPerRoundTrip: 48 });
+    expect(fuel.oneWaySeconds).toBeCloseTo(20);
+    // With an item: items per minute, and still the stacks.
+    const plates = tripsByFuel(DRONE, FUELS, { routeMeters: 1000, stopSeconds: 102 }, { unit: 'items', slots: 9, stackSize: 200 });
+    expect(plates[1]!.perMinute).toBeCloseTo(1800 * 60 / 142);
+    expect(plates[1]!.stacksPerMinute).toBeCloseTo(9 * 60 / 142);
+  });
+
+  it('gives wheeled vehicles the same speed with every fuel, and nothing for unusable input', () => {
+    const rows = tripsByFuel(TRUCK, FUELS, { routeMeters: 1800, stopSeconds: 16 }, { unit: 'stacks', slots: 48 });
+    expect(rows.map(r => r.speed)).toEqual([25, 25, 25]);
+    // 2 x 1800 m x 5 MJ = 18 000 MJ: 60 Coal, 24 Packaged Fuel, 3 Batteries.
+    expect(rows.map(r => r.fuelPerRoundTrip)).toEqual([60, 24, 3]);
+    expect(tripsByFuel(FREIGHT, FUELS, { routeMeters: 1800, stopSeconds: 54 }, { unit: 'stacks', slots: 32 })).toEqual([]);
+    expect(tripsByFuel(DRONE, FUELS, { routeMeters: Number.NaN, stopSeconds: 102 }, { unit: 'stacks', slots: 9 })).toEqual([]);
   });
 
   it('rejects unusable input', () => {

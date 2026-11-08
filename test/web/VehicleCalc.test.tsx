@@ -1,14 +1,21 @@
+import { gzipSync } from 'node:zlib';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import L from 'leaflet';
+import { MapContainer, useMap } from 'react-leaflet';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
+import { worldToLatLng } from '../../src/shared/geo.js';
+import { encodeHeightTile, type HeightmapMeta } from '../../src/shared/heightmap.js';
 import type { TransportData } from '../../src/shared/transport.js';
 import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
-import { vehicleCalcFeature, vehicleCalcTool } from '../../src/web/features/vehicleCalc/index.js';
+import { useUiStore } from '../../src/web/app/store.js';
+import { PICK_MODE, pickRouteMode, vehicleCalcFeature, vehicleCalcTool } from '../../src/web/features/vehicleCalc/index.js';
 import { EMPTY_FORM, useVehicleCalc } from '../../src/web/features/vehicleCalc/useVehicleCalc.js';
 import { VehicleCalcHost } from '../../src/web/features/vehicleCalc/VehicleCalcDialog.js';
+import { VehicleRouteLayer } from '../../src/web/features/vehicleCalc/VehicleRouteLayer.js';
 import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
 import { findItem } from '../../src/web/features/vehicleCalc/VehicleCalculator.js';
 import { stubFetch } from './fetchStub.js';
@@ -19,8 +26,8 @@ const WORLD: WorldDto = {
   id: W, name: 'Alpha', isOwner: true, rev: 1, datasetVersion: 'test', owner: { id: 1, displayName: 'Nick' }, members: [], lastImport: null,
 };
 const DS: Dataset = {
-  version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true,
-  biomes: [{ id: 'b', name: { en: 'B', de: 'B' } }], items: [], aliases: {},
+  version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 100_000, maxY: 100_000 }, mapId: 'm', podRequirementsKnown: true,
+  biomes: [{ id: 'b', name: { en: 'B', de: 'B' } }], items: [['S1', 'somersloop', 30_000, 10_000, 0, 0, 1]], aliases: {},
 };
 const AUTOPILOT = { source: 'autopilot', perMetreMJ: 5, perTripMJ: 0, fuels: null } as const;
 const DATA: TransportData = {
@@ -61,7 +68,9 @@ async function open() {
   return screen.findByRole('dialog', { name: 'Vehicle calculator' });
 }
 
-const status = () => screen.getByRole('status');
+/** The fleet result (vehicles needed or throughput) and what one vehicle does on the route. */
+const status = () => screen.getByRole('status', { name: 'Result' });
+const trip = (name = 'One vehicle on this route') => screen.getByRole('status', { name });
 
 describe('vehicle calculator', () => {
   beforeEach(() => {
@@ -91,6 +100,7 @@ describe('vehicle calculator', () => {
     expect(within(dialog).getByLabelText('Fuel')).toHaveValue('Desc_Fuel_C');
     expect(within(dialog).getByLabelText('Fuel')).toHaveAccessibleDescription(/burn 5 MJ per metre driven, there and back.*estimate/);
     expect(status()).toHaveTextContent('Enter the route length');
+    expect(trip()).toHaveTextContent('Pick the route on the map or enter its length');
 
     const u = user();
     // 1800 m at 90 km/h: 144 s there and back + 16 s = 160 s; 48 stacks per trip = 18 stacks/min per truck
@@ -99,12 +109,19 @@ describe('vehicle calculator', () => {
     expect(status()).toHaveTextContent('Vehicles needed3');
     expect(status()).toHaveTextContent('Utilisation74%');
     expect(status()).toHaveTextContent('They move up to54 stacks/min');
-    expect(status()).toHaveTextContent('Per vehicle18 stacks/min');
-    expect(status()).toHaveTextContent('Round trip160 s');
-    // 2 x 1800 m x 5 MJ = 18 000 MJ = 24 Packaged Fuel per round trip of 160 s, 9 per minute per truck
-    expect(status()).toHaveTextContent('Fuel (estimated)27 Packaged Fuel/min (9 per vehicle, 24 per round trip)');
+    // One truck: 72 s one way, 160 s round trip, 18 stacks/min
+    expect(trip()).toHaveTextContent('One-way trip1 min 12 s');
+    expect(trip()).toHaveTextContent('Round trip with stops2 min 40 s');
+    expect(trip()).toHaveTextContent('Moves18 stacks/min');
+    expect(trip()).toHaveTextContent('Load per trip48 stacks');
+    // 2 x 1800 m x 5 MJ = 18 000 MJ = 24 Packaged Fuel per round trip of 160 s, 9 per minute per truck, 27 for three
+    expect(trip()).toHaveTextContent('Fuel per round trip24 Packaged Fuel9 per minute');
+    expect(status()).toHaveTextContent('Fuel (estimated)27 Packaged Fuel/min');
+    // The speed of wheeled vehicles does not depend on the fuel: no table of fuels.
+    expect(within(dialog).queryByRole('table')).toBeNull();
     await u.selectOptions(within(dialog).getByLabelText('Fuel'), 'Desc_Coal_C');
-    expect(status()).toHaveTextContent('Fuel (estimated)67.5 Coal/min (22.5 per vehicle, 60 per round trip)');
+    expect(trip()).toHaveTextContent('Fuel per round trip60 Coal22.5 per minute');
+    expect(status()).toHaveTextContent('Fuel (estimated)67.5 Coal/min');
   });
 
   it("defaults the Tractor's speed to where its tractive effort ends and the Fluid Truck's stop to its station", async () => {
@@ -136,11 +153,14 @@ describe('vehicle calculator', () => {
     await u.click(within(dialog).getByRole('radio', { name: 'Throughput' }));
     await u.type(within(dialog).getByLabelText('Number of vehicles'), '1');
     // 2 x 1000 m at 50 m/s = 40 s + 102 s; 24 000 + 12 000 MJ = 48 Packaged Fuel per round trip of 142 s
-    expect(status()).toHaveTextContent('Round trip142 s');
-    expect(status()).toHaveTextContent('Fuel (estimated)20.28 Packaged Fuel/min (20.28 per vehicle, 48 per round trip)');
+    expect(trip()).toHaveTextContent('One-way trip20 s');
+    expect(trip()).toHaveTextContent('Round trip with stops2 min 22 s');
+    expect(trip()).toHaveTextContent('Fuel per round trip48 Packaged Fuel20.28 per minute');
+    expect(trip()).toHaveTextContent('Moves3.8 stacks/min');
+    expect(status()).toHaveTextContent('Fuel (estimated)20.28 Packaged Fuel/min');
     await u.selectOptions(fuel, 'Desc_Battery_C');
     expect(within(dialog).getByLabelText('Average speed')).toHaveValue(270);
-    expect(status()).toHaveTextContent('6 per round trip');
+    expect(trip()).toHaveTextContent('Fuel per round trip6 Battery');
     // The wheeled vehicles keep their own fuel.
     await u.selectOptions(within(dialog).getByLabelText('Vehicle'), 'truck');
     expect(within(dialog).getByLabelText('Fuel')).toHaveValue('Desc_Fuel_C');
@@ -155,7 +175,9 @@ describe('vehicle calculator', () => {
     await u.click(within(dialog).getByRole('radio', { name: 'Throughput' }));
     await u.type(within(dialog).getByLabelText('Number of vehicles'), '2');
     expect(status()).toHaveTextContent('Throughput7,200 items/min (36 stacks/min)');
-    expect(status()).toHaveTextContent('Load per trip9,600 items');
+    // One truck: 18 stacks of 200 plates a minute.
+    expect(trip()).toHaveTextContent('Moves18 stacks/min3,600 items/min');
+    expect(trip()).toHaveTextContent('Load per trip9,600 items');
   });
 
   it('asks for the speed where the game data has none, and gives fluids in m³', async () => {
@@ -174,9 +196,11 @@ describe('vehicle calculator', () => {
     await u.type(within(dialog).getByLabelText('Target throughput'), '1000');
     expect(within(dialog).getByText('m³/min')).toBeInTheDocument();
     expect(status()).toHaveTextContent('Freight cars needed2');
-    expect(status()).toHaveTextContent('Per freight car615.4 m³/min');
+    expect(trip('One freight car on this route')).toHaveTextContent('Moves615.4 m³/min');
+    expect(trip('One freight car on this route')).toHaveTextContent('Round trip with stops3 min 54 s');
     expect(within(dialog).queryByLabelText('Fuel')).toBeNull();
     expect(status()).not.toHaveTextContent('Fuel');
+    expect(trip('One freight car on this route')).not.toHaveTextContent('Fuel');
   });
 
   it('says when the vehicle cannot carry the item', async () => {
@@ -209,5 +233,246 @@ describe('vehicle calculator', () => {
     expect(findItem(DATA.items, 'Water', 'de')?.id).toBe('Desc_Water_C');
     expect(findItem(DATA.items, 'Wat', 'en')).toBeNull();
     expect(findItem(DATA.items, '', 'en')).toBeNull();
+  });
+});
+
+// Height map as in Coords.test: one 2 x 2 tile of 250 m cells. (300 m, 100 m) is 45.7 m high, (300 m, 300 m) -12.3 m.
+const META: HeightmapMeta = { cell: 25_000, minX: 0, minY: 0, width: 4, height: 4, tile: 2, step: 10, id: 'abc', overview: { factor: 2, width: 2, height: 2 }, range: [-1000, 5000] };
+
+/** The vehicle data and, with `heights`, the height map; everything else is a 404. */
+function stubData(heights: boolean) {
+  const tile = gzipSync(Buffer.from(encodeHeightTile([4560, 4570, Number.NaN, -1230], 10).buffer));
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const path = new URL(String(input), 'http://localhost').pathname;
+    if (path === '/data/test/transport.json') return json(DATA);
+    if (heights && path === '/data/test/height/meta.json') return json(META);
+    if (heights && path === '/data/test/height/0_0.bin.gz') return new Response(tile);
+    return json({ error: 'not_found', message: 'no' }, 404);
+  }));
+}
+
+/** The calculator, its tool and, as MapView shows it while the pick mode is on, the mode's banner. */
+function setupPicking(heights = false) {
+  stubData(heights);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const ctx: WorldCtx = { worldId: W, world: WORLD, me: ME, index: indexDataset(DS), queryClient: client, navigate: () => {}, toast: { show: () => {} } };
+  const Banner = pickRouteMode.Banner!;
+  function BannerHost() {
+    return useUiStore(s => s.interactionMode) === PICK_MODE ? <Banner /> : null;
+  }
+  render(<QueryClientProvider client={client}><ToolButton tool={vehicleCalcTool} ctx={ctx} /><VehicleCalcHost ctx={ctx} /><BannerHost /></QueryClientProvider>);
+  return {
+    ctx,
+    clickMap: (x: number, y: number) => act(() => pickRouteMode.onMapClick!({ x, y }, ctx)),
+    clickMarker: (name: string) => act(() => pickRouteMode.onMarkerClick(ctx.index.byName.get(name)!, ctx)),
+  };
+}
+
+async function openDe() {
+  await user().click(screen.getByRole('button', { name: 'Fahrzeuge' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Fahrzeug-Rechner' });
+  await within(dialog).findByLabelText('Streckenlänge (einfach)');
+  return dialog;
+}
+
+const routeInput = () => screen.getByLabelText('Streckenlänge (einfach)');
+const routeInfo = () => screen.getByRole('region', { name: 'Strecke auf der Karte' });
+
+describe('vehicle calculator: route on the map', () => {
+  beforeEach(() => {
+    initI18n(['de']);
+    useUiStore.getState().enterWorld(W);
+    useVehicleCalc.setState({ open: false, form: EMPTY_FORM, route: null, pickedStart: null, lengthFromRoute: false });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('is a map mode that takes points anywhere, with a banner, and a map layer', () => {
+    expect(vehicleCalcFeature.mapModes).toEqual([pickRouteMode]);
+    expect(pickRouteMode.id).toBe('vehicle-route');
+    expect(pickRouteMode.onMapClick).toBeTypeOf('function');
+    expect(vehicleCalcFeature.mapLayers?.map(l => l.id)).toEqual(['vehicle-route']);
+  });
+
+  it('picks start and destination on the map, then shows the route and one truck on it', async () => {
+    const { clickMap, clickMarker } = setupPicking(true);
+    const dialog = await openDe();
+    expect(within(dialog).getByText(/die Luftlinie dazwischen wird die Streckenlänge/)).toBeInTheDocument();
+    await user().click(within(dialog).getByRole('button', { name: 'Auf der Karte wählen' }));
+
+    // The dialog gives way to the map; the banner says what to pick.
+    expect(useUiStore.getState().interactionMode).toBe('vehicle-route');
+    expect(screen.queryByLabelText('Streckenlänge (einfach)')).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent('Fahrzeug-Rechner: Start auf der Karte wählen');
+    clickMap(30_000, 30_000);
+    expect(screen.getByRole('status')).toHaveTextContent('Fahrzeug-Rechner: jetzt das Ziel wählen');
+    expect(useVehicleCalc.getState().pickedStart).toEqual({ x: 30_000, y: 30_000 });
+    // The destination is a marker: its position counts. 200 m north.
+    clickMarker('S1');
+
+    expect(useUiStore.getState().interactionMode).toBe('inspect');
+    expect(await screen.findByRole('dialog', { name: 'Fahrzeug-Rechner' })).toBeInTheDocument();
+    expect(useVehicleCalc.getState().route).toEqual({ start: { x: 30_000, y: 30_000 }, end: { x: 30_000, y: 10_000 } });
+    expect(routeInput()).toHaveValue(200);
+    expect(routeInfo()).toHaveTextContent('Luftlinie200 m');
+    // From -12.3 m up to 45.7 m.
+    await waitFor(() => expect(routeInfo()).toHaveTextContent('Höhenunterschied (zum Ziel)+58 m'));
+    expect(routeInfo()).toHaveTextContent('3D-Länge208 m');
+    expect(routeInfo()).toHaveTextContent('für Drohnen genau');
+    expect(routeInfo()).toHaveTextContent('Untergrenze');
+
+    // One truck on 200 m at 90 km/h: 8 s one way, 16 s there and back plus 16 s at the stations, 48 stacks a trip.
+    const trip = screen.getByRole('status', { name: 'Ein Fahrzeug auf dieser Strecke' });
+    expect(trip).toHaveTextContent('Fahrt (einfach)8 s');
+    expect(trip).toHaveTextContent('Umlauf mit Standzeit32 s');
+    expect(trip).toHaveTextContent('Transportiert90 Stapel/min');
+    // 2 x 200 m x 5 MJ = 2000 MJ = 2.67 Packaged Fuel per round trip.
+    expect(trip).toHaveTextContent('Treibstoff pro Umlauf2,67 Abgefüllter Treibstoff5 pro Minute');
+  });
+
+  it('follows moved points until the length is typed, and can take the straight line again', async () => {
+    setupPicking();
+    useVehicleCalc.setState({ route: { start: { x: 0, y: 0 }, end: { x: 10_000, y: 0 } }, lengthFromRoute: true, form: { ...EMPTY_FORM, route: '100' } });
+    const dialog = await openDe();
+    // No height map: no height rows.
+    expect(routeInfo()).toHaveTextContent('Luftlinie100 m');
+    expect(routeInfo()).not.toHaveTextContent('Höhenunterschied');
+    act(() => useVehicleCalc.getState().moveRoutePoint('end', { x: 30_000, y: 40_000 }));
+    expect(routeInput()).toHaveValue(500);
+
+    const u = user();
+    await u.clear(routeInput());
+    await u.type(routeInput(), '650');
+    expect(routeInfo()).toHaveTextContent('Die Länge wurde eingetippt');
+    act(() => useVehicleCalc.getState().moveRoutePoint('end', { x: 60_000, y: 80_000 }));
+    expect(routeInput()).toHaveValue(650);
+    expect(routeInfo()).toHaveTextContent('Luftlinie1.000 m');
+    await u.click(within(dialog).getByRole('button', { name: 'Luftlinie übernehmen' }));
+    expect(routeInput()).toHaveValue(1000);
+    expect(routeInfo()).not.toHaveTextContent('Die Länge wurde eingetippt');
+
+    // Clearing the points keeps the length.
+    await u.click(within(dialog).getByRole('button', { name: 'Punkte entfernen' }));
+    expect(screen.queryByRole('region', { name: 'Strecke auf der Karte' })).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Auf der Karte wählen' })).toBeInTheDocument();
+    expect(routeInput()).toHaveValue(1000);
+    expect(useVehicleCalc.getState().route).toBeNull();
+  });
+
+  it('cancels with Esc or the banner button, keeping the route it had', async () => {
+    const { clickMap } = setupPicking();
+    const before = { start: { x: 0, y: 0 }, end: { x: 10_000, y: 0 } };
+    useVehicleCalc.setState({ route: before, lengthFromRoute: true, form: { ...EMPTY_FORM, route: '100' } });
+    let dialog = await openDe();
+    await user().click(within(dialog).getByRole('button', { name: 'Neu wählen' }));
+    clickMap(50_000, 50_000);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useUiStore.getState().interactionMode).toBe('inspect');
+    dialog = await screen.findByRole('dialog', { name: 'Fahrzeug-Rechner' });
+    expect(useVehicleCalc.getState().route).toEqual(before);
+    expect(routeInput()).toHaveValue(100);
+
+    await user().click(within(dialog).getByRole('button', { name: 'Neu wählen' }));
+    // A new pick starts with the start again.
+    expect(screen.getByRole('status')).toHaveTextContent('Start auf der Karte wählen');
+    const cancel = screen.getByRole('button', { name: 'Abbrechen' });
+    expect(cancel).toHaveAttribute('aria-keyshortcuts', 'Escape');
+    await user().click(cancel);
+    expect(useUiStore.getState().interactionMode).toBe('inspect');
+    expect(await screen.findByRole('dialog', { name: 'Fahrzeug-Rechner' })).toBeInTheDocument();
+    expect(useVehicleCalc.getState().route).toEqual(before);
+  });
+
+  it('ends picking when the calculator is opened again, and when another map mode takes over', async () => {
+    setupPicking();
+    const dialog = await openDe();
+    await user().click(within(dialog).getByRole('button', { name: 'Auf der Karte wählen' }));
+    expect(screen.queryByLabelText('Streckenlänge (einfach)')).toBeNull();
+    act(() => useVehicleCalc.getState().show());
+    expect(useUiStore.getState().interactionMode).toBe('inspect');
+    expect(await screen.findByLabelText('Streckenlänge (einfach)')).toBeInTheDocument();
+
+    act(() => useVehicleCalc.getState().startPicking());
+    expect(screen.queryByLabelText('Streckenlänge (einfach)')).toBeNull();
+    act(() => useUiStore.getState().setMode('route'));
+    expect(await screen.findByLabelText('Streckenlänge (einfach)')).toBeInTheDocument();
+  });
+
+  it('shows the drone per fuel, the selected fuel marked, because its speed depends on the fuel', async () => {
+    setupPicking();
+    const dialog = await openDe();
+    const u = user();
+    await u.selectOptions(within(dialog).getByLabelText('Fahrzeug'), 'drone');
+    await u.type(routeInput(), '1000');
+    const table = within(dialog).getByRole('table', { name: /Die Geschwindigkeit der Drohne hängt vom Treibstoff ab/ });
+    const rows = within(table).getAllByRole('row').slice(1);
+    // Fastest first. Battery: 75 m/s, 13.3 s one way, 128.7 s round trip, 6 Batteries, 9 stacks = 4.2 stacks/min.
+    expect(rows.map(r => within(r).getByRole('rowheader').textContent)).toEqual(['Batterie', 'Abgefüllter Treibstoff']);
+    expect(within(rows[0]!).getAllByRole('cell').map(c => c.textContent)).toEqual(['270 km/h', '13,3 s', '2 min 9 s', '6', '4,2']);
+    expect(within(rows[1]!).getAllByRole('cell').map(c => c.textContent)).toEqual(['180 km/h', '20 s', '2 min 22 s', '48', '3,8']);
+    expect(within(table).getByRole('row', { current: true })).toHaveTextContent('Abgefüllter Treibstoff');
+    expect(screen.getByRole('status', { name: 'Ein Fahrzeug auf dieser Strecke' })).toHaveTextContent('Umlauf mit Standzeit2 min 22 s');
+
+    await u.selectOptions(within(dialog).getByLabelText('Treibstoff'), 'Desc_Battery_C');
+    expect(within(table).getByRole('row', { current: true })).toHaveTextContent('Batterie');
+    expect(screen.getByRole('status', { name: 'Ein Fahrzeug auf dieser Strecke' })).toHaveTextContent('Umlauf mit Standzeit2 min 9 s');
+  });
+});
+
+describe('vehicle route layer', () => {
+  beforeEach(() => {
+    initI18n(['de']);
+    useUiStore.getState().enterWorld(W);
+    useVehicleCalc.setState({ open: false, form: EMPTY_FORM, route: null, pickedStart: null, lengthFromRoute: false });
+  });
+
+  function renderLayer() {
+    const client = new QueryClient();
+    const ctx: WorldCtx = { worldId: W, world: WORLD, me: ME, index: indexDataset(DS), queryClient: client, navigate: () => {}, toast: { show: () => {} } };
+    let map: L.Map | undefined;
+    const Grab = () => { map = useMap(); return null; };
+    const { container } = render(
+      <MapContainer crs={L.CRS.Simple} center={[-128, 128]} zoom={1} style={{ width: 400, height: 400 }}>
+        <Grab />
+        <VehicleRouteLayer ctx={ctx} />
+      </MapContainer>,
+    );
+    const pins = () => [...container.querySelectorAll('.ficsmap-vroute-pin')].map(p => [p.textContent, p.getAttribute('title')]);
+    const markers = () => {
+      const out: L.Marker[] = [];
+      map!.eachLayer(l => { if (l instanceof L.Marker) out.push(l); });
+      return out;
+    };
+    return { container, pins, markers };
+  }
+
+  it('shows A and B with the line while the route is set, the dialog closed, and drags them', () => {
+    const { container, pins, markers } = renderLayer();
+    expect(pins()).toEqual([]);
+    act(() => useVehicleCalc.setState({ route: { start: { x: 0, y: 0 }, end: { x: 30_000, y: 40_000 } }, lengthFromRoute: true, form: { ...EMPTY_FORM, route: '500' } }));
+    expect(pins()).toEqual([['A', 'Start'], ['B', 'Ziel']]);
+    expect(container.querySelectorAll('.leaflet-overlay-pane path')).toHaveLength(1);
+
+    // Dragging B moves the destination; the length follows.
+    const b = markers().find(m => m.options.title === 'Ziel')!;
+    act(() => {
+      b.setLatLng(worldToLatLng(60_000, 80_000, DS.bounds));
+      b.fire('drag');
+    });
+    expect(useVehicleCalc.getState().route?.end.x).toBeCloseTo(60_000);
+    expect(useVehicleCalc.getState().route?.end.y).toBeCloseTo(80_000);
+    expect(useVehicleCalc.getState().form.route).toBe('1000');
+  });
+
+  it('shows only the start picked so far while picking', () => {
+    const { container, pins } = renderLayer();
+    act(() => {
+      useVehicleCalc.setState({ route: { start: { x: 0, y: 0 }, end: { x: 30_000, y: 40_000 } } });
+      useVehicleCalc.getState().startPicking();
+    });
+    expect(pins()).toEqual([]);
+    act(() => useVehicleCalc.getState().pick({ x: 10_000, y: 10_000 }));
+    expect(pins()).toEqual([['A', 'Start']]);
+    expect(container.querySelectorAll('.leaflet-overlay-pane path')).toHaveLength(0);
   });
 });

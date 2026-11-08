@@ -1,0 +1,29 @@
+/* The vehicle calculator's start (A) and destination (B) on the map (VehicleRouteLayer): a round pin in the vehicles'
+   colour inside a transparent 44 px box, the touch target for dragging it. */
+.ficsmap-vroute-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+}
+
+.ficsmap-vroute-pin > span {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--color-bg);
+  border-radius: 9999px;
+  background: var(--color-cat-vehicles);
+  color: var(--color-bg);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 1px var(--color-cat-vehicles);
+}
+
+.leaflet-dragging .ficsmap-vroute-pin {
+  cursor: grabbing;
+}

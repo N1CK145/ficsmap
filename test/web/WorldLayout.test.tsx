@@ -7,6 +7,7 @@ import type { Dataset } from '../../src/shared/dataset.js';
 import { FeaturesProvider } from '../../src/web/app/FeaturesContext.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { lastWorld } from '../../src/web/app/persist.js';
+import { useUiStore } from '../../src/web/app/store.js';
 import { ToastProvider } from '../../src/web/components/Toast.js';
 import { FEATURES } from '../../src/web/features/index.js';
 import { useImportDialog } from '../../src/web/features/import/index.js';
@@ -157,6 +158,20 @@ describe('WorldLayout', () => {
     act(() => media.set(MOBILE, false));
     expect(screen.getByRole('complementary', { name: 'Sidebar' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Panels' })).not.toBeInTheDocument();
+  });
+
+  it('on mobile drops the sheet to peek and closes the item sheet when a mode takes points on the map', async () => {
+    stubMatchMedia({ [MOBILE]: true });
+    stubWorld();
+    renderAt(`/w/${W}`);
+    const sheet = await screen.findByRole('region', { name: 'Panels' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Panel size: small' }));
+    expect(within(sheet).getByRole('button', { name: 'Panel size: half' })).toBeInTheDocument();
+    act(() => useUiStore.getState().select('S1'));
+    act(() => useUiStore.getState().setMode('vehicle-route'));
+    expect(within(sheet).getByRole('button', { name: 'Panel size: small' })).toBeInTheDocument();
+    expect(useUiStore.getState().selectedActor).toBeNull();
+    act(() => useUiStore.getState().setMode('inspect'));
   });
 
   it('collapses the sidebar with [ on desktop', async () => {

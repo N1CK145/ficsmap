@@ -140,9 +140,14 @@ export interface CalcResult {
   fuel: { perTrip: number; perVehiclePerMinute: number; perMinute: number } | null;
 }
 
+/** Seconds driven one way at the average speed (no stops). */
+export function oneWaySeconds({ routeMeters, speedKmh }: Pick<TripInput, 'routeMeters' | 'speedKmh'>): number {
+  return routeMeters / (speedKmh / 3.6);
+}
+
 /** Seconds driven per round trip: there and back at the average speed. */
-export function driveSeconds({ routeMeters, speedKmh }: TripInput): number {
-  return (2 * routeMeters) / (speedKmh / 3.6);
+export function driveSeconds(trip: TripInput): number {
+  return 2 * oneWaySeconds(trip);
 }
 
 /** Seconds for one round trip: driving there and back, plus loading and unloading. */
@@ -248,4 +253,43 @@ export function defaultSpeed(vehicle: TransportVehicle, fuelId: string | null): 
   const traction = vehicle.tractionSpeed ?? null;
   if (traction !== null && (limit === null || traction < limit)) return { mps: traction, source: 'traction' };
   return limit === null ? null : { mps: limit, source: 'pathLimit' };
+}
+
+/** One vehicle on a route with one fuel, at the game's speed for that fuel (see `tripsByFuel`). */
+export interface FuelTrip {
+  fuel: TransportFuel;
+  /** Speed in m/s. */
+  speed: number;
+  oneWaySeconds: number;
+  roundTripSeconds: number;
+  /** Fuel items burnt per round trip. */
+  fuelPerRoundTrip: number;
+  /** Units (see `load.unit`) per minute of the one vehicle. */
+  perMinute: number;
+  /** Stacks per minute of the one vehicle (solid loads only). */
+  stacksPerMinute: number | null;
+}
+
+/**
+ * One vehicle on a route with each fuel it takes, at the speed the game gives it with that fuel (`defaultSpeed`):
+ * what the drone, whose speed depends on its fuel, does with each. Fastest first. Fuels without a known speed are
+ * left out; empty for a vehicle without fuel use or unusable input (see `calculate`).
+ */
+export function tripsByFuel(
+  vehicle: TransportVehicle, fuels: readonly TransportFuel[], route: Omit<TripInput, 'speedKmh'>, load: Load,
+): FuelTrip[] {
+  const use = vehicle.fuel ?? null;
+  if (use === null) return [];
+  const rows = vehicleFuels(fuels, vehicle).flatMap((fuel): FuelTrip[] => {
+    const speed = defaultSpeed(vehicle, fuel.id);
+    if (!speed) return [];
+    const trip = { ...route, speedKmh: speed.mps * 3.6 };
+    const r = calculate(trip, load, { kind: 'rate', vehicles: 1 }, { perMetreMJ: use.perMetreMJ, perTripMJ: use.perTripMJ, energyMJ: fuel.energyMJ });
+    if (!r?.fuel) return [];
+    return [{
+      fuel, speed: speed.mps, oneWaySeconds: oneWaySeconds(trip), roundTripSeconds: r.roundTripSeconds,
+      fuelPerRoundTrip: r.fuel.perTrip, perMinute: r.perVehiclePerMinute, stacksPerMinute: r.stacksPerVehiclePerMinute,
+    }];
+  });
+  return rows.sort((a, b) => b.speed - a.speed);
 }

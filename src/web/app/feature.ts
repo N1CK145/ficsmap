@@ -22,7 +22,18 @@ export interface SidebarPanel {
   desktopOnly?: boolean;
 }
 export interface MapLayer { id: string; order: number; Component: FC<{ ctx: WorldCtx }> }
-export interface MapMode { id: InteractionMode; onMarkerClick(item: Item, ctx: WorldCtx): void; cursor?: string; Banner?: FC }
+export interface MapMode {
+  id: InteractionMode;
+  onMarkerClick(item: Item, ctx: WorldCtx): void;
+  /**
+   * A mode with this takes points anywhere on the map (a crosshair cursor): a click away from the markers gives the
+   * world position (units), a click on a marker goes to `onMarkerClick`. Markers count only where they are icons
+   * (from DOT_ZOOM); a click on a dot is a point, and does not zoom in.
+   */
+  onMapClick?(point: { x: number; y: number }, ctx: WorldCtx): void;
+  cursor?: string;
+  Banner?: FC;
+}
 export interface MapControl { id: string; order: number; Component: FC<{ ctx: WorldCtx }> }
 export interface MapOverlay { id: string; order: number; Component: FC<{ ctx: WorldCtx }> }
 export interface ItemDetailSection { id: string; order: number; applies(item: Item): boolean; Component: FC<{ item: Item; ctx: WorldCtx }> }

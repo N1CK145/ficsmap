@@ -712,6 +712,29 @@
     "unavailable": "Dieser Kartendatensatz hat keine Fahrzeugdaten. Sie kommen hinzu, wenn der Datensatz mit den Docs-Dateien des Spiels gebaut wird.",
     "failed": "Die Fahrzeugdaten konnten nicht geladen werden.",
     "route": "Streckenlänge (einfach)",
+    "pick": {
+      "button": "Auf der Karte wählen",
+      "again": "Neu wählen",
+      "clear": "Punkte entfernen",
+      "hint": "Wähle Start und Ziel auf der Karte (ein Marker gibt seine Position vor); die Luftlinie dazwischen wird die Streckenlänge.",
+      "start": "Fahrzeug-Rechner: Start auf der Karte wählen",
+      "end": "Fahrzeug-Rechner: jetzt das Ziel wählen",
+      "cancel": "Abbrechen",
+      "startPoint": "Start",
+      "endPoint": "Ziel"
+    },
+    "routeInfo": {
+      "title": "Strecke auf der Karte",
+      "straight": "Luftlinie",
+      "climb": "Höhenunterschied (zum Ziel)",
+      "length3d": "3D-Länge",
+      "metres": "{value} m",
+      "loading": "…",
+      "unknown": "unbekannt",
+      "note": "Die Streckenlänge ist die Luftlinie zwischen den Punkten: für Drohnen genau. Fahrzeuge folgen Straßen und fahren weiter, für sie ist es eine Untergrenze; trag die echte Länge ein, wenn du sie kennst. Zieh A oder B auf der Karte, um einen Punkt zu verschieben.",
+      "typed": "Die Länge wurde eingetippt, deshalb ändern verschobene Punkte sie nicht.",
+      "useStraight": "Luftlinie übernehmen"
+    },
     "vehicle": "Fahrzeug",
     "item": "Gegenstand (optional)",
     "itemPlaceholder": "Beliebiger Gegenstand",
@@ -757,12 +780,35 @@
     "rate": {
       "items": "{items, number} Stück/min ({stacks, number} Stapel/min)",
       "stacks": "{value, number} Stapel/min",
-      "m3": "{value, number} m³/min"
+      "m3": "{value, number} m³/min",
+      "itemsOnly": "{value, number} Stück/min"
     },
     "amount": {
       "items": "{value, number} Stück",
       "stacks": "{value, plural, one {# Stapel} other {# Stapel}}",
       "m3": "{value, number} m³"
+    },
+    "trip": {
+      "title": {
+        "vehicles": "Ein Fahrzeug auf dieser Strecke",
+        "freightCars": "Ein Güterwagen auf dieser Strecke"
+      },
+      "oneWay": "Fahrt (einfach)",
+      "roundTrip": "Umlauf mit Standzeit",
+      "moves": "Transportiert",
+      "fuel": "Treibstoff pro Umlauf",
+      "fuelValue": "{value, number} {fuel}",
+      "fuelPerMinute": "{value, number} pro Minute",
+      "incomplete": "Wähle die Strecke auf der Karte oder gib ihre Länge ein, dazu Geschwindigkeit und Standzeit, um eine Fahrt zu sehen."
+    },
+    "duration": {
+      "seconds": "{s, number} s",
+      "minutes": "{m, number} min {s, number} s"
+    },
+    "fuelTable": {
+      "caption": "Die Geschwindigkeit der Drohne hängt vom Treibstoff ab. Mit jedem Treibstoff, bei seiner Geschwindigkeit laut Spieldaten:",
+      "speed": "Geschwindigkeit",
+      "kmh": "{value, number} km/h"
     },
     "result": {
       "title": "Ergebnis",
@@ -776,15 +822,9 @@
       "percent": "{share, number, percent}",
       "capacity": "Sie schaffen bis zu",
       "throughput": "Durchsatz",
-      "perOne": {
-        "vehicles": "Pro Fahrzeug",
-        "freightCars": "Pro Güterwagen"
-      },
       "perTrip": "Ladung pro Fahrt",
-      "roundTrip": "Umlauf",
-      "seconds": "{value, number} s",
       "fuel": "Treibstoff (geschätzt)",
-      "fuelValue": "{value, number} {fuel}/min ({perOne, number} pro Fahrzeug, {perTrip, number} pro Umlauf)"
+      "fuelTotal": "{value, number} {fuel}/min"
     }
   },
   "search": {

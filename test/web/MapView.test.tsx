@@ -5,6 +5,7 @@ import L from 'leaflet';
 import { useMap } from 'react-leaflet';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
+import { latLngToWorld } from '../../src/shared/geo.js';
 import type { FeatureModule, WorldCtx } from '../../src/web/app/feature.js';
 import { FeaturesProvider } from '../../src/web/app/FeaturesContext.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
@@ -36,11 +37,17 @@ function MapGrabber() {
 }
 
 const onQuickClick = vi.fn();
+const onPickMarker = vi.fn();
+const onPickPoint = vi.fn();
 const probeFeature: FeatureModule = {
   id: 'probe',
   mapLayers: [{ id: 'probe-layer', order: 1, Component: ProbeLayer }, { id: 'grabber', order: 2, Component: MapGrabber }],
   mapControls: [{ id: 'probe-control', order: 1, Component: () => <button type="button">Probe control</button> }],
-  mapModes: [{ id: 'route', onMarkerClick: onQuickClick, Banner: () => <p>Probe banner</p> }],
+  mapModes: [
+    { id: 'route', onMarkerClick: onQuickClick, Banner: () => <p>Probe banner</p> },
+    // Takes points anywhere, like the vehicle calculator's pick mode.
+    { id: 'vehicle-route', onMarkerClick: onPickMarker, onMapClick: onPickPoint },
+  ],
 };
 
 function renderMap(worldId = WORLD) {
@@ -87,6 +94,8 @@ describe('MapView clicks', () => {
     localStorage.clear();
     useUiStore.getState().enterWorld(WORLD);
     onQuickClick.mockClear();
+    onPickMarker.mockClear();
+    onPickPoint.mockClear();
     probedMap = null;
     // A 512 px map fits the 256-unit image at zoom 1; the item (world 50, 50) sits at the centre.
     vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(512);
@@ -124,6 +133,31 @@ describe('MapView clicks', () => {
     clickAt(map, 256, 256);
     expect(onQuickClick).toHaveBeenCalledWith(expect.objectContaining({ name: 'S1' }), expect.objectContaining({ worldId: WORLD }));
     expect(useUiStore.getState().selectedActor).toBeNull();
+  });
+
+  it('gives a mode that takes points anywhere the marker under an icon, else the world position', () => {
+    const { container } = renderMap();
+    const map = probedMap!;
+    act(() => { map.setZoom(3); useUiStore.getState().setMode('vehicle-route'); });
+    expect(container.querySelector('.ficsmap-map-root')).toHaveClass('ficsmap-map-pick');
+    clickAt(map, 256, 256);
+    expect(onPickMarker).toHaveBeenCalledWith(expect.objectContaining({ name: 'S1' }), expect.objectContaining({ worldId: WORLD }));
+    expect(onPickPoint).not.toHaveBeenCalled();
+    clickAt(map, 50, 50);
+    const ll = map.containerPointToLatLng([50, 50]);
+    expect(onPickPoint).toHaveBeenCalledWith(latLngToWorld(ll.lat, ll.lng, dataset.bounds), expect.objectContaining({ worldId: WORLD }));
+    expect(useUiStore.getState().selectedActor).toBeNull();
+  });
+
+  it('gives such a mode the position of a click on a dot, without zooming in', () => {
+    renderMap();
+    const map = probedMap!;
+    act(() => { useUiStore.getState().setMode('vehicle-route'); });
+    clickAt(map, 258, 255);
+    expect(map.getZoom()).toBe(1);
+    expect(onPickMarker).not.toHaveBeenCalled();
+    const ll = map.containerPointToLatLng([258, 255]);
+    expect(onPickPoint).toHaveBeenCalledWith(latLngToWorld(ll.lat, ll.lng, dataset.bounds), expect.anything());
   });
 
   it('ignores a click away from every marker', () => {
