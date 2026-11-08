@@ -21,10 +21,20 @@ body:not(.leaflet-dragging) .ficsmap-map.ficsmap-marker-hover {
   filter: brightness(0.8);
 }
 
+/* Zoom buttons: one plate of two keys, like a control panel; cut corners where the browser can. */
 .ficsmap-map .leaflet-bar {
   border: 1px solid var(--color-line);
   border-radius: var(--radius);
-  box-shadow: none;
+  background: var(--color-panel);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.4);
+  overflow: hidden;
+}
+
+@supports (corner-shape: bevel) {
+  .ficsmap-map .leaflet-bar {
+    border-radius: 8px 0;
+    corner-shape: bevel;
+  }
 }
 
 .ficsmap-map .leaflet-bar a {
@@ -35,26 +45,27 @@ body:not(.leaflet-dragging) .ficsmap-map.ficsmap-marker-hover {
   color: var(--color-fg);
   border-bottom-color: var(--color-line);
   font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
 }
 
-.ficsmap-map .leaflet-bar a:first-child {
-  border-top-left-radius: var(--radius);
-  border-top-right-radius: var(--radius);
-}
-
+.ficsmap-map .leaflet-bar a:first-child,
 .ficsmap-map .leaflet-bar a:last-child {
-  border-bottom-left-radius: var(--radius);
-  border-bottom-right-radius: var(--radius);
+  border-radius: 0;
 }
 
 .ficsmap-map .leaflet-bar a:hover {
+  background: var(--color-raised);
+  color: var(--color-accent);
+}
+
+.ficsmap-map .leaflet-bar a:active {
   background: var(--color-line);
-  color: var(--color-fg);
 }
 
 .ficsmap-map .leaflet-bar a:focus-visible {
   outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .ficsmap-map .leaflet-bar a.leaflet-disabled {
@@ -63,10 +74,14 @@ body:not(.leaflet-dragging) .ficsmap-map.ficsmap-marker-hover {
   opacity: 0.5;
 }
 
+/* Attribution: small print in the corner, as quiet as the footer. */
 .ficsmap-map .leaflet-control-attribution {
   background: color-mix(in srgb, var(--color-bg) 80%, transparent);
   color: var(--color-muted);
   border-top-left-radius: var(--radius);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 1px 6px;
 }
 
 .ficsmap-map .leaflet-control-attribution a {

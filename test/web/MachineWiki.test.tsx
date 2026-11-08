@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
@@ -8,6 +8,7 @@ import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { machineWikiFeature, machineWikiTool } from '../../src/web/features/machineWiki/index.js';
 import { machineEntries } from '../../src/web/features/machineWiki/search.js';
+import type { ItemIcons } from '../../src/web/features/machineWiki/icons.js';
 import { getI18n } from 'react-i18next';
 import { useMachineWiki } from '../../src/web/features/machineWiki/useMachineWiki.js';
 import { stubFetch } from './fetchStub.js';
@@ -454,5 +455,18 @@ describe('machine wiki in the search', () => {
     e.onSelect?.({ worldId: W, navigate } as unknown as WorldCtx);
     expect(navigate).toHaveBeenCalledWith(`/w/${W}/wiki/${first.id}`);
     expect(machineWikiFeature.searchProviders?.map(p => p.id)).toEqual(['machines']);
+    // Without the dataset's pictures the entries have no icon.
+    expect(e.icon).toBeUndefined();
+  });
+
+  it('shows each machine\'s picture in its result when the dataset has one (the header has no IconsContext)', () => {
+    initI18n(['de']);
+    const first = DATA.machines[0]!;
+    const cls = first.id.replace(/^Build_/, 'Desc_');
+    const icons: ItemIcons = { has: c => c === cls, urls: c => ({ src: `/i/${c}.webp`, srcSet: `/i/${c}.webp 64w` }) };
+    const entries = machineEntries(DATA, getI18n(), icons);
+    const { container } = render(<>{entries[0]!.icon}</>);
+    expect(container.querySelector('img')).toHaveAttribute('src', `/i/${cls}.webp`);
+    expect(entries.slice(1).every(e => e.icon === undefined)).toBe(true);
   });
 });

@@ -94,7 +94,9 @@
   "biomes": {
     "title": "Biomes",
     "scope": "Scope: {name}",
-    "clearScope": "Clear scope"
+    "clearScope": "Clear scope",
+    "noTypes": "Every collectible type is switched off, so there is nothing to count. Switch types on under Progress.",
+    "noneShown": "none of the shown types"
   },
   "caves": {
     "control": "Caves",

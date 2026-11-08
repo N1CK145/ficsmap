@@ -106,7 +106,7 @@ export function BottomSheet({ label, snap, onSnap, children, footer }: BottomShe
     <section
       aria-label={label}
       style={{ height: dragging ? `${dragHeight}px` : CSS_HEIGHT[snap], bottom: FOOTER_PX }}
-      className={`fixed inset-x-0 z-[1100] flex flex-col overflow-clip rounded-t border-t border-line bg-panel shadow-lg ${dragging ? '' : 'motion-safe:transition-[height] motion-safe:duration-200'}`}
+      className={`fixed inset-x-0 z-[1100] flex flex-col overflow-clip border-t border-line bg-panel shadow-[0_-8px_24px_rgb(0_0_0/0.45)] ${dragging ? '' : 'motion-safe:transition-[height] motion-safe:duration-200'}`}
     >
       <button
         type="button"
@@ -120,12 +120,12 @@ export function BottomSheet({ label, snap, onSnap, children, footer }: BottomShe
         onLostPointerCapture={onPointerCancel}
         onClick={onClick}
         // Inset ring: an outer one would be clipped by the sheet at its top edge.
-        className="flex h-7 w-full shrink-0 cursor-grab touch-none items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
+        className="group flex h-7 w-full shrink-0 cursor-grab touch-none items-center justify-center bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
       >
-        <span aria-hidden="true" className="h-1 w-10 rounded bg-muted" />
+        <span aria-hidden="true" className="h-1 w-12 bg-edge group-active:bg-accent" />
       </button>
       <div id={contentId} className="min-h-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain">{children}</div>
-      {footer && <div className="shrink-0 border-t border-line p-2">{footer}</div>}
+      {footer && <div className="shrink-0 border-t border-line bg-bg/50 p-2">{footer}</div>}
     </section>
   );
 }

@@ -7,9 +7,10 @@ import {
 } from '../../../shared/machines.js';
 import { useMediaQuery } from '../../app/useMediaQuery.js';
 import { Button } from '../../components/Button.js';
+import { fieldClass } from '../../components/Field.js';
 import { GameIcon } from './icons.js';
 
-const INPUT = 'h-10 w-full min-w-0 rounded border border-line bg-bg px-3 text-fg focus-ring';
+const INPUT = fieldClass({}, 'w-full min-w-0');
 /** From this width the picture grid stays beside an open entry (Tailwind's `xl`). */
 const WIDE_QUERY = '(min-width: 1280px)';
 
@@ -63,7 +64,7 @@ function TierBadge({ tier, id, hidden = false }: { tier: TierKey; id?: string; h
   const kind = kindOf(tier);
   return (
     <span id={id} aria-hidden={hidden || undefined}
-      className={`inline-flex shrink-0 items-center rounded border px-1.5 text-xs leading-5 font-semibold whitespace-nowrap tabular-nums ${BADGE[kind]}`}>
+      className={`inline-flex shrink-0 items-center chamfer border px-1.5 text-xs leading-5 font-semibold whitespace-nowrap tabular-nums ${BADGE[kind]}`}>
       {t('machineWiki.badge', { key: kind, tier: tierOf(tier) ?? 0 })}
     </span>
   );
@@ -152,7 +153,7 @@ function TierFilter({ options, tiers, onTiers }: { options: TierKey[]; tiers: Ti
             <button key={key} type="button" aria-pressed={on} onClick={e => click(key, e)}
               aria-label={t('machineWiki.tierName', { key: kind, tier: n ?? 0 })}
               title={n !== undefined ? t('machineWiki.tierHint') : undefined}
-              className={`h-10 min-w-10 rounded border px-2 text-sm font-semibold tabular-nums transition-colors focus-ring sm:h-8 sm:min-w-8 ${
+              className={`h-10 min-w-10 chamfer border px-2 text-sm font-semibold tabular-nums transition-colors focus-ring sm:h-8 sm:min-w-8 ${
                 on ? CHIP_ON[kind] : 'border-line bg-bg text-muted hover:bg-line hover:text-fg'}`}>
               {n ?? t('machineWiki.tierChip', { key })}
             </button>
@@ -161,7 +162,7 @@ function TierFilter({ options, tiers, onTiers }: { options: TierKey[]; tiers: Ti
       </div>
       <label className="flex items-center gap-2 text-sm">
         {t('machineWiki.upTo')}
-        <select value={upToValue} className="h-10 rounded border border-line bg-bg px-2 text-fg focus-ring sm:h-8"
+        <select value={upToValue} className={fieldClass({ size: 'sm' }, 'max-sm:h-10')}
           onChange={e => { if (e.target.value !== 'mixed') onTiers(upToTier(tiers, e.target.value === '' ? null : Number(e.target.value))); }}>
           <option value="">{t('machineWiki.upToAll')}</option>
           {upToValue === 'mixed' && <option value="mixed" disabled>{t('machineWiki.upToMixed')}</option>}
@@ -219,7 +220,7 @@ function EntryButton({ entry, layout, current, lang, onSelect }: {
   };
   if (layout === 'grid') {
     return (
-      <button {...common} className={`flex h-full w-full flex-col items-center gap-2 rounded border border-line bg-bg p-2 text-center text-sm transition-colors focus-ring hover:bg-panel ${c.hover}`}>
+      <button {...common} className={`flex h-full w-full flex-col items-center gap-2 chamfer border border-line bg-bg p-2 text-center text-sm transition-colors focus-ring hover:bg-panel ${c.hover}`}>
         <span className={`flex size-24 items-center justify-center rounded ${c.tint}`}>
           <GameIcon cls={descriptorClass(entry.id)} px={88} placeholder />
         </span>
@@ -266,7 +267,7 @@ export function EntryDetail({ data, entry, lang, onBack }: { data: MachineData; 
       <Button variant="ghost" size="sm" className="self-start sm:hidden" onClick={onBack}>
         <span aria-hidden="true">←</span>{t('machineWiki.back')}
       </Button>
-      <header className={`flex flex-col items-center gap-4 rounded border border-line p-4 sm:flex-row ${c.tint}`}>
+      <header className={`flex flex-col items-center gap-4 chamfer border border-line p-4 sm:flex-row ${c.tint}`}>
         <GameIcon cls={descriptorClass(entry.id)} px={128} alt={entry.name[lang]} placeholder />
         <div className="flex min-w-0 flex-col items-center gap-2 text-center sm:items-start sm:text-left">
           <h3 id={titleId} lang={lang} className="max-w-full font-display text-2xl leading-tight font-semibold wrap-break-word hyphens-auto">{entry.name[lang]}</h3>
@@ -281,7 +282,7 @@ export function EntryDetail({ data, entry, lang, onBack }: { data: MachineData; 
       </header>
 
       {rows.length > 0 && (
-        <div className="overflow-hidden rounded border border-line">
+        <div className="overflow-hidden chamfer border border-line">
         <table className="w-full border-collapse">
           <caption className="sr-only">{t('machineWiki.stats')}</caption>
           <tbody>
@@ -308,7 +309,7 @@ export function EntryDetail({ data, entry, lang, onBack }: { data: MachineData; 
         <Section title={t('machineWiki.fuels')}>
           <ul className="flex flex-col gap-1.5">
             {fuels.map(f => (
-              <li key={f.item} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded border border-line bg-bg px-2 py-1.5">
+              <li key={f.item} className="flex flex-wrap items-center gap-x-2 gap-y-1 chamfer border border-line bg-bg px-2 py-1.5">
                 <Amount item={f.item} px={24} className="font-medium"
                   text={f.perMinute === undefined ? itemName(f.item) : amount({ item: f.item, amount: f.perMinute }, true)} />
                 {f.supplement && <span className="inline-flex items-center gap-1.5 text-muted">· {t('machineWiki.plus')} <GameIcon cls={f.supplement.item} px={20} />{amount(f.supplement, true)}</span>}
@@ -329,7 +330,7 @@ export function EntryDetail({ data, entry, lang, onBack }: { data: MachineData; 
         <Section title={t('machineWiki.buildCost', { place: entry.build.place })}>
           <ul className="flex flex-wrap gap-2">
             {entry.build.ingredients.map(a => (
-              <li key={a.item} className="inline-flex items-center gap-2 rounded border border-line bg-bg py-1 pr-2.5 pl-1">
+              <li key={a.item} className="inline-flex items-center gap-2 chamfer border border-line bg-bg py-1 pr-2.5 pl-1">
                 <GameIcon cls={a.item} px={28} />{amount(a)}
               </li>
             ))}
@@ -346,7 +347,7 @@ export function EntryDetail({ data, entry, lang, onBack }: { data: MachineData; 
       )}
 
       {recipes.length > 0 && (
-        <details className="rounded border border-line">
+        <details className="chamfer border border-line">
           <summary className="cursor-pointer px-3 py-2 font-display text-base font-semibold focus-ring">
             {t('machineWiki.recipes', { count: recipes.length })}
           </summary>
@@ -380,7 +381,7 @@ function RecipeLine({ recipe: r, amount, lang }: { recipe: WikiRecipe; amount: A
     <li className="flex flex-col gap-1 py-2">
       <span className="font-medium">
         {r.name[lang]}
-        {r.alternate && <span className="ml-2 rounded border border-line px-1 text-xs text-muted">{t('machineWiki.alternate')}</span>}
+        {r.alternate && <span className="ml-2 chamfer border border-line px-1 text-xs text-muted">{t('machineWiki.alternate')}</span>}
       </span>
       <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {rates(r.ingredients)}

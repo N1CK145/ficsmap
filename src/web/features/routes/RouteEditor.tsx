@@ -11,9 +11,11 @@ import { ApiClientError } from '../../app/api.js';
 import { useUiStore } from '../../app/store.js';
 import { useIsMobile } from '../../app/useMediaQuery.js';
 import { Button } from '../../components/Button.js';
+import { CloseIcon } from '../../components/icons.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { IconButton } from '../../components/IconButton.js';
 import { useToast } from '../../components/Toast.js';
+import { fieldClass } from '../../components/Field.js';
 import { itemLabel } from '../itemPanel/label.js';
 import { TypeIcon } from '../map/TypeIcon.js';
 import { useDatasetQuery } from '../map/useDataset.js';
@@ -187,7 +189,7 @@ function EditorBody({ worldId, me, world, index, marks, draft, route }: BodyProp
             value={draft.name}
             maxLength={MAX_NAME}
             onChange={e => apply({ type: 'rename', name: e.target.value })}
-            className="min-w-0 flex-1 rounded border border-line bg-bg px-2 py-1 focus-ring"
+            className={fieldClass({ size: 'sm' }, 'min-w-0 flex-1')}
           />
         ) : (
           <span className="min-w-0 flex-1 truncate font-medium">“{draft.name}”</span>
@@ -394,7 +396,7 @@ function StopList({ start, stops, editing, isDone, doneByName, label, locale, on
             {editing && (
               <>
                 {!mobile && <span aria-hidden="true" title={t('routes.drag')} className="shrink-0 cursor-grab px-1 text-muted">≡</span>}
-                <IconButton aria-label={t('routes.remove')} size={mobile ? 'touch' : 'sm'} onClick={() => onRemove(stop.name)}><span aria-hidden="true">×</span></IconButton>
+                <IconButton aria-label={t('routes.remove')} size={mobile ? 'touch' : 'sm'} onClick={() => onRemove(stop.name)}><CloseIcon /></IconButton>
               </>
             )}
           </li>

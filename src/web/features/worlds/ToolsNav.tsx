@@ -6,24 +6,12 @@ import { useFeatures } from '../../app/FeaturesContext.js';
 import { useWorldPage, worldPath } from '../../app/pages.js';
 import { useMediaQuery } from '../../app/useMediaQuery.js';
 import { Button, buttonClass } from '../../components/Button.js';
+import { ChevronDownIcon, SlidersIcon as ToolsIcon } from '../../components/icons.js';
 import { IconButton } from '../../components/IconButton.js';
+import { POPOVER } from '../../components/Window.js';
 
 /** From this width the tools are buttons in the top bar; below it they are in the Tools menu. */
 export const WIDE_QUERY = '(min-width: 1280px)';
-
-/** Three sliders: the Tools menu's icon. */
-function ToolsIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false" className="shrink-0">
-      <g stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-        <path d="M2 4h12M2 8h12M2 12h12" opacity="0.55" />
-      </g>
-      <g fill="currentColor">
-        <circle cx="5" cy="4" r="1.9" /><circle cx="11" cy="8" r="1.9" /><circle cx="7" cy="12" r="1.9" />
-      </g>
-    </svg>
-  );
-}
 
 /**
  * The tool navigation in the top bar: every feature's `tools` (map layers such as Caves and Heights,
@@ -41,8 +29,11 @@ export function ToolsNav({ ctx, mobile }: { ctx: WorldCtx; mobile: boolean }) {
   if (mobile || !wide) return <ToolsMenu ctx={ctx} tools={tools} iconOnly={mobile} />;
   const actions = tools.filter(tool => tool.action);
   return (
-    <nav aria-label={t('tools.label')} className="flex shrink-0 items-center gap-1.5">
-      {tools.filter(tool => !tool.action).map(tool => <ToolButton key={tool.id} tool={tool} ctx={ctx} />)}
+    <nav aria-label={t('tools.label')} className="flex shrink-0 items-center gap-2">
+      {/* The map switches as one bar of plates, like the game's hotbar; the pages' menu next to it. */}
+      <div className="flex items-center gap-0.5 chamfer border border-line bg-bg p-0.5">
+        {tools.filter(tool => !tool.action).map(tool => <ToolButton key={tool.id} tool={tool} ctx={ctx} />)}
+      </div>
       {actions.length > 0 && <ToolsMenu ctx={ctx} tools={actions} iconOnly={false} />}
     </nav>
   );
@@ -83,7 +74,7 @@ function SwitchButton({ tool, ctx }: { tool: Tool; ctx: WorldCtx }) {
   if (!state.available) return null;
   return (
     <Button
-      variant={state.pressed ? 'primary' : 'secondary'}
+      variant={state.pressed ? 'primary' : 'ghost'}
       size="sm"
       aria-pressed={state.pressed}
       aria-keyshortcuts={tool.shortcut}
@@ -161,8 +152,13 @@ function ToolsMenu({ ctx, tools, iconOnly }: { ctx: WorldCtx; tools: readonly To
   return (
     <div ref={rootRef} className="relative shrink-0">
       {iconOnly
-        ? <IconButton aria-label={t('tools.label')} size="sm" {...buttonProps}><ToolsIcon /></IconButton>
-        : <Button size="sm" {...buttonProps}><ToolsIcon />{t('tools.label')}</Button>}
+        ? <IconButton aria-label={t('tools.label')} size="sm" variant={open ? 'secondary' : 'ghost'} {...buttonProps}><ToolsIcon /></IconButton>
+        : (
+          <Button size="sm" {...buttonProps}>
+            <ToolsIcon />{t('tools.label')}
+            <ChevronDownIcon size={12} className={`-mr-1 motion-safe:transition-transform ${open ? 'rotate-180' : ''}`} />
+          </Button>
+        )}
       {open && (
         <div
           ref={menuRef}
@@ -170,7 +166,8 @@ function ToolsMenu({ ctx, tools, iconOnly }: { ctx: WorldCtx; tools: readonly To
           role="menu"
           aria-label={t('tools.label')}
           onKeyDown={onMenuKeyDown}
-          className="absolute top-full right-0 z-[1400] mt-1 flex w-60 flex-col rounded border border-line bg-panel p-1 shadow-lg"
+          // On a phone the menu spans the screen under the top bar, so it is never cut off at an edge.
+          className={`z-[1400] flex flex-col p-1 ${POPOVER} ${iconOnly ? 'fixed inset-x-2 top-14' : 'absolute top-full right-0 mt-2 w-64'}`}
         >
           {tools.map(tool => (tool.page === undefined
             ? <ToolMenuItem key={tool.id} tool={tool} ctx={ctx} onDone={() => close(true)} />
@@ -181,7 +178,7 @@ function ToolsMenu({ ctx, tools, iconOnly }: { ctx: WorldCtx; tools: readonly To
   );
 }
 
-const MENU_ITEM = 'flex min-h-11 w-full items-center gap-2 rounded px-2 text-left text-sm text-fg focus-ring hover:bg-line focus:bg-line min-[900px]:min-h-9';
+const MENU_ITEM = 'flex min-h-11 w-full items-center gap-2.5 chamfer px-2.5 text-left text-sm text-fg outline-none hover:bg-raised focus:bg-raised focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset min-[900px]:min-h-9';
 
 /** A page tool as a menu entry: a link item, the current page marked (also with a dot). */
 function PageMenuItem({ tool, page, ctx, onDone }: { tool: Tool; page: string; ctx: WorldCtx; onDone(): void }) {
@@ -203,7 +200,7 @@ function PageMenuItem({ tool, page, ctx, onDone }: { tool: Tool; page: string; c
         e.preventDefault();
         e.currentTarget.click();
       }}
-      className={`${MENU_ITEM} ${link.current ? 'bg-line font-semibold' : ''}`}
+      className={`${MENU_ITEM} ${link.current ? 'font-semibold text-accent' : ''}`}
     >
       <span aria-hidden="true" className="flex w-4 shrink-0 justify-center">{tool.icon}</span>
       <span className="min-w-0 flex-1">{t(tool.labelKey)}</span>
@@ -234,10 +231,10 @@ function ToolMenuItem({ tool, ctx, onDone }: { tool: Tool; ctx: WorldCtx; onDone
     >
       <span aria-hidden="true" className="flex w-4 shrink-0 justify-center">{tool.icon}</span>
       <span className="min-w-0 flex-1">{t(tool.labelKey)}</span>
-      {tool.shortcut && <kbd aria-hidden="true" className="rounded border border-line px-1 font-sans text-xs text-muted">{tool.shortcut}</kbd>}
+      {tool.shortcut && <kbd aria-hidden="true" className="chamfer border border-line px-1.5 font-sans text-xs text-muted">{tool.shortcut}</kbd>}
       {isSwitch && (
-        <span aria-hidden="true" className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${state.pressed ? 'bg-accent' : 'bg-line'}`}>
-          <span className={`absolute top-0.5 size-3 rounded-full bg-fg transition-[left] ${state.pressed ? 'left-3.5' : 'left-0.5'}`} />
+        <span aria-hidden="true" className={`relative h-4 w-7 shrink-0 chamfer border transition-colors ${state.pressed ? 'border-accent bg-accent' : 'border-edge bg-bg'}`}>
+          <span className={`absolute top-px size-3 chamfer transition-[left] ${state.pressed ? 'left-3 bg-on-accent' : 'left-px bg-muted'}`} />
         </span>
       )}
     </button>

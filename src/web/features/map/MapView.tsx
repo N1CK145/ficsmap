@@ -129,8 +129,10 @@ function BannerBar({ children }: { children: ReactNode }) {
     };
   }, []);
   return (
-    <div ref={ref} className="pointer-events-auto absolute inset-x-0 top-0 flex min-h-10 items-center justify-center bg-accent px-3 py-1 text-center text-sm leading-snug font-semibold text-bg">
-      {children}
+    <div ref={ref} className="pointer-events-auto absolute inset-x-0 top-0 flex min-h-10 flex-col bg-accent text-on-accent shadow-[0_4px_16px_rgb(0_0_0/0.4)]">
+      <div className="flex flex-1 items-center justify-center px-3 py-1 text-center text-sm leading-snug font-semibold">{children}</div>
+      {/* Hazard stripes along the lower edge: a mode is on and changes what a map click does. */}
+      <div aria-hidden="true" className="h-1 shrink-0 hazard" />
     </div>
   );
 }

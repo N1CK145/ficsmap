@@ -1,4 +1,6 @@
+import { createElement } from 'react';
 import type { FeatureModule } from '../../app/feature.js';
+import { OreIcon } from '../../components/icons.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { toggleTool } from '../../app/tools.js';
 import { ResourceNodeLayer } from './ResourceNodeLayer.js';
@@ -15,7 +17,7 @@ export const resourceNodesFeature: FeatureModule = {
   sidebarPanels: [{ id: 'resource-nodes', order: 40, titleKey: 'resourceNodes.title', Component: ResourceNodesPanel }],
   mapLayers: [{ id: 'resource-nodes', order: 6, Component: ResourceNodeLayer }],
   tools: [toggleTool({
-    id: 'resource-nodes', order: 30, labelKey: 'resourceNodes.control', hintKey: 'resourceNodes.hint',
+    id: 'resource-nodes', order: 30, labelKey: 'resourceNodes.control', hintKey: 'resourceNodes.hint', icon: createElement(OreIcon),
     useToggle: useNodeLayer, useAvailable: ctx => Boolean(useResourceNodeFile(ctx.me.datasetVersion)),
   })],
   sseHandlers: {

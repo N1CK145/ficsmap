@@ -6,22 +6,14 @@ import { useWorldPage, worldPath } from '../../app/pages.js';
 import { useUiStore } from '../../app/store.js';
 import { useIsMobile } from '../../app/useMediaQuery.js';
 import { Button } from '../../components/Button.js';
+import { CloseIcon, SearchIcon } from '../../components/icons.js';
 import { IconButton } from '../../components/IconButton.js';
+import { WINDOW_FRAME } from '../../components/Window.js';
 import { MIN_QUERY_LENGTH, normalize } from './match.js';
 import { useSearch } from './useSearch.js';
 
 /** How many results the list shows; the map highlights all of them. */
 export const MAX_SHOWN = 8;
-
-/** A magnifying glass in the text colour. */
-export function SearchIcon({ className = '' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false" className={`shrink-0 ${className}`}>
-      <circle cx="6.75" cy="6.75" r="4.75" fill="none" stroke="currentColor" strokeWidth="1.75" />
-      <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 /** "/" (not while typing) or Ctrl/Cmd+K opens the search; neither while a modal dialog is open. */
 export function isSearchShortcut(e: KeyboardEvent): boolean {
@@ -155,8 +147,9 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
       : t('search.count', { count: results.length });
 
   const field = (
-    <div className="relative min-w-0 flex-1" onBlur={onBlur}>
-      <div className="flex h-8 items-center gap-2 rounded border border-line bg-bg px-2 focus-within:border-accent">
+    // On a phone the results hang from the whole bar (the field is not their anchor), so they fit the screen.
+    <div className={`min-w-0 flex-1 ${mobile ? '' : 'relative'}`} onBlur={onBlur}>
+      <div className="flex h-8 items-center gap-2 chamfer border border-line bg-bg px-2 transition-colors hover:border-edge focus-within:border-accent">
         <SearchIcon className="text-muted" />
         <input
           ref={inputRef}
@@ -195,15 +188,18 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
               aria-label={t('search.clear')}
               title={t('search.clear')}
               onClick={clear}
-              className="-mr-1 flex size-6 shrink-0 items-center justify-center rounded text-muted focus-ring hover:bg-line hover:text-fg"
+              className="-mr-1 flex size-6 shrink-0 items-center justify-center chamfer text-muted focus-ring hover:bg-line hover:text-fg"
             >
-              <span aria-hidden="true">×</span>
+              <CloseIcon size={14} />
             </button>
           )
-          : !mobile && <kbd aria-hidden="true" className="rounded border border-line px-1 font-sans text-xs text-muted">/</kbd>}
+          : !mobile && <kbd aria-hidden="true" className="chamfer border border-line px-1.5 font-sans text-xs text-muted">/</kbd>}
       </div>
-      <div className="absolute top-full left-1/2 z-[1400] mt-1 w-[max(100%,24rem)] max-w-[calc(100vw-1rem)] -translate-x-1/2" hidden={!listOpen}>
-        <div className="overflow-hidden rounded border border-line bg-panel shadow-lg">
+      <div
+        className={`absolute top-full z-[1400] mt-1.5 ${mobile ? 'inset-x-2' : 'left-1/2 w-[max(100%,26rem)] max-w-[calc(100vw-1rem)] -translate-x-1/2'}`}
+        hidden={!listOpen}
+      >
+        <div className={`overflow-hidden border-t-2 border-t-accent ${WINDOW_FRAME}`}>
           <ul id={listId} role="listbox" aria-label={t('search.results')} className="max-h-[min(60vh,26rem)] overflow-y-auto py-1">
             {listOpen && shown.map((r, i) => (
               <li
@@ -215,18 +211,18 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
                 onMouseDown={e => e.preventDefault()}
                 onMouseMove={() => { if (i !== active) setActiveIdx(i); }}
                 onClick={() => choose(r.entry)}
-                className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 ${i === active ? 'bg-line' : ''}`}
+                className={`flex cursor-pointer items-center gap-2.5 border-l-2 py-1.5 pr-3 pl-2.5 ${i === active ? 'border-l-accent bg-raised' : 'border-l-transparent'}`}
               >
-                <span aria-hidden="true" className="flex w-4 shrink-0 justify-center">{r.entry.icon}</span>
+                <span aria-hidden="true" className="flex size-6 shrink-0 items-center justify-center">{r.entry.icon}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-fg">{r.entry.label}</span>
                   {r.entry.detail && <span className="block truncate text-xs text-muted">{r.entry.detail}</span>}
                 </span>
-                <span className="shrink-0 text-xs text-muted">{t(r.entry.kindKey)}</span>
+                <span className="shrink-0 font-display text-xs tracking-wider text-muted uppercase">{t(r.entry.kindKey)}</span>
               </li>
             ))}
           </ul>
-          <p aria-hidden="true" className="border-t border-line px-3 py-1.5 text-xs text-muted">{status}</p>
+          <p aria-hidden="true" className="border-t border-line bg-bg/50 px-3 py-1.5 text-xs text-muted">{status}</p>
         </div>
       </div>
       <p role="status" className="sr-only">{listOpen ? status : ''}</p>
@@ -249,7 +245,7 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
         <SearchIcon />
       </IconButton>
       {expanded && (
-        <div role="search" className="absolute inset-0 z-[1400] flex items-center gap-2 bg-panel px-2">
+        <div role="search" className="absolute inset-0 z-[1400] flex items-center gap-2 border-b border-line bg-panel px-2">
           {field}
           <Button size="sm" variant="ghost" onClick={() => { setOpen(false); setExpanded(false); }}>{t('common.close')}</Button>
         </div>

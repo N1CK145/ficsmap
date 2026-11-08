@@ -132,10 +132,20 @@ describe('BiomesPanel', () => {
     expect(useUiStore.getState().biomeScope).toBeNull();
   });
 
-  it('counts only the enabled types', () => {
+  it('counts only the enabled types, with a dash rather than 0/0 for a biome without any of them', () => {
     renderAll();
     act(() => useUiStore.getState().showOnlyType('somersloop'));
-    expect(rows().map(r => r.textContent)).toEqual(['Grass Fields0/2', 'Swamp0/1', 'Dunes0/0']);
+    expect(rows().map(r => r.textContent)).toEqual(['Grass Fields0/2', 'Swamp0/1', 'Dunes–none of the shown types']);
+  });
+
+  it('with every type switched off shows a note instead of counts, and the biomes can still be scoped', async () => {
+    renderAll();
+    act(() => useUiStore.setState({ typeFilter: new Set() }));
+    expect(screen.getByText(/Every collectible type is switched off/)).toBeInTheDocument();
+    // Nothing left to sort by, so by name.
+    expect(rows().map(r => r.textContent)).toEqual(['Dunes', 'Grass Fields', 'Swamp']);
+    await userEvent.click(screen.getByRole('button', { name: 'Swamp' }));
+    expect(useUiStore.getState().biomeScope).toBe(1);
   });
 
   it('sets the shared hover state on hover and clears it on leave', async () => {

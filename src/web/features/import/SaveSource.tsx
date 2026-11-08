@@ -95,14 +95,14 @@ function Pick({ onPick }: { onPick(file: File): void }) {
             const file = e.target.files?.[0];
             if (file) onPick(file);
           }}
-          className="rounded text-sm focus-ring file:mr-3 file:h-10 file:rounded file:border file:border-line file:bg-panel file:px-4 file:text-fg"
+          className="rounded text-sm focus-ring file:mr-3 file:h-10 file:cursor-pointer file:border file:border-line file:bg-raised file:px-4 file:font-medium file:text-fg hover:file:bg-line"
         />
       </div>
       <p className="text-sm text-muted">{t('import.privacy')}</p>
       <div className="flex flex-col gap-1 text-sm">
         <span className="text-muted">{t('import.folderHint')}</span>
         <div className="flex items-center gap-2">
-          <code className="min-w-0 flex-1 truncate rounded border border-line bg-bg px-2 py-1 font-mono">{SAVE_FOLDER_HINT}</code>
+          <code className="min-w-0 flex-1 truncate chamfer border border-line bg-bg px-2 py-1 font-mono">{SAVE_FOLDER_HINT}</code>
           <Button size="sm" onClick={() => void copyPath()}>{t('import.copyPath')}</Button>
         </div>
       </div>
@@ -162,7 +162,7 @@ function FolderList({ onPick }: { onPick(file: File): void }) {
       </div>
       {listing.length === 0 && <p className="text-sm text-muted">{t('import.noSaves')}</p>}
       {listing.length > 0 && (
-        <ul className="flex max-h-60 flex-col overflow-y-auto rounded border border-line">
+        <ul className="flex max-h-60 flex-col overflow-y-auto chamfer border border-line">
           {listing.map(s => (
             <li key={`${s.name}/${s.modified}`} className="border-b border-line last:border-b-0">
               <button

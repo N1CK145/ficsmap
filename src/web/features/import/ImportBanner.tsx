@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { create } from 'zustand';
 import { Button } from '../../components/Button.js';
+import { CloseIcon } from '../../components/icons.js';
 import { IconButton } from '../../components/IconButton.js';
 
 export const IMPORT_BANNER_MS = 20_000;
@@ -45,7 +46,7 @@ export function ImportBanner({ worldId }: { worldId: string }) {
   return (
     <div
       role="status"
-      className="absolute top-12 left-1/2 z-[1001] flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2 rounded border border-line bg-panel py-1 pr-1 pl-3 text-sm shadow-lg"
+      className="absolute top-12 left-1/2 z-[1001] flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2 chamfer-window border border-l-[3px] border-line border-l-accent bg-raised py-1 pr-1 pl-3 text-sm shadow-[0_10px_30px_rgb(0_0_0/0.45)]"
     >
       <span>{t('import.banner', { added: shown.added, conflicts: shown.conflicts })}</span>
       {shown.conflicts > 0 && (
@@ -54,7 +55,7 @@ export function ImportBanner({ worldId }: { worldId: string }) {
         </Button>
       )}
       <IconButton aria-label={t('import.dismiss')} size="sm" onClick={dismiss}>
-        <span aria-hidden="true">×</span>
+        <CloseIcon />
       </IconButton>
     </div>
   );

@@ -13,6 +13,7 @@ import { Button, buttonClass } from '../../components/Button.js';
 import { Footer } from '../../components/Footer.js';
 import { Header } from '../../components/Header.js';
 import { IconButton } from '../../components/IconButton.js';
+import { SidebarIcon } from '../../components/icons.js';
 import { SidebarPanelView } from './SidebarPanelView.js';
 import { useToast } from '../../components/Toast.js';
 import { ImportBanner } from '../import/ImportBanner.js';
@@ -167,7 +168,7 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
     <div className="flex h-dvh flex-col">
       <Header center={center} tools={tools} end={<AccountMenu />}>
         {hasSidebar && <SidebarToggle sidebarId={sidebarId} />}
-        <h1 className="min-w-0 truncate font-display text-lg font-semibold">{ctx.world.name}</h1>
+        <h1 title={ctx.world.name} className="min-w-12 truncate font-display text-lg font-semibold tracking-wide">{ctx.world.name}</h1>
         {startItems.map(h => <h.Component key={h.id} ctx={ctx} />)}
       </Header>
       <div className="flex min-h-0 flex-1">
@@ -228,7 +229,7 @@ function Sidebar({ id, ctx, panels }: { id: string; ctx: WorldCtx; panels: Sideb
         title={t('world.resizeSidebarHint')}
         tabIndex={open ? 0 : -1}
         {...handleProps}
-        className={`absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize touch-none select-none focus-ring hover:bg-accent/60 ${dragging ? 'bg-accent' : ''}`}
+        className={`absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize touch-none select-none transition-colors focus-ring hover:bg-accent/60 ${dragging ? 'bg-accent' : ''}`}
       />
     </aside>
   );
@@ -246,10 +247,10 @@ function SidebarToggle({ sidebarId }: { sidebarId: string }) {
       aria-controls={sidebarId}
       aria-keyshortcuts="["
       size="sm"
-      className="-ml-1"
+      variant={open ? 'ghost' : 'secondary'}
       onClick={() => useUiStore.getState().toggleSidebar()}
     >
-      <span aria-hidden="true">☰</span>
+      <SidebarIcon />
     </IconButton>
   );
 }

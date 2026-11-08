@@ -1,4 +1,6 @@
+import { createElement } from 'react';
 import type { FeatureModule } from '../../app/feature.js';
+import { CaveIcon } from '../../components/icons.js';
 import { toggleTool } from '../../app/tools.js';
 import { CaveLayer } from './CaveLayer.js';
 import { InCave } from './InCave.js';
@@ -14,7 +16,7 @@ export const cavesFeature: FeatureModule = {
   id: 'caves',
   mapLayers: [{ id: 'caves', order: 5, Component: CaveLayer }],
   tools: [toggleTool({
-    id: 'caves', order: 20, labelKey: 'caves.control', hintKey: 'caves.hint',
+    id: 'caves', order: 20, labelKey: 'caves.control', hintKey: 'caves.hint', icon: createElement(CaveIcon),
     useToggle: useCaveLayer, useAvailable: ctx => hasCaves(ctx.index),
   })],
   searchProviders: [cavesSearch],

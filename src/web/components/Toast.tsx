@@ -64,7 +64,7 @@ function ToastView({ toast, onDone }: { toast: ToastInput; onDone(): void }) {
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)}
       onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false); }}
-      className="pointer-events-auto flex max-w-full items-center gap-3 rounded border border-line bg-panel py-2 pr-2 pl-4 shadow-lg"
+      className="pointer-events-auto flex max-w-full items-center gap-3 chamfer-window border border-l-[3px] border-line border-l-accent bg-raised py-2 pr-2 pl-4 shadow-[0_10px_30px_rgb(0_0_0/0.45)]"
     >
       <span className="min-w-0">{toast.message}</span>
       {toast.action && (
