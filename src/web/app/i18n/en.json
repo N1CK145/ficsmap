@@ -687,13 +687,12 @@
     },
     "diagram": {
       "label": "Production chain",
-      "hint": "Wanted items on the left, what goes into them to the right, extractors at the right end. Select a step to change its recipe, clock speed or purity; the arrow keys move between the steps.",
+      "hint": "Raw resources at the top, the wanted items at the bottom; the arrows show what goes where, per minute. Select a step to see it like the game's machine window and change its recipe, clock speed or purity; the arrow keys move between the steps.",
       "wanted": "wanted: {value}",
       "alt": "Alternate",
       "alternate": "{recipe} (alternate recipe)",
       "clock": "{value, number} %",
       "clockLong": "Clock speed {value, number} %",
-      "shards": "{count, plural, one {# Power Shard} other {# Power Shards}}",
       "byproducts": "+ by-products",
       "covered": "From by-products",
       "autoLoop": "Automatically, avoids a loop",
@@ -704,8 +703,32 @@
         "input": "Goes into the step the arrow points to, per minute",
         "byproduct": "By-product of another step",
         "loop": "Loop",
-        "wanted": "Wanted item"
-      }
+        "wanted": "Wanted item",
+        "external": "Supplied from outside",
+        "shard": "Power Shard"
+      },
+      "machines": "{count}× {name}",
+      "makes": "makes {value}",
+      "needs": "needs {list}",
+      "wantedBadge": "Wanted"
+    },
+    "panel": {
+      "recipe": "Recipe",
+      "production": "Production",
+      "input": "Input",
+      "output": "Output",
+      "node": "Resource node",
+      "extraction": "Extraction rate",
+      "perBuilding": "{value} per building",
+      "cycle": "{value} s per cycle",
+      "clock": "Clock speed",
+      "clockSlider": "Clock speed slider (%)",
+      "shards": "Power Shards",
+      "shardSlots": "{used, number} of {total, number} Power Shard slots used",
+      "sloops": "Somersloop",
+      "sloopSlots": "{count, plural, one {# Somersloop slot} other {# Somersloop slots}}, not included in the plan",
+      "pressurizerPower": "{name}: {value} MW per resource well, not included in the totals",
+      "notModelled": "Not included in the plan"
     },
     "gameModeNote": "Values are for the default game mode; game mode settings (recipe costs, power consumption, randomised node purity) are not taken into account.",
     "lastWorking": "Below is the last plan that worked; correct the value and it updates."

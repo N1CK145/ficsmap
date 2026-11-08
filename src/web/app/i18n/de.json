@@ -687,13 +687,12 @@
     },
     "diagram": {
       "label": "Produktionskette",
-      "hint": "Gewünschte Gegenstände links, was in sie eingeht rechts davon, Extraktoren ganz rechts. Wähle einen Schritt aus, um Rezept, Taktrate oder Reinheit zu ändern; mit den Pfeiltasten wechselst du zwischen den Schritten.",
+      "hint": "Rohstoffe oben, die gewünschten Gegenstände unten; die Pfeile zeigen, was wohin geht, pro Minute. Wähle einen Schritt aus, um ihn wie im Maschinenfenster des Spiels zu sehen und Rezept, Taktrate oder Reinheit zu ändern; mit den Pfeiltasten wechselst du zwischen den Schritten.",
       "wanted": "gewünscht: {value}",
       "alt": "Alternativ",
       "alternate": "{recipe} (Alternativrezept)",
       "clock": "{value, number} %",
       "clockLong": "Taktrate {value, number} %",
-      "shards": "{count, plural, one {# Energiefragment} other {# Energiefragmente}}",
       "byproducts": "+ Nebenprodukte",
       "covered": "Aus Nebenprodukten",
       "autoLoop": "Automatisch, vermeidet einen Kreislauf",
@@ -704,8 +703,32 @@
         "input": "Geht in den Schritt, auf den der Pfeil zeigt, pro Minute",
         "byproduct": "Nebenprodukt eines anderen Schritts",
         "loop": "Kreislauf",
-        "wanted": "Gewünschter Gegenstand"
-      }
+        "wanted": "Gewünschter Gegenstand",
+        "external": "Von außen geliefert",
+        "shard": "Energiefragment"
+      },
+      "machines": "{count}× {name}",
+      "makes": "stellt {value} her",
+      "needs": "braucht {list}",
+      "wantedBadge": "Gewünscht"
+    },
+    "panel": {
+      "recipe": "Rezept",
+      "production": "Produktion",
+      "input": "Eingang",
+      "output": "Ausgang",
+      "node": "Rohstoffvorkommen",
+      "extraction": "Förderrate",
+      "perBuilding": "{value} je Gebäude",
+      "cycle": "{value} s je Zyklus",
+      "clock": "Taktrate",
+      "clockSlider": "Taktrate-Regler (%)",
+      "shards": "Energiefragmente",
+      "shardSlots": "{used, number} von {total, number} Plätzen für Energiefragmente belegt",
+      "sloops": "Somersloop",
+      "sloopSlots": "{count, plural, one {# Platz für Somersloops} other {# Plätze für Somersloops}}, im Plan nicht berücksichtigt",
+      "pressurizerPower": "{name}: {value} MW je Rohstoffquelle, nicht in den Summen enthalten",
+      "notModelled": "Im Plan nicht berücksichtigt"
     },
     "gameModeNote": "Die Werte gelten für den Standard-Spielmodus; Einstellungen des Spielmodus (Rezeptkosten, Stromverbrauch, zufällige Reinheit der Rohstoffvorkommen) werden nicht berücksichtigt.",
     "lastWorking": "Unten steht der letzte gültige Plan; korrigiere den Wert, dann wird er aktualisiert."

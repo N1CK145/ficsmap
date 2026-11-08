@@ -1,31 +1,42 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { choiceKey, choiceOptions, clockLimits, defaultChoice, MAX_SHARDS, parseChoiceKey, plan, PURITY_FACTOR, type Choice, type ClockLimits, type Flow, type PlanResult, type PlanStep, type Purity, type StepSettings } from '../../../shared/planner.js';
+import { clockLimits, MAX_SHARDS, plan, type ClockLimits, type PlanResult, type PlanStep, type Purity, type StepSettings } from '../../../shared/planner.js';
 import { miners as minersOf, type RecipeIndex } from '../../../shared/recipes.js';
 import { Button } from '../../components/Button.js';
 import { IconButton } from '../../components/IconButton.js';
 import { SegmentedControl } from '../../components/SegmentedControl.js';
+import { IconsContext, useItemIcons } from '../machineWiki/icons.js';
+import { useMachineData } from '../machineWiki/useMachineWiki.js';
 import { prefersReducedMotion } from '../map/motion.js';
+import { buildingName, ChoiceSelect, flows, inputClass, powerText, usePurityOptions } from './controls.js';
 import { formatNumber, formatRate, itemName, langOf, type Lang } from './format.js';
 import { ItemPicker } from './ItemPicker.js';
 import { PlanDiagram } from './PlanDiagram.js';
+import { StepPanel } from './StepPanel.js';
 import { parseNumber, usePlanner, type PlannerView } from './usePlanner.js';
 import { useRecipes } from './useRecipes.js';
 
-/** The planner for a dataset version: loads its recipe data, then shows the form and the plan. */
+/**
+ * The planner for a dataset version: loads its recipe data, then shows the form and the plan. The diagram view also
+ * loads the dataset's pictures (part `icons`) for its machines and items.
+ */
 export function Planner({ version }: { version: string }) {
   const { t, i18n } = useTranslation();
   const lang = langOf(i18n.resolvedLanguage ?? i18n.language);
   const { index, error } = useRecipes(version);
+  const view = usePlanner(s => s.view);
+  const icons = useItemIcons(version, view === 'diagram');
   if (error) return <p role="alert" className="text-conflict">{t('planner.loadFailed')}</p>;
   if (index === undefined) return <p className="text-muted">{t('common.loading')}</p>;
   if (index === null) return <p>{t('planner.noData')}</p>;
-  return <PlannerBody index={index} lang={lang} />;
+  return (
+    <IconsContext.Provider value={icons}>
+      <PlannerBody index={index} lang={lang} version={version} />
+    </IconsContext.Provider>
+  );
 }
 
-const inputClass = 'h-10 rounded border border-line bg-bg px-3 text-fg focus-ring';
-
-function PlannerBody({ index, lang }: { index: RecipeIndex; lang: Lang }) {
+function PlannerBody({ index, lang, version }: { index: RecipeIndex; lang: Lang; version: string }) {
   const { t } = useTranslation();
   const targets = usePlanner(s => s.targets);
   const choices = usePlanner(s => s.choices);
@@ -69,7 +80,7 @@ function PlannerBody({ index, lang }: { index: RecipeIndex; lang: Lang }) {
       {stale && <p className="text-sm text-muted">{t('planner.lastWorking')}</p>}
       {shown && (
         <>
-          <Steps steps={shown.steps} index={index} lang={lang} minerId={minerId} defaultClock={settings.clock} />
+          <Steps steps={shown.steps} index={index} lang={lang} minerId={minerId} defaultClock={settings.clock} limits={limits} version={version} />
           <Totals result={shown} index={index} lang={lang} />
         </>
       )}
@@ -77,8 +88,15 @@ function PlannerBody({ index, lang }: { index: RecipeIndex; lang: Lang }) {
   );
 }
 
-/** The plan's steps, as a diagram (a node opens its editor below) or as a list. */
-function Steps({ steps, index, lang, minerId, defaultClock }: { steps: PlanStep[]; index: RecipeIndex; lang: Lang; minerId: string; defaultClock: string }) {
+interface StepsProps {
+  steps: PlanStep[]; index: RecipeIndex; lang: Lang; minerId: string; defaultClock: string; limits: ClockLimits; version: string;
+}
+
+/**
+ * The plan's steps, as a diagram (a node opens its step panel, beside the diagram on a wide page, else below it) or as
+ * a list.
+ */
+function Steps({ steps, index, lang, minerId, defaultClock, limits, version }: StepsProps) {
   const { t } = useTranslation();
   const view = usePlanner(s => s.view);
   const setView = usePlanner(s => s.setView);
@@ -86,7 +104,10 @@ function Steps({ steps, index, lang, minerId, defaultClock }: { steps: PlanStep[
   const editorId = useId();
   const nodePrefix = useId();
   const nodeId = (item: string) => `${nodePrefix}${item}`;
-  const step = steps.find(st => st.item === selected);
+  const step = view === 'diagram' ? steps.find(st => st.item === selected) : undefined;
+  // Somersloop slots per building, for the step panel; the machine data loads when a step is first opened.
+  const machines = useMachineData(version, step !== undefined).data;
+  const sloops = step?.recipe ? machines?.machines.find(m => m.id === step.recipe!.machine)?.stats.somersloopSlots : undefined;
   const views: { value: PlannerView; label: string }[] = [
     { value: 'diagram', label: t('planner.viewOption.diagram') },
     { value: 'list', label: t('planner.viewOption.list') },
@@ -102,17 +123,21 @@ function Steps({ steps, index, lang, minerId, defaultClock }: { steps: PlanStep[
         <SegmentedControl label={t('planner.view')} options={views} value={view} onChange={setView} />
       </div>
       {view === 'diagram' ? (
-        <>
-          <PlanDiagram
-            steps={steps} index={index} lang={lang} selected={step ? step.item : null}
-            onSelect={item => setSelected(item === selected ? null : item)} editorId={editorId} nodeId={nodeId}
-          />
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+          <div className="min-w-0 flex-1">
+            <PlanDiagram
+              steps={steps} index={index} lang={lang} selected={step ? step.item : null}
+              onSelect={item => setSelected(item === selected ? null : item)} editorId={editorId} nodeId={nodeId}
+            />
+          </div>
           {step && (
             <StepEditor id={editorId} item={step.item} name={itemName(index, step.item, lang)} onClose={closeEditor}>
-              {action => <StepRow as="div" step={step} index={index} lang={lang} minerId={minerId} defaultClock={defaultClock} action={action} />}
+              {action => (
+                <StepPanel step={step} index={index} lang={lang} minerId={minerId} defaultClock={defaultClock} limits={limits} sloops={sloops} action={action} />
+              )}
             </StepEditor>
           )}
-        </>
+        </div>
       ) : (
         <ol className="grid gap-2 xl:grid-cols-2 2xl:grid-cols-3">
           {steps.map(st => <StepRow key={st.item} step={st} index={index} lang={lang} minerId={minerId} defaultClock={defaultClock} />)}
@@ -122,7 +147,10 @@ function Steps({ steps, index, lang, minerId, defaultClock }: { steps: PlanStep[
   );
 }
 
-/** The selected node's step editor under the diagram; scrolled into view when another step is selected. */
+/**
+ * The selected node's step panel: beside the diagram on a wide page (sticky while the page scrolls), below it on a
+ * narrower one; scrolled into view when another step is selected.
+ */
 function StepEditor({ id, item, name, onClose, children }: { id: string; item: string; name: string; onClose(): void; children(action: ReactNode): ReactNode }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLElement>(null);
@@ -130,9 +158,14 @@ function StepEditor({ id, item, name, onClose, children }: { id: string; item: s
     ref.current?.scrollIntoView?.({ block: 'nearest', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   }, [item]);
   return (
-    <section ref={ref} id={id} aria-label={t('planner.diagram.editor', { item: name })} className="mt-3">
+    <section
+      ref={ref}
+      id={id}
+      aria-label={t('planner.diagram.editor', { item: name })}
+      className="xl:sticky xl:top-0 xl:max-h-[calc(100dvh-7rem)] xl:w-[32rem] xl:shrink-0 2xl:w-[36rem] xl:overflow-y-auto"
+    >
       {children(
-        <IconButton aria-label={t('planner.diagram.close', { item: name })} size="sm" onClick={onClose}>
+        <IconButton aria-label={t('planner.diagram.close', { item: name })} size="sm" onClick={onClose} className="self-start">
           <span aria-hidden="true">×</span>
         </IconButton>,
       )}
@@ -217,12 +250,6 @@ function ExtractorSettings({ minerId, miners, limits }: { minerId: string; miner
 /** The clock speed range in percent, for messages. */
 const percentRange = (limits: ClockLimits) => ({ min: limits.min * 100, max: limits.max * 100 });
 
-/** Impure / Normal / Pure with their factor, for a SegmentedControl or a select. */
-function usePurityOptions(): { value: Purity; label: string }[] {
-  const { t } = useTranslation();
-  return (Object.keys(PURITY_FACTOR) as Purity[]).map(p => ({ value: p, label: t(`planner.purityOption.${p}`, { factor: PURITY_FACTOR[p] }) }));
-}
-
 function PlanError({ result, index, lang, limits }: { result: Extract<PlanResult, { ok: false }>; index: RecipeIndex; lang: Lang; limits: ClockLimits }) {
   const { t } = useTranslation();
   let text: string;
@@ -234,84 +261,37 @@ function PlanError({ result, index, lang, limits }: { result: Extract<PlanResult
   return <p role="alert" className="rounded border border-conflict p-3 text-sm">{text}</p>;
 }
 
-function useChoiceLabel(index: RecipeIndex, lang: Lang, item: string, minerId: string) {
-  const { t } = useTranslation();
-  return (c: Choice): string => {
-    if (c.kind === 'external') return t('planner.option.external');
-    if (c.kind === 'extract') {
-      if (!c.extractor) return t('planner.option.miner', { name: index.extractors.get(minerId)?.name[lang] ?? '' });
-      return index.extractors.get(c.extractor)?.name[lang] ?? c.extractor;
-    }
-    const r = index.recipes.get(c.recipe);
-    if (!r) return c.recipe;
-    const args = { recipe: r.name[lang], machine: index.machines.get(r.machine)?.name[lang] ?? r.machine };
-    return r.products[0]?.item === item ? t('planner.option.recipe', args) : t('planner.option.byproduct', args);
-  };
-}
-
-function flows(index: RecipeIndex, list: readonly Flow[], lang: Lang, t: ReturnType<typeof useTranslation>['t']): string {
-  return list.map(f => `${formatRate(index, f.item, f.rate, lang, t)} ${itemName(index, f.item, lang)}`).join(', ');
-}
-
 interface StepRowProps {
   step: PlanStep; index: RecipeIndex; lang: Lang; minerId: string; defaultClock: string;
-  /** `li` in the list, `div` in the diagram's editor. */
-  as?: 'li' | 'div';
-  /** Next to the rate (the editor's close button). */
-  action?: ReactNode;
 }
 
-function StepRow({ step, index, lang, minerId, defaultClock, as: Tag = 'li', action }: StepRowProps) {
+/** A step in the list view: recipe, clock speed and purity, buildings and power, inputs and by-products. */
+function StepRow({ step, index, lang, minerId, defaultClock }: StepRowProps) {
   const { t } = useTranslation();
-  const setChoice = usePlanner(s => s.setChoice);
   const setStep = usePlanner(s => s.setStep);
   const input = usePlanner(s => s.steps[step.item]);
   const purities = usePurityOptions();
-  const selectId = useId();
   const clockId = useId();
   const purityId = useId();
   const name = itemName(index, step.item, lang);
-  const label = useChoiceLabel(index, lang, step.item, minerId);
-  const current = choiceKey(step.choice);
-  const offered = choiceOptions(index, step.item);
-  const options = offered.some(o => choiceKey(o) === current) ? offered : [step.choice, ...offered];
-  const building = step.recipe ? index.machines.get(step.recipe.machine)?.name[lang] : step.extractor?.name[lang];
+  const building = buildingName(step, index, lang);
   // A resource well step's clock speed and shards are its pressurizer's.
   const pressurizer = step.pressurizer ? index.data.wellPressurizer?.name[lang] : undefined;
   const whole = Math.abs(step.machines - step.machinesCeil) < 1e-6;
 
-  function onChoose(key: string) {
-    const c = parseChoiceKey(key);
-    if (!c) return;
-    setChoice(step.item, choiceKey(c) === choiceKey(defaultChoice(index, step.item)) ? null : c);
-  }
-
   return (
-    <Tag className="rounded border border-line bg-bg p-3">
+    <li className="rounded border border-line bg-bg p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h4 className="font-semibold">
           {name}
           {step.cycle && <span title={t('planner.cycleHint')} className="ml-2 rounded border border-accent px-1.5 text-xs font-medium text-accent">{t('planner.cycle')}</span>}
         </h4>
-        <span className="flex items-center gap-2">
-          <span className="tabular-nums">{formatRate(index, step.item, step.rate, lang, t)}</span>
-          {action}
-        </span>
+        <span className="tabular-nums">{formatRate(index, step.item, step.rate, lang, t)}</span>
       </div>
       {step.targetRate > 0 && step.targetRate < step.rate - 1e-9 && (
         <p className="text-sm text-muted">{t('planner.forYou', { value: formatRate(index, step.item, step.targetRate, lang, t) })}</p>
       )}
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <label htmlFor={selectId} className="text-sm text-muted">{t('planner.howMade')}</label>
-        <select
-          id={selectId}
-          value={current}
-          onChange={e => onChoose(e.target.value)}
-          className="h-10 min-w-0 max-w-full flex-1 rounded border border-line bg-panel px-2 text-sm text-fg focus-ring"
-        >
-          {options.map(o => <option key={choiceKey(o)} value={choiceKey(o)}>{label(o)}</option>)}
-        </select>
-      </div>
+      <ChoiceSelect step={step} index={index} lang={lang} minerId={minerId} className="mt-2" />
       {step.choice.kind !== 'external' && (
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
           <label htmlFor={clockId} className="flex items-center gap-2 text-sm text-muted">
@@ -362,14 +342,8 @@ function StepRow({ step, index, lang, minerId, defaultClock, as: Tag = 'li', act
         )}
       {step.inputs.length > 0 && <p className="text-sm"><span className="text-muted">{t('planner.inputs')}:</span> {flows(index, step.inputs, lang, t)}</p>}
       {step.byproducts.length > 0 && <p className="text-sm"><span className="text-muted">{t('planner.byproducts')}:</span> {flows(index, step.byproducts, lang, t)}</p>}
-    </Tag>
+    </li>
   );
-}
-
-function powerText(p: { min: number; max: number }, lang: Lang, t: ReturnType<typeof useTranslation>['t']): string {
-  return Math.abs(p.max - p.min) < 1e-9
-    ? t('planner.power', { value: formatNumber(p.min, lang, 1) })
-    : t('planner.powerRange', { min: formatNumber(p.min, lang, 1), max: formatNumber(p.max, lang, 1) });
 }
 
 function Totals({ result, index, lang }: { result: Extract<PlanResult, { ok: true }>; index: RecipeIndex; lang: Lang }) {
