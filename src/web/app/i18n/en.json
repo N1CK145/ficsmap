@@ -1458,5 +1458,101 @@
       "onMap": "On the map"
     },
     "cargoMore": "{count, plural, one {+# more} other {+# more}}"
+  },
+  "saveWatcher": {
+    "title": "Automatic upload",
+    "intro": "A small script on your PC or server watches the save folder and uploads every new save to this world. ficsmap reads it like an import: checks, resource nodes and the factory timeline.",
+    "copy": "Copy",
+    "copied": "Copied ✓",
+    "tokens": {
+      "title": "Upload keys",
+      "none": "No key yet.",
+      "loadFailed": "The keys could not be loaded.",
+      "label": "Name of the new key",
+      "labelPlaceholder": "e.g. Gaming PC",
+      "create": "Create key",
+      "anySession": "Accept saves of any session",
+      "anySessionHint": "Otherwise ficsmap refuses saves that belong to another session than this world.",
+      "anySessionBadge": "any session",
+      "created": "Created {date} by {name}",
+      "neverUsed": "never used",
+      "lastUsed": "last used {date}",
+      "revoke": "Revoke",
+      "revokeNamed": "Revoke {name}",
+      "revokeConfirm": "Revoke the key “{name}”? Scripts with this key cannot upload anything afterwards.",
+      "revokeAction": "Revoke key",
+      "revoked": "Key revoked",
+      "revokeFailed": "The key could not be revoked. Please try again.",
+      "createFailed": "The key could not be created. Please try again.",
+      "limit": "A world has at most 20 keys. Revoke one you no longer need.",
+      "createdTitle": "Key “{name}” created",
+      "secretLabel": "New upload key",
+      "secretHint": "Shown only now. It is also in the script you download below."
+    },
+    "platform": {
+      "label": "Platform",
+      "docker": "Docker",
+      "bash": "Linux (bash)",
+      "powershell": "Windows (PowerShell)"
+    },
+    "script": {
+      "title": "Script",
+      "token": "Upload key",
+      "tokenHint": "Create a key above or paste one you still have.",
+      "tokenFromNew": "The new key is filled in.",
+      "folder": "Save folder",
+      "folderDocker": "Save folder on the Docker host",
+      "presets": "Known folders:",
+      "presetOwn": "Own folder",
+      "folderHint": "Sub-folders (such as the one named after your Steam or Epic ID) are searched too.",
+      "session": "Session name",
+      "sessionHint": "Only files whose name starts with “session name_”. Empty: every save.",
+      "poll": "Check every",
+      "seconds": "s",
+      "pollHint": "{min}–{max} seconds. The script usually notices new files at once; this is the fallback.",
+      "mode": "What to upload?",
+      "modes": {
+        "newest": "Only the newest save",
+        "newestHint": "When several new saves appear at once, only the newest.",
+        "all": "Every new save",
+        "allHint": "Each new save, oldest first; older ones go to the timeline."
+      },
+      "warning": "The file contains your upload key. Keep it private: anyone who has it can upload saves to this world.",
+      "download": "Download {file}",
+      "downloaded": "Downloaded"
+    },
+    "problems": {
+      "token": "Create or paste an upload key first.",
+      "saveDir": "Enter the save folder.",
+      "sessionFilter": "The session name contains invalid characters.",
+      "pollSeconds": "Check every 5 to 3600 seconds.",
+      "serverUrl": "This server's address cannot be used.",
+      "worldId": "Invalid world."
+    },
+    "run": {
+      "title": "Run it",
+      "bash": {
+        "run": "Run in the file's folder",
+        "note": "Runs until you stop it with Ctrl+C; with --once it uploads once and exits (for cron, say). With the package inotify-tools it notices new saves at once."
+      },
+      "powershell": {
+        "run": "Run in PowerShell in the file's folder",
+        "autostart": "Start at every sign-in (Task Scheduler): put the file in %USERPROFILE%\\ficsmap, then in PowerShell",
+        "note": "Log and list of uploaded saves: %LOCALAPPDATA%\\ficsmap. If Windows asks for administrator rights, run the commands in a PowerShell as administrator."
+      },
+      "docker": {
+        "compose": "Unpack and start with Docker Compose",
+        "dockerRun": "Or without Compose",
+        "note": "The image is built from the Dockerfile in the folder. The save folder is mounted read-only. Log: docker compose logs -f"
+      }
+    },
+    "presets": {
+      "windows": "Windows (Steam, Epic)",
+      "windowsServer": "Windows, dedicated server",
+      "proton": "Linux, Steam (Proton)",
+      "flatpak": "Linux, Steam as Flatpak",
+      "steamDeck": "Steam Deck",
+      "linuxServer": "Linux, dedicated server"
+    }
   }
 }

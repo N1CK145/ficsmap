@@ -12,7 +12,7 @@ export class ApiClientError extends Error {
 
 const KNOWN_CODES: ReadonlySet<string> = new Set(Object.keys({
   unauthorized: true, forbidden: true, not_found: true, invalid_body: true,
-  invalid_origin: true, rate_limited: true, invite_invalid: true, limit_reached: true, internal: true,
+  invalid_origin: true, rate_limited: true, invite_invalid: true, limit_reached: true, session_mismatch: true, busy: true, internal: true,
 } satisfies Record<ApiErrorCode, true>));
 
 /** The server rejects a mutation without a JSON content type, so these always send a body. */

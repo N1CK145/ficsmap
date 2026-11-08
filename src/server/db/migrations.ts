@@ -79,6 +79,19 @@ CREATE TABLE factory_snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,
       UNIQUE(world_id, session_name, save_time));
 CREATE INDEX factory_snapshots_world_time ON factory_snapshots(world_id, save_time);
 `,
+  // 5: upload tokens of the save watcher (src/server/domain/uploadTokens.ts): a script uploads saves to one world with
+  // `Authorization: Bearer fsm_<id>_<secret>`. Only the SHA-256 of the secret is stored. `any_session` = 1 accepts
+  // saves of another session than the world's. Revoked tokens keep their row (revoked_at) and stop working.
+  `
+CREATE TABLE upload_tokens(id INTEGER PRIMARY KEY AUTOINCREMENT,
+      world_id TEXT NOT NULL REFERENCES worlds ON DELETE CASCADE,
+      label TEXT NOT NULL CHECK(length(label) BETWEEN 1 AND 80),
+      secret_hash BLOB NOT NULL,
+      any_session INT NOT NULL DEFAULT 0 CHECK(any_session IN (0,1)),
+      created_by INT REFERENCES users ON DELETE SET NULL,
+      created_at INT NOT NULL, last_used_at INT, revoked_at INT);
+CREATE INDEX upload_tokens_world ON upload_tokens(world_id);
+`,
 ];
 
 export function migrate(db: Db): void {
