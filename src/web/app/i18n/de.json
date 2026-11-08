@@ -1336,7 +1336,8 @@
       "every": "alle {time}",
       "kind": "Station",
       "rateFillShort": "{dir} {rate} /min · {fill} %",
-      "cargo": "Liegt bereit"
+      "cargo": "Liegt bereit",
+      "number": "Nr. {n}"
     },
     "vehicle": {
       "kind": "Fahrzeug",
@@ -1405,7 +1406,9 @@
       "better": "{count, plural, one {{n} besser} other {{n} besser}}",
       "worse": "{count, plural, one {{n} schlechter} other {{n} schlechter}}",
       "toChanges": "Zu den Änderungen",
-      "comparedMark": "verglichen"
+      "comparedMark": "verglichen",
+      "area": "Bereich {index} von {count}",
+      "areaNext": "Zum nächsten Bereich mit Änderungen"
     },
     "noProduction": "Gebäude ohne Produktion",
     "reasonsLabel": "Gründe",
@@ -1440,7 +1443,7 @@
       "products": "Produkte",
       "inputs": "Zulieferung",
       "asDiagram": "Als Diagramm",
-      "fit": "Zur Linie",
+      "fit": "Zum Strang",
       "partOf": "Teil des Produktionsstrangs",
       "announce": "Produktionsstrang {name}: {count, plural, one {# Maschine} other {# Maschinen}}, Ø {pct}.",
       "tip": "Strang {name} · {count, plural, one {# Maschine} other {# Maschinen}}",
@@ -1449,7 +1452,11 @@
       "pipe": "Pipeline",
       "groupIssue": "{name}: {why}",
       "groupIssueMany": "{count} × {name}: {why}",
-      "demand": "wird nicht abgenommen"
-    }
+      "demand": "wird nicht abgenommen",
+      "more": "Details zeigen",
+      "less": "Weniger zeigen",
+      "onMap": "Auf der Karte"
+    },
+    "cargoMore": "{count, plural, one {+# weiterer} other {+# weitere}}"
   }
 }

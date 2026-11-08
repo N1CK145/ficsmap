@@ -1,6 +1,6 @@
 import { indexBuildings, type BuildingsFile } from '../../src/shared/buildings.js';
 import type { FactorySnapshot } from '../../src/shared/factory/snapshot.js';
-import { changesBox, diffGeometry, type DiffOverlay } from '../../src/web/features/factory/map/diff.js';
+import { changeAreas, changesBox, diffGeometry, type DiffOverlay } from '../../src/web/features/factory/map/diff.js';
 import { buildingLook, detailAt, metresPerMapUnit, PICTURE_MIN_PX, scaledLineWidth } from '../../src/web/features/factory/map/lod.js';
 import { routePath, vehicleRoute } from '../../src/web/features/factory/map/routes.js';
 import {
@@ -150,6 +150,8 @@ describe('factory map levels of detail', () => {
     expect(detailAt(4).lines).toBe(true);
     expect(detailAt(7).softBoxes).toBe(false);
     expect(detailAt(8).softBoxes).toBe(true);
+    expect([detailAt(6).stationNumbers, detailAt(7).stationNumbers]).toEqual([false, true]);
+    expect([detailAt(7).closeUp, detailAt(8).closeUp]).toEqual([false, true]);
     // A Constructor is 8 m wide; in 1.2 a map unit is about 29.3 m.
     const side = 8 / 29.3;
     expect(buildingLook(3, side)).toBe('dot');
@@ -262,7 +264,7 @@ describe('factory map productivity looks', () => {
 });
 
 describe('the selected vehicle\'s route', () => {
-  it('marks the legs into stops where the vehicle moves nothing', () => {
+  it('marks the legs into stops where the vehicle moves nothing and out of problem stations', () => {
     const traffic = (items: number) => [{ vehicle: 'v', avgSecBetweenDocks: 60, avgItemsPerDock: items }];
     const scene = buildScene(snapshot({
       stations: [
@@ -272,8 +274,8 @@ describe('the selected vehicle\'s route', () => {
       vehicles: [{ id: 'v', cls: 'BP_Truck_C', x: 5000, y: 5000, z: 0, yaw: 0, autopilot: true, route: ['A', 'B'] }],
     }), INDEX, BOUNDS);
     const route = vehicleRoute(scene, 'v')!;
-    // A → B ends where nothing moves, B → A does not.
-    expect(route.legs.map(l => l.zero)).toEqual([true, false]);
+    // A → B ends where nothing moves; B → A leaves B, a problem station (nothing moved there).
+    expect(route.legs.map(l => l.zero)).toEqual([true, true]);
     expect(route.stops.map(s => [s.label, s.zero])).toEqual([['1', false], ['2', true]]);
     expect(vehicleRoute(scene, 'nope')).toBeNull();
   });
@@ -295,5 +297,38 @@ describe('going to the changes', () => {
     expect([box.minX, box.minY, box.maxX, box.maxY].map(v => Math.round(v * 10) / 10)).toEqual([9.6, 9.5, 14.4, 10.5]);
     expect(changesBox(scene, { ...empty, floorAdded: new Float32Array([1, 2, 3, 2, 3, 4, 1, 4]) })).toEqual({ minX: 1, minY: 2, maxX: 3, maxY: 4 });
     expect(changesBox(scene, empty)).toBeNull();
+  });
+
+  it('steps through every area of changes, densest first, none left out', () => {
+    const scene = buildScene(snapshot({
+      buildings: [
+        { id: 'c1', cls: 'Build_ConstructorMk1_C', x: 10_000, y: 10_000, z: 0, yaw: 0, prod: { clock: 1, productivity: 1 } },
+        { id: 'c2', cls: 'Build_ConstructorMk1_C', x: 90_000, y: 10_000, z: 0, yaw: 0, prod: { clock: 1, productivity: 1 } },
+        { id: 'c3', cls: 'Build_ConstructorMk1_C', x: 12_000, y: 10_000, z: 0, yaw: 0, prod: { clock: 1, productivity: 1 } },
+      ],
+    }), INDEX, BOUNDS);
+    const areas = changeAreas(scene, { ...empty, added: new Set(['c1', 'c2', 'c3']) });
+    expect(areas).toHaveLength(2);
+    // c1 and c3 together first, then the lone c2.
+    expect(areas[0]!.maxX).toBeLessThan(15);
+    expect(areas[1]!.minX).toBeGreaterThan(80);
+    expect(changeAreas(scene, empty)).toEqual([]);
+  });
+});
+
+describe('stacked floors', () => {
+  it('marks a building with another of its size right above it, and picks the upper one', () => {
+    const scene = buildScene(snapshot({
+      buildings: [
+        { id: 'low', cls: 'Build_ConstructorMk1_C', x: 10_000, y: 10_000, z: 0, yaw: 0, prod: { clock: 1, productivity: 1 } },
+        { id: 'high', cls: 'Build_ConstructorMk1_C', x: 10_050, y: 10_000, z: 800, yaw: 0, prod: { clock: 1, productivity: 1 } },
+        { id: 'side', cls: 'Build_ConstructorMk1_C', x: 30_000, y: 10_000, z: 0, yaw: 0, prod: { clock: 1, productivity: 1 } },
+      ],
+    }), INDEX, BOUNDS);
+    expect(scene.byId.get('low')!.under).toBe(true);
+    expect(scene.byId.get('high')!.under).toBe(false);
+    expect(scene.byId.get('side')!.under).toBe(false);
+    const low = scene.byId.get('low')!;
+    expect(pickBuilding(scene, low.cx, low.cy)?.b.id).toBe('high');
   });
 });

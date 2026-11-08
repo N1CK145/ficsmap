@@ -85,32 +85,39 @@ function shortestWay(
 }
 
 /**
- * The selected vehicle's way along the roads between its stops, in map units, and its stops with their numbers. A leg
- * into a stop where the vehicle moves nothing (0 /min) and that stop's badge are marked.
+ * The selected vehicle's way along the roads between its stops, in map units, and its stops with their numbers. A stop
+ * is marked where this vehicle moves nothing (0 /min) or where the station has a problem (the route analysis's
+ * `StationFlow.problem`: no vehicles, nothing moved); a leg into a marked stop, or out of a problem station, too.
  */
 export function vehicleRoute(scene: Scene, id: string): FrameRoute | null {
   const v = scene.vehicleById.get(id);
   if (!v || v.v.route.length === 0) return null;
   const zeroAt = new Set(v.flow.stops.filter(s => s.visit !== null && (s.visit.itemsPerMin ?? 0) <= 0).map(s => s.station));
+  const problem = (sid: string) => {
+    const st = scene.stationById.get(sid);
+    return !!st && (st.flow.problem != null || st.state !== 'active');
+  };
+  const marked = (sid: string) => zeroAt.has(sid) || problem(sid);
   // The same stops `routePath` walks: known stations, consecutive pairs (back to the first), repeats skipped.
   const known = v.v.route.filter(sid => scene.stationById.has(sid));
-  const targets: string[] = [];
+  const pairs: [string, string][] = [];
   if (known.length >= 2) {
     for (let i = 0; i < known.length; i++) {
       const a = known[i]!, b = known[(i + 1) % known.length]!;
-      if (a !== b) targets.push(b);
+      if (a !== b) pairs.push([a, b]);
     }
   }
   const legs = routePath(scene.snapshot, v.v.route).map((leg, i) => {
     const pts = new Float32Array(leg.length * 2);
     leg.forEach((p, k) => { pts[k * 2] = scene.t.x(p.x); pts[k * 2 + 1] = scene.t.y(p.y); });
-    return { pts, zero: zeroAt.has(targets[i] ?? '') };
+    const [from, to] = pairs[i] ?? ['', ''];
+    return { pts, zero: marked(to) || problem(from) };
   });
   const labels = new Map<string, number[]>();
   v.v.route.forEach((sid, i) => (labels.get(sid) ?? labels.set(sid, []).get(sid)!).push(i + 1));
   const stops = [...labels].flatMap(([sid, nums]) => {
     const st = scene.stationById.get(sid);
-    return st ? [{ cx: st.cx, cy: st.cy, label: nums.join('·'), zero: zeroAt.has(sid) }] : [];
+    return st ? [{ cx: st.cx, cy: st.cy, label: nums.join('·'), zero: marked(sid) }] : [];
   });
   return { legs, stops };
 }

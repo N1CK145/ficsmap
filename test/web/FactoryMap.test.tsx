@@ -16,6 +16,7 @@ import { FactoryPanel } from '../../src/web/features/factory/map/FactoryPanel.js
 import { HighlightChip } from '../../src/web/features/factory/map/HighlightChip.js';
 import { FactoryTimeline } from '../../src/web/features/factory/map/Timeline.js';
 import { DEFAULT_VIEW, loadFactoryMapView, useFactoryMap } from '../../src/web/features/factory/map/useFactoryMap.js';
+import { usePanelsCollapsed } from '../../src/web/features/worlds/SidebarPanelView.js';
 import { useImportDialog } from '../../src/web/features/import/ImportDialog.js';
 import { makeSummary } from './factoryFixtures.js';
 import { stubFetch } from './fetchStub.js';
@@ -231,6 +232,14 @@ describe('factory map: timeline', () => {
     expect(counts).toHaveTextContent('1 worse');
     await user.click(within(counts).getByRole('button', { name: 'Go to the changes' }));
     expect(useFactoryMap.getState().fitChangesSeq).toBe(1);
+    // With several areas the button steps through them: "Area 1 of 3 ›", then the next, round again after the last.
+    act(() => useFactoryMap.setState({ changeAreaCount: 3, changeArea: -1 }));
+    act(() => useFactoryMap.getState().requestFitChanges());
+    expect(within(counts).getByTestId('timeline-to-changes')).toHaveTextContent('Area 1 of 3');
+    act(() => { useFactoryMap.getState().requestFitChanges(); useFactoryMap.getState().requestFitChanges(); useFactoryMap.getState().requestFitChanges(); });
+    expect(useFactoryMap.getState().changeArea).toBe(0);
+    act(() => useFactoryMap.getState().setChangeAreaCount(2));
+    expect(within(counts).getByTestId('timeline-to-changes')).toHaveTextContent('Go to the changes');
     // Stepping back keeps comparing with the save before.
     await user.click(within(bar).getByRole('button', { name: 'Previous save' }));
     await waitFor(() => expect(useFactoryView.getState().compareId).toBe(1));
@@ -320,5 +329,16 @@ describe('factory map: station plates', () => {
     expect(stationLabel(station('active', [visit(0.8, 120), visit(0.6, 60)]), t, number)).toEqual({ text: '↑ 180 /min · 70 %', problem: false, item: 'Desc_IronPlate_C' });
     expect(stationLabel(station('empty', [visit(null, 0)], []), t, number)).toEqual({ text: '↑ 0 /min', problem: true, item: null });
     expect(stationLabel(station('idle', []), t, number).problem).toBe(true);
+  });
+});
+
+describe('factory plan and the sidebar', () => {
+  it('gives the Fabrikplan panel the room while the plan is on, and hands it back when it goes off', () => {
+    useFactoryMap.setState({ visible: false });
+    usePanelsCollapsed.setState({ solo: null, soloState: {} });
+    useFactoryMap.getState().setVisible(true);
+    expect(usePanelsCollapsed.getState().solo).toBe('factory-map');
+    useFactoryMap.getState().toggle();
+    expect(usePanelsCollapsed.getState().solo).toBeNull();
   });
 });

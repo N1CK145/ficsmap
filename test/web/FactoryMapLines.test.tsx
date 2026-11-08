@@ -219,8 +219,9 @@ describe('production lines: hover and selection on the map', () => {
     clickFactory({ kind: 'building', id: 's1' }, LINES);
     expect(useFactoryView.getState().lineId).toBe('c1');
     expect(useFactoryMap.getState().selection).toBeNull();
-    // No fit: the line is where the user clicked.
+    // No fit: the line is where the user clicked; the building tapped is the anchor the map pans clear of the card.
     expect(useFactoryMap.getState().fittedLineId).toBe('c1');
+    expect(useFactoryMap.getState()).toMatchObject({ lineAnchor: 's1', openedLineId: 'c1' });
     clickFactory({ kind: 'building', id: 'c1' }, LINES);
     expect(useFactoryMap.getState().selection).toEqual({ kind: 'building', id: 'c1' });
     expect(useFactoryView.getState().lineId).toBe('c1');
@@ -353,9 +354,14 @@ describe('production lines: card', () => {
     expect(info).toHaveTextContent('Production line');
     expect(card).toHaveTextContent('Bottleneck: Conveyor Belt Mk.1 full between Smelter and Constructor');
     expect(card).toHaveTextContent('30.0/min of target 40.0/min');
-    expect(card).toHaveTextContent('2 × Smelter, 1 × Constructor');
+    // The machines by class, each a button that outlines them on the map.
+    const machines = within(card).getByTestId('factory-line-machines');
+    expect(machines).toHaveTextContent('2 ×SmelterOn the map1 ×ConstructorOn the map');
     expect(within(card).getByRole('heading', { name: 'Supplied' })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId('factory-line-announce')).toHaveTextContent(/^Production line Wire: 3 machines, mean 80 %\. Bottleneck: /));
+
+    await user.click(within(machines).getByRole('button', { name: /Smelter/ }));
+    expect(useFactoryView.getState().highlight).toEqual(['s1', 's2']);
 
     useFactoryMap.getState().setFittedLineId('c1');
     await user.click(within(card).getByRole('button', { name: 'Go to line' }));

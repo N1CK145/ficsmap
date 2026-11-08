@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { requestDetailZoom } from '../../map/zoom.js';
+import { usePanelsCollapsed } from '../../worlds/SidebarPanelView.js';
 import { useFactoryView } from '../view.js';
 
 /**
@@ -43,8 +44,12 @@ interface FactoryMapState extends FactoryMapView {
   returnFocus: HTMLElement | null;
   /** The last `useFactoryView.highlightSeq` the map fitted to. */
   fittedSeq: number;
-  /** Bumped by "Go to the changes": the map fits to the changed buildings. */
+  /** Bumped by "Go to the changes": the map fits to the area of changes `changeArea`. */
   fitChangesSeq: number;
+  /** The area of changes "Go to the changes" last led to (`changeAreas`, densest first); -1 before the first. */
+  changeArea: number;
+  /** How many areas of changes the map found for the shown comparison (the timeline's "Area 1 of n"). */
+  changeAreaCount: number;
   /**
    * The production line under the pointer or the focus (a building on the map, a row of the panel's list): it lights
    * up on the map over the selected one (`useFactoryView.lineId`). Not shared with the page.
@@ -56,6 +61,16 @@ interface FactoryMapState extends FactoryMapView {
    * for a fit to the chosen line again ("Zur Linie").
    */
   fittedLineId: string | null;
+  /**
+   * The building (or belt) a line was chosen by on the map: the map pans it clear of the line's card, so a second tap
+   * reaches it. Null when the line was chosen elsewhere.
+   */
+  lineAnchor: string | null;
+  /**
+   * The line last opened on the map itself (`openLine`). A chosen line that differs came from elsewhere (the line
+   * diagram's "Karte"): on arrival the map fits to it and moves the focus to its card.
+   */
+  openedLineId: string | null;
   toggle(): void;
   setVisible(v: boolean): void;
   toggleLayer(l: FactoryLayer): void;
@@ -64,7 +79,10 @@ interface FactoryMapState extends FactoryMapView {
   select(s: FactorySelection | null, opts?: SelectOptions): void;
   focusHandled(): void;
   setFittedSeq(seq: number): void;
+  /** "Go to the changes": on to the next area of changes (from the densest, round again after the last). */
   requestFitChanges(): void;
+  /** The map found `count` areas of changes for a new comparison: stepping starts again at the densest. */
+  setChangeAreaCount(count: number): void;
   hoverLine(id: string | null): void;
   setFittedLineId(id: string | null): void;
   /** Fit the map to the chosen line again. */
@@ -74,7 +92,7 @@ interface FactoryMapState extends FactoryMapView {
    * from a button, the focus moving to the window's title and back to `opener` on close; `reveal` fits the map to it
    * (without, the line is where the user clicked on the map).
    */
-  openLine(id: string, opts?: SelectOptions & { reveal?: boolean }): void;
+  openLine(id: string, opts?: SelectOptions & { reveal?: boolean; anchor?: string | null }): void;
 }
 
 const KEY = 'ficsmap:factoryMap';
@@ -130,6 +148,9 @@ function save(v: FactoryMapView): void {
   }
 }
 
+/** The id of the sidebar panel "Fabrikplan". */
+export const FACTORY_PANEL_ID = 'factory-map';
+
 /** Key of the factory map's request for the detail zoom (map/zoom.ts). */
 export const ZOOM_KEY = 'factory';
 
@@ -138,8 +159,13 @@ export const useFactoryMap = create<FactoryMapState>()((set, get) => {
   // Before the map is created: a remembered close-up view keeps its zoom.
   requestDetailZoom(ZOOM_KEY, initial.visible);
   const update = (patch: Partial<FactoryMapView>) => {
+    const was = get().visible;
     set(patch);
     save(get());
+    // Switched on: the Fabrikplan panel gets the room in the sidebar (the other panels fold, it scrolls into view), so
+    // its legend and lines are in sight; switched off, the panels go back to how the user had them. Only for as long
+    // as the plan is on and never remembered, so nothing the user folded or unfolded is lost.
+    if (patch.visible !== undefined && patch.visible !== was) usePanelsCollapsed.getState().setSolo(patch.visible ? FACTORY_PANEL_ID : null);
   };
   return {
     ...initial,
@@ -148,8 +174,12 @@ export const useFactoryMap = create<FactoryMapState>()((set, get) => {
     returnFocus: null,
     fittedSeq: 0,
     fitChangesSeq: 0,
+    changeArea: -1,
+    changeAreaCount: 0,
     hoverLineId: null,
     fittedLineId: null,
+    lineAnchor: null,
+    openedLineId: null,
     toggle: () => update({ visible: !get().visible }),
     setVisible: visible => { if (visible !== get().visible) update({ visible }); },
     toggleLayer: l => update({ layers: { ...get().layers, [l]: !get().layers[l] } }),
@@ -165,14 +195,21 @@ export const useFactoryMap = create<FactoryMapState>()((set, get) => {
     },
     focusHandled: () => set({ pendingFocus: false }),
     setFittedSeq: fittedSeq => set({ fittedSeq }),
-    requestFitChanges: () => set({ fitChangesSeq: get().fitChangesSeq + 1 }),
+    requestFitChanges: () => {
+      const { changeArea, changeAreaCount, fitChangesSeq } = get();
+      set({ changeArea: changeAreaCount > 0 ? (changeArea + 1) % changeAreaCount : -1, fitChangesSeq: fitChangesSeq + 1 });
+    },
+    setChangeAreaCount: changeAreaCount => set({ changeAreaCount, changeArea: -1 }),
     hoverLine: hoverLineId => { if (hoverLineId !== get().hoverLineId) set({ hoverLineId }); },
     setFittedLineId: fittedLineId => set({ fittedLineId }),
     requestLineFit: () => set({ fittedLineId: null }),
     openLine: (id, opts = {}) => {
       const was = get();
       const returnFocus = opts.focus ? (was.returnFocus ?? opts.opener ?? null) : was.returnFocus;
-      set({ selection: null, pendingFocus: opts.focus === true, returnFocus, hoverLineId: null, fittedLineId: opts.reveal ? null : id });
+      set({
+        selection: null, pendingFocus: opts.focus === true, returnFocus, hoverLineId: null, fittedLineId: opts.reveal ? null : id,
+        lineAnchor: opts.reveal ? null : opts.anchor ?? null, openedLineId: id,
+      });
       useFactoryView.getState().selectLine(id);
     },
   };

@@ -5,7 +5,7 @@ import {
   bandPattern, drawCrate, drawMarkerPin, drawPlate, drawReasonGlyph, drawStationSymbol, drawVehicleArrow, fitText, lighten,
   overlaps, plateRect, readFactoryPalette, shade, type FactoryPalette, type PlateLine, type Rect,
 } from './draw.js';
-import { buildingLook, detailAt, GLYPH_MIN_PX, PRODUCT_PIN_ZOOM, pxPerMapUnit, scaledLineWidth } from './lod.js';
+import { buildingLook, CLOSE_FROM, detailAt, GLYPH_MIN_PX, PRODUCT_PIN_ZOOM, pxPerMapUnit, scaledLineWidth } from './lod.js';
 import { greyPicture } from './pictures.js';
 import { chevronsAlong, type EdgeLoad, type LineEdgeGeom, type LineGeom } from './lineView.js';
 import type { Scene, SceneBuilding, SceneStation, SceneVehicle } from './scene.js';
@@ -24,7 +24,10 @@ export const FOG_PANE_Z = 300;
 
 /** The selected vehicle's route: legs between its stops and the stops themselves, map units. */
 export interface FrameRoute {
-  /** x, y per point; `zero`: the leg ends at a stop where this vehicle moves nothing (drawn in the danger colour). */
+  /**
+   * x, y per point; `zero`: the leg leads to a stop where this vehicle moves nothing or to or from a problem station
+   * (drawn in the danger colour, as is that stop's badge).
+   */
   legs: { pts: Float32Array; zero: boolean }[];
   stops: { cx: number; cy: number; label: string; zero: boolean }[];
 }
@@ -56,10 +59,13 @@ export interface FactoryFrame {
   /** An item's picture (a machine's product) at about `px` CSS px, or null. */
   itemPicture(item: string, px: number): HTMLImageElement | null;
   label(sb: SceneBuilding): string;
-  /** A station's line on its plate: red for a problem station, with the picture of what lies in it. */
-  stationLabel(st: SceneStation): { text: string; problem: boolean; item: string | null } | null;
+  /**
+   * A station's line on its plate: red for a problem station, with the picture of what lies in it; `numbered` puts the
+   * station's number first (as the Fabrik page names it).
+   */
+  stationLabel(st: SceneStation, numbered: boolean): { text: string; problem: boolean; item: string | null } | null;
   vehicleLabel(v: SceneVehicle): string;
-  /** Label text size in CSS px: 12, 13 on coarse pointers. */
+  /** Label text size in CSS px: 13, 14 on coarse pointers. */
   fontPx: number;
   /** A newer snapshot is loading: the shown one is drawn faded. */
   loading: boolean;
@@ -81,6 +87,14 @@ const LINE_VEIL = 0.62;
 /** From this zoom a lit line's connections carry chevrons in the flow direction, this many CSS px apart. */
 const CHEVRON_ZOOM = 5;
 const CHEVRON_PX = 46;
+/** Close up: opacity of the band hatching and of the tint at most, so the 3 px border and the glyph carry the status. */
+const CLOSE_HATCH = 0.35;
+const CLOSE_TINT = 0.35;
+/** Close up: a problem machine's border in CSS px (a healthy one keeps a thin edge). */
+const CLOSE_BORDER_PX = 3;
+/** A lower floor of a stack is drawn shrunk to this share around its centre, and this faint. */
+const UNDER_INSET = 0.8;
+const UNDER_ALPHA = 0.35;
 /** Width in CSS px of a lit line's connection per load; the bottleneck widest. */
 const LOAD_WIDTH: Record<EdgeLoad | 'bottleneck' | 'inner', number> = { inner: 1.75, low: 2, mid: 2.75, unknown: 2.5, saturated: 4.5, bottleneck: 5.5 };
 type PathKey = EdgeLoad | 'bottleneck' | 'inner';
@@ -154,6 +168,8 @@ interface Chunk {
   /** Lines per `<kind>:<tier>`. */
   lines: Map<string, Path2D>;
   power: Path2D | null;
+  /** The close-up's groups (made on its first frame): `fills` without the lower floors of stacks, and those inset. */
+  close: { top: Map<string, Path2D>; under: Map<string, Path2D> } | null;
 }
 
 interface Paths { chunks: Chunk[] }
@@ -164,7 +180,7 @@ function chunkFor(map: Map<number, Chunk>, x: number, y: number): Chunk {
   const k = (Math.floor(x / CHUNK) + 1024) * 4096 + (Math.floor(y / CHUNK) + 1024);
   let c = map.get(k);
   if (!c) {
-    c = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity, buildings: [], floor: null, fills: new Map(), soft: new Map(), lines: new Map(), power: null };
+    c = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity, buildings: [], floor: null, fills: new Map(), soft: new Map(), lines: new Map(), power: null, close: null };
     map.set(k, c);
   }
   return c;
@@ -240,6 +256,30 @@ function pathsOf(scene: Scene): Paths {
 }
 
 type Box = { minX: number; minY: number; maxX: number; maxY: number };
+
+/** Quads shrunk to `k` around each quad's own centre. */
+function insetQuads(q: ArrayLike<number>, k: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i + 7 < q.length; i += 8) {
+    const cx = (q[i]! + q[i + 2]! + q[i + 4]! + q[i + 6]!) / 4, cy = (q[i + 1]! + q[i + 3]! + q[i + 5]! + q[i + 7]!) / 4;
+    for (let j = 0; j < 8; j += 2) out.push(cx + (q[i + j]! - cx) * k, cy + (q[i + j + 1]! - cy) * k);
+  }
+  return out;
+}
+
+/** A chunk's close-up groups, made once: the upper buildings per fill key, and the lower floors of stacks inset. */
+function closeGroups(c: Chunk, scene: Scene): NonNullable<Chunk['close']> {
+  if (c.close) return c.close;
+  const top = new Map<string, Path2D>(), under = new Map<string, Path2D>();
+  for (const i of c.buildings) {
+    const sb = scene.buildings[i]!;
+    for (const key of [`k:${sb.kind}`, prodFillKey(sb)]) {
+      if (sb.under) addQuads(getOr(under, key, () => new Path2D()), insetQuads(sb.hard, UNDER_INSET));
+      else addQuads(getOr(top, key, () => new Path2D()), sb.hard);
+    }
+  }
+  return (c.close = { top, under });
+}
 
 /**
  * The factory of one snapshot on one canvas in its own pane: the floor plan, lines, buildings (dots, boxes, boxes with
@@ -447,7 +487,22 @@ export class FactoryCanvasLayer extends L.Layer {
         // With changes marked, every building is drawn in one neutral grey; the changes add their colours on top.
         const prefix = prodMode && !changes ? 'p:' : 'k:';
         for (const c of chunks) {
-          for (const [key, path] of [...c.fills].sort((a, b) => fillRank(a[0]) - fillRank(b[0]))) {
+          const close = d.closeUp ? closeGroups(c, scene) : null;
+          if (close) {
+            // The lower floors of stacks first: inset, faint, with a thin edge, so the upper floor reads on its own.
+            for (const [key, path] of close.under) {
+              if (!key.startsWith(prefix)) continue;
+              const fill = changes ? p.kinds.logistics : fillOf(key);
+              ctx.globalAlpha = UNDER_ALPHA * fade;
+              ctx.fillStyle = fill;
+              ctx.fill(path);
+              ctx.globalAlpha = 0.6 * fade;
+              ctx.strokeStyle = fill;
+              ctx.lineWidth = 1 / s;
+              ctx.stroke(path);
+            }
+          }
+          for (const [key, path] of [...(close ? close.top : c.fills)].sort((a, b) => fillRank(a[0]) - fillRank(b[0]))) {
             if (!key.startsWith(prefix)) continue;
             if (changes) {
               ctx.globalAlpha = 0.55 * fade;
@@ -483,7 +538,8 @@ export class FactoryCanvasLayer extends L.Layer {
               ctx.fill(path);
               continue;
             }
-            ctx.globalAlpha = look.tint * fade;
+            // Close up the hatching and tint step back: a 3 px border in the band colour and the glyph carry the status.
+            ctx.globalAlpha = (close ? Math.min(look.tint, CLOSE_TINT) : look.tint) * fade;
             ctx.fillStyle = fill;
             ctx.fill(path);
             if (look.pattern !== 'none') {
@@ -491,14 +547,14 @@ export class FactoryCanvasLayer extends L.Layer {
               if (pat) {
                 pat.setTransform(new DOMMatrix().scale(1 / s));
                 ctx.fillStyle = pat;
-                ctx.globalAlpha = (look.pattern === 'cross' ? 0.5 : 0.9) * fade;
+                ctx.globalAlpha = (close ? CLOSE_HATCH : look.pattern === 'cross' ? 0.5 : 0.9) * fade;
                 ctx.fill(path);
               }
             }
             if (d.outlines || look.rank > 0) {
               ctx.globalAlpha = (look.rank === 0 ? 0.85 : 1) * fade;
               ctx.strokeStyle = fill;
-              ctx.lineWidth = 1 / s;
+              ctx.lineWidth = (close && look.rank > 0 ? CLOSE_BORDER_PX : 1) / s;
               ctx.stroke(path);
             }
           }
@@ -635,7 +691,7 @@ export class FactoryCanvasLayer extends L.Layer {
             .slice()
             .sort((a, b) => order(a.st) - order(b.st))
             .flatMap(({ st }) => {
-              const l = f.stationLabel(st);
+              const l = f.stationLabel(st, d.stationNumbers);
               return l ? [{ text: l.text, color: l.problem ? p.conflict : p.fg, icon: l.item ? f.itemPicture(l.item, lineH - 3) : null }] : [];
             });
           if (lines.length === 0) continue;
@@ -841,6 +897,8 @@ export class FactoryCanvasLayer extends L.Layer {
   ): void {
     // Stations are their symbol and plate (roads layer); their picture and name would sit under the plate.
     if (f.layers.roads && f.scene?.stationById.has(sb.b.id)) return;
+    // The lower floor of a stack: only the upper one carries picture, name and glyphs (their info is a click away).
+    if (sb.under && zoom >= CLOSE_FROM) return;
     // Belt and pipe attachments, poles and signs: a picture only at the closest zoom, never a name (clarity first).
     const minor = sb.kind === 'logistics';
     const raw = buildingLook(zoom, sb.minSide);
@@ -973,22 +1031,8 @@ export class FactoryCanvasLayer extends L.Layer {
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     ctx.globalAlpha = 1;
     mapSpace();
-    // Floor pieces.
-    if (f.layers.floor) {
-      const added = new Path2D(), removed = new Path2D();
-      for (let i = 0; i + 7 < diff.floorAdded.length; i += 8) addQuads(added, diff.floorAdded, i, i + 8);
-      for (let i = 0; i + 7 < diff.floorRemoved.length; i += 8) addQuads(removed, diff.floorRemoved, i, i + 8);
-      ctx.fillStyle = p.kinds.structure;
-      ctx.fill(added);
-      ctx.strokeStyle = p.free;
-      ctx.lineWidth = 1 / s;
-      ctx.stroke(added);
-      ctx.setLineDash([3 / s, 2 / s]);
-      ctx.strokeStyle = p.conflict;
-      ctx.stroke(removed);
-      ctx.setLineDash([]);
-    }
-    // Lines.
+    // Foundations, walls and ramps are counted in the timeline's bar but not tinted: thousands of green squares would
+    // drown the buildings that changed. Lines.
     if (f.layers.lines || f.layers.roads) {
       const added = new Path2D();
       for (const l of scene.lines) if (diff.linesAdded.has(l.id) && inView(l)) addPolyline(added, l.pts);

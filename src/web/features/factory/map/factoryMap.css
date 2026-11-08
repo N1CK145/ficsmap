@@ -14,3 +14,22 @@
 .ficsmap-factory-fog {
   image-rendering: auto;
 }
+
+/* The line card's peek on phones: its title bar is the grab handle (a tap or a drag up unfolds it, down folds it), with
+   a small bar on top as the cue, like the bottom sheet's handle. */
+.ficsmap-factory-peek > :first-child {
+  position: relative;
+  touch-action: none;
+  cursor: grab;
+}
+
+.ficsmap-factory-peek > :first-child::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 2.5rem;
+  height: 3px;
+  transform: translateX(-50%);
+  background: var(--color-edge);
+}
