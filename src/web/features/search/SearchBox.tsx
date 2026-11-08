@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FocusEvent, type KeyboardEvent
 import { useTranslation } from 'react-i18next';
 import type { SearchEntry, WorldCtx } from '../../app/feature.js';
 import { isEditableTarget } from '../../app/keyboard.js';
+import { useWorldPage, worldPath } from '../../app/pages.js';
 import { useUiStore } from '../../app/store.js';
 import { useIsMobile } from '../../app/useMediaQuery.js';
 import { Button } from '../../components/Button.js';
@@ -35,11 +36,13 @@ export function isSearchShortcut(e: KeyboardEvent): boolean {
  * matches are highlighted on the map (the rest fades); choosing a result keeps its own items
  * highlighted and runs its action (select an item, scope a biome, show a cave). A combobox with a
  * listbox: arrows move, Enter chooses, Esc closes the list, then clears. On mobile a button in the
- * bar opens it over the bar.
+ * bar opens it over the bar. On a world page (planner, ...) a result about the map (one with `actors`)
+ * goes back to the map first; the others act where they are (a machine opens its wiki entry).
  */
 export function SearchBox({ ctx }: { ctx: WorldCtx }) {
   const { t } = useTranslation();
   const mobile = useIsMobile();
+  const onPage = useWorldPage() !== undefined;
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -91,6 +94,8 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
     setChosen(entry);
     setQuery(entry.label);
     setOpen(false);
+    // The entry acts on the map through requests (focus, fit, scope) the map carries out once it is shown.
+    if (entry.actors && onPage) ctx.navigate(worldPath(ctx.worldId));
     entry.onSelect?.(ctx);
     // On a phone the map is what the user wants to see now.
     if (mobile) setExpanded(false);

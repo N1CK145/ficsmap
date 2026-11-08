@@ -50,8 +50,10 @@ describe('ui store', () => {
     ui().toggleSidebar();
     ui().setOnlyConflicts(true);
     expect(ui()).toMatchObject({
-      selectedActor: 'BP_WAT1_C_1', visibility: 'hide', biomeScope: 3, sidebarOpen: false, onlyConflicts: true,
+      selectedActor: 'BP_WAT1_C_1', visibility: 'hide', biomeScope: 3, biomeFitRequest: 3, sidebarOpen: false, onlyConflicts: true,
     });
+    ui().clearBiomeFitRequest();
+    expect(ui()).toMatchObject({ biomeScope: 3, biomeFitRequest: null });
     ui().setSidebarOpen(true);
     expect(ui().sidebarOpen).toBe(true);
   });
@@ -67,7 +69,7 @@ describe('ui store', () => {
 
     ui().enterWorld('world-a', { typeFilter: ['hard_drive', 'mercer_sphere'], visibility: 'hide', biomeScope: 2, zoom: 3 });
     expect(ui()).toMatchObject({
-      worldId: 'world-a', interactionMode: 'inspect', selectedActor: null, onlyConflicts: false, visibility: 'hide', biomeScope: 2,
+      worldId: 'world-a', interactionMode: 'inspect', selectedActor: null, onlyConflicts: false, visibility: 'hide', biomeScope: 2, biomeFitRequest: null,
       sidebarOpen: false,
     });
     expect([...ui().typeFilter].sort()).toEqual(['hard_drive', 'mercer_sphere']);

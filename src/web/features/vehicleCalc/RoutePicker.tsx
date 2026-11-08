@@ -1,22 +1,34 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import { routeGeometry } from '../../../shared/vehicleRoute.js';
+import type { WorldCtx } from '../../app/feature.js';
+import { worldPath } from '../../app/pages.js';
+import { useUiStore } from '../../app/store.js';
 import { Button } from '../../components/Button.js';
 import { useHeights } from '../coords/useHeights.js';
+import { PICK_STATE } from './PickReturn.js';
 import { useVehicleCalc } from './useVehicleCalc.js';
 
 /**
  * Under the route length: [Pick on the map], and once start and destination are set, the straight line between them
  * with the height difference and the 3D length (from the dataset's height map, when it has one), [Pick again] and
  * [Clear points]. The route length is the straight line: exact for drones, a lower bound for wheeled vehicles.
+ * Picking goes to the map in PICK_MODE (a history entry of its own, `PICK_STATE`); `PickReturn` comes back.
  */
-export function RoutePicker({ version }: { version: string }) {
+export function RoutePicker({ ctx }: { ctx: WorldCtx }) {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const route = useVehicleCalc(s => s.route);
   const fromRoute = useVehicleCalc(s => s.lengthFromRoute);
-  const { startPicking, clearRoute, applyRouteLength } = useVehicleCalc.getState();
-  const { available, heightAt } = useHeights(version, route !== null);
+  const { clearRoute, applyRouteLength } = useVehicleCalc.getState();
+  const { available, heightAt } = useHeights(ctx.me.datasetVersion, route !== null);
   const titleId = useId();
+  const startPicking = () => {
+    useVehicleCalc.getState().startPicking();
+    useUiStore.getState().setMainView('map');
+    void navigate(worldPath(ctx.worldId), { state: PICK_STATE });
+  };
 
   if (!route) {
     return (

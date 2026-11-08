@@ -1,4 +1,5 @@
 import type { FeatureModule } from '../../app/feature.js';
+import { WORLD_ROUTE_ID } from '../../app/pages.js';
 import { LoginPage } from './LoginPage.js';
 import { RemovedPage } from './RemovedPage.js';
 import { WorldLayout } from './WorldLayout.js';
@@ -9,8 +10,9 @@ export const worldsFeature: FeatureModule = {
   routes: [
     { path: '/login', Component: LoginPage },
     { path: '/', Component: WorldListPage },
-    // The settings view is a child route so the world layout (and its stream, dialogs, state) stays mounted.
-    { path: '/w/:id', Component: WorldLayout, children: [{ path: 'settings', Component: () => null }] },
+    // The settings view and the features' world pages (added by the router) are child routes, so the world layout
+    // (and its stream, dialogs, state) stays mounted.
+    { id: WORLD_ROUTE_ID, path: '/w/:id', Component: WorldLayout, children: [{ path: 'settings', Component: () => null }] },
     { path: '/removed', Component: RemovedPage },
   ],
 };

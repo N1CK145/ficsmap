@@ -16,6 +16,11 @@ export interface UiState {
   typeFilter: Set<CollectibleTypeId>;
   visibility: CollectedVisibility;
   biomeScope: number | null;
+  /**
+   * A pending request for the map to fit the view to this biome: set with the scope, not for a scope restored with
+   * the view. The biome layer carries it out once the map is shown and clears it.
+   */
+  biomeFitRequest: number | null;
   sidebarOpen: boolean;
   onlyConflicts: boolean;
   /** What the main area shows: the map or the list view (spec §10.10). Not remembered; the map restores its own viewport. */
@@ -42,6 +47,7 @@ export interface UiState {
   setTypeFilter(ids: Iterable<CollectibleTypeId>): void;
   setVisibility(v: CollectedVisibility): void;
   setBiomeScope(biome: number | null): void;
+  clearBiomeFitRequest(): void;
   setSidebarOpen(open: boolean): void;
   toggleSidebar(): void;
   setOnlyConflicts(on: boolean): void;
@@ -50,7 +56,7 @@ export interface UiState {
   enterWorld(worldId: string, view?: Partial<PersistedView>): void;
 }
 
-type WorldState = Pick<UiState, 'worldId' | 'interactionMode' | 'selectedActor' | 'typeFilter' | 'visibility' | 'biomeScope' | 'onlyConflicts' | 'mainView' | 'selfLeaving' | 'focusRequest' | 'searchHighlight'>;
+type WorldState = Pick<UiState, 'worldId' | 'interactionMode' | 'selectedActor' | 'typeFilter' | 'visibility' | 'biomeScope' | 'biomeFitRequest' | 'onlyConflicts' | 'mainView' | 'selfLeaving' | 'focusRequest' | 'searchHighlight'>;
 
 function worldState(worldId: string | null, view: Partial<PersistedView> = {}): WorldState {
   return {
@@ -60,6 +66,7 @@ function worldState(worldId: string | null, view: Partial<PersistedView> = {}): 
     typeFilter: new Set(view.typeFilter ?? COLLECTIBLE_TYPES.map(t => t.id)),
     visibility: view.visibility ?? 'dim',
     biomeScope: view.biomeScope ?? null,
+    biomeFitRequest: null,
     onlyConflicts: false,
     mainView: 'map',
     selfLeaving: null,
@@ -81,7 +88,8 @@ export const useUiStore = create<UiState>()(set => ({
   showOnlyType: id => set({ typeFilter: new Set([id]) }),
   setTypeFilter: ids => set({ typeFilter: new Set(ids) }),
   setVisibility: v => set({ visibility: v }),
-  setBiomeScope: biome => set({ biomeScope: biome }),
+  setBiomeScope: biome => set({ biomeScope: biome, biomeFitRequest: biome }),
+  clearBiomeFitRequest: () => set({ biomeFitRequest: null }),
   setSidebarOpen: open => set({ sidebarOpen: open }),
   toggleSidebar: () => set(s => ({ sidebarOpen: !s.sidebarOpen })),
   setOnlyConflicts: on => set({ onlyConflicts: on }),

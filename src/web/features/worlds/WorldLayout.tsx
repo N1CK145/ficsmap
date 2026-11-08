@@ -5,6 +5,7 @@ import { Link, useMatch, useNavigate, useParams, useSearchParams } from 'react-r
 import { ApiClientError } from '../../app/api.js';
 import { collect, type SidebarPanel, type WorldCtx } from '../../app/feature.js';
 import { useFeatures } from '../../app/FeaturesContext.js';
+import { useWorldPage } from '../../app/pages.js';
 import { loadView, setLastWorld } from '../../app/persist.js';
 import { useUiStore } from '../../app/store.js';
 import { useIsMobile } from '../../app/useMediaQuery.js';
@@ -36,12 +37,15 @@ import { AccountMenu } from './AccountMenu.js';
 import { useMe, useWorld } from './queries.js';
 import { ToolsNav } from './ToolsNav.js';
 import { useSidebarKey } from './useSidebarKey.js';
+import { WorldPageView } from './WorldPageView.js';
 
 /**
  * `/w/:id`: loads everything a world needs (me, world, dataset, marks), then renders the header,
  * the sidebar panels from the features' extension points, the map (which hosts the map ones) and the
  * item panel over it. Ctrl+Z, Q, Esc and `[` (sidebar) work anywhere in the world. Below 900 px the
- * panels move into a bottom sheet and the item panel into an item sheet (spec §10.11).
+ * panels move into a bottom sheet and the item panel into an item sheet (spec §10.11). The settings
+ * (`/w/:id/settings`) and the features' world pages (`/w/:id/<page>`) are child routes: they replace
+ * the sidebar, the map and the sheets while the layout stays mounted.
  */
 export function WorldLayout() {
   const { id = '' } = useParams();
@@ -128,11 +132,14 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
   const { t } = useTranslation();
   const mainView = useUiStore(s => s.mainView);
   const inSettings = useMatch('/w/:id/settings') !== null;
+  const page = useWorldPage();
+  // The settings and the world pages take the whole main area: no sidebar, map, item panel or sheets.
+  const onMap = !inSettings && page === undefined;
   const mobile = useIsMobile();
   const features = useFeatures();
   useWorldEvents(ctx.worldId, ctx);
   useUndoShortcut(ctx);
-  useSidebarKey(!mobile && !inSettings);
+  useSidebarKey(!mobile && onMap);
   // Sidebar panels' `visible` read the marks cache, so the shell re-renders when it changes.
   useMarks(ctx.worldId);
 
@@ -146,11 +153,11 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
   }, [features]);
   const shown = panels.filter(p => p.visible?.(ctx) ?? true);
   const sidebarId = useId();
-  const hasSidebar = !inSettings && !mobile;
+  const hasSidebar = onMap && !mobile;
   // On mobile the map is always the main area; the sheet's full height is the list view.
   const view = inSettings ? 'settings' : mobile ? 'map' : mainView;
-  // The search and the tools act on the map, so the settings page has neither. On mobile the search
-  // is a button next to the tools rather than in the middle of the bar.
+  // The settings page has neither the search nor the tools; the world pages have both (a map result found there
+  // goes back to the map). On mobile the search is a button next to the tools rather than in the middle of the bar.
   const centered = inSettings ? null : centerItems.map(h => <h.Component key={h.id} ctx={ctx} />);
   const toolsNav = inSettings ? null : <ToolsNav ctx={ctx} mobile={mobile} />;
   const center = mobile || !centered ? undefined : centered;
@@ -165,15 +172,17 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
       </Header>
       <div className="flex min-h-0 flex-1">
         {hasSidebar && <Sidebar id={sidebarId} ctx={ctx} panels={shown} />}
-        <section role="region" aria-label={t(view === 'settings' ? 'settings.title' : view === 'list' ? 'list.caption' : 'world.map')} className="relative min-w-0 flex-1 bg-bg">
-          {view === 'settings' ? <SettingsPage ctx={ctx} /> : view === 'list' ? <ListView ctx={ctx} /> : <MapView ctx={ctx} />}
-          <ImportBanner worldId={ctx.worldId} />
-          {view === 'map' && !mobile && <ItemPanel ctx={ctx} />}
-        </section>
+        {page ? <WorldPageView key={page.id} page={page} ctx={ctx} /> : (
+          <section role="region" aria-label={t(view === 'settings' ? 'settings.title' : view === 'list' ? 'list.caption' : 'world.map')} className="relative min-w-0 flex-1 bg-bg">
+            {view === 'settings' ? <SettingsPage ctx={ctx} /> : view === 'list' ? <ListView ctx={ctx} /> : <MapView ctx={ctx} />}
+            <ImportBanner worldId={ctx.worldId} />
+            {view === 'map' && !mobile && <ItemPanel ctx={ctx} />}
+          </section>
+        )}
       </div>
       {/* Always visible; on mobile the sheets sit on top of it (FOOTER_PX). */}
       <Footer className="border-t border-line bg-panel" />
-      {!inSettings && mobile && <MobileSheets ctx={ctx} panels={shown.filter(p => !p.desktopOnly)} />}
+      {onMap && mobile && <MobileSheets ctx={ctx} panels={shown.filter(p => !p.desktopOnly)} />}
       <ImportDialogHost ctx={ctx} />
     </div>
   );

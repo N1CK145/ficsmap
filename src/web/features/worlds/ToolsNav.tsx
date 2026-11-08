@@ -1,9 +1,11 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import { collect, type Tool, type WorldCtx } from '../../app/feature.js';
 import { useFeatures } from '../../app/FeaturesContext.js';
+import { useWorldPage, worldPath } from '../../app/pages.js';
 import { useMediaQuery } from '../../app/useMediaQuery.js';
-import { Button } from '../../components/Button.js';
+import { Button, buttonClass } from '../../components/Button.js';
 import { IconButton } from '../../components/IconButton.js';
 
 /** From this width the tools are buttons in the top bar; below it they are in the Tools menu. */
@@ -26,8 +28,9 @@ function ToolsIcon() {
 /**
  * The tool navigation in the top bar: every feature's `tools` (map layers such as Caves and Heights,
  * resource nodes). Wide screens get a button per map switch, filled while it is on, and one "Tools" menu
- * for the tools that open something of their own (`action`: planner, vehicle calculator, machine wiki);
- * narrower screens and phones get one "Tools" menu with every entry.
+ * for the tools that are not map switches (`action`: the pages planner, vehicle calculator and machine wiki);
+ * narrower screens and phones get one "Tools" menu with every entry. A tool with a `page` is a link to that
+ * world page, marked with `aria-current="page"` while the page is shown.
  */
 export function ToolsNav({ ctx, mobile }: { ctx: WorldCtx; mobile: boolean }) {
   const { t } = useTranslation();
@@ -45,8 +48,36 @@ export function ToolsNav({ ctx, mobile }: { ctx: WorldCtx; mobile: boolean }) {
   );
 }
 
-/** One tool as a top-bar button; nothing while the tool is not available. */
+/** Where a page tool links to, and whether its page is shown now (needs the router). */
+function usePageLink(page: string, ctx: WorldCtx): { to: string; current: boolean } {
+  const shown = useWorldPage();
+  return { to: worldPath(ctx.worldId, page), current: shown?.id === page };
+}
+
+/** One tool as a top-bar button (a link for a page tool); nothing while the tool is not available. */
 export function ToolButton({ tool, ctx }: { tool: Tool; ctx: WorldCtx }) {
+  return tool.page === undefined ? <SwitchButton tool={tool} ctx={ctx} /> : <PageToolButton tool={tool} page={tool.page} ctx={ctx} />;
+}
+
+function PageToolButton({ tool, page, ctx }: { tool: Tool; page: string; ctx: WorldCtx }) {
+  const { t } = useTranslation();
+  const state = tool.useTool(ctx);
+  const link = usePageLink(page, ctx);
+  if (!state.available) return null;
+  return (
+    <Link
+      to={link.to}
+      aria-current={link.current ? 'page' : undefined}
+      title={tool.hintKey ? t(tool.hintKey) : undefined}
+      className={buttonClass({ variant: link.current ? 'primary' : 'secondary', size: 'sm' })}
+    >
+      {tool.icon !== undefined && <span aria-hidden="true">{tool.icon}</span>}
+      {t(tool.labelKey)}
+    </Link>
+  );
+}
+
+function SwitchButton({ tool, ctx }: { tool: Tool; ctx: WorldCtx }) {
   const { t } = useTranslation();
   const state = tool.useTool(ctx);
   if (!state.available) return null;
@@ -141,14 +172,47 @@ function ToolsMenu({ ctx, tools, iconOnly }: { ctx: WorldCtx; tools: readonly To
           onKeyDown={onMenuKeyDown}
           className="absolute top-full right-0 z-[1400] mt-1 flex w-60 flex-col rounded border border-line bg-panel p-1 shadow-lg"
         >
-          {tools.map(tool => <ToolMenuItem key={tool.id} tool={tool} ctx={ctx} onDone={() => close(true)} />)}
+          {tools.map(tool => (tool.page === undefined
+            ? <ToolMenuItem key={tool.id} tool={tool} ctx={ctx} onDone={() => close(true)} />
+            : <PageMenuItem key={tool.id} tool={tool} page={tool.page} ctx={ctx} onDone={() => close(true)} />))}
         </div>
       )}
     </div>
   );
 }
 
-/** A tool as a menu entry: a checkbox item with an on/off pill for a switch, a plain item for an action. */
+const MENU_ITEM = 'flex min-h-11 w-full items-center gap-2 rounded px-2 text-left text-sm text-fg focus-ring hover:bg-line focus:bg-line min-[900px]:min-h-9';
+
+/** A page tool as a menu entry: a link item, the current page marked (also with a dot). */
+function PageMenuItem({ tool, page, ctx, onDone }: { tool: Tool; page: string; ctx: WorldCtx; onDone(): void }) {
+  const { t } = useTranslation();
+  const state = tool.useTool(ctx);
+  const link = usePageLink(page, ctx);
+  if (!state.available) return null;
+  return (
+    <Link
+      to={link.to}
+      role="menuitem"
+      aria-current={link.current ? 'page' : undefined}
+      title={tool.hintKey ? t(tool.hintKey) : undefined}
+      tabIndex={-1}
+      onClick={onDone}
+      // A menu item also takes Space; a link alone only Enter.
+      onKeyDown={e => {
+        if (e.key !== ' ') return;
+        e.preventDefault();
+        e.currentTarget.click();
+      }}
+      className={`${MENU_ITEM} ${link.current ? 'bg-line font-semibold' : ''}`}
+    >
+      <span aria-hidden="true" className="flex w-4 shrink-0 justify-center">{tool.icon}</span>
+      <span className="min-w-0 flex-1">{t(tool.labelKey)}</span>
+      {link.current && <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent" />}
+    </Link>
+  );
+}
+
+/** A switch or an action as a menu entry: a checkbox item with an on/off pill for a switch, a plain item for an action. */
 function ToolMenuItem({ tool, ctx, onDone }: { tool: Tool; ctx: WorldCtx; onDone(): void }) {
   const { t } = useTranslation();
   const state = tool.useTool(ctx);
@@ -163,10 +227,10 @@ function ToolMenuItem({ tool, ctx, onDone }: { tool: Tool; ctx: WorldCtx; onDone
       title={tool.hintKey ? t(tool.hintKey) : undefined}
       tabIndex={-1}
       onClick={() => {
-        state.run();
+        state.run?.();
         onDone();
       }}
-      className="flex min-h-11 w-full items-center gap-2 rounded px-2 text-left text-sm text-fg focus-ring hover:bg-line focus:bg-line min-[900px]:min-h-9"
+      className={MENU_ITEM}
     >
       <span aria-hidden="true" className="flex w-4 shrink-0 justify-center">{tool.icon}</span>
       <span className="min-w-0 flex-1">{t(tool.labelKey)}</span>

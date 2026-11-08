@@ -1,5 +1,5 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { QueryClient } from '@tanstack/react-query';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset } from '../../src/shared/dataset.js';
@@ -8,12 +8,11 @@ import { collect, type WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { FEATURES } from '../../src/web/features/index.js';
 import { matchItems } from '../../src/web/features/planner/ItemPicker.js';
-import { PlannerDialog } from '../../src/web/features/planner/PlannerHost.js';
-import { plannerTool } from '../../src/web/features/planner/index.js';
-import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
+import { plannerFeature, plannerTool } from '../../src/web/features/planner/index.js';
 import { loadPlanner, usePlanner } from '../../src/web/features/planner/usePlanner.js';
 import { RECIPE_DATA } from '../fixtures/recipeData.js';
 import { stubFetch } from './fetchStub.js';
+import { renderWorldPages } from './worldPages.js';
 
 const W = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
 const ME: MeDto = { id: 1, displayName: 'Nick', avatarUrl: null, email: null, datasetVersion: 'test' };
@@ -26,13 +25,8 @@ function setup(recipes: 'present' | 'missing' = 'present', worldVersion = WORLD.
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const index = indexDataset({ version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true, biomes: [], items: [], aliases: {} });
   const ctx: WorldCtx = { worldId: W, world: { ...WORLD, datasetVersion: worldVersion }, me: ME, index, queryClient: client, navigate: () => {}, toast: { show: () => {} } };
-  render(
-    <QueryClientProvider client={client}>
-      <ToolButton tool={plannerTool} ctx={ctx} />
-      <PlannerDialog ctx={ctx} />
-    </QueryClientProvider>,
-  );
-  return { calls };
+  const { router } = renderWorldPages({ features: [plannerFeature], ctx, url: `/w/${W}` });
+  return { calls, router };
 }
 
 const stepOf = (name: string) => screen.getByRole('heading', { level: 4, name: new RegExp(`^${name}`) }).closest('li')!;
@@ -44,7 +38,7 @@ async function openAndPickAgain(query: string) {
 }
 
 async function openAndPick(query: string) {
-  await userEvent.click(screen.getByRole('button', { name: 'Planner' }));
+  await userEvent.click(screen.getByRole('link', { name: 'Planner' }));
   const box = await screen.findByRole('combobox', { name: 'Item 1' });
   await userEvent.type(box, query);
   await userEvent.keyboard('{Enter}');
@@ -55,39 +49,63 @@ describe('production planner', () => {
     initI18n(['en']);
     localStorage.clear();
     // The step tests below use the list view; the diagram has its own tests.
-    usePlanner.setState({ visible: false, targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'list' });
+    usePlanner.setState({ targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'list' });
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('is a tool that opens a dialog, and the dialog is a header item', () => {
+  it('is a tool that leads to its own page, /w/:id/planner', () => {
     expect(collect(FEATURES, 'tools').filter(tl => tl.id === 'planner')).toEqual([plannerTool]);
-    expect(plannerTool.action).toBe(true);
-    expect(collect(FEATURES, 'headerItems').filter(h => h.id.startsWith('planner')).map(h => h.id)).toEqual(['planner-dialog']);
+    expect(plannerTool).toMatchObject({ action: true, page: 'planner' });
+    expect(collect(FEATURES, 'pages').filter(p => p.id === 'planner')).toEqual(plannerFeature.pages);
+    expect(plannerFeature.pages?.[0]).toMatchObject({ titleKey: 'planner.title' });
+    expect(plannerFeature.headerItems).toBeUndefined();
   });
 
-  it('opens from its tool, closes, and loads the recipes only when opened', async () => {
-    const { calls } = setup();
-    const button = screen.getByRole('button', { name: 'Planner' });
+  it('opens its page from the tool, loads the recipes only then, and keeps the plan when left', async () => {
+    const { calls, router } = setup();
+    const link = screen.getByRole('link', { name: 'Planner' });
+    expect(link).toHaveAttribute('href', `/w/${W}/planner`);
+    expect(link).not.toHaveAttribute('aria-current');
     expect(calls).toEqual([]);
-    await userEvent.click(button);
-    expect(usePlanner.getState().visible).toBe(true);
-    expect(await screen.findByRole('heading', { name: 'Production planner' })).toBeInTheDocument();
-    await screen.findByRole('combobox', { name: 'Item 1' });
+    await userEvent.click(link);
+    expect(router.state.location.pathname).toBe(`/w/${W}/planner`);
+    expect(await screen.findByRole('heading', { name: 'Production planner' })).toHaveFocus();
+    expect(screen.getByRole('main', { name: 'Production planner' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Planner' })).toHaveAttribute('aria-current', 'page');
+    await userEvent.type(await screen.findByRole('combobox', { name: 'Item 1' }), 'plate');
+    await userEvent.keyboard('{Enter}');
     expect(calls.map(c => c.path)).toEqual(['/data/test/recipes.json']);
-    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
-    expect(usePlanner.getState().visible).toBe(false);
+
+    await userEvent.click(screen.getByRole('link', { name: 'Back to the map' }));
+    expect(router.state.location.pathname).toBe(`/w/${W}`);
+    expect(screen.queryByRole('heading', { name: 'Production planner' })).toBeNull();
+    await userEvent.click(screen.getByRole('link', { name: 'Planner' }));
+    expect(await screen.findByRole('combobox', { name: 'Item 1' })).toHaveValue('plate');
+    expect(stepOf('plate')).toBeInTheDocument();
+  });
+
+  it('opens at its URL', async () => {
+    stubFetch({ 'GET /data/test/recipes.json': { body: RECIPE_DATA } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const index = indexDataset({ version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true, biomes: [], items: [], aliases: {} });
+    renderWorldPages({
+      features: [plannerFeature], url: `/w/${W}/planner`,
+      ctx: { worldId: W, world: WORLD, me: ME, index, queryClient: client, navigate: () => {}, toast: { show: () => {} } },
+    });
+    expect(await screen.findByRole('combobox', { name: 'Item 1' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Production planner' })).toHaveFocus();
   });
 
   it('uses the dataset the server serves, also for a world created with an older one', async () => {
     const { calls } = setup('present', '1.2.4.1');
-    await userEvent.click(screen.getByRole('button', { name: 'Planner' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Planner' }));
     await screen.findByRole('combobox', { name: 'Item 1' });
     expect(calls.map(c => c.path)).toEqual(['/data/test/recipes.json']);
   });
 
   it('says so when the dataset has no recipe data', async () => {
     setup('missing');
-    await userEvent.click(screen.getByRole('button', { name: 'Planner' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Planner' }));
     expect(await screen.findByText(/This dataset has no recipe data/)).toBeInTheDocument();
   });
 
@@ -243,7 +261,7 @@ describe('production planner', () => {
   it('shows names and labels in German', async () => {
     initI18n(['de']);
     setup();
-    await userEvent.click(screen.getByRole('button', { name: 'Planer' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Planer' }));
     const box = await screen.findByRole('combobox', { name: 'Gegenstand 1' });
     await userEvent.type(box, 'plate-de');
     await userEvent.keyboard('{Enter}');
@@ -257,7 +275,7 @@ describe('production planner', () => {
   it('shows a resource well\'s pressurizer in German', async () => {
     initI18n(['de']);
     setup();
-    await userEvent.click(screen.getByRole('button', { name: 'Planer' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Planer' }));
     await userEvent.type(await screen.findByRole('combobox', { name: 'Gegenstand 1' }), 'gas-de');
     await userEvent.keyboard('{Enter}');
     await userEvent.type(within(stepOf('gas-de')).getByLabelText('Taktrate (%)'), '250');
@@ -269,7 +287,7 @@ describe('production planner', () => {
 
   it('picks items with the keyboard and closes only the list on Escape', async () => {
     setup();
-    await userEvent.click(screen.getByRole('button', { name: 'Planner' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Planner' }));
     const box = await screen.findByRole('combobox', { name: 'Item 1' });
     await userEvent.type(box, 'pla');
     expect(box).toHaveAttribute('aria-expanded', 'true');
@@ -279,7 +297,7 @@ describe('production planner', () => {
     expect(box).toHaveAttribute('aria-activedescendant', options[1]!.id);
     await userEvent.keyboard('{Escape}');
     expect(box).toHaveAttribute('aria-expanded', 'false');
-    expect(usePlanner.getState().visible).toBe(true);
+    expect(screen.getByRole('heading', { name: 'Production planner' })).toBeInTheDocument();
     await waitFor(() => expect(usePlanner.getState().targets[0]!.item).toBeNull());
   });
 });
@@ -288,7 +306,7 @@ describe('production planner diagram', () => {
   beforeEach(() => {
     initI18n(['en']);
     localStorage.clear();
-    usePlanner.setState({ visible: false, targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'diagram' });
+    usePlanner.setState({ targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'diagram' });
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -405,7 +423,7 @@ describe('production planner diagram', () => {
   it('shows the diagram in German', async () => {
     initI18n(['de']);
     setup();
-    await userEvent.click(screen.getByRole('button', { name: 'Planer' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Planer' }));
     await userEvent.type(await screen.findByRole('combobox', { name: 'Gegenstand 1' }), 'plate-de');
     await userEvent.keyboard('{Enter}');
     expect(screen.getByRole('radiogroup', { name: 'Ansicht' })).toBeInTheDocument();

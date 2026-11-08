@@ -3,11 +3,11 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MachineData } from '../../../shared/machines.js';
 import type { SearchEntry, SearchProvider, WorldCtx } from '../../app/feature.js';
-import { useMachineData, useMachineWiki } from './useMachineWiki.js';
+import { useMachineData, wikiPath } from './useMachineWiki.js';
 
 /**
  * One search entry per machine and vehicle of the wiki, found by its name in both languages and its class;
- * choosing it opens the wiki at that entry. Entries stand for no map item, so the map stays as it is.
+ * choosing it opens the wiki page at that entry. Entries stand for no map item, so the map stays as it is.
  */
 export function machineEntries(data: MachineData, i18n: I18n): SearchEntry[] {
   const lang = i18n.language === 'de' ? 'de' : 'en';
@@ -18,7 +18,7 @@ export function machineEntries(data: MachineData, i18n: I18n): SearchEntry[] {
     detail: t(`machineWiki.category.${m.category}`),
     kindKey: m.category === 'vehicles' ? 'search.kind.vehicle' : 'search.kind.machine',
     terms: [m.name.en, m.name.de, m.id],
-    onSelect: () => useMachineWiki.getState().show(m.id),
+    onSelect: ctx => ctx.navigate(wikiPath(ctx.worldId, m.id)),
   }));
 }
 

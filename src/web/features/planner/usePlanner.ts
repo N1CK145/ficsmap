@@ -20,7 +20,6 @@ export interface PlannerStepInput { clock?: string; purity?: Purity }
 export type PlannerView = 'diagram' | 'list';
 
 export interface PlannerState {
-  visible: boolean;
   targets: PlannerTarget[];
   /** Per item the chosen recipe, extractor or "external"; missing = default. */
   choices: Record<string, Choice>;
@@ -28,9 +27,6 @@ export interface PlannerState {
   steps: Record<string, PlannerStepInput>;
   settings: PlannerSettingsInput;
   view: PlannerView;
-  toggle(): void;
-  open(): void;
-  close(): void;
   setTarget(key: number, patch: Partial<Omit<PlannerTarget, 'key'>>): void;
   addTarget(): void;
   removeTarget(key: number): void;
@@ -118,8 +114,8 @@ function initial(): Persisted {
 }
 
 /**
- * The production planner's state: open or closed, and the plan (targets, choices, settings) and the
- * view, remembered on the device. `{ visible, toggle }` is the shape the header's tool navigation expects.
+ * The production planner's state: the plan (targets, choices, settings) and the view, remembered on the
+ * device, so the planner page finds it again however often it is left.
  */
 export const usePlanner = create<PlannerState>()((set, get) => {
   const update = (patch: Partial<Persisted>) => {
@@ -129,11 +125,7 @@ export const usePlanner = create<PlannerState>()((set, get) => {
   };
   const nextKey = () => Math.max(0, ...get().targets.map(t => t.key)) + 1;
   return {
-    visible: false,
     ...initial(),
-    toggle: () => set(s => ({ visible: !s.visible })),
-    open: () => set({ visible: true }),
-    close: () => set({ visible: false }),
     setTarget: (key, patch) => update({ targets: get().targets.map(t => (t.key === key ? { ...t, ...patch } : t)) }),
     addTarget: () => update({ targets: [...get().targets, emptyTarget(nextKey())] }),
     removeTarget: key => {

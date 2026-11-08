@@ -34,8 +34,8 @@ export interface PlanDiagramProps {
 /**
  * The plan as a diagram from left to right (layout in `diagramLayout.ts`): nodes are buttons over an SVG
  * with the edges and HTML rate labels. One tab stop; the arrow keys move between nodes (up and down in a
- * column, left and right to the nearest node of the next column). Scrolls sideways when it is wider than
- * the dialog.
+ * column, left and right to the nearest node of the next column). Centred on the page; scrolls sideways when it is
+ * wider than the page.
  */
 export function PlanDiagram({ steps, index, lang, selected, onSelect, editorId, nodeId }: PlanDiagramProps) {
   const { t } = useTranslation();
@@ -78,7 +78,7 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, editorId, 
     <div className="flex flex-col gap-2">
       <p className="text-sm text-muted">{t('planner.diagram.hint')}</p>
       <div className="overflow-x-auto overscroll-x-contain rounded border border-line bg-bg">
-        <div role="group" aria-label={t('planner.diagram.label')} className="relative" style={{ width: layout.width, height: layout.height }}>
+        <div role="group" aria-label={t('planner.diagram.label')} className="relative mx-auto" style={{ width: layout.width, height: layout.height }}>
           <svg aria-hidden="true" className="pointer-events-none absolute inset-0" width={layout.width} height={layout.height}>
             <defs>
               {EDGE_STYLES.map(k => (

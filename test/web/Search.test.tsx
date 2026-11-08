@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type CrashSites, type Dataset } from '../../src/shared/dataset.js';
 import type { FeatureModule, SearchEntry, WorldCtx } from '../../src/web/app/feature.js';
@@ -49,20 +50,24 @@ const CAVES = {
   ],
 };
 
-function makeCtx(): WorldCtx {
+function makeCtx(navigate: WorldCtx['navigate'] = () => {}): WorldCtx {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   client.setQueryData(queryKeys.me(), ME);
-  return { worldId: W, world: WORLD, me: ME, index: indexDataset(DS), queryClient: client, navigate: () => {}, toast: { show: () => {} } };
+  return { worldId: W, world: WORLD, me: ME, index: indexDataset(DS), queryClient: client, navigate, toast: { show: () => {} } };
 }
 
-const FEATURES: FeatureModule[] = [biomesFeature, cavesFeature, itemPanelFeature, searchFeature];
+/** A world page, as the planner is one: the search box is in the header there too. */
+const pageFeature: FeatureModule = { id: 'page', pages: [{ id: 'planner', titleKey: 'planner.title', Component: () => null }] };
+const FEATURES: FeatureModule[] = [biomesFeature, cavesFeature, itemPanelFeature, searchFeature, pageFeature];
 
-function renderSearch(features: FeatureModule[] = FEATURES) {
+function renderSearch(features: FeatureModule[] = FEATURES, { url = `/w/${W}`, navigate }: { url?: string; navigate?: WorldCtx['navigate'] } = {}) {
   const { calls } = stubFetch({ 'GET /data/test/caves.geojson': { body: CAVES }, 'GET /data/test/crash-sites.json': { body: SITES } });
-  const ctx = makeCtx();
+  const ctx = makeCtx(navigate);
   const view = render(
     <QueryClientProvider client={ctx.queryClient}>
-      <FeaturesProvider features={features}><SearchBox ctx={ctx} /><input aria-label="Other field" /></FeaturesProvider>
+      <FeaturesProvider features={features}>
+        <MemoryRouter initialEntries={[url]}><SearchBox ctx={ctx} /><input aria-label="Other field" /></MemoryRouter>
+      </FeaturesProvider>
     </QueryClientProvider>,
   );
   const input = screen.getByRole('combobox', { name: 'Search' });
@@ -189,13 +194,37 @@ describe('SearchBox', () => {
   });
 
   it('finds a biome by its German name, accents left out, and scopes the map to it', async () => {
-    const { input } = renderSearch();
+    const navigate = vi.fn();
+    const { input } = renderSearch(FEATURES, { navigate });
     await userEvent.type(input, 'dunenwuste');
     expect(options()[0]).toContain('Dune Desert');
     expect(options()[0]).toContain('Biome');
     await userEvent.click(within(screen.getByRole('listbox')).getAllByRole('option')[0]!);
     expect(useUiStore.getState().biomeScope).toBe(0);
+    // The map fits to the biome once it is shown.
+    expect(useUiStore.getState().biomeFitRequest).toBe(0);
     expect(highlight()).toEqual(['BP_WAT139', 'BP_WAT2_X']);
+    // Already on the map: no navigation.
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('on a world page goes back to the map before acting on a map result, but not for other results', async () => {
+    // What the map was asked to do when the navigation happened.
+    const seen: unknown[] = [];
+    const navigate = vi.fn((_to: string) => { seen.push(useUiStore.getState().focusRequest); });
+    const recipe: SearchEntry = { id: 'recipe:motor', label: 'Motor', terms: ['Recipe_Motor_C'], kindKey: 'search.kind.item', onSelect: ctx => ctx.navigate('/elsewhere') };
+    const recipes: FeatureModule = { id: 'recipes', searchProviders: [{ id: 'recipes', order: 50, useEntries: () => [recipe] }] };
+    const { input } = renderSearch([...FEATURES, recipes], { url: `/w/${W}/planner`, navigate });
+    await userEvent.type(input, 'bp_wat13{Enter}');
+    expect(navigate.mock.calls).toEqual([[`/w/${W}`]]);
+    // First to the map, then the request the map carries out once it is shown.
+    expect(seen).toEqual([null]);
+    expect(useUiStore.getState().focusRequest).toEqual({ actor: 'BP_WAT13' });
+
+    navigate.mockClear();
+    await userEvent.clear(input);
+    await userEvent.type(input, 'recipe_motor{Enter}');
+    expect(navigate.mock.calls).toEqual([['/elsewhere']]);
   });
 
   it('finds a crash site by what lies there and selects its pod', async () => {
@@ -260,7 +289,7 @@ describe('SearchBox', () => {
     const ctx = makeCtx();
     render(
       <QueryClientProvider client={ctx.queryClient}>
-        <FeaturesProvider features={FEATURES}><SearchBox ctx={ctx} /></FeaturesProvider>
+        <FeaturesProvider features={FEATURES}><MemoryRouter initialEntries={[`/w/${W}`]}><SearchBox ctx={ctx} /></MemoryRouter></FeaturesProvider>
       </QueryClientProvider>,
     );
     expect(screen.queryByRole('combobox')).toBeNull();
