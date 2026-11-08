@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - German UI: the game's own German terms: Elektroschnecke (was Power-Schnecke), Energiefragment (was Power-Splitter), Landekapsel (was Kapsel/Pod) and Absturzstelle (was Absturzort).
 - Drop-pod requirements and the items at crash sites carry the game's German item names (from the game's Docs), so the German UI shows "Schrauben" instead of "Screws". Crash-site items need a dataset built with this version; older datasets show the English name.
 - Extractor patch: the item of a loose item pickup is read from the pickup itself (`mPickupItems.Item`) instead of being guessed from its mesh.
+- Vehicle calculator: one clear flow instead of a long form: three numbered steps (the route picked on the map or typed, the vehicle as cards with the game's pictures, the fuel) and the result beside them, below them on a phone. The result leads with big numbers for one vehicle on the route: stacks per minute, the round trip and the fuel per round trip; under it "How many vehicles do I need?" (folded until asked) and every fuel compared in a small table (for the drone with its round trip, which depends on the fuel). Item, speed and stop time are folded under "More settings", which shows the values in effect and offers a way back to the game value. The throughput of a given number of vehicles is no longer a separate mode.
 
 ### Removed
 
@@ -52,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Biomes: the wiki biome map's grid labels (X2Y1, X3Y0) were taken for Snaketree Forest and showed as two rectangles outside the biome; the labels are now left out and get the surrounding biome.
 - 10 drop pods showed a cost (power or items) although they need nothing: the game ignores the leftover values in a pod whose cost type is None. Every pod's requirement now comes from the game files.
 - Crash sites: 43 items lying around showed the wrong item (for example Packaged Liquid Biofuel shown as Nuke Nobelisk or Turbo Motor, Wire as Quickwire), and 4 were missing (a Supercomputer, Rifle Ammo and two Medicinal Inhalers).
+- Vehicle calculator: the A–B line on the map lay under the collectible markers and could not be seen in dense areas; it now has its own layer above the markers (with a dark edge), below the A and B pins, and clicks still reach the markers. The drone's fuel table was cut off on the right; it now fits, on a phone each fuel's numbers go on a line under its name.
 
 ## [0.1.1] - 2026-11-03
 

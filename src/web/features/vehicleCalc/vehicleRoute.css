@@ -27,3 +27,20 @@
 .leaflet-dragging .ficsmap-vroute-pin {
   cursor: grabbing;
 }
+
+/* A or B in the calculator's text (RoutePicker), drawn like the pins on the map so the two are recognised together. */
+.ficsmap-vroute-letter {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--color-cat-vehicles);
+  color: var(--color-bg);
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1;
+}

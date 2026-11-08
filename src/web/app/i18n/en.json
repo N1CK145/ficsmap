@@ -735,16 +735,21 @@
   },
   "vehicleCalc": {
     "open": "Vehicles",
-    "openHint": "Vehicle calculator: how many vehicles a route needs, or how much they move",
+    "openHint": "Vehicle calculator: trip time, fuel and stacks per minute on a route",
     "title": "Vehicle calculator",
     "unavailable": "This map dataset has no vehicle data. It is added when the dataset is built with the game's Docs files.",
     "failed": "The vehicle data could not be loaded.",
+    "step": {
+      "route": "Route",
+      "vehicle": "Vehicle",
+      "fuel": "Fuel"
+    },
     "route": "Route length (one way)",
     "pick": {
       "button": "Pick on the map",
+      "hint": "Choose the start (A) and the destination (B) on the map, or type the length.",
       "again": "Pick again",
       "clear": "Clear points",
-      "hint": "Choose a start and a destination on the map (a marker gives its position); the straight line between them becomes the route length.",
       "start": "Vehicle calculator: choose the start on the map",
       "end": "Vehicle calculator: now choose the destination",
       "cancel": "Cancel",
@@ -754,49 +759,53 @@
     "routeInfo": {
       "title": "Route on the map",
       "straight": "Straight line",
-      "climb": "Height difference (to the destination)",
+      "climb": "Height difference A → B",
       "length3d": "3D length",
       "metres": "{value} m",
       "loading": "…",
       "unknown": "unknown",
-      "note": "The route length is the straight line between the points: exact for drones. Wheeled vehicles follow roads and drive further, so for them it is a lower bound; enter the real length if you know it. Drag A or B on the map to move a point.",
-      "typed": "The length was typed, so moving the points does not change it.",
+      "note": "Exact for drones. Roads are longer: type the real length if you know it. Drag A or B on the map to move them.",
+      "typed": "You typed the length, so moving A or B does not change it.",
       "useStraight": "Use the straight line"
     },
-    "vehicle": "Vehicle",
+    "capacity": {
+      "both": "{stacks, plural, one {# stack} other {# stacks}} or {m3, number} m³"
+    },
+    "fuel": "Fuel",
+    "fuelHint": {
+      "drone": "The drone's speed depends on its fuel."
+    },
+    "fuelNone": {
+      "freightCar": "Freight cars burn no fuel: trains run on power.",
+      "other": "The vehicle data has no fuel use."
+    },
+    "more": {
+      "title": "More settings",
+      "values": "{item} · {speed} km/h · {stop} s",
+      "anyItem": "any item"
+    },
     "item": "Item (optional)",
     "itemPlaceholder": "Any item",
-    "itemHint": "Without an item the result is in stacks per minute.",
+    "itemHint": "With an item the result also shows items per minute.",
     "itemUnknown": "No item with this name. Pick one from the list.",
     "itemClear": "Clear item",
     "cannotCarry": "{vehicle} cannot carry {item}.",
     "speed": "Average speed",
     "speedDefault": {
-      "pathLimit": "Default from the game data: the autopilot's limit on a straight path ({speed, number} km/h). The real average is lower (curves, slopes, acceleration), so enter yours.",
-      "traction": "Default from the game data: the speed at which the engine's tractive effort drops to zero ({speed, number} km/h); the autopilot's straight-path limit of {limit, number} km/h is out of reach. The real average is lower (curves, slopes, acceleration), so enter yours.",
-      "droneFuel": "Default from the game data: the drone's travel speed with {fuel} ({speed, number} km/h). Take-off and landing are in the stop time."
+      "pathLimit": "Game value: the autopilot's limit on a straight road. The real average is lower (curves, slopes).",
+      "traction": "Game value: where the engine's pull ends; the autopilot's limit of {limit, number} km/h is out of reach. The real average is lower (curves, slopes).",
+      "droneFuel": "Game value for this fuel ({fuel})."
     },
-    "speedMissing": "Not in the game data. Enter the average speed you see in the game.",
-    "stop": "Load and unload time per round trip",
+    "speedMissing": "Not in the game data: enter the average speed you see in the game.",
+    "stop": "Load and unload time",
     "stopSource": {
-      "truckStation": "Default from the game data: one load/unload cycle of a Truck Station at each end ({seconds, number} s), whatever the vehicle carries. Driving into the station is not included.",
-      "fluidTruckStation": "Default from the game data: one load/unload cycle of a Fluid Truck Station at each end ({seconds, number} s). That one cycle moves the whole load is assumed, as at the Truck Station (not tested). Driving into the station is not included.",
-      "freightPlatform": "Default from the game data: a Freight Platform's load and unload time ({seconds, number} s). Braking and docking are not included.",
-      "dronePort": "Default from the game data: the drone's docking and take-off at both ports ({seconds, number} s)."
+      "truckStation": "Both ends together. Game value: one Truck Station cycle at each end.",
+      "fluidTruckStation": "Both ends together. Game value: one Fluid Truck Station cycle at each end.",
+      "freightPlatform": "Both ends together. Game value: a Freight Platform's load and unload time.",
+      "dronePort": "Both ends together. Game value: docking and take-off at both Drone Ports."
     },
-    "stopMissing": "Not in the game data. Enter how long the vehicle stops per round trip in total.",
-    "fuel": "Fuel",
-    "fuelHint": {
-      "autopilot": "Self-driving vehicles burn {perMetre, number} MJ per metre driven, there and back (game data: energy per cm, read as MJ). This fuel has {energy, number} MJ per item. The Tractor and the Explorer burn more when climbing, which is not included, so the result is an estimate.",
-      "dronePort": "A round trip costs {trip, number} MJ for the take-offs and landings plus {perMetre, number} MJ per metre flown, there and back (Drone Port game data, in MJ as players tested it). This fuel has {energy, number} MJ per item."
-    },
-    "goal": "Calculate",
-    "goalVehicles": "Vehicles needed",
-    "goalRate": "Throughput",
-    "target": "Target throughput",
-    "count": "Number of vehicles",
-    "countFreightCars": "Number of freight cars",
-    "freightCarNote": "Counts freight cars. Cars in the same train share one round trip; locomotives are not counted.",
+    "stopMissing": "Not in the game data: enter how long the vehicle stops per round trip, both ends together.",
+    "reset": "Use the game value ({value})",
     "unit": {
       "m": "m",
       "kmh": "km/h",
@@ -816,43 +825,56 @@
       "stacks": "{value, plural, one {# stack} other {# stacks}}",
       "m3": "{value, number} m³"
     },
-    "trip": {
-      "title": {
-        "vehicles": "One vehicle on this route",
-        "freightCars": "One freight car on this route"
-      },
-      "oneWay": "One-way trip",
-      "roundTrip": "Round trip with stops",
-      "moves": "Moves",
-      "fuel": "Fuel per round trip",
-      "fuelValue": "{value, number} {fuel}",
-      "fuelPerMinute": "{value, number} per minute",
-      "incomplete": "Pick the route on the map or enter its length, and the speed and stop time, to see one trip."
-    },
     "duration": {
       "seconds": "{s, number} s",
       "minutes": "{m, number} min {s, number} s"
     },
-    "fuelTable": {
-      "caption": "The drone's speed depends on its fuel. With each fuel, at its speed from the game data:",
-      "speed": "Speed",
-      "kmh": "{value, number} km/h"
-    },
     "result": {
       "title": "Result",
-      "incomplete": "Enter the route length, speed, stop time and target to see a result.",
+      "perVehicle": "Per vehicle",
+      "perFreightCar": "Per freight car",
+      "roundTrip": "Round trip",
+      "oneWay": "{time} one way",
+      "fuel": "Fuel per round trip",
+      "fuelPerMinute": "{value} per minute",
+      "load": "Load per trip: {load} · includes {stop} loading and unloading",
+      "fuelNote": {
+        "autopilot": "Fuel is an estimate from the game's use per metre driven; the Tractor and the Explorer burn more uphill.",
+        "dronePort": "Drone fuel use as measured by players."
+      },
+      "missing": {
+        "route": "Pick the route on the map or type its length to see the result.",
+        "speed": "Enter the average speed to see the result.",
+        "stop": "Enter the load and unload time to see the result."
+      }
+    },
+    "compare": {
+      "title": "All fuels compared",
+      "bySpeed": "Fastest first. Used: fuel per round trip.",
+      "sameSpeed": "The trip takes as long with every fuel. Least used first.",
+      "roundTrip": "Round trip",
+      "used": "Used",
+      "perTrip": "Per round trip",
+      "perMinute": "Per minute",
+      "stacks": "Stacks/min"
+    },
+    "fleet": {
+      "question": {
+        "vehicles": "How many vehicles do I need?",
+        "freightCars": "How many freight cars do I need?"
+      },
+      "target": "Target throughput",
       "needed": {
         "vehicles": "Vehicles needed",
         "freightCars": "Freight cars needed"
       },
-      "countValue": "{count, number}",
       "utilisation": "Utilisation",
       "percent": "{share, number, percent}",
       "capacity": "They move up to",
-      "throughput": "Throughput",
-      "perTrip": "Load per trip",
-      "fuel": "Fuel (estimated)",
-      "fuelTotal": "{value, number} {fuel}/min"
+      "fuel": "Fuel for all",
+      "fuelTotal": "{value} {fuel}/min",
+      "missing": "Enter a target throughput.",
+      "freightCarNote": "Counts freight cars. Cars in the same train share one round trip; locomotives are not counted."
     }
   },
   "search": {
