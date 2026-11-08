@@ -59,6 +59,8 @@ The owner or an admin of a world can let a script upload new saves automatically
 3. Run it as shown under the button:
    - **Windows:** `powershell -ExecutionPolicy Bypass -File ficsmap-watch.ps1`; the page also shows how to start it at every sign-in with the Task Scheduler. Log: `%LOCALAPPDATA%\ficsmap`.
    - **Linux:** `chmod +x ficsmap-watch.sh && ./ficsmap-watch.sh` (needs bash, curl and sha256sum; with `inotify-tools` it notices new saves at once). `--once` uploads once and exits, for cron.
+     To run it only while the game runs, put this into Satisfactory's Steam launch options (Properties → General); it starts the watcher with the game, logs to `~/ficsmap/watch.log` and stops it a minute after the game exits:
+     `bash -c '"$HOME/ficsmap/ficsmap-watch.sh" >>"$HOME/ficsmap/watch.log" 2>&1 & w=$!; "$@"; s=$?; sleep 60; kill $w; exit $s' _ %command%`
    - **Docker:** unzip `ficsmap-watch.zip`, then `docker compose up -d --build` in the folder. The image is built locally from the included Dockerfile; the save folder is mounted read-only.
 
 A save newer than the world's last import is imported (checks, resource nodes) and added to the factory timeline; an older one is only added to the timeline; one the world already has is skipped. Saves of another session are refused unless the key accepts any session. On the first start the script uploads only the newest save that is already there; older ones can be added with "Add older saves".
