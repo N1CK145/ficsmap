@@ -7,6 +7,7 @@ import { buildApp } from './app.js';
 import { indexDataset, type Dataset } from '../shared/dataset.js';
 import { createDiscordClient } from './auth/discord.js';
 import { startHousekeeping } from './housekeeping.js';
+import { SseHub } from './sse/hub.js';
 import { appVersion } from './version/appVersion.js';
 import { runRollbackCli, terminalAsk } from './version/cli.js';
 import {
@@ -53,11 +54,13 @@ if (startDecision(stored, current) === 'downgrade') {
     JSON.parse(readFileSync(join(config.datasetDir, config.datasetVersion, 'collectibles.min.json'), 'utf8')) as Dataset,
   );
 
-  const app = await buildApp({ config, db, dataset, discord });
+  // Shared with the housekeeping, which tells open timelines about thinned snapshots.
+  const hub = new SseHub();
+  const app = await buildApp({ config, db, dataset, discord, hub });
   for (const warning of configWarnings(config)) app.log.warn(warning);
   await app.listen({ host: '0.0.0.0', port: config.port });
 
-  const stopHousekeeping = startHousekeeping(db, config);
+  const stopHousekeeping = startHousekeeping(db, config, hub);
   for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     process.once(signal, () => {
       stopHousekeeping();

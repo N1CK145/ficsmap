@@ -46,9 +46,40 @@ describe('runHourly', () => {
     ins.run('old', '00000000-0000-4000-8000-000000000000', 1000);
     ins.run('new', '00000000-0000-4000-8000-000000000000', 10_000_000_000_000);
     const res = runHourly(db, 5_000_000_000_000);
-    expect(res).toEqual({ sessions: 1, invites: 1 });
+    expect(res).toEqual({ sessions: 1, invites: 1, snapshots: 0 });
     expect((db.prepare('SELECT count(*) AS n FROM sessions').get() as { n: number }).n).toBe(1);
     expect((db.prepare('SELECT count(*) AS n FROM invite_uses').get() as { n: number }).n).toBe(1);
+  });
+});
+
+describe('runHourly: snapshot thinning', () => {
+  it('thins the snapshots of every world and tells each world that lost some', () => {
+    const db = openDb(':memory:');
+    db.prepare("INSERT INTO users(id, display_name, created_at, last_login_at) VALUES (1,'a',0,0)").run();
+    const W1 = '00000000-0000-4000-8000-000000000001';
+    const W2 = '00000000-0000-4000-8000-000000000002';
+    for (const id of [W1, W2]) db.prepare("INSERT INTO worlds(id, name, owner_id, dataset_version, created_at) VALUES (?, 'w', 1, 'v', 0)").run(id);
+    const ins = db.prepare(
+      `INSERT INTO factory_snapshots(world_id, session_name, save_time, imported_at, imported_by, data, summary, bytes)
+       VALUES (?, 'S', ?, 0, NULL, x'00', '{}', 1)`,
+    );
+    const T = Date.UTC(2026, 10, 8, 12, 30);
+    const DAY = 86_400_000;
+    // W1: snapshots stored before thinning existed, three in one hour 40 days back (one per day there): two go.
+    for (const t of [T, T - 40 * DAY, T - 40 * DAY - 60_000, T - 40 * DAY - 2 * 60_000]) ins.run(W1, t);
+    // W2: nothing to thin.
+    for (const t of [T, T - 40 * DAY]) ins.run(W2, t);
+    const events: [string, unknown][] = [];
+    const res = runHourly(db, 0, { broadcast: (id, e) => events.push([id, e]) });
+    expect(res.snapshots).toBe(2);
+    expect(events).toEqual([[W1, { type: 'snapshots', rev: 1 }]]);
+    const left = db.prepare('SELECT world_id, save_time FROM factory_snapshots ORDER BY world_id, save_time DESC').all();
+    expect(left).toEqual([
+      { world_id: W1, save_time: T }, { world_id: W1, save_time: T - 40 * DAY },
+      { world_id: W2, save_time: T }, { world_id: W2, save_time: T - 40 * DAY },
+    ]);
+    // A second run finds nothing.
+    expect(runHourly(db, 0).snapshots).toBe(0);
   });
 });
 

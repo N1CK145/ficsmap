@@ -55,13 +55,17 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 The owner or an admin of a world can let a script upload new saves automatically:
 
 1. World settings → **Automatic upload** → create an **upload key** (a name such as "Gaming PC"; "accept saves of any session" only if the world's saves come from more than one session). The key is shown once.
-2. Pick the platform, check the save folder (presets for Windows, Steam on Linux (Proton, Flatpak), the Steam Deck and dedicated servers), the session name, how often to check and whether to upload only the newest or every new save, then **Download**.
+2. Pick the platform, check the save folder (presets for Windows, Steam on Linux (Proton, Flatpak), the Steam Deck and dedicated servers), the session name, how often to check, the upload interval and whether to upload only the newest or every new save, then **Download**.
 3. Run it as shown under the button:
    - **Windows:** `powershell -ExecutionPolicy Bypass -File ficsmap-watch.ps1`; the page also shows how to start it at every sign-in with the Task Scheduler. Log: `%LOCALAPPDATA%\ficsmap`.
    - **Linux:** `chmod +x ficsmap-watch.sh && ./ficsmap-watch.sh` (needs bash, curl and sha256sum; with `inotify-tools` it notices new saves at once). `--once` uploads once and exits, for cron.
    - **Docker:** unzip `ficsmap-watch.zip`, then `docker compose up -d --build` in the folder. The image is built locally from the included Dockerfile; the save folder is mounted read-only.
 
 A save newer than the world's last import is imported (checks, resource nodes) and added to the factory timeline; an older one is only added to the timeline; one the world already has is skipped. Saves of another session are refused unless the key accepts any session. On the first start the script uploads only the newest save that is already there; older ones can be added with "Add older saves".
+
+**Upload interval.** The script uploads at most one save per interval (default 30 minutes, 0 for no limit). A save that comes in sooner waits; when the interval is up, only the newest waiting save is uploaded and the ones in between are skipped (in "every new save" mode the log names them). Saves the world already has and failed uploads do not count. The time of the last upload is kept in the state file, so a restart keeps the limit.
+
+**Older saves are thinned out.** The factory timeline keeps every save of the last 2 days, up to 30 days back the newest per hour, up to a year the newest per day, after that the newest per week (counted back from the world's newest save, in UTC). The newest save and the one of the last import always stay.
 
 **The downloaded file contains the key.** Keep it private. Anyone with it can upload saves to that world (nothing else). Revoke a key in the same place when you no longer need it or the file got out. Behind nginx, raise `client_max_body_size` (see [Reverse proxy](#reverse-proxy)), or uploads fail with 413.
 

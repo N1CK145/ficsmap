@@ -51,7 +51,8 @@ describe('upload tokens api', () => {
     expect(created.token).toEqual({ id: expect.any(Number), label: 'Gaming PC', anySession: true, createdAt: 9_000, createdBy: 'user-owner-1', lastUsedAt: null });
     // Only the hash is stored.
     const row = deps.db.prepare('SELECT * FROM upload_tokens').get() as Record<string, unknown>;
-    expect(JSON.stringify(row)).not.toContain(created.secret.split('_').pop());
+    // The secret part may itself contain '_' (base64url), so take it with the token pattern, not by splitting.
+    expect(JSON.stringify(row)).not.toContain(UPLOAD_TOKEN_RE.exec(created.secret)![2]);
 
     const list = await app.inject({ url: tokens, headers: { cookie: owner } });
     expect(list.json()).toEqual([created.token]);
@@ -137,6 +138,18 @@ describe('save upload api', () => {
     expect(parser.calls).toBe(calls);
     const snaps = (await app.inject({ url: `/api/worlds/${world.id}/snapshots`, headers: { cookie: owner } })).json();
     expect(snaps.map((s: { saveTime: number }) => s.saveTime)).toEqual([T3, T2, T1]);
+  });
+
+  it('an older save thinned at once by the retention rule says so (note thinned, snapshot false)', async () => {
+    const { upload, secret } = await setup();
+    const tok = await secret();
+    expect((await upload(tok, fakeSaveBytes('S', T3))).json().status).toBe('imported');
+    // 10 days before T3, two saves in one clock hour: the newer is kept, the older is thinned when it arrives.
+    const old = T3 - 10 * 86_400_000 + 30 * 60_000; // 12:30
+    expect((await upload(tok, fakeSaveBytes('S', old))).json()).toMatchObject({ status: 'snapshot', snapshot: true });
+    const res = await upload(tok, fakeSaveBytes('S', old - 60_000));
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toEqual({ status: 'snapshot', sessionName: 'S', saveTime: old - 60_000, snapshot: false, note: 'thinned' });
   });
 
   it('refuses a save of another session (409 session_mismatch) unless the token accepts any session', async () => {

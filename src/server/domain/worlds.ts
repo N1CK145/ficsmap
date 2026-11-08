@@ -18,6 +18,22 @@ export interface WorldRow {
   node_settings: string | null;
 }
 
+export interface LastImport { sessionName?: string; saveTime?: number }
+
+/** The session name and save time of the world's last import, when it has one. */
+export function lastImportOf(world: Pick<WorldRow, 'last_import_meta'>): LastImport | undefined {
+  if (!world.last_import_meta) return undefined;
+  try {
+    const m = JSON.parse(world.last_import_meta) as { sessionName?: unknown; saveTime?: unknown };
+    return {
+      ...(typeof m.sessionName === 'string' ? { sessionName: m.sessionName } : {}),
+      ...(typeof m.saveTime === 'number' ? { saveTime: m.saveTime } : {}),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export function createWorld(db: Db, ownerId: number, name: string, datasetVersion: string, now: number): WorldRow {
   const id = randomUUID();
   return db.transaction((): WorldRow => {

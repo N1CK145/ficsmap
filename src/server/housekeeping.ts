@@ -4,6 +4,8 @@ import type { Config } from './config.js';
 import type { Db } from './db/db.js';
 import { purgeSessions } from './auth/session.js';
 import { purgeInviteUses } from './domain/invites.js';
+import { thinAllSnapshots } from './domain/snapshots.js';
+import type { SseHub } from './sse/hub.js';
 
 const BACKUP_RE = /^app-\d{8}\.db$/;
 const HOUR_MS = 60 * 60 * 1000;
@@ -23,17 +25,30 @@ export function backupDb(db: Db, dir: string, now: Date, keep = 14): string {
   return file;
 }
 
-export function runHourly(db: Db, now: number): { sessions: number; invites: number } {
-  return { sessions: purgeSessions(db, now), invites: purgeInviteUses(db, now) };
+/**
+ * Purges expired sessions and used invites, and thins every world's factory snapshots (the retention rule; open
+ * timelines are told through the `snapshots` event). Returns how many of each went.
+ */
+export function runHourly(
+  db: Db, now: number, hub?: Pick<SseHub, 'broadcast'>,
+): { sessions: number; invites: number; snapshots: number } {
+  const sessions = purgeSessions(db, now);
+  const invites = purgeInviteUses(db, now);
+  let snapshots = 0;
+  for (const { worldId, rev, deleted } of thinAllSnapshots(db)) {
+    snapshots += deleted;
+    hub?.broadcast(worldId, { type: 'snapshots', rev });
+  }
+  return { sessions, invites, snapshots };
 }
 
-/** Runs the purge now and hourly, plus one backup per UTC day. Returns a function that stops it. */
-export function startHousekeeping(db: Db, cfg: Config): () => void {
+/** Runs the purge and thinning now and hourly, plus one backup per UTC day. Returns a function that stops it. */
+export function startHousekeeping(db: Db, cfg: Config, hub?: Pick<SseHub, 'broadcast'>): () => void {
   const backupDir = cfg.dbPath === ':memory:' ? null : join(dirname(cfg.dbPath), 'backups');
   const tick = (): void => {
     const now = new Date();
     try {
-      runHourly(db, now.getTime());
+      runHourly(db, now.getTime(), hub);
       if (backupDir && !existsSync(join(backupDir, backupName(now)))) backupDb(db, backupDir, now);
     } catch (err) {
       console.error('housekeeping failed', err); // never let a failed run take the server down

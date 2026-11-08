@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-11-08
+
+### Added
+
+- Older factory snapshots are thinned out, per world and session, counted back from the world's newest save (not the clock, so a world nobody plays keeps its saves): every snapshot of the last 2 days stays, up to 30 days the newest per clock hour, up to a year the newest per calendar day, after that the newest per ISO week (UTC buckets). The newest snapshot and the one of the last import always stay. Thinning runs with every stored snapshot (import, "Add older saves", automatic upload) and in the hourly housekeeping; open timelines refresh. 30 saves a day for a year leave about 800 to 1,100 snapshots. "Ältere Spielstände hinzufügen" says so in one line ("Ältere Stände werden ausgedünnt: …"). The save upload's answer has `note: 'thinned'` (and `snapshot: false`) when an old save was thinned right away.
+- Automatic upload: an upload interval in the script generator ("Höchstens ein Upload alle", default 30 minutes, 0–1440, 0 = no limit) for all three scripts. A save that comes in sooner waits; when the interval is up, only the newest waiting save is uploaded and the ones in between are skipped (in "Alle neuen Spielstände" mode logged as skipped). Only accepted uploads count, not duplicates, refused or failed ones. The time of the last upload is kept in the state file (`last-upload <seconds>` lines), so a restart keeps the limit. `FICSMAP_UPLOAD_INTERVAL_MINUTES` overrides it.
+
+### Changed
+
+- A world holds up to 2,000 factory snapshots (was 500); the limit is a safety net now and counts after thinning.
+
 ## [0.2.1] - 2026-11-08
 
 ### Added

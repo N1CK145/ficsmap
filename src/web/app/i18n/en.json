@@ -369,6 +369,7 @@
       "teaser": "Step through your factory's history on the factory plan: add older saves of this world.",
       "title": "Add older saves",
       "intro": "Adds the factory of older saves to the timeline of the factory plan. Checks and resource nodes stay as they are: only the import of your newest save sets them.",
+      "thinning": "Older saves are thinned out: everything from the last 2 days stays, up to 30 days back one per hour, up to 1 year one per day, after that one per week.",
       "filesLabel": "Choose save files",
       "multiHint": "You can pick several files at once. They're read one after another, oldest first.",
       "progress": "{current, number} of {total, number}",
@@ -1569,12 +1570,15 @@
       "poll": "Check every",
       "seconds": "s",
       "pollHint": "{min}–{max} seconds. The script usually notices new files at once; this is the fallback.",
+      "interval": "At most one upload every",
+      "minutes": "min",
+      "intervalHint": "0–{max} minutes, 0: no limit. A save that comes in sooner waits; then only the newest goes up and the ones in between are skipped.",
       "mode": "What to upload?",
       "modes": {
         "newest": "Only the newest save",
         "newestHint": "When several new saves appear at once, only the newest.",
         "all": "Every new save",
-        "allHint": "Each new save, oldest first; older ones go to the timeline."
+        "allHint": "With 0 minutes between uploads, every new save, oldest first; older ones go to the timeline. Otherwise like “Only the newest save”, and the skipped ones are logged."
       },
       "warning": "The file contains your upload key. Keep it private: anyone who has it can upload saves to this world.",
       "download": "Download {file}",
@@ -1585,6 +1589,7 @@
       "saveDir": "Enter the save folder.",
       "sessionFilter": "The session name contains invalid characters.",
       "pollSeconds": "Check every 5 to 3600 seconds.",
+      "intervalMinutes": "At most one upload every 0 to 1440 minutes.",
       "serverUrl": "This server's address cannot be used.",
       "worldId": "Invalid world."
     },

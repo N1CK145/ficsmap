@@ -9,8 +9,11 @@ import type { FactorySnapshot, SnapshotSummary } from './snapshot.js';
 export const MAX_SNAPSHOT_GZIP_BYTES = 4 * 2 ** 20;
 /** Largest snapshot JSON after decompression (guards against gzip bombs). */
 export const MAX_SNAPSHOT_JSON_BYTES = 32 * 2 ** 20;
-/** Snapshots one world may hold; the owner deletes old ones to add more. */
-export const MAX_SNAPSHOTS_PER_WORLD = 500;
+/**
+ * Snapshots one world may hold: a safety net, the thinning of old snapshots (`retention.ts`) keeps a world far below
+ * it (30 saves a day for a year leave about 800 to 1,100). The owner deletes old ones to add more.
+ */
+export const MAX_SNAPSHOTS_PER_WORLD = 2000;
 /** A machine below this productivity (0..1) counts as standing still. */
 export const IDLE_PRODUCTIVITY = 0.01;
 

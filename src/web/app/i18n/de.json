@@ -369,6 +369,7 @@
       "teaser": "Geh im Fabrikplan durch die Geschichte deiner Fabrik: Füge ältere Spielstände dieser Welt hinzu.",
       "title": "Ältere Spielstände hinzufügen",
       "intro": "Fügt die Fabrik älterer Spielstände zum Zeitstrahl des Fabrikplans hinzu. Abgehakte Objekte und Rohstoffvorkommen bleiben, wie sie sind: Die setzt nur der Import deines neuesten Spielstands.",
+      "thinning": "Ältere Stände werden ausgedünnt: Aus den letzten 2 Tagen bleiben alle, bis 30 Tage zurück einer pro Stunde, bis 1 Jahr einer pro Tag, danach einer pro Woche.",
       "filesLabel": "Spielstand-Dateien wählen",
       "multiHint": "Du kannst mehrere Dateien auf einmal wählen. Sie werden nacheinander gelesen, die älteste zuerst.",
       "progress": "{current, number} von {total, number}",
@@ -1569,12 +1570,15 @@
       "poll": "Prüfen alle",
       "seconds": "s",
       "pollHint": "{min}–{max} Sekunden. Neue Dateien bemerkt das Skript meist sofort; das ist die Rückfallebene.",
+      "interval": "Höchstens ein Upload alle",
+      "minutes": "min",
+      "intervalHint": "0–{max} Minuten, 0: ohne Grenze. Ein Spielstand, der früher kommt, wartet; dann geht nur der neueste hoch, die dazwischen werden übersprungen.",
       "mode": "Was hochladen?",
       "modes": {
         "newest": "Nur den neuesten Spielstand",
         "newestHint": "Kommen mehrere neue Spielstände auf einmal, nur der neueste.",
         "all": "Alle neuen Spielstände",
-        "allHint": "Jeder neue Spielstand, der älteste zuerst; ältere landen im Zeitstrahl."
+        "allHint": "Bei 0 Minuten Abstand jeder neue Spielstand, der älteste zuerst; ältere landen im Zeitstrahl. Sonst wie „Nur den neuesten Spielstand“, übersprungene stehen im Protokoll."
       },
       "warning": "Die Datei enthält deinen Upload-Schlüssel. Gib sie nicht weiter: Wer sie hat, kann Spielstände in diese Welt hochladen.",
       "download": "{file} herunterladen",
@@ -1585,6 +1589,7 @@
       "saveDir": "Gib den Spielstand-Ordner an.",
       "sessionFilter": "Der Sitzungsname enthält ungültige Zeichen.",
       "pollSeconds": "Prüfen alle 5 bis 3600 Sekunden.",
+      "intervalMinutes": "Höchstens ein Upload alle 0 bis 1440 Minuten.",
       "serverUrl": "Die Adresse dieses Servers lässt sich nicht verwenden.",
       "worldId": "Ungültige Welt."
     },

@@ -152,6 +152,7 @@ export function OlderSavesFlow({ ctx, onClose, onBack }: { ctx: WorldCtx; onClos
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm">{t('import.older.intro')}</p>
+      <p className="text-sm text-muted">{t('import.older.thinning')}</p>
       {rows.length === 0 && (
         <div className="flex flex-col gap-2">
           <label htmlFor={inputId} className="text-sm font-medium">{t('import.older.filesLabel')}</label>

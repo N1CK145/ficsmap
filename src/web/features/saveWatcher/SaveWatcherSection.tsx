@@ -16,7 +16,7 @@ import { SegmentedControl } from '../../components/SegmentedControl.js';
 import { SettingsBlock } from '../sharing/SettingsPage.js';
 import { createUploadToken, revokeUploadToken, useUploadTokens } from './api.js';
 import {
-  configProblems, POLL_DEFAULT, POLL_MAX, POLL_MIN, runSteps, watcherDownload, WATCH_PLATFORMS,
+  configProblems, INTERVAL_DEFAULT, INTERVAL_MAX, INTERVAL_MIN, POLL_DEFAULT, POLL_MAX, POLL_MIN, runSteps, watcherDownload, WATCH_PLATFORMS,
   type UploadMode, type WatchConfig, type WatchPlatform,
 } from './generate.js';
 import { PRESETS_FOR, SAVE_PRESETS, type SavePreset } from './paths.js';
@@ -192,6 +192,7 @@ function GeneratorPart({ ctx, secret }: { ctx: WorldCtx; secret: string | undefi
   const [saveDir, setSaveDir] = useState(PLATFORM_DEFAULT('powershell'));
   const [session, setSession] = useState(world.lastImport?.sessionName ?? '');
   const [poll, setPoll] = useState(String(POLL_DEFAULT));
+  const [interval, setIntervalText] = useState(String(INTERVAL_DEFAULT));
   const [mode, setMode] = useState<UploadMode>('newest');
   const [typedToken, setTypedToken] = useState('');
   const [downloaded, setDownloaded] = useState(false);
@@ -217,6 +218,7 @@ function GeneratorPart({ ctx, secret }: { ctx: WorldCtx; secret: string | undefi
     saveDir,
     sessionFilter: session.trim(),
     pollSeconds: Number(poll),
+    intervalMinutes: interval.trim() === '' ? Number.NaN : Number(interval),
     mode,
   };
   const problems = configProblems(config);
@@ -301,6 +303,18 @@ function GeneratorPart({ ctx, secret }: { ctx: WorldCtx; secret: string | undefi
           value={poll}
           onChange={e => setPoll(e.target.value)}
           aria-invalid={problems.includes('pollSeconds')}
+          boxClassName="max-w-40"
+        />
+        <NumberField
+          label={t('saveWatcher.script.interval')}
+          unit={t('saveWatcher.script.minutes')}
+          hint={t('saveWatcher.script.intervalHint', { max: INTERVAL_MAX })}
+          min={INTERVAL_MIN}
+          max={INTERVAL_MAX}
+          step={1}
+          value={interval}
+          onChange={e => setIntervalText(e.target.value)}
+          aria-invalid={problems.includes('intervalMinutes')}
           boxClassName="max-w-40"
         />
       </div>

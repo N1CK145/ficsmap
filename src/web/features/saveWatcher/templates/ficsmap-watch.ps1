@@ -18,7 +18,8 @@ param([switch]$Once)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 
-# --- Settings (written by ficsmap; FICSMAP_SAVE_DIR, FICSMAP_STATE_DIR, FICSMAP_POLL_SECONDS override them) ---
+# --- Settings (written by ficsmap; FICSMAP_SAVE_DIR, FICSMAP_STATE_DIR, FICSMAP_POLL_SECONDS and
+# FICSMAP_UPLOAD_INTERVAL_MINUTES override them) ---
 $ServerUrl = @@SERVER_URL@@
 $WorldId = @@WORLD_ID@@
 $UploadToken = @@TOKEN@@
@@ -26,7 +27,11 @@ $SaveDir = @@SAVE_DIR@@
 # Only saves whose file name starts with "<SessionFilter>_" (empty: every save; the server still checks the session).
 $SessionFilter = @@SESSION@@
 $PollSeconds = @@POLL_SECONDS@@
-# newest: upload only the newest new save; all: upload every new save, oldest first.
+# At most one upload per this many minutes (0: no limit). A save that comes in sooner waits; when the time is up, the
+# newest waiting save is uploaded and the ones in between are skipped. Duplicates and failed uploads do not count.
+$UploadIntervalMinutes = @@INTERVAL_MINUTES@@
+# newest: upload only the newest new save; all: upload every new save, oldest first (with an upload interval: the
+# newest, and the skipped ones are logged).
 $UploadMode = @@MODE@@
 # Where the log and the list of uploaded saves are kept (empty: %LOCALAPPDATA%\ficsmap).
 $StateDir = @@STATE_DIR@@
@@ -37,6 +42,7 @@ $StableSeconds = 5
 if ($env:FICSMAP_SAVE_DIR) { $SaveDir = $env:FICSMAP_SAVE_DIR }
 if ($env:FICSMAP_STATE_DIR) { $StateDir = $env:FICSMAP_STATE_DIR }
 if ($env:FICSMAP_POLL_SECONDS) { $PollSeconds = [int]$env:FICSMAP_POLL_SECONDS }
+if ($env:FICSMAP_UPLOAD_INTERVAL_MINUTES) { $UploadIntervalMinutes = [int]$env:FICSMAP_UPLOAD_INTERVAL_MINUTES }
 
 $SaveDir = [Environment]::ExpandEnvironmentVariables($SaveDir)
 if ($SaveDir -eq '~' -or $SaveDir.StartsWith('~/') -or $SaveDir.StartsWith('~\')) {
@@ -58,7 +64,9 @@ if ($ServerUrl -notmatch '^https?://[^\s/]+(/\S*)?$') { Stop-WithError "ServerUr
 if ($WorldId -notmatch '^[0-9a-fA-F-]{36}$') { Stop-WithError "WorldId is not a world id: $WorldId" }
 if ($UploadToken -cnotmatch '^fsm_[0-9]+_[A-Za-z0-9_-]{43}$') { Stop-WithError 'UploadToken is not a ficsmap upload token' }
 if ($PollSeconds -lt 5) { Stop-WithError 'PollSeconds must be at least 5' }
+if ($UploadIntervalMinutes -lt 0 -or $UploadIntervalMinutes -gt 1440) { Stop-WithError 'UploadIntervalMinutes must be from 0 to 1440' }
 if ($UploadMode -ne 'newest' -and $UploadMode -ne 'all') { Stop-WithError 'UploadMode must be newest or all' }
+$IntervalSeconds = [long]$UploadIntervalMinutes * 60
 
 if ($PSVersionTable.PSVersion.Major -lt 6) {
     # Windows PowerShell 5.1 may still default to TLS 1.0.
@@ -72,9 +80,21 @@ $LogFile = Join-Path $StateDir "watch-$WorldId.log"
 $FirstRun = -not (Test-Path -LiteralPath $StateFile)
 $Utf8 = New-Object System.Text.UTF8Encoding($false)
 
+$Epoch = New-Object DateTime 1970, 1, 1, 0, 0, 0, ([DateTimeKind]::Utc)
+function Get-Epoch { return [long][Math]::Floor(([DateTime]::UtcNow - $Epoch).TotalSeconds) }
+
 $Done = New-Object 'System.Collections.Generic.HashSet[string]'
+# The state file lists the hash of every save done, and the time of each accepted upload ("last-upload <seconds>",
+# the last line counts), so a restart keeps the upload interval.
+$LastUpload = [long]0
+$DueAt = [long]0    # when the save waiting for the upload interval may go (0: none waits)
+$WaitLogged = ''    # the waiting save already logged, so the wait is logged once per save
 if (-not $FirstRun) {
-    foreach ($line in [IO.File]::ReadAllLines($StateFile)) { if ($line) { $null = $Done.Add($line.Trim()) } }
+    foreach ($line in [IO.File]::ReadAllLines($StateFile)) {
+        $l = $line.Trim()
+        if ($l -match '^last-upload (\d+)$') { $LastUpload = [long]$Matches[1] }
+        elseif ($l) { $null = $Done.Add($l) }
+    }
 } else {
     [IO.File]::WriteAllText($StateFile, '', $Utf8)
 }
@@ -128,6 +148,11 @@ function Set-Done([string]$Hash) {
     [IO.File]::AppendAllText($StateFile, $Hash + "`n", $Utf8)
 }
 
+function Set-LastUpload {
+    $script:LastUpload = Get-Epoch
+    [IO.File]::AppendAllText($StateFile, "last-upload $($script:LastUpload)`n", $Utf8)
+}
+
 # One upload: @{ Code = HTTP status (0: no answer); Body = the answer's text }.
 function Send-Save([IO.FileInfo]$File) {
     $params = @{
@@ -163,7 +188,8 @@ function Get-Field($Json, [string]$Name) {
     return ''
 }
 
-# 0 done (stored or refused for good), 1 try again later, 2 the token was refused.
+# 0 accepted (imported or added to the timeline), 3 done without counting as an upload (already in the world, or
+# refused for good), 1 try again later, 2 the token was refused.
 function Invoke-UploadOnce([IO.FileInfo]$File) {
     $res = Send-Save $File
     $json = $null
@@ -177,11 +203,12 @@ function Invoke-UploadOnce([IO.FileInfo]$File) {
                 'duplicate' { Write-Log "$name is already in the world." }
                 default { Write-Log "Uploaded $name (HTTP $($res.Code))." }
             }
-            return 0
+            if ($res.Code -eq 201) { return 0 }
+            return 3
         }
         { $_ -in 400, 409, 413, 415 } {
             Write-Log ("Server refused {0} (HTTP {1}): {2} It is not tried again." -f $name, $res.Code, (Get-Field $json 'message'))
-            return 0
+            return 3
         }
         { $_ -in 401, 403, 404 } {
             Write-Log "ERROR: the server refused the upload token (HTTP $($res.Code)). It may have been revoked: create a new one in the world's settings and download the script again."
@@ -203,7 +230,12 @@ function Invoke-Upload([IO.FileInfo]$File, [string]$Hash) {
     Write-Log "Uploading $($File.Name) ..."
     for ($attempt = 1; $attempt -le 4; $attempt++) {
         $rc = Invoke-UploadOnce $File
-        if ($rc -eq 0) { Set-Done $Hash; $RetryAt.Remove($Hash); return }
+        if ($rc -eq 0 -or $rc -eq 3) {
+            Set-Done $Hash
+            $RetryAt.Remove($Hash)
+            if ($rc -eq 0) { Set-LastUpload }
+            return
+        }
         if ($rc -eq 2) { $RetryAt[$Hash] = (Get-Date).AddHours(1); return }
         if ($attempt -lt 4) { Start-Sleep -Seconds (10 * [Math]::Pow(3, $attempt - 1)) }
     }
@@ -211,6 +243,7 @@ function Invoke-Upload([IO.FileInfo]$File, [string]$Hash) {
 }
 
 function Invoke-Scan {
+    $script:DueAt = [long]0
     if (-not (Test-Path -LiteralPath $SaveDir -PathType Container)) {
         Write-Log "Waiting for the save folder $SaveDir to appear ..."
         return
@@ -227,16 +260,41 @@ function Invoke-Scan {
         $script:FirstRun = $false
     }
     if ($UploadMode -eq 'newest') { $saves = @($saves[-1]) }
+    # The saves to upload, oldest first: new, written, and not waiting after a failed upload.
+    $pending = New-Object System.Collections.ArrayList
     foreach ($file in $saves) {
         $h = Get-SaveHash $file
         if (-not $h -or $Done.Contains($h)) { continue }
         if ($RetryAt.ContainsKey($h) -and (Get-Date) -lt $RetryAt[$h]) { continue }
-        Invoke-Upload $file $h
+        $null = $pending.Add(@{ File = $file; Hash = $h })
     }
+    if ($pending.Count -eq 0) { return }
+    if ($IntervalSeconds -eq 0) {
+        foreach ($p in $pending) { Invoke-Upload $p.File $p.Hash }
+        return
+    }
+    $now = Get-Epoch
+    if ($script:LastUpload -gt $now) { $script:LastUpload = $now }   # the clock went back: wait one interval at most
+    $newest = $pending[$pending.Count - 1]
+    if ($now -lt $script:LastUpload + $IntervalSeconds) {
+        $script:DueAt = $script:LastUpload + $IntervalSeconds
+        if ($script:WaitLogged -ne $newest.Hash) {
+            Write-Log ("{0} waits for the upload interval (one upload per {1} min); next upload in about {2} min." -f $newest.File.Name, $UploadIntervalMinutes, [Math]::Ceiling(($script:DueAt - $now) / 60))
+            $script:WaitLogged = $newest.Hash
+        }
+        return
+    }
+    # Only the newest goes; the ones in between ("all" mode) are skipped for good.
+    for ($i = 0; $i -lt $pending.Count - 1; $i++) {
+        Write-Log "Skipped $($pending[$i].File.Name): a newer save came in within the upload interval."
+        Set-Done $pending[$i].Hash
+    }
+    Invoke-Upload $newest.File $newest.Hash
 }
 
 $filterText = if ($SessionFilter) { $SessionFilter } else { 'any session' }
-Write-Log "ficsmap save watcher: $SaveDir -> $ServerUrl (world $WorldId, $filterText, $UploadMode, watching and checking every ${PollSeconds}s)"
+$limitText = if ($IntervalSeconds -gt 0) { "at most one upload per $UploadIntervalMinutes min" } else { 'no upload interval' }
+Write-Log "ficsmap save watcher: $SaveDir -> $ServerUrl (world $WorldId, $filterText, $UploadMode, $limitText, watching and checking every ${PollSeconds}s)"
 
 Invoke-Scan
 if ($Once) { exit 0 }
@@ -253,10 +311,17 @@ try {
                 $watcher = $null   # e.g. some network drives: keep checking every PollSeconds
             }
         }
+        # A save waiting for the upload interval wakes the loop when its time is up.
+        $wait = [long]$PollSeconds
+        if ($DueAt -gt 0) {
+            $left = $DueAt - (Get-Epoch) + 1
+            if ($left -lt 1) { $left = 1 }
+            if ($left -lt $wait) { $wait = $left }
+        }
         if ($null -ne $watcher) {
-            $null = $watcher.WaitForChanged([IO.WatcherChangeTypes]::All, $PollSeconds * 1000)
+            $null = $watcher.WaitForChanged([IO.WatcherChangeTypes]::All, [int]($wait * 1000))
         } else {
-            Start-Sleep -Seconds $PollSeconds
+            Start-Sleep -Seconds $wait
         }
         Invoke-Scan
     }

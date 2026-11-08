@@ -7,28 +7,13 @@ import type { SseEvent } from '../../shared/sse.js';
 import { HttpError } from '../errors.js';
 import { applyImport } from './importSave.js';
 import { encodeSnapshot, parseSnapshot, storeSnapshot } from './snapshots.js';
-import type { WorldRow } from './worlds.js';
+import { lastImportOf, type WorldRow } from './worlds.js';
 
 /**
  * Rules of the save watcher's upload (`POST /api/worlds/:id/saves`): which session a world expects, whether a save is
  * newer than the world's last import (then it is imported) or older (then only its factory snapshot is kept), and
  * whether the world has it already.
  */
-
-interface LastImport { sessionName?: string; saveTime?: number }
-
-function lastImportOf(world: WorldRow): LastImport | undefined {
-  if (!world.last_import_meta) return undefined;
-  try {
-    const m = JSON.parse(world.last_import_meta) as { sessionName?: unknown; saveTime?: unknown };
-    return {
-      ...(typeof m.sessionName === 'string' ? { sessionName: m.sessionName } : {}),
-      ...(typeof m.saveTime === 'number' ? { saveTime: m.saveTime } : {}),
-    };
-  } catch {
-    return undefined;
-  }
-}
 
 /** The session a world's saves belong to: its last import's, else its newest snapshot's, else none yet (as the browser's "Add older saves"). */
 export function worldSession(db: Db, world: WorldRow): string | undefined {
@@ -74,7 +59,8 @@ export interface UploadInput {
 /**
  * Applies a parsed save: `import` runs the normal import (the same `applyImport` as `POST /import`) and stores the
  * snapshot; `snapshot` stores only the snapshot. A snapshot the world has no room for fails a `snapshot` upload (409
- * `limit_reached`) but not an import, which then says so in `note` (also `no_factory`, `invalid_factory`). Returns the answer and the events to broadcast.
+ * `limit_reached`) but not an import, which then says so in `note` (also `no_factory`, `invalid_factory`, and
+ * `thinned` when the retention rule thinned the stored snapshot at once). Returns the answer and the events to broadcast.
  */
 export async function applyUpload(
   db: Db, index: DatasetIndex, input: UploadInput,
@@ -113,8 +99,10 @@ export async function applyUpload(
 
   if (snapshot) {
     try {
-      const { rev } = storeSnapshot(db, world.id, snapshot.s, snapshot.gz, userId, now);
-      dto.snapshot = true;
+      const { summary, rev, thinned } = storeSnapshot(db, world.id, snapshot.s, snapshot.gz, userId, now);
+      // An old save whose hour, day or week of the timeline has a newer one is thinned at once (retention).
+      if (thinned.includes(summary.id)) note = 'thinned';
+      else dto.snapshot = true;
       events.push({ type: 'snapshots', rev });
     } catch (err) {
       if (plan !== 'import' || !(err instanceof HttpError) || err.code !== 'limit_reached') throw err;

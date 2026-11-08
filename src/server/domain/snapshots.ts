@@ -6,8 +6,9 @@ import { FACTORY_SNAPSHOT_VERSION, type FactorySnapshot, type SnapshotSummary } 
 import {
   MAX_SNAPSHOT_JSON_BYTES, MAX_SNAPSHOTS_PER_WORLD, snapshotFigures, type SnapshotFigures,
 } from '../../shared/factory/storage.js';
+import { snapshotsToThin } from '../../shared/factory/retention.js';
 import { HttpError } from '../errors.js';
-import { bumpRev } from './worlds.js';
+import { bumpRev, lastImportOf } from './worlds.js';
 
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -209,29 +210,71 @@ const SELECT = `SELECT s.id, s.session_name, s.save_time, s.imported_at, u.displ
   FROM factory_snapshots s LEFT JOIN users u ON u.id = s.imported_by`;
 
 /**
- * Stores a snapshot (`gz`: its encoded form). The same save (session name and save time) replaces the stored row
- * under a new id, since ids are cached as immutable. 409 `limit_reached` when the world already holds
- * MAX_SNAPSHOTS_PER_WORLD other snapshots. Bumps the world's rev.
+ * Thins the world's snapshots by the retention rule (`src/shared/factory/retention.ts`): per session, relative to the
+ * newest snapshot's save time; the newest snapshot and the last import's stay. Deletes them and returns their ids.
+ * Does not bump the world's rev; run it inside the caller's transaction.
+ */
+export function thinSnapshots(db: Db, worldId: string): number[] {
+  const rows = db.prepare('SELECT id, session_name AS sessionName, save_time AS saveTime FROM factory_snapshots WHERE world_id = ?')
+    .all(worldId) as { id: number; sessionName: string; saveTime: number }[];
+  const keep: number[] = [];
+  const world = db.prepare('SELECT last_import_meta FROM worlds WHERE id = ?').get(worldId) as { last_import_meta: string | null } | undefined;
+  const last = world ? lastImportOf(world) : undefined;
+  if (last?.sessionName !== undefined && last.saveTime !== undefined) {
+    const saveTime = Math.trunc(last.saveTime);
+    for (const r of rows) if (r.sessionName === last.sessionName && r.saveTime === saveTime) keep.push(r.id);
+  }
+  const ids = snapshotsToThin(rows, keep);
+  const del = db.prepare('DELETE FROM factory_snapshots WHERE world_id = ? AND id = ?');
+  for (const id of ids) del.run(worldId, id);
+  return ids;
+}
+
+/**
+ * Thins the snapshots of every world (housekeeping). Returns the worlds that lost snapshots, with their new rev, for
+ * the `snapshots` event.
+ */
+export function thinAllSnapshots(db: Db): { worldId: string; rev: number; deleted: number }[] {
+  const worlds = db.prepare('SELECT DISTINCT world_id FROM factory_snapshots').all() as { world_id: string }[];
+  const out: { worldId: string; rev: number; deleted: number }[] = [];
+  for (const { world_id: worldId } of worlds) {
+    const done = db.transaction(() => {
+      const ids = thinSnapshots(db, worldId);
+      return ids.length > 0 ? { worldId, rev: bumpRev(db, worldId), deleted: ids.length } : undefined;
+    })();
+    if (done) out.push(done);
+  }
+  return out;
+}
+
+/**
+ * Stores a snapshot (`gz`: its encoded form) and thins the world's snapshots (`thinSnapshots`) in the same
+ * transaction; the new one may be thinned right away when it is old and its hour, day or week has a newer one.
+ * The same save (session name and save time) replaces the stored row under a new id, since ids are cached as
+ * immutable. 409 `limit_reached` when the world would hold more than MAX_SNAPSHOTS_PER_WORLD snapshots after
+ * thinning (nothing is changed then). Bumps the world's rev.
  */
 export function storeSnapshot(
   db: Db, worldId: string, s: FactorySnapshot, gz: Buffer, userId: number, now: number,
-): { summary: SnapshotSummary; replaced: boolean; rev: number } {
+): { summary: SnapshotSummary; replaced: boolean; rev: number; thinned: number[] } {
   const saveTime = Math.trunc(s.meta.saveTime);
   const figures = snapshotFigures(s);
   return db.transaction(() => {
     const removed = db.prepare('DELETE FROM factory_snapshots WHERE world_id = ? AND session_name = ? AND save_time = ?')
       .run(worldId, s.meta.sessionName, saveTime).changes;
-    const { n } = db.prepare('SELECT count(*) AS n FROM factory_snapshots WHERE world_id = ?').get(worldId) as { n: number };
-    if (n >= MAX_SNAPSHOTS_PER_WORLD) {
-      throw new HttpError(409, 'limit_reached', `A world holds at most ${MAX_SNAPSHOTS_PER_WORLD} factory snapshots`);
-    }
     const id = Number(db.prepare(
       `INSERT INTO factory_snapshots(world_id, session_name, save_time, imported_at, imported_by, data, summary, bytes)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(worldId, s.meta.sessionName, saveTime, now, userId, gz, JSON.stringify(figures), gz.length).lastInsertRowid);
-    const rev = bumpRev(db, worldId);
+    // The summary is read before thinning, so the answer describes the stored save even when it is thinned at once.
     const row = db.prepare(`${SELECT} WHERE s.id = ?`).get(id) as SnapshotRow;
-    return { summary: toSummary(row), replaced: removed > 0, rev };
+    const thinned = thinSnapshots(db, worldId);
+    const { n } = db.prepare('SELECT count(*) AS n FROM factory_snapshots WHERE world_id = ?').get(worldId) as { n: number };
+    if (n > MAX_SNAPSHOTS_PER_WORLD) {
+      throw new HttpError(409, 'limit_reached', `A world holds at most ${MAX_SNAPSHOTS_PER_WORLD} factory snapshots`);
+    }
+    const rev = bumpRev(db, worldId);
+    return { summary: toSummary(row), replaced: removed > 0, rev, thinned };
   })();
 }
 
