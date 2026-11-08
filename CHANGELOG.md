@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- "Show only conflicts" stayed on after the last conflict was resolved: every item was hidden and the checkbox was gone with the conflicts panel. The filter now switches off when no conflict is left.
 - Biomes: the wiki biome map's grid labels (X2Y1, X3Y0) were taken for Snaketree Forest and showed as two rectangles outside the biome; the labels are now left out and get the surrounding biome.
 - 10 drop pods showed a cost (power or items) although they need nothing: the game ignores the leftover values in a pod whose cost type is None. Every pod's requirement now comes from the game files.
 - Crash sites: 43 items lying around showed the wrong item (for example Packaged Liquid Biofuel shown as Nuke Nobelisk or Turbo Motor, Wire as Quickwire), and 4 were missing (a Supercomputer, Rifle Ammo and two Medicinal Inhalers).
