@@ -29,13 +29,15 @@ export type NumberFieldProps = Omit<ComponentPropsWithRef<'input'>, 'type' | 'si
   size?: FieldSize;
   /** Layout of the whole field (label, box, hint). */
   className?: string;
+  /** Width of the box alone (e.g. `max-w-48`), when the label and hint may be wider than the number needs. */
+  boxClassName?: string;
 };
 
 /**
  * A labelled number input with its unit inside the box, as in the game's machine windows ("[ 120 ] /min"). A native
  * `type="number"` input, controlled or not as the caller likes (`value`, `onChange`, `min`, `max`, `step` pass through).
  */
-export function NumberField({ label, hideLabel = false, unit, hint, size = 'md', className = '', id, ...input }: NumberFieldProps) {
+export function NumberField({ label, hideLabel = false, unit, hint, size = 'md', className = '', boxClassName = '', id, ...input }: NumberFieldProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
   const unitId = `${inputId}-unit`;
@@ -45,7 +47,7 @@ export function NumberField({ label, hideLabel = false, unit, hint, size = 'md',
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
       <label htmlFor={inputId} className={hideLabel ? 'sr-only' : FIELD_LABEL}>{label}</label>
-      <div className={`flex items-center ${BOX} focus-within:border-accent focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2 focus-within:ring-offset-bg ${size === 'sm' ? 'h-8 text-sm' : 'h-10'}`}>
+      <div className={`flex items-center ${BOX} focus-within:border-accent focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2 focus-within:ring-offset-bg ${size === 'sm' ? 'h-8 text-sm' : 'h-10'} ${boxClassName}`}>
         <input
           inputMode="decimal"
           {...input}

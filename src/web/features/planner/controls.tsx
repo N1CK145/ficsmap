@@ -3,12 +3,11 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { choiceKey, choiceOptions, defaultChoice, parseChoiceKey, PURITY_FACTOR, type Choice, type Flow, type PlanStep, type Purity } from '../../../shared/planner.js';
 import type { RecipeIndex } from '../../../shared/recipes.js';
+import { FIELD_LABEL, fieldClass } from '../../components/Field.js';
 import { formatNumber, formatRate, itemName, type Lang } from './format.js';
 import { usePlanner } from './usePlanner.js';
 
 /** Parts shared by the step list (`StepRow`) and the diagram's step panel (`StepPanel`). */
-
-export const inputClass = 'h-10 rounded border border-line bg-bg px-3 text-fg focus-ring';
 
 /** Impure / Normal / Pure with their factor, for a SegmentedControl or a select. */
 export function usePurityOptions(): { value: Purity; label: string }[] {
@@ -50,13 +49,8 @@ export function ChoiceSelect({ step, index, lang, minerId, className = '' }: { s
 
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className}`}>
-      <label htmlFor={id} className="text-sm text-muted">{t('planner.howMade')}</label>
-      <select
-        id={id}
-        value={current}
-        onChange={e => onChoose(e.target.value)}
-        className="h-10 min-w-0 max-w-full flex-1 rounded border border-line bg-panel px-2 text-sm text-fg focus-ring"
-      >
+      <label htmlFor={id} className={FIELD_LABEL}>{t('planner.howMade')}</label>
+      <select id={id} value={current} onChange={e => onChoose(e.target.value)} className={fieldClass({}, 'min-w-0 max-w-full flex-1 basis-48 text-sm')}>
         {options.map(o => <option key={choiceKey(o)} value={choiceKey(o)}>{label(o)}</option>)}
       </select>
     </div>
@@ -71,6 +65,11 @@ export function powerText(p: { min: number; max: number }, lang: Lang, t: TFunct
   return Math.abs(p.max - p.min) < 1e-9
     ? t('planner.power', { value: formatNumber(p.min, lang, 1) })
     : t('planner.powerRange', { min: formatNumber(p.min, lang, 1), max: formatNumber(p.max, lang, 1) });
+}
+
+/** The power as a number (or range) without its unit, for a figure whose unit is shown apart. */
+export function powerValue(p: { min: number; max: number }, lang: Lang): string {
+  return Math.abs(p.max - p.min) < 1e-9 ? formatNumber(p.min, lang, 1) : `${formatNumber(p.min, lang, 1)}–${formatNumber(p.max, lang, 1)}`;
 }
 
 /** The step's building name in the UI language: the recipe's machine or the extractor; undefined for an external item. */

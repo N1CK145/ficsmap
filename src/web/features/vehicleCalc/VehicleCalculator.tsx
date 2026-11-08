@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type ReactNode } from 'react';
+import { useId, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   calculate, DEFAULT_FUEL, defaultSpeed, loadFor, oneWaySeconds, tripsByFuel, vehicleFuels,
@@ -6,11 +6,14 @@ import {
   type VehicleId,
 } from '../../../shared/transport.js';
 import { Button } from '../../components/Button.js';
+import { FIELD_LABEL, fieldClass, NumberField } from '../../components/Field.js';
+import { Fold } from '../../components/Fold.js';
+import { IconButton } from '../../components/IconButton.js';
+import { CloseIcon } from '../../components/icons.js';
+import { StatList, StatRow, StatTile, TileValue } from '../../components/StatRow.js';
+import { Window, WINDOW_FRAME } from '../../components/Window.js';
 import { GameIcon } from '../machineWiki/icons.js';
 import type { CalcForm } from './useVehicleCalc.js';
-
-const INPUT = 'h-10 w-full min-w-0 rounded border border-line bg-bg px-3 text-fg focus-ring';
-const PANEL = 'rounded border border-line bg-panel';
 
 /** The game's descriptor class of each vehicle, for its picture (dataset part `icons`). */
 export const VEHICLE_PICTURES: Record<VehicleId, string> = {
@@ -112,38 +115,28 @@ function useDuration() {
   };
 }
 
-/** A numbered step of the form, styled like a section of the game's terminals. */
-function Step({ n, title, titleId, children }: { n: number; title: string; titleId: string; children: ReactNode }) {
+/**
+ * A numbered step of the form: a window whose title bar carries the step number in the accent before the title, as
+ * the game numbers the sections of its terminals ("1. Default").
+ */
+function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={titleId} className={`${PANEL} flex flex-col gap-3 p-4`}>
-      <h3 id={titleId} className="flex items-center gap-2 font-display text-lg font-semibold uppercase leading-6 tracking-wide">
-        <span aria-hidden="true" className="flex size-6 shrink-0 items-center justify-center rounded bg-accent text-sm leading-none text-bg">{n}</span>
-        {title}
-      </h3>
+    <Window level={3} title={title} icon={<span className="w-3 text-center font-display text-lg leading-none font-bold text-accent tabular-nums">{n}</span>}
+      bodyClassName="flex flex-col gap-3 p-3">
       {children}
-    </section>
+    </Window>
   );
 }
 
-/** A number input with its label, unit, an optional short hint and a [Game value] button while it differs from that. */
-function NumberField({ label, value, onChange, unit, hint, reset }: {
+/** A number field (`NumberField`, unit inside) with an optional hint and a [Game value] button while it differs from that. */
+function ValueField({ label, value, onChange, unit, hint, reset }: {
   label: string; value: string; onChange(v: string): void; unit: string; hint?: string;
   reset?: { label: string; onReset(): void };
 }) {
-  const id = useId();
-  const hintId = useId();
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium">{label}</label>
-      <div className="flex items-center gap-2">
-        <input id={id} type="number" inputMode="decimal" min={0} step="any" value={value} aria-describedby={hint ? hintId : undefined}
-          onChange={e => onChange(e.target.value)} className={`${INPUT} max-w-40`} />
-        <span className="shrink-0 text-sm text-muted">{unit}</span>
-      </div>
-      {hint && <p id={hintId} className="text-xs text-muted">{hint}</p>}
-      {reset && (
-        <Button size="sm" variant="ghost" className="-ml-3 self-start" onClick={reset.onReset}>{reset.label}</Button>
-      )}
+    <div className="flex flex-col items-start gap-1">
+      <NumberField label={label} unit={unit} hint={hint} min={0} step="any" value={value} onChange={e => onChange(e.target.value)} className="w-full" boxClassName="max-w-48" />
+      {reset && <Button size="sm" variant="ghost" className="-ml-3" onClick={reset.onReset}>{reset.label}</Button>}
     </div>
   );
 }
@@ -162,7 +155,7 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
 }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === 'de' ? 'de' : 'en';
-  const ids = { route: useId(), vehicle: useId(), fuel: useId(), fuelSelect: useId(), fuelHint: useId(), item: useId(), items: useId(), itemHint: useId(), radio: useId() };
+  const ids = { fuelSelect: useId(), fuelHint: useId(), item: useId(), items: useId(), itemHint: useId(), radio: useId() };
   const nums = useNumbers();
 
   const vehicle = data.vehicles.find(v => v.id === form.vehicle) ?? data.vehicles[0];
@@ -175,7 +168,7 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
   );
   const speedTyped = vehicle ? form.speed[vehicle.id] !== undefined : false;
   const stopTyped = vehicle ? form.stop[vehicle.id] !== undefined : false;
-  const [moreOpen, setMoreOpen] = useState(() => form.item !== '' || speedTyped || stopTyped);
+  const moreOpen = form.item !== '' || speedTyped || stopTyped;
   if (!vehicle) return <p>{t('vehicleCalc.unavailable')}</p>;
 
   // The drone keeps its own fuel choice: it takes fewer fuels, and its speed depends on the fuel.
@@ -210,7 +203,7 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
   };
 
   const speedField = (
-    <NumberField label={t('vehicleCalc.speed')} value={speed} unit={t('vehicleCalc.unit.kmh')}
+    <ValueField label={t('vehicleCalc.speed')} value={speed} unit={t('vehicleCalc.unit.kmh')}
       onChange={v => onChange({ speed: { ...form.speed, [vehicle.id]: v } })}
       hint={speedDefault === null ? t('vehicleCalc.speedMissing') : t(`vehicleCalc.speedDefault.${speedDefault.source}`, {
         limit: kmh(vehicle.straightPathSpeed ?? 0), fuel: fuel?.name[lang],
@@ -221,7 +214,7 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
       } : undefined} />
   );
   const stopField = (
-    <NumberField label={t('vehicleCalc.stop')} value={stop} unit={t('vehicleCalc.unit.s')}
+    <ValueField label={t('vehicleCalc.stop')} value={stop} unit={t('vehicleCalc.unit.s')}
       onChange={v => onChange({ stop: { ...form.stop, [vehicle.id]: v } })}
       hint={vehicle.stopSource === null ? t('vehicleCalc.stopMissing') : t(`vehicleCalc.stopSource.${vehicle.stopSource}`)}
       reset={stopTyped && stopGame !== '' && stop !== stopGame ? {
@@ -239,20 +232,20 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
     <form onSubmit={e => e.preventDefault()} noValidate
       className="mx-auto grid w-full max-w-6xl gap-4 lg:grid-cols-2 lg:items-start lg:gap-6">
       <div className="flex min-w-0 flex-col gap-4">
-        <Step n={1} title={t('vehicleCalc.step.route')} titleId={ids.route}>
+        <Step n={1} title={t('vehicleCalc.step.route')}>
           {picker}
-          <NumberField label={t('vehicleCalc.route')} value={form.route} unit={t('vehicleCalc.unit.m')} onChange={route => onChange({ route })} />
+          <ValueField label={t('vehicleCalc.route')} value={form.route} unit={t('vehicleCalc.unit.m')} onChange={route => onChange({ route })} />
         </Step>
 
-        <Step n={2} title={t('vehicleCalc.step.vehicle')} titleId={ids.vehicle}>
-          <div role="radiogroup" aria-labelledby={ids.vehicle} className="grid grid-cols-3 gap-2">
+        <Step n={2} title={t('vehicleCalc.step.vehicle')}>
+          <div role="radiogroup" aria-label={t('vehicleCalc.step.vehicle')} className="grid grid-cols-3 gap-2">
             {data.vehicles.map(v => {
               const checked = v.id === vehicle.id;
               const nameId = `${ids.radio}-${v.id}`;
               return (
                 <label key={v.id}
-                  className={`flex min-w-0 cursor-pointer flex-col items-center gap-1 rounded border px-1 pt-2 pb-2 text-center transition-colors has-focus-visible:ring-2 has-focus-visible:ring-accent has-focus-visible:ring-offset-2 has-focus-visible:ring-offset-panel ${
-                    checked ? 'border-accent bg-accent/15' : 'border-line bg-bg hover:border-muted'}`}>
+                  className={`flex min-w-0 cursor-pointer flex-col items-center gap-1 chamfer border px-1 pt-2 pb-2 text-center transition-colors has-focus-visible:ring-2 has-focus-visible:ring-accent has-focus-visible:ring-offset-2 has-focus-visible:ring-offset-panel ${
+                    checked ? 'border-accent bg-accent/15' : 'border-line bg-bg hover:border-edge hover:bg-raised'}`}>
                   <input type="radio" name={ids.radio} value={v.id} checked={checked} onChange={() => onChange({ vehicle: v.id })}
                     aria-labelledby={nameId} aria-describedby={`${nameId}-cap`} className="sr-only" />
                   <GameIcon cls={VEHICLE_PICTURES[v.id]} px={56} placeholder />
@@ -266,14 +259,14 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
           {stopRequired && stopField}
         </Step>
 
-        <Step n={3} title={t('vehicleCalc.step.fuel')} titleId={ids.fuel}>
+        <Step n={3} title={t('vehicleCalc.step.fuel')}>
           {fuel ? (
             <div className="flex flex-col gap-1">
               <label htmlFor={ids.fuelSelect} className="sr-only">{t('vehicleCalc.fuel')}</label>
               <div className="flex items-center gap-2">
                 <GameIcon cls={fuel.id} px={36} placeholder />
                 <select id={ids.fuelSelect} value={fuel.id} onChange={e => onChange({ [fuelField]: e.target.value })}
-                  aria-describedby={vehicle.fuel?.fuels ? ids.fuelHint : undefined} className={INPUT}>
+                  aria-describedby={vehicle.fuel?.fuels ? ids.fuelHint : undefined} className={fieldClass({}, 'w-full min-w-0')}>
                   {sortedFuels.map(f => <option key={f.id} value={f.id}>{f.name[lang]}</option>)}
                 </select>
               </div>
@@ -284,32 +277,25 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
           )}
         </Step>
 
-        <details open={moreOpen} onToggle={e => setMoreOpen(e.currentTarget.open)} className={PANEL}>
-          <summary className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-3 gap-y-1 rounded px-4 py-3 focus-ring">
-            <span className="font-display text-base font-semibold uppercase tracking-wide">
-              <span aria-hidden="true" className="mr-2 inline-block text-accent transition-transform in-open:rotate-90">▸</span>
-              {t('vehicleCalc.more.title')}
-            </span>
-            <span className="text-sm text-muted tabular-nums">
-              {t('vehicleCalc.more.values', {
-                item: itemTyped ? form.item.trim() : t('vehicleCalc.more.anyItem'),
-                speed: shown(speed), stop: shown(stop),
-              })}
-            </span>
-          </summary>
-          <div className="flex flex-col gap-4 border-t border-line p-4">
+        <Fold
+          title={t('vehicleCalc.more.title')}
+          summary={t('vehicleCalc.more.values', { item: itemTyped ? form.item.trim() : t('vehicleCalc.more.anyItem'), speed: shown(speed), stop: shown(stop) })}
+          defaultOpen={moreOpen}
+          className={WINDOW_FRAME}
+          summaryClassName="px-3 py-1.5"
+          bodyClassName="flex flex-col gap-4 border-t border-line p-3"
+        >
             <div className="flex flex-col gap-1">
-              <label htmlFor={ids.item} className="text-sm font-medium">{t('vehicleCalc.item')}</label>
+              <label htmlFor={ids.item} className={FIELD_LABEL}>{t('vehicleCalc.item')}</label>
               <div className="flex items-center gap-2">
                 {item && <GameIcon cls={item.id} px={32} />}
                 <input id={ids.item} list={ids.items} value={form.item} autoComplete="off" placeholder={t('vehicleCalc.itemPlaceholder')}
                   aria-describedby={ids.itemHint} aria-invalid={itemTyped && (!item || !load)}
-                  onChange={e => onChange({ item: e.target.value })} className={INPUT} />
+                  onChange={e => onChange({ item: e.target.value })} className={fieldClass({}, 'w-full min-w-0')} />
                 {itemTyped && (
-                  <button type="button" onClick={() => onChange({ item: '' })} aria-label={t('vehicleCalc.itemClear')}
-                    className="size-10 shrink-0 rounded border border-line text-muted hover:text-fg focus-ring">
-                    <span aria-hidden="true">×</span>
-                  </button>
+                  <IconButton onClick={() => onChange({ item: '' })} aria-label={t('vehicleCalc.itemClear')} title={t('vehicleCalc.itemClear')}>
+                    <CloseIcon />
+                  </IconButton>
                 )}
               </div>
               <datalist id={ids.items}>
@@ -323,16 +309,16 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
             </div>
             {!speedRequired && speedField}
             {!stopRequired && stopField}
-          </div>
-        </details>
+        </Fold>
       </div>
 
       <div className="flex min-w-0 flex-col gap-4">
         <ResultPanel vehicle={vehicle} fuel={fuel} route={form.route} one={one && load ? { result: one, load, oneWay: oneWaySeconds(trip), stop: trip.stopSeconds } : null}
-          missing={missing} lang={lang} />
-        {one && load && (
-          <FleetPanel fleet={fleet} load={load} target={form.target} onTarget={target => onChange({ target })} freight={freight} fuelName={fuel?.name[lang]} />
-        )}
+          missing={missing} lang={lang}>
+          {one && load && (
+            <FleetPanel fleet={fleet} load={load} target={form.target} onTarget={target => onChange({ target })} freight={freight} fuelName={fuel?.name[lang]} />
+          )}
+        </ResultPanel>
         {one && load && rows.length > 0 && (
           <FuelTable rows={rows} bySpeed={vehicle.fuel?.fuels != null} selected={fuel?.id ?? null} lang={lang} />
         )}
@@ -341,42 +327,23 @@ export function VehicleCalculator({ data, form, onChange, picker }: {
   );
 }
 
-/** A big number with its label: the result's main figures. */
-function Stat({ label, children, sub, main = false }: { label: string; children: ReactNode; sub?: ReactNode; main?: boolean }) {
-  return (
-    <div className={`flex min-w-0 flex-col gap-0.5 rounded border px-3 py-2 ${main ? 'col-span-2 border-accent/60 bg-accent/10 sm:col-span-1' : 'border-line bg-bg'}`}>
-      <dt className="text-xs font-medium text-muted">{label}</dt>
-      <dd className={`font-display font-semibold leading-tight tabular-nums ${main ? 'text-4xl text-accent' : 'text-3xl'}`}>{children}</dd>
-      {sub && <dd className="text-sm text-muted tabular-nums">{sub}</dd>}
-    </div>
-  );
-}
-
-/** A value and its unit, the unit smaller. */
-function Value({ value, unit }: { value: string; unit: string }) {
-  return <>{value} <span className="font-sans text-base font-medium text-muted">{unit}</span></>;
-}
-
 /**
- * The answer: what one vehicle does on the route with the chosen fuel. Stacks per minute (m³ for fluids; with an item
- * also items), the round trip with the one-way trip, the fuel per round trip and per minute, the load per trip and the
- * stop time it includes. A status region, so changes are announced; until the input is complete it says what is missing.
+ * The answer, a window: what one vehicle does on the route with the chosen fuel. Stacks per minute (m³ for fluids;
+ * with an item also items), the round trip with the one-way trip, the fuel per round trip and per minute, the load per
+ * trip and the stop time it includes. A status region, so changes are announced; until the input is complete it says
+ * what is missing. `children` (the fleet question) goes under it.
  */
-function ResultPanel({ vehicle, fuel, route, one, missing, lang }: {
+function ResultPanel({ vehicle, fuel, route, one, missing, lang, children }: {
   vehicle: TransportVehicle; fuel: TransportFuel | null; route: string; lang: 'en' | 'de'; missing: string;
-  one: { result: CalcResult; load: Load; oneWay: number; stop: number } | null;
+  one: { result: CalcResult; load: Load; oneWay: number; stop: number } | null; children?: ReactNode;
 }) {
   const { t } = useTranslation();
-  const titleId = useId();
   const nums = useNumbers();
   const duration = useDuration();
   const freight = vehicle.id === 'freightCar';
   return (
-    <section aria-labelledby={titleId} className={`${PANEL} overflow-hidden`}>
-      <div className="border-b-2 border-accent bg-bg px-4 py-2">
-        <h3 id={titleId} className="font-display text-xl font-semibold uppercase leading-7 tracking-wide">{t('vehicleCalc.result.title')}</h3>
-      </div>
-      <div role="status" aria-labelledby={titleId} className="flex flex-col gap-3 p-4">
+    <Window level={3} title={t('vehicleCalc.result.title')} bodyClassName="flex flex-col">
+      <div role="status" aria-label={t('vehicleCalc.result.title')} className="flex flex-col gap-3 p-3">
         {one ? (
           <>
             {/* What the numbers are for: vehicle, route length and fuel; thin lines between them where they fit on one line. */}
@@ -386,19 +353,19 @@ function ResultPanel({ vehicle, fuel, route, one, missing, lang }: {
               {fuel && <span className="inline-flex items-center gap-1.5"><GameIcon cls={fuel.id} px={20} />{fuel.name[lang]}</span>}
             </p>
             <dl className={`grid grid-cols-2 gap-2 ${one.result.fuel ? 'sm:grid-cols-3' : ''}`}>
-              <Stat main label={t(freight ? 'vehicleCalc.result.perFreightCar' : 'vehicleCalc.result.perVehicle')}
+              <StatTile main className="col-span-2 sm:col-span-1" label={t(freight ? 'vehicleCalc.result.perFreightCar' : 'vehicleCalc.result.perVehicle')}
                 sub={one.load.unit === 'items' ? t('vehicleCalc.rate.itemsOnly', { value: round1(one.result.perVehiclePerMinute) }) : undefined}>
                 {one.load.unit === 'm3'
-                  ? <Value value={nums.n(round1(one.result.perVehiclePerMinute))} unit={t('vehicleCalc.unit.m3')} />
-                  : <Value value={nums.n(round1(one.result.stacksPerVehiclePerMinute ?? 0))} unit={t('vehicleCalc.unit.stacks')} />}
-              </Stat>
-              <Stat label={t('vehicleCalc.result.roundTrip')} sub={t('vehicleCalc.result.oneWay', { time: duration(one.oneWay) })}>
+                  ? <TileValue value={nums.n(round1(one.result.perVehiclePerMinute))} unit={t('vehicleCalc.unit.m3')} />
+                  : <TileValue value={nums.n(round1(one.result.stacksPerVehiclePerMinute ?? 0))} unit={t('vehicleCalc.unit.stacks')} />}
+              </StatTile>
+              <StatTile label={t('vehicleCalc.result.roundTrip')} sub={t('vehicleCalc.result.oneWay', { time: duration(one.oneWay) })}>
                 {duration(one.result.roundTripSeconds)}
-              </Stat>
+              </StatTile>
               {one.result.fuel && fuel && (
-                <Stat label={t('vehicleCalc.result.fuel')} sub={t('vehicleCalc.result.fuelPerMinute', { value: nums.fuel(one.result.fuel.perVehiclePerMinute) })}>
+                <StatTile label={t('vehicleCalc.result.fuel')} sub={t('vehicleCalc.result.fuelPerMinute', { value: nums.fuel(one.result.fuel.perVehiclePerMinute) })}>
                   <span className="inline-flex items-center gap-2"><GameIcon cls={fuel.id} px={28} />{nums.fuel(one.result.fuel.perTrip)}</span>
-                </Stat>
+                </StatTile>
               )}
             </dl>
             <p className="text-sm text-muted">
@@ -411,14 +378,15 @@ function ResultPanel({ vehicle, fuel, route, one, missing, lang }: {
             <p>{missing}</p>
             {/* What the result will show, empty until the input is complete. */}
             <dl aria-hidden="true" className={`grid grid-cols-2 gap-2 opacity-60 ${vehicle.fuel ? 'sm:grid-cols-3' : ''}`}>
-              <Stat main label={t(freight ? 'vehicleCalc.result.perFreightCar' : 'vehicleCalc.result.perVehicle')}>–</Stat>
-              <Stat label={t('vehicleCalc.result.roundTrip')}>–</Stat>
-              {vehicle.fuel && <Stat label={t('vehicleCalc.result.fuel')}>–</Stat>}
+              <StatTile main className="col-span-2 sm:col-span-1" label={t(freight ? 'vehicleCalc.result.perFreightCar' : 'vehicleCalc.result.perVehicle')}>–</StatTile>
+              <StatTile label={t('vehicleCalc.result.roundTrip')}>–</StatTile>
+              {vehicle.fuel && <StatTile label={t('vehicleCalc.result.fuel')}>–</StatTile>}
             </dl>
           </>
         )}
       </div>
-    </section>
+      {children}
+    </Window>
   );
 }
 
@@ -432,18 +400,16 @@ function FuelTable({ rows, bySpeed, selected, lang }: { rows: readonly FuelRow[]
   const { t } = useTranslation();
   const nums = useNumbers();
   const duration = useDuration();
-  const titleId = useId();
   const line = `max-sm:grid ${bySpeed ? 'max-sm:grid-cols-3' : 'max-sm:grid-cols-2'}`;
   const cell = 'px-1.5 py-1 text-right whitespace-nowrap tabular-nums';
-  const head = 'px-1.5 py-1 text-right align-bottom font-medium';
+  const head = 'px-1.5 py-1 text-right align-bottom font-semibold';
   return (
-    <section aria-labelledby={titleId} className={`${PANEL} p-4`}>
-      <h3 id={titleId} className="font-display text-base font-semibold uppercase tracking-wide">{t('vehicleCalc.compare.title')}</h3>
-      <p className="mt-0.5 text-xs text-muted">{t(bySpeed ? 'vehicleCalc.compare.bySpeed' : 'vehicleCalc.compare.sameSpeed')}</p>
-      <table role="table" aria-labelledby={titleId} className="mt-2 w-full border-collapse text-sm">
+    <Window level={3} title={t('vehicleCalc.compare.title')} bodyClassName="flex flex-col gap-2 p-3">
+      <p className="text-xs text-muted">{t(bySpeed ? 'vehicleCalc.compare.bySpeed' : 'vehicleCalc.compare.sameSpeed')}</p>
+      <table role="table" aria-label={t('vehicleCalc.compare.title')} className="w-full border-collapse text-sm">
         <thead role="rowgroup">
-          <tr role="row" className={`border-b border-line text-xs text-muted ${line}`}>
-            <th role="columnheader" scope="col" className="px-1.5 py-1 text-left align-bottom font-medium max-sm:col-span-full">{t('vehicleCalc.fuel')}</th>
+          <tr role="row" className={`border-b border-line font-display text-xs tracking-wider text-muted uppercase ${line}`}>
+            <th role="columnheader" scope="col" className="px-1.5 py-1 text-left align-bottom font-semibold max-sm:col-span-full">{t('vehicleCalc.fuel')}</th>
             {bySpeed && <th role="columnheader" scope="col" className={head}>{t('vehicleCalc.compare.roundTrip')}</th>}
             <th role="columnheader" scope="col" className={head}>{t(bySpeed ? 'vehicleCalc.compare.used' : 'vehicleCalc.compare.perTrip')}</th>
             <th role="columnheader" scope="col" className={head}>{bySpeed ? t('vehicleCalc.compare.stacks') : t('vehicleCalc.compare.perMinute')}</th>
@@ -466,7 +432,7 @@ function FuelTable({ rows, bySpeed, selected, lang }: { rows: readonly FuelRow[]
           })}
         </tbody>
       </table>
-    </section>
+    </Window>
   );
 }
 
@@ -478,40 +444,33 @@ function FleetPanel({ fleet, load, target, onTarget, freight, fuelName }: {
   fleet: CalcResult | null; load: Load; target: string; onTarget(v: string): void; freight: boolean; fuelName: string | undefined;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(target !== '');
   const nums = useNumbers();
   const noun = freight ? 'freightCars' : 'vehicles';
   const rate = (perMinute: number, stacks: number | null) => (load.unit === 'items'
     ? t('vehicleCalc.rate.items', { items: round1(perMinute), stacks: round1(stacks ?? 0) })
     : t(`vehicleCalc.rate.${load.unit}`, { value: round1(perMinute) }));
   return (
-    <details open={open} onToggle={e => setOpen(e.currentTarget.open)} className={PANEL}>
-      <summary className="cursor-pointer list-none rounded px-4 py-3 font-display text-base font-semibold uppercase tracking-wide focus-ring">
-        <span aria-hidden="true" className="mr-2 inline-block text-accent transition-transform in-open:rotate-90">▸</span>
-        {t(`vehicleCalc.fleet.question.${noun}`)}
-      </summary>
-      <div className="flex flex-col gap-3 border-t border-line p-4">
-        <NumberField label={t('vehicleCalc.fleet.target')} value={target} unit={t(`vehicleCalc.unit.${load.unit}`)} onChange={onTarget} />
-        <div role="status" aria-label={t(`vehicleCalc.fleet.question.${noun}`)} className="text-sm">
-          {fleet ? (
-            <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1">
-              <dt className="text-muted">{t(`vehicleCalc.fleet.needed.${noun}`)}</dt>
-              <dd className="font-display text-2xl font-semibold text-accent tabular-nums">{nums.n(fleet.vehicles)}</dd>
-              <dt className="text-muted">{t('vehicleCalc.fleet.utilisation')}</dt>
-              <dd className="tabular-nums">{t('vehicleCalc.fleet.percent', { share: fleet.utilisation ?? 0 })}</dd>
-              <dt className="text-muted">{t('vehicleCalc.fleet.capacity')}</dt>
-              <dd className="tabular-nums">{rate(fleet.capacityPerMinute, fleet.capacityStacksPerMinute)}</dd>
-              {fleet.fuel && fuelName && (
-                <>
-                  <dt className="text-muted">{t('vehicleCalc.fleet.fuel')}</dt>
-                  <dd className="tabular-nums">{t('vehicleCalc.fleet.fuelTotal', { value: nums.fuel(fleet.fuel.perMinute), fuel: fuelName })}</dd>
-                </>
-              )}
-            </dl>
-          ) : <p className="text-muted">{t('vehicleCalc.fleet.missing')}</p>}
-        </div>
-        {freight && <p className="text-xs text-muted">{t('vehicleCalc.fleet.freightCarNote')}</p>}
+    <Fold
+      title={t(`vehicleCalc.fleet.question.${noun}`)}
+      defaultOpen={target !== ''}
+      className="border-t border-line"
+      summaryClassName="px-3 py-1.5"
+      bodyClassName="flex flex-col gap-3 px-3 pb-3"
+    >
+      <ValueField label={t('vehicleCalc.fleet.target')} value={target} unit={t(`vehicleCalc.unit.${load.unit}`)} onChange={onTarget} />
+      <div role="status" aria-label={t(`vehicleCalc.fleet.question.${noun}`)} className="text-sm">
+        {fleet ? (
+          <StatList>
+            <StatRow label={t(`vehicleCalc.fleet.needed.${noun}`)} value={nums.n(fleet.vehicles)} tone="accent" />
+            <StatRow label={t('vehicleCalc.fleet.utilisation')} value={t('vehicleCalc.fleet.percent', { share: fleet.utilisation ?? 0 })} />
+            <StatRow label={t('vehicleCalc.fleet.capacity')} value={rate(fleet.capacityPerMinute, fleet.capacityStacksPerMinute)} />
+            {fleet.fuel && fuelName && (
+              <StatRow label={t('vehicleCalc.fleet.fuel')} value={t('vehicleCalc.fleet.fuelTotal', { value: nums.fuel(fleet.fuel.perMinute), fuel: fuelName })} />
+            )}
+          </StatList>
+        ) : <p className="text-muted">{t('vehicleCalc.fleet.missing')}</p>}
       </div>
-    </details>
+      {freight && <p className="text-xs text-muted">{t('vehicleCalc.fleet.freightCarNote')}</p>}
+    </Fold>
   );
 }

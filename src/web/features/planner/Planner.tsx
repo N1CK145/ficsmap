@@ -1,14 +1,23 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { clockLimits, MAX_SHARDS, plan, type ClockLimits, type PlanResult, type PlanStep, type Purity, type StepSettings } from '../../../shared/planner.js';
+import { descriptorClass } from '../../../shared/machines.js';
+import { clockLimits, MAX_SHARDS, plan, PURITY_FACTOR, type ClockLimits, type PlanResult, type PlanStep, type Purity, type StepSettings } from '../../../shared/planner.js';
 import { miners as minersOf, type RecipeIndex } from '../../../shared/recipes.js';
+import { Badge } from '../../components/Badge.js';
 import { Button } from '../../components/Button.js';
+import { FIELD_LABEL, fieldClass, NumberField } from '../../components/Field.js';
+import { Fold } from '../../components/Fold.js';
 import { IconButton } from '../../components/IconButton.js';
+import { CloseIcon } from '../../components/icons.js';
+import { PageActions } from '../../components/PageActions.js';
+import { SectionHeading } from '../../components/SectionHeading.js';
 import { SegmentedControl } from '../../components/SegmentedControl.js';
-import { IconsContext, useItemIcons } from '../machineWiki/icons.js';
+import { StatList, StatRow, StatTile, TileValue } from '../../components/StatRow.js';
+import { Window } from '../../components/Window.js';
+import { GameIcon, IconsContext, useItemIcons } from '../machineWiki/icons.js';
 import { useMachineData } from '../machineWiki/useMachineWiki.js';
 import { prefersReducedMotion } from '../map/motion.js';
-import { buildingName, ChoiceSelect, flows, inputClass, powerText, usePurityOptions } from './controls.js';
+import { buildingName, ChoiceSelect, flows, powerText, powerValue, usePurityOptions } from './controls.js';
 import { formatNumber, formatRate, itemName, langOf, type Lang } from './format.js';
 import { ItemPicker } from './ItemPicker.js';
 import { PlanDiagram } from './PlanDiagram.js';
@@ -16,16 +25,18 @@ import { StepPanel } from './StepPanel.js';
 import { parseNumber, usePlanner, type PlannerView } from './usePlanner.js';
 import { useRecipes } from './useRecipes.js';
 
+/** What the empty planner offers to try: a small chain the dataset has (left out when it does not). */
+export const EXAMPLE = { item: 'Desc_IronPlateReinforced_C', rate: '5' } as const;
+
 /**
- * The planner for a dataset version: loads its recipe data, then shows the form and the plan. The diagram view also
- * loads the dataset's pictures (part `icons`) for its machines and items.
+ * The planner for a dataset version: loads its recipe data and the dataset's pictures (part `icons`, for items,
+ * machines and extractors), then shows the form and the plan.
  */
 export function Planner({ version }: { version: string }) {
   const { t, i18n } = useTranslation();
   const lang = langOf(i18n.resolvedLanguage ?? i18n.language);
   const { index, error } = useRecipes(version);
-  const view = usePlanner(s => s.view);
-  const icons = useItemIcons(version, view === 'diagram');
+  const icons = useItemIcons(version);
   if (error) return <p role="alert" className="text-conflict">{t('planner.loadFailed')}</p>;
   if (index === undefined) return <p className="text-muted">{t('common.loading')}</p>;
   if (index === null) return <p>{t('planner.noData')}</p>;
@@ -36,6 +47,11 @@ export function Planner({ version }: { version: string }) {
   );
 }
 
+/**
+ * The page: what you need (with the extractor settings folded away) beside the answer, the totals; under both the
+ * production steps as a diagram or a list, a selected step's machine window beside the diagram on a wide page. The
+ * view switch and "Start over" sit in the page header.
+ */
 function PlannerBody({ index, lang, version }: { index: RecipeIndex; lang: Lang; version: string }) {
   const { t } = useTranslation();
   const targets = usePlanner(s => s.targets);
@@ -67,39 +83,57 @@ function PlannerBody({ index, lang, version }: { index: RecipeIndex; lang: Lang;
   if (result?.ok) lastOk.current = result;
   const stale = result !== null && !result.ok && result.error !== 'no-targets' && result.error !== 'unknown-item' ? lastOk.current : null;
   const shown = result?.ok ? result : stale;
+  const failed = result !== null && !result.ok ? result : null;
 
-  // On a wide page the form takes the top (wanted items beside the extractor settings), so the diagram below gets the
-  // whole width; narrower, everything is stacked.
   return (
-    <div className="flex flex-col gap-5">
-      <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
-        <Targets index={index} lang={lang} />
-        <ExtractorSettings minerId={minerId} miners={miners.map(m => ({ value: m.id, label: m.name[lang] }))} limits={limits} />
+    <div className="flex flex-col gap-4">
+      <PlannerActions hasPlan={shown !== null} />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start 2xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
+        <Targets index={index} lang={lang} minerId={minerId} miners={miners.map(m => ({ value: m.id, label: m.name[lang] }))} limits={limits} />
+        <div className="flex min-w-0 flex-col gap-3">
+          {failed && <PlanError result={failed} index={index} lang={lang} limits={limits} />}
+          {stale && <p className="text-sm text-muted">{t('planner.lastWorking')}</p>}
+          {shown ? <Totals result={shown} index={index} lang={lang} /> : !failed && <EmptyResult index={index} lang={lang} />}
+        </div>
       </div>
-      {result && !result.ok && <PlanError result={result} index={index} lang={lang} limits={limits} />}
-      {stale && <p className="text-sm text-muted">{t('planner.lastWorking')}</p>}
       {shown && (
-        <>
-          <Steps steps={shown.steps} index={index} lang={lang} minerId={minerId} defaultClock={settings.clock} limits={limits} version={version} />
-          <Totals result={shown} index={index} lang={lang} />
-        </>
+        <Steps steps={shown.steps} index={index} lang={lang} minerId={minerId} defaultClock={settings.clock} defaultPurity={settings.purity} limits={limits} version={version} />
       )}
     </div>
   );
 }
 
-interface StepsProps {
-  steps: PlanStep[]; index: RecipeIndex; lang: Lang; minerId: string; defaultClock: string; limits: ClockLimits; version: string;
-}
-
-/**
- * The plan's steps, as a diagram (a node opens its step panel, beside the diagram on a wide page, else below it) or as
- * a list.
- */
-function Steps({ steps, index, lang, minerId, defaultClock, limits, version }: StepsProps) {
+/** In the page header: the view of the steps (while there is a plan) and "Start over" (once something is entered). */
+function PlannerActions({ hasPlan }: { hasPlan: boolean }) {
   const { t } = useTranslation();
   const view = usePlanner(s => s.view);
   const setView = usePlanner(s => s.setView);
+  const reset = usePlanner(s => s.reset);
+  const entered = usePlanner(s => s.targets.length > 1 || s.targets.some(tg => tg.item !== null));
+  const views: { value: PlannerView; label: string }[] = [
+    { value: 'diagram', label: t('planner.viewOption.diagram') },
+    { value: 'list', label: t('planner.viewOption.list') },
+  ];
+  if (!hasPlan && !entered) return null;
+  return (
+    <PageActions>
+      {hasPlan && <SegmentedControl label={t('planner.view')} options={views} value={view} onChange={setView} />}
+      {entered && <Button size="sm" variant="ghost" onClick={reset}>{t('planner.reset')}</Button>}
+    </PageActions>
+  );
+}
+
+interface StepsProps {
+  steps: PlanStep[]; index: RecipeIndex; lang: Lang; minerId: string; defaultClock: string; defaultPurity: Purity; limits: ClockLimits; version: string;
+}
+
+/**
+ * The plan's steps in a window, as a diagram (a node opens its machine window, beside the diagram on a wide page, else
+ * below it) or as a list.
+ */
+function Steps({ steps, index, lang, minerId, defaultClock, defaultPurity, limits, version }: StepsProps) {
+  const { t } = useTranslation();
+  const view = usePlanner(s => s.view);
   const [selected, setSelected] = useState<string | null>(null);
   const editorId = useId();
   const nodePrefix = useId();
@@ -108,50 +142,42 @@ function Steps({ steps, index, lang, minerId, defaultClock, limits, version }: S
   // Somersloop slots per building, for the step panel; the machine data loads when a step is first opened.
   const machines = useMachineData(version, step !== undefined).data;
   const sloops = step?.recipe ? machines?.machines.find(m => m.id === step.recipe!.machine)?.stats.somersloopSlots : undefined;
-  const views: { value: PlannerView; label: string }[] = [
-    { value: 'diagram', label: t('planner.viewOption.diagram') },
-    { value: 'list', label: t('planner.viewOption.list') },
-  ];
   function closeEditor() {
     if (step) document.getElementById(nodeId(step.item))?.focus();
     setSelected(null);
   }
   return (
-    <section aria-labelledby="planner-steps">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3 id="planner-steps" className="font-display text-lg font-semibold">{t('planner.steps')}</h3>
-        <SegmentedControl label={t('planner.view')} options={views} value={view} onChange={setView} />
-      </div>
-      {view === 'diagram' ? (
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
-          <div className="min-w-0 flex-1">
-            <PlanDiagram
-              steps={steps} index={index} lang={lang} selected={step ? step.item : null}
-              onSelect={item => setSelected(item === selected ? null : item)} editorId={editorId} nodeId={nodeId}
-            />
-          </div>
-          {step && (
-            <StepEditor id={editorId} item={step.item} name={itemName(index, step.item, lang)} onClose={closeEditor}>
-              {action => (
-                <StepPanel step={step} index={index} lang={lang} minerId={minerId} defaultClock={defaultClock} limits={limits} sloops={sloops} action={action} />
-              )}
-            </StepEditor>
-          )}
-        </div>
-      ) : (
-        <ol className="grid gap-2 xl:grid-cols-2 2xl:grid-cols-3">
-          {steps.map(st => <StepRow key={st.item} step={st} index={index} lang={lang} minerId={minerId} defaultClock={defaultClock} />)}
-        </ol>
+    <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+      <Window level={3} title={t('planner.steps')} className="min-w-0 flex-1" bodyClassName={view === 'diagram' ? '' : 'p-3'}>
+        {view === 'diagram' ? (
+          <PlanDiagram
+            steps={steps} index={index} lang={lang} selected={step ? step.item : null} defaultPurity={defaultPurity}
+            onSelect={item => setSelected(item === selected ? null : item)} editorId={editorId} nodeId={nodeId}
+          />
+        ) : (
+          <ol className="grid grid-cols-1 gap-2 xl:grid-cols-2 2xl:grid-cols-3">
+            {steps.map(st => <StepRow key={st.item} step={st} index={index} lang={lang} minerId={minerId} defaultClock={defaultClock} />)}
+          </ol>
+        )}
+      </Window>
+      {step && (
+        <StepEditor id={editorId} item={step.item} name={itemName(index, step.item, lang)}>
+          <StepPanel
+            step={step} index={index} lang={lang} minerId={minerId} defaultClock={defaultClock} limits={limits} sloops={sloops}
+            onClose={closeEditor} closeLabel={t('planner.diagram.close', { item: itemName(index, step.item, lang) })} className="min-h-0"
+          />
+        </StepEditor>
       )}
-    </section>
+    </div>
   );
 }
 
 /**
- * The selected node's step panel: beside the diagram on a wide page (sticky while the page scrolls), below it on a
- * narrower one; scrolled into view when another step is selected.
+ * Where the selected node's machine window goes: beside the diagram on a wide page (sticky while the page scrolls, its
+ * content scrolling when taller than the screen), below it on a narrower one; scrolled into view when another step is
+ * selected.
  */
-function StepEditor({ id, item, name, onClose, children }: { id: string; item: string; name: string; onClose(): void; children(action: ReactNode): ReactNode }) {
+function StepEditor({ id, item, name, children }: { id: string; item: string; name: string; children: ReactNode }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -162,27 +188,24 @@ function StepEditor({ id, item, name, onClose, children }: { id: string; item: s
       ref={ref}
       id={id}
       aria-label={t('planner.diagram.editor', { item: name })}
-      className="xl:sticky xl:top-0 xl:max-h-[calc(100dvh-7rem)] xl:w-[32rem] xl:shrink-0 2xl:w-[36rem] xl:overflow-y-auto"
+      className="flex flex-col xl:sticky xl:top-0 xl:max-h-[calc(100dvh-9rem)] xl:w-[30rem] xl:shrink-0 2xl:w-[34rem]"
     >
-      {children(
-        <IconButton aria-label={t('planner.diagram.close', { item: name })} size="sm" onClick={onClose} className="self-start">
-          <span aria-hidden="true">×</span>
-        </IconButton>,
-      )}
+      {children}
     </section>
   );
 }
 
-function Targets({ index, lang }: { index: RecipeIndex; lang: Lang }) {
+function Targets({ index, lang, minerId, miners, limits }: {
+  index: RecipeIndex; lang: Lang; minerId: string; miners: { value: string; label: string }[]; limits: ClockLimits;
+}) {
   const { t } = useTranslation();
   const targets = usePlanner(s => s.targets);
   const setTarget = usePlanner(s => s.setTarget);
   const addTarget = usePlanner(s => s.addTarget);
   const removeTarget = usePlanner(s => s.removeTarget);
-  const reset = usePlanner(s => s.reset);
+  const removable = targets.length > 1 || targets.some(tg => tg.item !== null);
   return (
-    <section aria-labelledby="planner-needs">
-      <h3 id="planner-needs" className="mb-2 font-display text-lg font-semibold">{t('planner.needs')}</h3>
+    <Window level={3} title={t('planner.needs')} bodyClassName="flex flex-col gap-3 p-3">
       <ul className="flex flex-col gap-2">
         {targets.map((tg, i) => {
           const name = tg.item ? itemName(index, tg.item, lang) : t('planner.itemN', { n: i + 1 });
@@ -190,60 +213,67 @@ function Targets({ index, lang }: { index: RecipeIndex; lang: Lang }) {
           return (
             <li key={tg.key} className="flex flex-wrap items-center gap-2">
               <ItemPicker index={index} lang={lang} value={tg.item} label={t('planner.itemN', { n: i + 1 })} onChange={item => setTarget(tg.key, { item })} />
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  aria-label={t('planner.rateFor', { item: name })}
+              <div className="flex items-center gap-1">
+                <NumberField
+                  label={t('planner.rateFor', { item: name })}
+                  hideLabel
+                  unit={fluid ? t('planner.unit.fluidPerMin') : t('planner.unit.perMin')}
+                  min={0}
+                  step="any"
                   value={tg.rate}
                   onChange={e => setTarget(tg.key, { rate: e.target.value })}
-                  className={`${inputClass} w-24 text-right`}
+                  className="w-32"
                 />
-                <span className="w-16 text-sm text-muted">{fluid ? t('planner.unit.fluidPerMin') : t('planner.unit.perMin')}</span>
-                <IconButton aria-label={t('planner.remove', { item: name })} size="md" onClick={() => removeTarget(tg.key)}>
-                  <span aria-hidden="true">×</span>
-                </IconButton>
+                {removable && (
+                  <IconButton aria-label={t('planner.remove', { item: name })} title={t('planner.remove', { item: name })} onClick={() => removeTarget(tg.key)}>
+                    <CloseIcon />
+                  </IconButton>
+                )}
               </div>
             </li>
           );
         })}
       </ul>
-      <div className="mt-2 flex gap-2">
-        <Button size="sm" onClick={addTarget}>{t('planner.add')}</Button>
-        <Button size="sm" variant="ghost" onClick={reset}>{t('planner.reset')}</Button>
-      </div>
-    </section>
+      <Button size="sm" onClick={addTarget} className="self-start">{t('planner.add')}</Button>
+      <ExtractorSettings minerId={minerId} miners={miners} limits={limits} />
+    </Window>
   );
 }
 
+/** The extractors' defaults (miner, node purity, clock speed), folded away with the values in effect as its summary. */
 function ExtractorSettings({ minerId, miners, limits }: { minerId: string; miners: { value: string; label: string }[]; limits: ClockLimits }) {
   const { t } = useTranslation();
   const settings = usePlanner(s => s.settings);
   const setSettings = usePlanner(s => s.setSettings);
-  const clockId = useId();
-  const clockHint = useId();
-  const purityHint = useId();
   const purities = usePurityOptions();
+  const miner = miners.find(m => m.value === minerId)?.label;
+  const purity = t(`planner.purityOption.${settings.purity}`, { factor: PURITY_FACTOR[settings.purity] });
+  const summary = [miner, purity, `${settings.clock.trim() || '–'} %`].filter(Boolean).join(' · ');
   return (
-    <fieldset className="flex flex-col gap-3 rounded border border-line p-3">
-      <legend className="px-1 font-display text-lg font-semibold">{t('planner.extractors')}</legend>
+    <Fold title={t('planner.extractors')} summary={summary} className="-mx-3 -mb-3 border-t border-line" summaryClassName="px-3 py-1" bodyClassName="flex flex-col gap-3 px-3 pt-1 pb-3">
       {miners.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm">{t('planner.miner')}</span>
+        <div className="flex flex-col items-start gap-1">
+          <span className={FIELD_LABEL}>{t('planner.miner')}</span>
           <SegmentedControl label={t('planner.miner')} options={miners} value={minerId} onChange={miner => setSettings({ miner })} />
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm">{t('planner.purity')}</span>
+      <div className="flex flex-col items-start gap-1">
+        <span className={FIELD_LABEL}>{t('planner.purity')}</span>
         <SegmentedControl<Purity> label={t('planner.purity')} options={purities} value={settings.purity} onChange={purity => setSettings({ purity })} />
+        <p className="text-xs text-muted">{t('planner.purityHint')}</p>
       </div>
-      <p id={purityHint} className="text-sm text-muted">{t('planner.purityHint')}</p>
-      <label htmlFor={clockId} className="flex items-center gap-2 text-sm">
-        {t('planner.clock')}
-        <input id={clockId} type="text" inputMode="decimal" aria-describedby={clockHint} value={settings.clock} onChange={e => setSettings({ clock: e.target.value })} className={`${inputClass} w-20 text-right`} />
-      </label>
-      <p id={clockHint} className="text-sm text-muted">{t('planner.clockHint', { ...percentRange(limits), per: limits.perShard * 100, slots: MAX_SHARDS })}</p>
-    </fieldset>
+      <NumberField
+        label={t('planner.clock')}
+        unit="%"
+        hint={t('planner.clockHint', { ...percentRange(limits), per: limits.perShard * 100, slots: MAX_SHARDS })}
+        min={limits.min * 100}
+        max={limits.max * 100}
+        step="any"
+        value={settings.clock}
+        onChange={e => setSettings({ clock: e.target.value })}
+        boxClassName="max-w-40"
+      />
+    </Fold>
   );
 }
 
@@ -258,7 +288,26 @@ function PlanError({ result, index, lang, limits }: { result: Extract<PlanResult
   else if (result.error === 'invalid-clock') text = t('planner.error.invalidClock', { item: itemName(index, result.item, lang), ...percentRange(limits) });
   else if (result.error === 'unknown-item') text = t('planner.error.unknownItem', { item: result.item });
   else text = t('planner.error.noTargets');
-  return <p role="alert" className="rounded border border-conflict p-3 text-sm">{text}</p>;
+  return <p role="alert" className="chamfer border border-conflict/60 bg-conflict/10 p-3 text-sm">{text}</p>;
+}
+
+/** Before anything is picked: what the planner will show, and one example to try. */
+function EmptyResult({ index, lang }: { index: RecipeIndex; lang: Lang }) {
+  const { t } = useTranslation();
+  const first = usePlanner(s => s.targets[0]);
+  const setTarget = usePlanner(s => s.setTarget);
+  const example = index.plannable.some(i => i.id === EXAMPLE.item);
+  return (
+    <Window level={3} title={t('planner.totals')} bodyClassName="flex flex-col items-start gap-3 p-3">
+      <p className="text-muted">{t('planner.empty')}</p>
+      {example && first && (
+        <Button size="sm" onClick={() => setTarget(first.key, { item: EXAMPLE.item, rate: EXAMPLE.rate })}>
+          <GameIcon cls={EXAMPLE.item} px={20} />
+          {t('planner.example', { item: itemName(index, EXAMPLE.item, lang), rate: formatRate(index, EXAMPLE.item, Number(EXAMPLE.rate), lang, t) })}
+        </Button>
+      )}
+    </Window>
+  );
 }
 
 interface StepRowProps {
@@ -271,7 +320,6 @@ function StepRow({ step, index, lang, minerId, defaultClock }: StepRowProps) {
   const setStep = usePlanner(s => s.setStep);
   const input = usePlanner(s => s.steps[step.item]);
   const purities = usePurityOptions();
-  const clockId = useId();
   const purityId = useId();
   const name = itemName(index, step.item, lang);
   const building = buildingName(step, index, lang);
@@ -280,62 +328,61 @@ function StepRow({ step, index, lang, minerId, defaultClock }: StepRowProps) {
   const whole = Math.abs(step.machines - step.machinesCeil) < 1e-6;
 
   return (
-    <li className="rounded border border-line bg-bg p-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h4 className="font-semibold">
+    <li className="flex flex-col gap-2 chamfer border border-line bg-bg p-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h4 className="flex min-w-0 items-center gap-2 font-semibold">
+          <GameIcon cls={step.item} px={24} />
           {name}
-          {step.cycle && <span title={t('planner.cycleHint')} className="ml-2 rounded border border-accent px-1.5 text-xs font-medium text-accent">{t('planner.cycle')}</span>}
+          {step.cycle && <Badge tone="accent" title={t('planner.cycleHint')}>{t('planner.cycle')}</Badge>}
         </h4>
-        <span className="tabular-nums">{formatRate(index, step.item, step.rate, lang, t)}</span>
+        <span className="font-display text-lg font-semibold tabular-nums">{formatRate(index, step.item, step.rate, lang, t)}</span>
       </div>
       {step.targetRate > 0 && step.targetRate < step.rate - 1e-9 && (
         <p className="text-sm text-muted">{t('planner.forYou', { value: formatRate(index, step.item, step.targetRate, lang, t) })}</p>
       )}
-      <ChoiceSelect step={step} index={index} lang={lang} minerId={minerId} className="mt-2" />
+      <ChoiceSelect step={step} index={index} lang={lang} minerId={minerId} />
       {step.choice.kind !== 'external' && (
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <label htmlFor={clockId} className="flex items-center gap-2 text-sm text-muted">
-            {t('planner.stepClock')}
-            <input
-              id={clockId}
-              type="text"
-              inputMode="decimal"
-              value={input?.clock ?? ''}
-              placeholder={step.extractor ? defaultClock : '100'}
-              onChange={e => setStep(step.item, { clock: e.target.value })}
-              className={`${inputClass} w-20 text-right`}
-            />
-          </label>
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+          <NumberField
+            label={t('planner.stepClock')}
+            size="sm"
+            unit="%"
+            step="any"
+            value={input?.clock ?? ''}
+            placeholder={step.extractor ? defaultClock : '100'}
+            onChange={e => setStep(step.item, { clock: e.target.value })}
+            className="w-28"
+          />
           {step.purity && (
-            <label htmlFor={purityId} className="flex items-center gap-2 text-sm text-muted">
-              {t('planner.purity')}
+            <div className="flex flex-col gap-1">
+              <label htmlFor={purityId} className={FIELD_LABEL}>{t('planner.purity')}</label>
               <select
                 id={purityId}
                 value={step.purity}
                 onChange={e => setStep(step.item, { purity: e.target.value as Purity })}
-                className="h-10 rounded border border-line bg-panel px-2 text-sm text-fg focus-ring"
+                className={fieldClass({ size: 'sm' })}
               >
                 {purities.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
-            </label>
+            </div>
           )}
           {step.shards > 0 && (
-            <span className="text-sm text-muted">
+            <span className="pb-1.5 text-sm text-muted">
               {pressurizer ? t('planner.shardsPressurizer', { count: step.shards, name: pressurizer }) : t('planner.shards', { count: step.shards })}
             </span>
           )}
         </div>
       )}
-      {pressurizer && <p className="mt-2 text-sm text-muted">{t('planner.wellClock', { name: pressurizer })}</p>}
+      {pressurizer && <p className="text-sm text-muted">{t('planner.wellClock', { name: pressurizer })}</p>}
       {step.fromByproducts > 1e-9 && (
-        <p className="mt-2 text-sm text-muted">{t('planner.fromByproducts', { value: formatRate(index, step.item, step.fromByproducts, lang, t) })}</p>
+        <p className="text-sm text-muted">{t('planner.fromByproducts', { value: formatRate(index, step.item, step.fromByproducts, lang, t) })}</p>
       )}
-      {step.auto === 'loop' && <p className="mt-2 text-sm text-muted">{t('planner.autoLoop')}</p>}
+      {step.auto === 'loop' && <p className="text-sm text-muted">{t('planner.autoLoop')}</p>}
       {step.choice.kind === 'external'
-        ? <p className="mt-2 text-sm text-muted">{t('planner.external')}</p>
-        : step.machines < 1e-9 ? <p className="mt-2 text-sm text-muted">{t('planner.noMachines')}</p> : (
-          <p className="mt-2 text-sm">
-            <span className="font-medium">{t('planner.machines', { count: step.machinesCeil, name: building ?? '' })}</span>
+        ? <p className="text-sm text-muted">{t('planner.external')}</p>
+        : step.machines < 1e-9 ? <p className="text-sm text-muted">{t('planner.noMachines')}</p> : (
+          <p className="text-sm">
+            <span className="font-medium">{t('planner.diagram.machines', { count: step.machinesCeil, name: building ?? '' })}</span>
             {!whole && <span className="text-muted"> ({t('planner.exact', { value: formatNumber(step.machines, lang, 3) })})</span>}
             <span className="text-muted"> · {powerText(step.power, lang, t)}</span>
           </p>
@@ -346,69 +393,66 @@ function StepRow({ step, index, lang, minerId, defaultClock }: StepRowProps) {
   );
 }
 
+/**
+ * The answer: power and the number of buildings as big figures, then the raw resources with their extractors and the
+ * buildings by kind (side by side when the window is wide enough), items supplied from outside and the surplus, each
+ * row with the game's picture; short notes at the end.
+ */
 function Totals({ result, index, lang }: { result: Extract<PlanResult, { ok: true }>; index: RecipeIndex; lang: Lang }) {
   const { t } = useTranslation();
   const { totals } = result;
   const variable = result.steps.some(st => st.power.max - st.power.min > 1e-9);
   const pressurizer = index.data.wellPressurizer;
-  const buildingName = (id: string) => index.machines.get(id)?.name[lang] ?? index.extractors.get(id)?.name[lang] ?? id;
-  const exactNote = (ceil: number, exact: number) =>
-    (Math.abs(ceil - exact) > 1e-6 ? ` (${t('planner.exact', { value: formatNumber(exact, lang, 3) })})` : '');
-  const count = (ceil: number, exact: number) => `${formatNumber(ceil, lang, 0)}${exactNote(ceil, exact)}`;
-  const row = 'flex flex-wrap justify-between gap-x-3 py-1';
+  const nameOf = (id: string) => index.machines.get(id)?.name[lang] ?? index.extractors.get(id)?.name[lang] ?? id;
+  const exact = (ceil: number, value: number) =>
+    (Math.abs(ceil - value) > 1e-6 ? t('planner.exact', { value: formatNumber(value, lang, 3) }) : undefined);
+  const buildings = totals.machines.reduce((sum, m) => sum + m.machinesCeil, 0);
+  const rate = (item: string, value: number) => formatRate(index, item, value, lang, t);
+  const picture = (cls: string) => <GameIcon cls={cls} px={24} placeholder />;
   return (
-    <section aria-labelledby="planner-totals" className="flex flex-col gap-3">
-      <h3 id="planner-totals" className="font-display text-lg font-semibold">{t('planner.totals')}</h3>
-      {/* Side by side on a wide page. */}
-      <div className="grid gap-x-8 gap-y-3 md:grid-cols-2 2xl:grid-cols-4">
-        <div>
-          <h4 className="font-semibold">{t('planner.raw')}</h4>
-          {totals.raw.length === 0 ? <p className="text-sm text-muted">{t('planner.none')}</p> : (
-            <ul className="divide-y divide-line text-sm">
+    <Window level={3} title={t('planner.totals')} bodyClassName="@container flex flex-col gap-4 p-3">
+      <dl className="grid grid-cols-2 gap-2">
+        <StatTile main label={t('planner.totalPower')} sub={variable ? t('planner.variableShort') : undefined}>
+          <TileValue value={powerValue(totals.power, lang)} unit={t('planner.unit.mw')} />
+        </StatTile>
+        <StatTile label={t('planner.buildings')}>{formatNumber(buildings, lang, 0)}</StatTile>
+      </dl>
+      <div className="grid gap-x-6 gap-y-4 @lg:grid-cols-2">
+        <Block title={t('planner.raw')}>
+          {totals.raw.length === 0 ? <p className="py-1.5 text-sm text-muted">{t('planner.none')}</p> : (
+            <StatList>
               {totals.raw.map(r => (
-                <li key={`${r.item}:${r.extractor}`} className={row}>
-                  <span>{itemName(index, r.item, lang)} <span className="text-muted">· {t('planner.machines', { count: r.machinesCeil, name: buildingName(r.extractor) })}{exactNote(r.machinesCeil, r.machines)}</span></span>
-                  <span className="tabular-nums">{formatRate(index, r.item, r.rate, lang, t)}</span>
-                </li>
+                <StatRow
+                  key={`${r.item}:${r.extractor}`} icon={picture(r.item)} label={itemName(index, r.item, lang)} value={rate(r.item, r.rate)}
+                  hint={[t('planner.diagram.machines', { count: r.machinesCeil, name: nameOf(r.extractor) }), exact(r.machinesCeil, r.machines)].filter(Boolean).join(' · ')}
+                />
               ))}
-            </ul>
+            </StatList>
           )}
-        </div>
+        </Block>
+        <Block title={t('planner.buildings')}>
+          <StatList>
+            {totals.machines.map(m => (
+              <StatRow key={m.building} icon={picture(descriptorClass(m.building))} label={nameOf(m.building)} hint={exact(m.machinesCeil, m.machines)} value={formatNumber(m.machinesCeil, lang, 0)} />
+            ))}
+          </StatList>
+        </Block>
         {totals.external.length > 0 && (
-          <div>
-            <h4 className="font-semibold">{t('planner.externalInputs')}</h4>
-            <ul className="divide-y divide-line text-sm">
-              {totals.external.map(f => (
-                <li key={f.item} className={row}><span>{itemName(index, f.item, lang)}</span><span className="tabular-nums">{formatRate(index, f.item, f.rate, lang, t)}</span></li>
-              ))}
-            </ul>
-          </div>
+          <Block title={t('planner.externalInputs')}>
+            <StatList>
+              {totals.external.map(f => <StatRow key={f.item} icon={picture(f.item)} label={itemName(index, f.item, lang)} value={rate(f.item, f.rate)} />)}
+            </StatList>
+          </Block>
         )}
         {totals.byproducts.length > 0 && (
-          <div>
-            <h4 className="font-semibold">{t('planner.surplus')}</h4>
-            <ul className="divide-y divide-line text-sm">
-              {totals.byproducts.map(f => (
-                <li key={f.item} className={row}><span>{itemName(index, f.item, lang)}</span><span className="tabular-nums">{formatRate(index, f.item, f.rate, lang, t)}</span></li>
-              ))}
-            </ul>
-          </div>
+          <Block title={t('planner.surplus')}>
+            <StatList>
+              {totals.byproducts.map(f => <StatRow key={f.item} icon={picture(f.item)} label={itemName(index, f.item, lang)} value={rate(f.item, f.rate)} tone="success" />)}
+            </StatList>
+          </Block>
         )}
-        <div>
-          <h4 className="font-semibold">{t('planner.buildings')}</h4>
-          <ul className="divide-y divide-line text-sm">
-            {totals.machines.map(m => (
-              <li key={m.building} className={row}><span>{buildingName(m.building)}</span><span className="tabular-nums">{count(m.machinesCeil, m.machines)}</span></li>
-            ))}
-          </ul>
-        </div>
       </div>
-      <p className="text-sm">
-        <span className="font-semibold">{t('planner.totalPower')}:</span> <span className="tabular-nums">{powerText(totals.power, lang, t)}</span>
-      </p>
-      <ul className="list-disc pl-5 text-sm text-muted">
-        <li>{t('planner.roundedNote')}</li>
-        {variable && <li>{t('planner.variableNote')}</li>}
+      <ul className="flex flex-col gap-1 border-t border-line pt-3 text-xs text-muted">
         {pressurizer && totals.pressurizers.map(p => (
           <li key={p.item}>
             {t('planner.wellNote', {
@@ -417,8 +461,20 @@ function Totals({ result, index, lang }: { result: Extract<PlanResult, { ok: tru
             })}
           </li>
         ))}
+        <li>{t('planner.roundedNote')}</li>
         <li>{t('planner.gameModeNote')}</li>
       </ul>
+    </Window>
+  );
+}
+
+/** A titled list in the totals. */
+function Block({ title, children }: { title: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <section aria-labelledby={id} className="min-w-0">
+      <SectionHeading as="h4" id={id}>{title}</SectionHeading>
+      {children}
     </section>
   );
 }

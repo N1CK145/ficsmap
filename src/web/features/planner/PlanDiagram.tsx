@@ -1,8 +1,9 @@
-import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { PURITY_FACTOR, type PlanStep } from '../../../shared/planner.js';
+import { PURITY_FACTOR, type PlanStep, type Purity } from '../../../shared/planner.js';
 import type { RecipeIndex } from '../../../shared/recipes.js';
+import { badgeClass, type BadgeTone } from '../../components/Badge.js';
 import { buildingName } from './controls.js';
 import { layoutDiagram, type DiagramEdge, type DiagramNode } from './diagramLayout.js';
 import { formatNumber, formatRate, itemName, type Lang } from './format.js';
@@ -34,15 +35,18 @@ export interface PlanDiagramProps {
   editorId: string;
   /** The element id of an item's node, so focus can come back to it. */
   nodeId(item: string): string;
+  /** The node purity of the settings: a node shows its purity only when it differs. */
+  defaultPurity: Purity;
 }
 
 /**
  * The plan as a material flow from top to bottom (layout in `diagramLayout.ts`): raw resources at the top, the wanted
  * items at the bottom. Nodes are buttons showing the step's machine picture, "4× Constructor" and what it makes, over
  * an SVG with the edges and HTML rate labels. One tab stop; the arrow keys move between nodes (left and right in a
- * row, up and down to the nearest node of the next row). Centred on the page; scrolls sideways when it is wider.
+ * row, up and down to the nearest node of the next row). Centred in its box on a dotted canvas; the box scrolls
+ * sideways when the diagram is wider. A one-line hint above, a legend of what this plan shows below.
  */
-export function PlanDiagram({ steps, index, lang, selected, onSelect, editorId, nodeId }: PlanDiagramProps) {
+export function PlanDiagram({ steps, index, lang, selected, onSelect, editorId, nodeId, defaultPurity }: PlanDiagramProps) {
   const { t } = useTranslation();
   const layout = useMemo(() => layoutDiagram(steps), [steps]);
   const stepOf = useMemo(() => new Map(steps.map(s => [s.item, s])), [steps]);
@@ -53,6 +57,20 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, editorId, 
   }, [layout]);
   const [active, setActive] = useState<string | null>(null);
   const buttons = useRef(new Map<string, HTMLButtonElement>());
+  const box = useRef<HTMLDivElement>(null);
+  // A diagram wider than its box (a phone) starts scrolled to the first wanted item, the answer, not to its left edge;
+  // again when other items come in, not when a step's numbers change (the user may have scrolled meanwhile).
+  const wantedNode = layout.nodes.find(n => (stepOf.get(n.item)?.targetRate ?? 0) > 0);
+  const focusX = wantedNode ? wantedNode.x + wantedNode.width / 2 : undefined;
+  const shape = layout.nodes.map(n => n.item).join('|');
+  const focus = useRef(focusX);
+  focus.current = focusX;
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el || focus.current === undefined || el.scrollWidth <= el.clientWidth) return;
+    // Wider than the box, the diagram starts at its left edge (no auto margin left).
+    el.scrollLeft = focus.current - el.clientWidth / 2;
+  }, [shape]);
   // Marker ids go into url(#…): letters, digits, - and _ only.
   const uid = useId().replace(/[^\w-]/g, '');
   const tabStop = [active, selected].find(i => i !== null && stepOf.has(i)) ?? layout.nodes[0]?.item;
@@ -80,9 +98,9 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, editorId, 
   const dim = (e: DiagramEdge) => (selected !== null && e.from !== selected && e.to !== selected ? 'opacity-30' : '');
 
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-sm text-muted">{t('planner.diagram.hint')}</p>
-      <div className="overflow-x-auto overscroll-x-contain rounded border border-line bg-bg">
+    <div className="flex flex-col">
+      <p className="border-b border-line px-3 py-2 text-sm text-muted">{t('planner.diagram.hint')}</p>
+      <div ref={box} className="overflow-x-auto overscroll-x-contain bg-bg bg-[radial-gradient(var(--color-line)_1px,transparent_1px)] bg-size-[24px_24px]">
         <div role="group" aria-label={t('planner.diagram.label')} className="relative mx-auto" style={{ width: layout.width, height: layout.height }}>
           <svg aria-hidden="true" className="pointer-events-none absolute inset-0" width={layout.width} height={layout.height}>
             <defs>
@@ -116,7 +134,7 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, editorId, 
               key={`${e.kind}:${e.from}:${e.to}`}
               aria-hidden="true"
               data-label-to={e.to}
-              className={`pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 truncate rounded bg-bg px-1 text-[11px] leading-4 tabular-nums ${TEXT[styleOf(e)]} ${dim(e)} motion-safe:transition-opacity`}
+              className={`pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 truncate bg-bg px-1 text-[11px] leading-4 tabular-nums ${TEXT[styleOf(e)]} ${dim(e)} motion-safe:transition-opacity`}
               style={{ left: e.label.x, top: e.label.y, maxWidth: e.label.width }}
             >
               {formatRate(index, e.kind === 'input' ? e.from : e.to, e.rate, lang, t)}
@@ -124,7 +142,7 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, editorId, 
           ))}
           {layout.nodes.map(n => {
             const step = stepOf.get(n.item)!;
-            const text = nodeText(step, index, lang, t);
+            const text = nodeText(step, index, lang, t, defaultPurity);
             const isSelected = selected === n.item;
             const wanted = step.targetRate > 0;
             return (
@@ -141,8 +159,8 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, editorId, 
                 onFocus={() => setActive(n.item)}
                 onKeyDown={e => onKeyDown(e, n)}
                 style={{ left: n.x, top: n.y, width: n.width, height: n.height }}
-                className={`absolute flex flex-col items-center overflow-hidden rounded border px-2 pt-2 text-center text-fg focus-ring motion-safe:transition-colors ${
-                  isSelected ? 'border-accent bg-line' : 'border-line bg-panel hover:border-muted'
+                className={`absolute flex flex-col items-center overflow-hidden chamfer border px-2 pt-1.5 text-center text-fg focus-ring motion-safe:transition-colors ${
+                  isSelected ? 'border-accent bg-raised' : 'border-edge/60 bg-panel hover:border-muted hover:bg-raised'
                 } ${wanted ? 'border-b-4 border-b-accent pb-0.5' : 'pb-1.5'} ${step.choice.kind === 'external' ? 'border-dashed' : ''}`}
               >
                 <NodeCard step={step} text={text} />
@@ -151,19 +169,16 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, editorId, 
           })}
         </div>
       </div>
-      <Legend />
+      <Legend steps={steps} edges={layout.edges} />
     </div>
   );
 }
 
-const badge = 'shrink-0 rounded border px-1 text-[11px] leading-4';
-const TONE = { muted: 'border-line text-muted', accent: 'border-accent text-accent', free: 'border-free text-free' } as const;
-
 /** A compact badge on the card; `long` is its title and goes into the node's accessible name (`parts`, or `long`). */
-interface Badge { text: string; shards?: number; long: string; parts?: string[]; tone: keyof typeof TONE }
+interface NodeBadge { text: string; shards?: number; long: string; parts?: string[]; tone: BadgeTone }
 
 /** What a node says: shown on the card, and as one sentence for its accessible name. */
-function nodeText(step: PlanStep, index: RecipeIndex, lang: Lang, t: TFunction) {
+function nodeText(step: PlanStep, index: RecipeIndex, lang: Lang, t: TFunction, defaultPurity: Purity) {
   const name = itemName(index, step.item, lang);
   const rate = (item: string, value: number) => formatRate(index, item, value, lang, t);
   const external = step.choice.kind === 'external';
@@ -188,11 +203,11 @@ function nodeText(step: PlanStep, index: RecipeIndex, lang: Lang, t: TFunction) 
     how = { text: t('planner.diagram.autoLoop'), long: t('planner.autoLoop'), alt: false };
   }
 
-  const badges: Badge[] = [];
+  const badges: NodeBadge[] = [];
   if (how?.alt) badges.push({ text: t('planner.diagram.alt'), long: how.long, parts: [], tone: 'accent' });
-  if (step.purity) {
+  if (step.purity && step.purity !== defaultPurity) {
     const text = t(`planner.purityOption.${step.purity}`, { factor: PURITY_FACTOR[step.purity] });
-    badges.push({ text, long: `${t('planner.purity')}: ${text}`, tone: 'muted' });
+    badges.push({ text, long: `${t('planner.purity')}: ${text}`, tone: 'neutral' });
   }
   const clock = step.clock * 100;
   if (!external && (Math.abs(clock - 100) > 1e-6 || step.shards > 0)) {
@@ -201,10 +216,10 @@ function nodeText(step: PlanStep, index: RecipeIndex, lang: Lang, t: TFunction) 
       const pressurizer = step.pressurizer ? index.data.wellPressurizer?.name[lang] : undefined;
       parts.push(pressurizer ? t('planner.shardsPressurizer', { count: step.shards, name: pressurizer }) : t('planner.shards', { count: step.shards }));
     }
-    badges.push({ text: t('planner.diagram.clock', { value: clock }), shards: step.shards, long: parts.join(' · '), parts, tone: 'muted' });
+    badges.push({ text: t('planner.diagram.clock', { value: clock }), shards: step.shards, long: parts.join(' · '), parts, tone: 'neutral' });
   }
   if (!covered && step.fromByproducts > 1e-9) {
-    badges.push({ text: t('planner.diagram.byproducts'), long: t('planner.fromByproducts', { value: rate(step.item, step.fromByproducts) }), tone: 'free' });
+    badges.push({ text: t('planner.diagram.byproducts'), long: t('planner.fromByproducts', { value: rate(step.item, step.fromByproducts) }), tone: 'success' });
   }
 
   const loop = step.cycle ? { text: t('planner.cycle'), long: t('planner.cycleHint') } : undefined;
@@ -230,25 +245,25 @@ function NodeCard({ step, text }: { step: PlanStep; text: ReturnType<typeof node
   const picture = stepPicture(step);
   return (
     <>
-      {text.loop && <span className={`absolute right-1.5 top-1.5 max-w-[60px] truncate ${badge} ${TONE.accent}`} title={text.loop.long}>{text.loop.text}</span>}
+      {text.loop && <span className={badgeClass('accent', 'absolute top-1.5 right-1.5 max-w-[64px] truncate')} title={text.loop.long}>{text.loop.text}</span>}
       <Picture cls={picture.cls} px={PICTURE} dashed={picture.dashed} />
-      <span className="mt-1 w-full truncate text-sm font-semibold leading-5" title={text.exact}>{text.made}</span>
+      <span className="mt-1 w-full truncate font-display text-base leading-5 font-semibold tracking-wide uppercase" title={text.exact}>{text.made}</span>
       <span className="flex w-full min-w-0 justify-center gap-1 text-xs leading-4" title={`${text.name} · ${text.amount}`}>
         <span className="truncate">{text.name}</span>
         <span aria-hidden="true" className="text-muted">·</span>
         <span className="shrink-0 tabular-nums">{text.amount}</span>
       </span>
       <span className="h-4 w-full truncate text-[11px] leading-4 text-muted" title={text.third}>{text.third}</span>
-      <span className="mt-1 flex h-[18px] w-full justify-center gap-1 overflow-hidden">
+      <span className="mt-0.5 flex h-5 w-full justify-center gap-1 overflow-hidden">
         {text.wanted && (
-          <span className="shrink-0 rounded bg-accent px-1 text-[11px] font-semibold leading-4 text-bg" title={t('planner.diagram.wanted', { value: text.wanted })}>
+          <span className={badgeClass('accent')} title={t('planner.diagram.wanted', { value: text.wanted })}>
             {t('planner.diagram.wantedBadge')}
           </span>
         )}
         {text.badges.map(b => (
-          <span key={b.long} className={`${badge} ${TONE[b.tone]}`} title={b.long}>
+          <span key={b.long} className={badgeClass(b.tone)} title={b.long}>
             <span>{b.text}</span>
-            {b.shards ? <span aria-hidden="true" className="ml-0.5 text-shard">{'◆'.repeat(b.shards)}</span> : null}
+            {b.shards ? <span aria-hidden="true" className="text-shard">{'◆'.repeat(b.shards)}</span> : null}
           </span>
         ))}
       </span>
@@ -256,11 +271,15 @@ function NodeCard({ step, text }: { step: PlanStep; text: ReturnType<typeof node
   );
 }
 
-function Legend() {
+/** What the lines and marks of this plan mean: only the kinds it shows (the wanted item always). */
+function Legend({ steps, edges }: { steps: readonly PlanStep[]; edges: readonly DiagramEdge[] }) {
   const { t } = useTranslation();
+  const styles = EDGE_STYLES.filter(k => edges.some(e => styleOf(e) === k));
+  const external = steps.some(s => s.choice.kind === 'external');
+  const shards = steps.some(s => s.shards > 0);
   return (
-    <ul aria-label={t('planner.diagram.legend.label')} className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-      {EDGE_STYLES.map(k => (
+    <ul aria-label={t('planner.diagram.legend.label')} className="flex flex-wrap gap-x-4 gap-y-1 border-t border-line px-3 py-2 text-xs text-muted">
+      {styles.map(k => (
         <li key={k} className="flex items-center gap-1.5">
           <svg aria-hidden="true" width="24" height="8" className="shrink-0">
             <line x1="0" y1="4" x2="24" y2="4" strokeWidth={1.5} strokeDasharray={DASH[k]} strokeLinecap={k === 'byproduct' ? 'round' : undefined} className={STROKE[k]} />
@@ -269,17 +288,21 @@ function Legend() {
         </li>
       ))}
       <li className="flex items-center gap-1.5">
-        <span aria-hidden="true" className="size-3 shrink-0 rounded border border-b-4 border-line border-b-accent bg-panel" />
+        <span aria-hidden="true" className="size-3 shrink-0 border border-b-4 border-edge border-b-accent bg-panel" />
         {t('planner.diagram.legend.wanted')}
       </li>
-      <li className="flex items-center gap-1.5">
-        <span aria-hidden="true" className="size-3 shrink-0 rounded border border-dashed border-muted bg-panel" />
-        {t('planner.diagram.legend.external')}
-      </li>
-      <li className="flex items-center gap-1.5">
-        <span aria-hidden="true" className="text-shard">◆</span>
-        {t('planner.diagram.legend.shard')}
-      </li>
+      {external && (
+        <li className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="size-3 shrink-0 border border-dashed border-muted bg-panel" />
+          {t('planner.diagram.legend.external')}
+        </li>
+      )}
+      {shards && (
+        <li className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="text-shard">◆</span>
+          {t('planner.diagram.legend.shard')}
+        </li>
+      )}
     </ul>
   );
 }

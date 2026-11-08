@@ -31,13 +31,14 @@ export function WorldPageView({ page, ctx }: { page: WorldPage; ctx: WorldCtx })
           <span className="max-[899px]:sr-only">{t('world.backToMap')}</span>
         </Link>
         <span aria-hidden="true" className="h-6 w-px bg-line max-[899px]:hidden" />
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        {/* At least 12rem for the title, so the page's actions move to a line of their own on a phone. */}
+        <div className="flex min-w-0 flex-1 basis-48 items-center gap-2">
           <SectionMarker size="lg" />
           <h2 id={headingId} ref={heading} tabIndex={-1} className="min-w-0 truncate font-display text-2xl leading-tight font-bold tracking-wider uppercase outline-none">
             {t(page.titleKey)}
           </h2>
         </div>
-        <div ref={setActions} className="flex flex-wrap items-center gap-2 empty:hidden" />
+        <div ref={setActions} className="ml-auto flex flex-wrap items-center gap-2 empty:hidden" />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3 min-[900px]:p-4">
         <PageActionsSlot value={actions}>

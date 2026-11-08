@@ -9,6 +9,7 @@ import { initI18n } from '../../src/web/app/i18n/index.js';
 import { FEATURES } from '../../src/web/features/index.js';
 import { matchItems } from '../../src/web/features/planner/ItemPicker.js';
 import { plannerFeature, plannerTool } from '../../src/web/features/planner/index.js';
+import { EXAMPLE } from '../../src/web/features/planner/Planner.js';
 import { loadPlanner, usePlanner } from '../../src/web/features/planner/usePlanner.js';
 import { RECIPE_DATA } from '../fixtures/recipeData.js';
 import { stubFetch, type StubRoute } from './fetchStub.js';
@@ -30,6 +31,10 @@ function setup(recipes: 'present' | 'missing' = 'present', worldVersion = WORLD.
 }
 
 const stepOf = (name: string) => screen.getByRole('heading', { level: 4, name: new RegExp(`^${name}`) }).closest('li')!;
+/** A big figure of the totals by its label: its value. */
+const tile = (totals: HTMLElement, label: string) => within(totals).getByText(label, { selector: 'dt' }).nextElementSibling!.textContent;
+/** The rows of a totals list: label (with its second line) and value. */
+const rows = (list: HTMLElement) => within(list).getAllByRole('term').map(dt => [dt.textContent, dt.nextElementSibling!.textContent]);
 
 /** Picks an item into the first row of an already open planner. */
 async function openAndPickAgain(query: string) {
@@ -65,6 +70,45 @@ describe('production planner', () => {
     expect(collect(FEATURES, 'pages').filter(p => p.id === 'planner')).toEqual(plannerFeature.pages);
     expect(plannerFeature.pages?.[0]).toMatchObject({ titleKey: 'planner.title' });
     expect(plannerFeature.headerItems).toBeUndefined();
+    // The menu shows it with the flow icon.
+    expect(plannerTool.icon).toBeDefined();
+  });
+
+  it('starts with a short note and an example to try, and puts the view switch and Start over in the page header', async () => {
+    // The example needs its item in the dataset; this one has it.
+    const withExample = {
+      ...RECIPE_DATA,
+      items: [...RECIPE_DATA.items, { id: EXAMPLE.item, name: { en: 'Reinforced Iron Plate', de: 'Verstärkte Eisenplatte' }, form: 'solid' as const }],
+      recipes: [...RECIPE_DATA.recipes, {
+        id: 'R_Rip', name: { en: 'R_Rip', de: 'R_Rip' }, alternate: false, machine: 'assembler', duration: 12,
+        ingredients: [{ item: 'plate', amount: 6 }], products: [{ item: EXAMPLE.item, amount: 1 }],
+      }],
+    };
+    setup('present', undefined, { 'GET /data/test/recipes.json': { body: withExample } });
+    await userEvent.click(screen.getByRole('link', { name: 'Planner' }));
+    const empty = await screen.findByRole('region', { name: 'Totals' });
+    expect(empty).toHaveTextContent('Pick an item and how many per minute');
+    // Nothing to switch or clear yet.
+    const header = screen.getByRole('heading', { name: 'Production planner' }).closest('div')!.parentElement!;
+    expect(within(header).queryByRole('radiogroup', { name: 'View' })).toBeNull();
+    expect(within(header).queryByRole('button', { name: 'Start over' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Remove/ })).toBeNull();
+
+    await userEvent.click(within(empty).getByRole('button', { name: 'Example: Reinforced Iron Plate, 5/min' }));
+    expect(screen.getByRole('combobox', { name: 'Item 1' })).toHaveValue('Reinforced Iron Plate');
+    expect(screen.getByRole('spinbutton', { name: 'Per minute of Reinforced Iron Plate' })).toHaveValue(5);
+    expect(tile(screen.getByRole('region', { name: 'Totals' }), 'Buildings')).toBe('6');
+    expect(within(header).getByRole('radiogroup', { name: 'View' })).toBeInTheDocument();
+    await userEvent.click(within(header).getByRole('button', { name: 'Start over' }));
+    expect(usePlanner.getState().targets.map(t => t.item)).toEqual([null]);
+    expect(screen.getByRole('region', { name: 'Totals' })).toHaveTextContent('Pick an item');
+  });
+
+  it('leaves the example out when the dataset does not have its item', async () => {
+    setup();
+    await userEvent.click(screen.getByRole('link', { name: 'Planner' }));
+    const empty = await screen.findByRole('region', { name: 'Totals' });
+    expect(within(empty).queryByRole('button')).toBeNull();
   });
 
   it('opens its page from the tool, loads the recipes only then, and keeps the plan when left', async () => {
@@ -80,7 +124,8 @@ describe('production planner', () => {
     expect(screen.getByRole('link', { name: 'Planner' })).toHaveAttribute('aria-current', 'page');
     await userEvent.type(await screen.findByRole('combobox', { name: 'Item 1' }), 'plate');
     await userEvent.keyboard('{Enter}');
-    expect(calls.map(c => c.path)).toEqual(['/data/test/recipes.json']);
+    // The recipes and the index of the game's pictures.
+    expect(calls.map(c => c.path).sort()).toEqual(['/data/test/icons/items/index.json', '/data/test/recipes.json']);
 
     await userEvent.click(screen.getByRole('link', { name: 'Back to the map' }));
     expect(router.state.location.pathname).toBe(`/w/${W}`);
@@ -106,7 +151,7 @@ describe('production planner', () => {
     const { calls } = setup('present', '1.2.4.1');
     await userEvent.click(screen.getByRole('link', { name: 'Planner' }));
     await screen.findByRole('combobox', { name: 'Item 1' });
-    expect(calls.map(c => c.path)).toEqual(['/data/test/recipes.json']);
+    expect(calls.map(c => c.path).sort()).toEqual(['/data/test/icons/items/index.json', '/data/test/recipes.json']);
   });
 
   it('says so when the dataset has no recipe data', async () => {
@@ -122,26 +167,32 @@ describe('production planner', () => {
 
     const plate = stepOf('plate');
     expect(within(plate).getByText('60/min')).toBeInTheDocument();
-    expect(within(plate).getByText('3 × Constructor')).toBeInTheDocument();
+    expect(within(plate).getByText('3× Constructor')).toBeInTheDocument();
     expect(within(plate).getByLabelText('Made by')).toHaveDisplayValue('R_Plate (Constructor)');
     expect(within(plate).getByText(/90\/min ingot/)).toBeInTheDocument();
-    expect(within(stepOf('ore')).getByText('2 × Miner Mk.1')).toBeInTheDocument();
+    expect(within(stepOf('ore')).getByText('2× Miner Mk.1')).toBeInTheDocument();
     expect(within(stepOf('ore')).getByText(/exact 1\.5/)).toBeInTheDocument();
 
+    // The answer: power and buildings as big figures, raw resources with their extractors, buildings by kind.
     const totals = screen.getByRole('region', { name: 'Totals' });
-    expect(within(totals).getByText(/Power:/).parentElement).toHaveTextContent('Power: 31.5 MW'); // 3x4 + 3x4 + 1.5x5
+    expect(tile(totals, 'Power')).toBe('31.5 MW'); // 3x4 + 3x4 + 1.5x5
+    expect(tile(totals, 'Buildings')).toBe('8');
+    expect(rows(within(totals).getByRole('region', { name: 'Raw resources' }))).toEqual([['ore2× Miner Mk.1 · exact 1.5', '90/min']]);
+    expect(rows(within(totals).getByRole('region', { name: 'Buildings' }))).toEqual([
+      ['Constructor', '3'], ['Smelter', '3'], ['Miner Mk.1exact 1.5', '2'],
+    ]);
   });
 
   it('switches to an alternate recipe and to another miner', async () => {
     setup();
     await openAndPick('plate');
     await userEvent.selectOptions(within(stepOf('plate')).getByLabelText('Made by'), 'R_PlateAlt (Assembler)');
-    expect(within(stepOf('plate')).getByText('4 × Assembler')).toBeInTheDocument();
+    expect(within(stepOf('plate')).getByText('4× Assembler')).toBeInTheDocument();
     expect(usePlanner.getState().choices).toEqual({ plate: { kind: 'recipe', recipe: 'R_PlateAlt' } });
     expect(stepOf('water')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('radio', { name: 'Miner Mk.2' }));
-    expect(within(stepOf('ore')).getByText('1 × Miner Mk.2')).toBeInTheDocument();
+    expect(within(stepOf('ore')).getByText('1× Miner Mk.2')).toBeInTheDocument();
 
     // Back to the default recipe: the choice is dropped
     await userEvent.selectOptions(within(stepOf('plate')).getByLabelText('Made by'), 'R_Plate (Constructor)');
@@ -151,31 +202,38 @@ describe('production planner', () => {
   it('applies extractor clock speed and purity, per step too, and reports invalid clock speeds', async () => {
     setup();
     await openAndPick('ore');
-    const clock = screen.getByLabelText('Extractor clock speed (%)');
+    // Folded away, with the values in effect.
+    const extractors = screen.getByText('Extractors', { selector: 'summary *' }).closest('details')!;
+    expect(extractors).not.toHaveAttribute('open');
+    expect(extractors.querySelector('summary')).toHaveTextContent('ExtractorsMiner Mk.1 · Normal ×1 · 100 %');
+    await userEvent.click(screen.getByText('Extractors', { selector: 'summary *' }));
+    expect(extractors).toHaveAttribute('open');
+    const clock = screen.getByLabelText('Extractor clock speed');
     await userEvent.clear(clock);
     await userEvent.type(clock, '50');
-    expect(within(stepOf('ore')).getByText('2 × Miner Mk.1')).toBeInTheDocument();
+    expect(within(stepOf('ore')).getByText('2× Miner Mk.1')).toBeInTheDocument();
+    expect(extractors.querySelector('summary')).toHaveTextContent('Miner Mk.1 · Normal ×1 · 50 %');
     expect(screen.getByText(/Factors from the Satisfactory wiki/)).toBeInTheDocument();
-    expect(screen.getByText(/^1 % to 250 %: above 100 % each building needs a Power Shard per 50 % \(up to 3\)\./)).toBeInTheDocument();
+    expect(clock).toHaveAccessibleDescription(/^% 1 % to 250 %\. Above 100 % each building needs a Power Shard per 50 % \(up to 3\)\./);
     await userEvent.click(screen.getByRole('radio', { name: 'Pure ×2' }));
-    expect(within(stepOf('ore')).getByText('1 × Miner Mk.1')).toBeInTheDocument();
+    expect(within(stepOf('ore')).getByText('1× Miner Mk.1')).toBeInTheDocument();
     expect(within(stepOf('ore')).getByLabelText('Node purity')).toHaveValue('pure');
 
     // Per step: 200 % on an impure node = 60/min per miner, 2 shards each
     const ore = stepOf('ore');
-    await userEvent.type(within(ore).getByLabelText('Clock speed (%)'), '200');
+    await userEvent.type(within(ore).getByLabelText('Clock speed'), '200');
     await userEvent.selectOptions(within(ore).getByLabelText('Node purity'), 'impure');
-    expect(within(stepOf('ore')).getByText('1 × Miner Mk.1')).toBeInTheDocument();
+    expect(within(stepOf('ore')).getByText('1× Miner Mk.1')).toBeInTheDocument();
     expect(within(stepOf('ore')).getByText('2 Power Shards per building')).toBeInTheDocument();
     expect(usePlanner.getState().steps).toEqual({ ore: { clock: '200', purity: 'impure' } });
 
-    await userEvent.clear(within(stepOf('ore')).getByLabelText('Clock speed (%)'));
-    await userEvent.type(within(stepOf('ore')).getByLabelText('Clock speed (%)'), '300');
+    await userEvent.clear(within(stepOf('ore')).getByLabelText('Clock speed'));
+    await userEvent.type(within(stepOf('ore')).getByLabelText('Clock speed'), '300');
     expect(screen.getByRole('alert')).toHaveTextContent('The clock speed for ore must be a number from 1 to 250.');
     // The last working plan stays, so the field can be corrected right there.
     expect(screen.getByText(/last plan that worked/)).toBeInTheDocument();
-    await userEvent.clear(within(stepOf('ore')).getByLabelText('Clock speed (%)'));
-    await userEvent.type(within(stepOf('ore')).getByLabelText('Clock speed (%)'), '200');
+    await userEvent.clear(within(stepOf('ore')).getByLabelText('Clock speed'));
+    await userEvent.type(within(stepOf('ore')).getByLabelText('Clock speed'), '200');
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByText(/last plan that worked/)).toBeNull();
   });
@@ -184,28 +242,28 @@ describe('production planner', () => {
     setup();
     await openAndPick('gas');
     const gas = stepOf('gas');
-    expect(within(gas).getByText('1 × Well')).toBeInTheDocument();
+    expect(within(gas).getByText('1× Well')).toBeInTheDocument();
     expect(within(gas).getByText(/clock speed is set at the Pressurizer and applies to all extractors/)).toBeInTheDocument();
     const totals = screen.getByRole('region', { name: 'Totals' });
     expect(within(totals).getByText('gas: one Pressurizer per resource well, 150 MW at 100 %; not included in the power.')).toBeInTheDocument();
-    expect(within(totals).getByText(/Values are for the default game mode/)).toBeInTheDocument();
+    expect(within(totals).getByText(/^For the default game mode/)).toBeInTheDocument();
 
     // 200 %: 120 m³/min per extractor, the pressurizer takes 2 shards and 150 MW x 2^1.321929 = 375 MW
-    await userEvent.type(within(gas).getByLabelText('Clock speed (%)'), '200');
+    await userEvent.type(within(gas).getByLabelText('Clock speed'), '200');
     expect(within(stepOf('gas')).getByText('2 Power Shards per Pressurizer')).toBeInTheDocument();
     expect(within(stepOf('gas')).queryByText(/per building/)).not.toBeInTheDocument();
     expect(within(totals).getByText('gas: one Pressurizer per resource well, 375 MW at 200 %, 2 Power Shards; not included in the power.')).toBeInTheDocument();
-    expect(within(totals).getByText(/Power:/).parentElement).toHaveTextContent('Power: 0 MW');
+    expect(tile(totals, 'Power')).toBe('0 MW');
   });
 
   it('runs production buildings at a set clock speed', async () => {
     setup();
     await openAndPick('plate');
-    await userEvent.type(within(stepOf('plate')).getByLabelText('Clock speed (%)'), '150');
+    await userEvent.type(within(stepOf('plate')).getByLabelText('Clock speed'), '150');
     // 30 plates/min per constructor at 150 %
-    expect(within(stepOf('plate')).getByText('2 × Constructor')).toBeInTheDocument();
+    expect(within(stepOf('plate')).getByText('2× Constructor')).toBeInTheDocument();
     expect(within(stepOf('plate')).getByText('1 Power Shard per building')).toBeInTheDocument();
-    expect(within(stepOf('ingot')).getByText('3 × Smelter')).toBeInTheDocument();
+    expect(within(stepOf('ingot')).getByText('3× Smelter')).toBeInTheDocument();
   });
 
   it('uses by-products for other steps and lists the rest as surplus', async () => {
@@ -215,7 +273,7 @@ describe('production planner', () => {
     await userEvent.click(screen.getByRole('button', { name: '+ Add item' }));
     await userEvent.type(screen.getByRole('combobox', { name: 'Item 2' }), 'fuel');
     await userEvent.keyboard('{Enter}');
-    const rate = screen.getByRole('textbox', { name: 'Per minute of fuel' });
+    const rate = screen.getByRole('spinbutton', { name: 'Per minute of fuel' });
     await userEvent.clear(rate);
     await userEvent.type(rate, '4');
     // 60 plastic make 30 residue; 4 fuel need 6
@@ -223,6 +281,7 @@ describe('production planner', () => {
     expect(within(stepOf('residue')).getByText(/no buildings needed/)).toBeInTheDocument();
     const totals = screen.getByRole('region', { name: 'Totals' });
     expect(within(totals).getByRole('heading', { name: 'Surplus' })).toBeInTheDocument();
+    expect(rows(within(totals).getByRole('region', { name: 'Surplus' }))).toEqual([['residue', '24 m³/min']]);
   });
 
   it('supplies the packaged item from outside for a picked unpacking recipe', async () => {
@@ -255,7 +314,7 @@ describe('production planner', () => {
     const second = screen.getByRole('combobox', { name: 'Item 2' });
     await userEvent.type(second, 'ingot');
     await userEvent.keyboard('{Enter}');
-    const rate = screen.getByRole('textbox', { name: 'Per minute of ingot' });
+    const rate = screen.getByRole('spinbutton', { name: 'Per minute of ingot' });
     await userEvent.clear(rate);
     await userEvent.type(rate, '30');
     expect(within(stepOf('ingot')).getByText('120/min')).toBeInTheDocument();
@@ -271,10 +330,10 @@ describe('production planner', () => {
     const box = await screen.findByRole('combobox', { name: 'Gegenstand 1' });
     await userEvent.type(box, 'plate-de');
     await userEvent.keyboard('{Enter}');
-    expect(within(stepOf('plate-de')).getByText('3 × Konstruktor')).toBeInTheDocument();
+    expect(within(stepOf('plate-de')).getByText('3× Konstruktor')).toBeInTheDocument();
     expect(within(stepOf('plate-de')).getByLabelText('Hergestellt mit')).toBeInTheDocument();
     expect(within(stepOf('ore-de')).getByLabelText('Reinheit des Rohstoffvorkommens')).toBeInTheDocument();
-    await userEvent.type(within(stepOf('plate-de')).getByLabelText('Taktrate (%)'), '150');
+    await userEvent.type(within(stepOf('plate-de')).getByLabelText('Taktrate'), '150');
     expect(within(stepOf('plate-de')).getByText('1 Energiefragment je Gebäude')).toBeInTheDocument();
   });
 
@@ -284,11 +343,12 @@ describe('production planner', () => {
     await userEvent.click(screen.getByRole('link', { name: 'Planer' }));
     await userEvent.type(await screen.findByRole('combobox', { name: 'Gegenstand 1' }), 'gas-de');
     await userEvent.keyboard('{Enter}');
-    await userEvent.type(within(stepOf('gas-de')).getByLabelText('Taktrate (%)'), '250');
+    await userEvent.type(within(stepOf('gas-de')).getByLabelText('Taktrate'), '250');
     expect(within(stepOf('gas-de')).getByText('3 Energiefragmente je Kompressor')).toBeInTheDocument();
     const totals = screen.getByRole('region', { name: 'Summen' });
     expect(within(totals).getByText(/^gas-de: ein Kompressor je Rohstoffquelle, .* MW bei 250 %, 3 Energiefragmente; nicht im Strom eingerechnet\.$/)).toBeInTheDocument();
     expect(within(totals).getByText(/Standard-Spielmodus/)).toBeInTheDocument();
+    expect(tile(totals, 'Strom')).toMatch(/ MW$/);
   });
 
   it('picks items with the keyboard and closes only the list on Escape', async () => {
@@ -357,10 +417,13 @@ describe('production planner diagram', () => {
 
     expect(within(ore).getByText('2× Miner Mk.1')).toHaveAttribute('title', 'exact 1.5');
     expect(within(ore).getByTitle('ore · 90/min')).toBeInTheDocument();
-    expect(within(ore).getByText('Normal ×1')).toBeInTheDocument();
+    // The node purity of the settings goes without saying; a node shows only one that differs.
+    expect(within(ore).queryByText('Normal ×1')).not.toBeInTheDocument();
     expect(edges()).toEqual(['ingot>plate:input', 'ore>ingot:input']);
     expect(within(diagram()).getAllByText('90/min', { selector: 'span[aria-hidden]' })).toHaveLength(2);
-    expect(screen.getByRole('list', { name: 'Legend' })).toHaveTextContent('By-product of another step');
+    // The legend names only what this plan shows.
+    const legend = screen.getByRole('list', { name: 'Legend' });
+    expect(within(legend).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Material per minute', 'Wanted item']);
     expect(screen.queryByRole('heading', { level: 4, name: /^plate/ })).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Totals' })).toBeInTheDocument();
   });
@@ -372,7 +435,7 @@ describe('production planner diagram', () => {
     expect(node('plate')).toHaveAttribute('aria-expanded', 'true');
     const editor = screen.getByRole('region', { name: 'Edit plate' });
     expect(node('plate')).toHaveAttribute('aria-controls', editor.id);
-    expect(within(editor).getByRole('heading', { level: 4, name: '3× Constructor' })).toBeInTheDocument();
+    expect(within(editor).getByRole('heading', { level: 3, name: '3× Constructor' })).toBeInTheDocument();
     expect(within(editor).getByText('Wanted')).toBeInTheDocument();
     await waitFor(() => expect(editor.querySelector('[data-picture="constructor"] img')).toHaveAttribute('src', ICON('constructor', 64)));
 
@@ -399,10 +462,10 @@ describe('production planner diagram', () => {
     // The slider sets the clock speed: the shard slots fill, the node shows it.
     fireEvent.change(slider, { target: { value: '150' } });
     expect(usePlanner.getState().steps).toEqual({ plate: { clock: '150' } });
-    expect(within(clock).getByLabelText('Clock speed (%)')).toHaveValue('150');
+    expect(within(clock).getByRole('spinbutton', { name: 'Clock speed' })).toHaveValue(150);
     expect(within(clock).getByRole('img', { name: '1 of 3 Power Shard slots used' }).querySelectorAll('[data-filled="true"] img')).toHaveLength(1);
     expect(within(node('plate')).getByText('150 %').parentElement).toHaveAttribute('title', 'Clock speed 150 % · 1 Power Shard per building');
-    expect(within(editor).getByRole('heading', { level: 4, name: '2× Constructor' })).toBeInTheDocument();
+    expect(within(editor).getByRole('heading', { level: 3, name: '2× Constructor' })).toBeInTheDocument();
     expect(within(production).getByText('4 s per cycle')).toBeInTheDocument();
 
     // Another recipe: the node and the panel follow.
@@ -438,7 +501,7 @@ describe('production planner diagram', () => {
     expect(node('plate')).toHaveFocus();
     await userEvent.keyboard('{ArrowUp}{Enter}');
     const editor = screen.getByRole('region', { name: 'Edit ingot' });
-    await userEvent.type(within(editor).getByLabelText('Clock speed (%)'), '200');
+    await userEvent.type(within(editor).getByRole('spinbutton', { name: 'Clock speed' }), '200');
     expect(within(node('ingot')).getByText('200 %').parentElement).toHaveAttribute('title', 'Clock speed 200 % · 2 Power Shards per building');
     expect(within(editor).getByRole('img', { name: '2 of 3 Power Shard slots used' }).querySelectorAll('[data-filled="true"]')).toHaveLength(2);
     expect(node('ingot')).toHaveAccessibleName(/; Clock speed 200 %; 2 Power Shards per building;/);
@@ -457,21 +520,22 @@ describe('production planner diagram', () => {
     await openAndPick('plate');
     await userEvent.click(node('ore'));
     const editor = screen.getByRole('region', { name: 'Edit ore' });
-    expect(within(editor).getByRole('heading', { level: 4, name: '2× Miner Mk.1' })).toHaveAttribute('title', 'exact 1.5');
+    expect(within(editor).getByRole('heading', { level: 3, name: '2× Miner Mk.1' })).toBeInTheDocument();
+    expect(within(editor).getByRole('heading', { level: 3, name: '2× Miner Mk.1' }).nextElementSibling).toHaveTextContent(/^ore · 90\/min · exact 1\.5$/);
     const production = within(editor).getByRole('region', { name: 'Production' });
     expect(within(production).getByText('Resource node')).toBeInTheDocument();
     expect(within(production).getByText('Extraction rate')).toBeInTheDocument();
     expect(slots(production)).toEqual(['ore90/min60/min per building']);
     await userEvent.selectOptions(within(production).getByLabelText('Node purity'), 'pure');
     expect(usePlanner.getState().steps).toEqual({ ore: { purity: 'pure' } });
-    expect(within(editor).getByRole('heading', { level: 4, name: '1× Miner Mk.1' })).toBeInTheDocument();
+    expect(within(editor).getByRole('heading', { level: 3, name: '1× Miner Mk.1' })).toBeInTheDocument();
     expect(within(node('ore')).getByText('Pure ×2')).toBeInTheDocument();
     expect(within(editor).getByText(/5 MW per building/)).toBeInTheDocument();
 
     await openAndPickAgainClear('gas');
     await userEvent.click(node('gas'));
     const well = screen.getByRole('region', { name: 'Edit gas' });
-    expect(within(well).getByRole('heading', { level: 4, name: '1× Well' })).toBeInTheDocument();
+    expect(within(well).getByRole('heading', { level: 3, name: '1× Well' })).toBeInTheDocument();
     expect(within(well).queryByText('Resource node')).toBeInTheDocument();
     expect(within(well).getByText('Power Shards (Pressurizer)')).toBeInTheDocument();
     expect(within(well).getByText('Pressurizer: 150 MW per resource well, not included in the totals')).toBeInTheDocument();
@@ -483,7 +547,7 @@ describe('production planner diagram', () => {
     await openAndPick('plate');
     await userEvent.click(screen.getByRole('radio', { name: 'List' }));
     expect(screen.queryByRole('group', { name: 'Production chain' })).not.toBeInTheDocument();
-    expect(within(stepOf('plate')).getByText('3 × Constructor')).toBeInTheDocument();
+    expect(within(stepOf('plate')).getByText('3× Constructor')).toBeInTheDocument();
     expect(usePlanner.getState().view).toBe('list');
     expect(loadPlanner()?.view).toBe('list');
     // Starting over keeps the view.
@@ -503,7 +567,7 @@ describe('production planner diagram', () => {
     await userEvent.click(screen.getByRole('button', { name: '+ Add item' }));
     await userEvent.type(screen.getByRole('combobox', { name: 'Item 2' }), 'fuel');
     await userEvent.keyboard('{Enter}');
-    const rate = screen.getByRole('textbox', { name: 'Per minute of fuel' });
+    const rate = screen.getByRole('spinbutton', { name: 'Per minute of fuel' });
     await userEvent.clear(rate);
     await userEvent.type(rate, '4');
     expect(edges()).toContain('plastic>residue:byproduct');
@@ -543,7 +607,7 @@ describe('production planner diagram', () => {
     await waitFor(() => expect(frame.querySelector('img')).toHaveAttribute('src', ICON('pfuel', 64)));
     await userEvent.click(pfuel);
     const editor = screen.getByRole('region', { name: 'Edit pfuel' });
-    expect(within(editor).getByRole('heading', { level: 4, name: 'Supplied from outside' })).toBeInTheDocument();
+    expect(within(editor).getByRole('heading', { level: 3, name: 'Supplied from outside' })).toBeInTheDocument();
     expect(within(editor).queryByRole('region', { name: 'Clock speed' })).not.toBeInTheDocument();
     expect(within(editor).getByText(/Supplied from outside automatically/)).toBeInTheDocument();
   });
@@ -560,12 +624,12 @@ describe('production planner diagram', () => {
     const plate = node('plate-de', 'Produktionskette');
     expect(plate).toHaveAccessibleName('plate-de (gewünscht: 60/min); 3× Konstruktor; stellt 60/min her; R_Plate; braucht 90/min ingot-de');
     expect(within(plate).getByText('Gewünscht')).toBeInTheDocument();
-    expect(screen.getByText(/^Rohstoffe oben, die gewünschten Gegenstände unten/)).toBeInTheDocument();
-    expect(screen.getByRole('list', { name: 'Legende' })).toHaveTextContent('Nebenprodukt eines anderen Schritts');
-    expect(screen.getByRole('list', { name: 'Legende' })).toHaveTextContent('Energiefragment');
+    expect(screen.getByText(/^Rohstoffe oben, deine Gegenstände unten/)).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Legende' })).toHaveTextContent('Material pro Minute');
+    expect(screen.getByRole('list', { name: 'Legende' })).not.toHaveTextContent('Energiefragment');
     await userEvent.click(plate);
     const editor = screen.getByRole('region', { name: 'plate-de bearbeiten' });
-    expect(within(editor).getByRole('heading', { level: 4, name: '3× Konstruktor' })).toBeInTheDocument();
+    expect(within(editor).getByRole('heading', { level: 3, name: '3× Konstruktor' })).toBeInTheDocument();
     expect(within(editor).getByLabelText('Hergestellt mit')).toBeInTheDocument();
     const production = within(editor).getByRole('region', { name: 'Produktion' });
     expect(within(production).getByText('Eingang')).toBeInTheDocument();
@@ -574,8 +638,9 @@ describe('production planner diagram', () => {
     expect(within(production).getByText('6 s je Zyklus')).toBeInTheDocument();
     const clock = within(editor).getByRole('region', { name: 'Taktrate' });
     expect(within(clock).getByRole('slider', { name: 'Taktrate-Regler (%)' })).toBeInTheDocument();
-    await userEvent.type(within(editor).getByLabelText('Taktrate (%)'), '150');
+    await userEvent.type(within(editor).getByRole('spinbutton', { name: 'Taktrate' }), '150');
     expect(within(clock).getByRole('img', { name: '1 von 3 Plätzen für Energiefragmente belegt' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Legende' })).toHaveTextContent('Energiefragment');
     expect(within(node('plate-de', 'Produktionskette')).getByText('150 %').parentElement).toHaveAttribute('title', 'Taktrate 150 % · 1 Energiefragment je Gebäude');
     expect(node('plate-de', 'Produktionskette')).toHaveAccessibleName(/; Taktrate 150 %; 1 Energiefragment je Gebäude;/);
     expect(within(editor).getByRole('button', { name: 'Bearbeitung von plate-de schließen' })).toBeInTheDocument();

@@ -1,6 +1,10 @@
-import { useId, useMemo, useState, type KeyboardEvent } from 'react';
+import { useContext, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { GameItem, RecipeIndex } from '../../../shared/recipes.js';
+import { fieldClass } from '../../components/Field.js';
+import { POPOVER } from '../../components/Window.js';
+import { GameIcon, IconsContext } from '../machineWiki/icons.js';
 import { fold, type Lang } from './format.js';
 
 const MAX_RESULTS = 50;
@@ -35,23 +39,55 @@ export interface ItemPickerProps {
   label: string;
 }
 
+/** Where the open list goes: under the field, or above it when there is not room for a few rows below. */
+function listPlace(input: HTMLElement): CSSProperties {
+  const r = input.getBoundingClientRect();
+  const below = window.innerHeight - r.bottom - 8;
+  const above = r.top - 8;
+  const flip = below < 160 && above > below;
+  return {
+    position: 'fixed', left: r.left, width: r.width, maxHeight: Math.min(288, flip ? above : below),
+    ...(flip ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }),
+  };
+}
+
 /**
  * A searchable item picker (WAI-ARIA combobox with a list box): type a part of the English or German
- * name, pick with the arrow keys and Enter or with a click.
+ * name, pick with the arrow keys and Enter or with a click. Items show the game's picture (dataset part `icons`), the
+ * picked one inside the field. The list floats over the page (in `document.body`, placed at the field), so a window's
+ * frame or the page's own scrolling does not cut it off.
  */
 export function ItemPicker({ index, lang, value, onChange, label }: ItemPickerProps) {
   const { t } = useTranslation();
+  const icons = useContext(IconsContext);
   const listId = useId();
   const optionId = (i: number) => `${listId}-o${i}`;
   const selectedName = value ? index.items.get(value)?.name[lang] ?? value : '';
   const [query, setQuery] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [place, setPlace] = useState<CSSProperties>({});
   const text = query ?? selectedName;
+  // The picked item's picture inside the field, while its name is shown (not while typing).
+  const picture = value !== null && query === null && icons?.has(value) ? value : null;
   const results = useMemo(
     () => (open ? matchItems(index.plannable, query ?? '', lang).slice(0, MAX_RESULTS) : []),
     [open, index, query, lang],
   );
+
+  // While open, the list follows the field when the page scrolls or the window changes size.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => { if (inputRef.current) setPlace(listPlace(inputRef.current)); };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open]);
 
   function choose(item: GameItem) {
     onChange(item.id);
@@ -79,7 +115,9 @@ export function ItemPicker({ index, lang, value, onChange, label }: ItemPickerPr
 
   return (
     <div className="relative min-w-0 flex-1 basis-56">
+      {picture && <GameIcon cls={picture} px={24} className="pointer-events-none absolute top-2 left-2" />}
       <input
+        ref={inputRef}
         type="text"
         role="combobox"
         aria-label={label}
@@ -95,14 +133,15 @@ export function ItemPicker({ index, lang, value, onChange, label }: ItemPickerPr
         onFocus={e => { e.target.select(); setOpen(true); setActive(0); }}
         onBlur={() => { setOpen(false); setQuery(null); }}
         onKeyDown={onKeyDown}
-        className="h-10 w-full rounded border border-line bg-bg px-3 text-fg placeholder:text-muted focus-ring"
+        className={fieldClass({}, `w-full ${picture ? 'pl-10' : ''}`)}
       />
-      <ul
+      {createPortal(<ul
         id={listId}
         role="listbox"
         aria-label={label}
         hidden={!open}
-        className="absolute inset-x-0 top-full z-10 mt-1 max-h-64 overflow-y-auto rounded border border-line bg-panel py-1 shadow-lg"
+        style={place}
+        className={`z-50 overflow-y-auto py-1 ${POPOVER}`}
       >
         {results.length === 0 && open && <li role="presentation" className="px-3 py-2 text-sm text-muted">{t('planner.noMatch')}</li>}
         {results.map((item, i) => (
@@ -114,15 +153,18 @@ export function ItemPicker({ index, lang, value, onChange, label }: ItemPickerPr
             // mousedown, not click: the input keeps focus and its blur does not close the list first.
             onMouseDown={e => { e.preventDefault(); choose(item); }}
             onMouseEnter={() => setActive(i)}
-            className={`cursor-pointer px-3 py-2 text-sm ${i === active ? 'bg-line' : ''}`}
+            className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm ${i === active ? 'bg-raised text-fg' : ''}`}
           >
-            {item.name[lang]}
-            {item.name[lang] !== item.name[lang === 'de' ? 'en' : 'de'] && (
-              <span className="ml-2 text-muted">{item.name[lang === 'de' ? 'en' : 'de']}</span>
-            )}
+            <GameIcon cls={item.id} px={24} placeholder />
+            <span className="min-w-0 truncate">
+              {item.name[lang]}
+              {item.name[lang] !== item.name[lang === 'de' ? 'en' : 'de'] && (
+                <span className="ml-2 text-muted">{item.name[lang === 'de' ? 'en' : 'de']}</span>
+              )}
+            </span>
           </li>
         ))}
-      </ul>
+      </ul>, document.body)}
     </div>
   );
 }
