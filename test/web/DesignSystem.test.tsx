@@ -7,7 +7,7 @@ import { Button } from '../../src/web/components/Button.js';
 import { fieldClass, NumberField } from '../../src/web/components/Field.js';
 import { Fold } from '../../src/web/components/Fold.js';
 import { Header } from '../../src/web/components/Header.js';
-import { PageActions, PageActionsSlot, PageBackSlot, usePageBack, type PageBackTarget } from '../../src/web/components/PageActions.js';
+import { PageBackSlot, usePageBack, type PageBackTarget } from '../../src/web/components/PageActions.js';
 import { SectionHeading } from '../../src/web/components/SectionHeading.js';
 import { StatList, StatRow, StatTile, TileValue } from '../../src/web/components/StatRow.js';
 import { Window, WindowTitleBar } from '../../src/web/components/Window.js';
@@ -156,7 +156,7 @@ describe('NumberField', () => {
 });
 
 describe('page back control', () => {
-  it('lets a page point the header\'s back control somewhere inside it, and gives it back when it is done', () => {
+  it('lets a page show a back control leading somewhere inside it, and removes it when it is done', () => {
     let target: PageBackTarget | null = null;
     function Page({ on }: { on: boolean }) {
       usePageBack(on ? { to: '/list', label: 'Back to the list' } : null);
@@ -172,25 +172,6 @@ describe('page back control', () => {
     expect(target).toBeNull();
     // Outside a world page it does nothing.
     render(<Page on />);
-  });
-});
-
-describe('PageActions', () => {
-  it('renders into the slot a page header provides, and nothing without one', () => {
-    function Page() {
-      const [slot, setSlot] = useState<HTMLDivElement | null>(null);
-      return (
-        <>
-          <div data-testid="slot" ref={setSlot} />
-          <PageActionsSlot value={slot}><PageActions><Button>Reset</Button></PageActions></PageActionsSlot>
-        </>
-      );
-    }
-    const { unmount } = render(<Page />);
-    expect(within(screen.getByTestId('slot')).getByRole('button', { name: 'Reset' })).toBeInTheDocument();
-    unmount();
-    render(<PageActions><Button>Reset</Button></PageActions>);
-    expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull();
   });
 });
 

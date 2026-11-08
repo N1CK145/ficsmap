@@ -1,7 +1,7 @@
 import { plan, type PlanInput, type PlanSettings } from '../../src/shared/planner.js';
 import { indexRecipes } from '../../src/shared/recipes.js';
 import {
-  DIAGRAM_DEFAULTS, diagramLinks, diagramRows, layoutDiagram, pack, type DiagramLayout, type DiagramStep, type Point,
+  DIAGRAM_DEFAULTS, diagramLinks, diagramRows, initialScroll, layoutDiagram, pack, type DiagramLayout, type DiagramNode, type DiagramStep, type Point,
 } from '../../src/web/features/planner/diagramLayout.js';
 import { RECIPE_DATA } from '../fixtures/recipeData.js';
 
@@ -220,5 +220,32 @@ describe('planner diagram layout', () => {
     expect(pack([0, 100], [0, 10])).toEqual([0, 100]);
     expect(pack([0, 0, 0], [0, 10, 10])).toEqual([-10, 0, 10]);
     expect(pack([50, 0], [0, 10])).toEqual([20, 30]);
+  });
+});
+
+describe('initialScroll', () => {
+  /** A node of the given row from x, 200 wide. */
+  const at = (item: string, row: number, x: number): DiagramNode => ({ item, row, order: 0, x, y: 0, width: 200, height: 80 });
+
+  it('stays at 0 when the diagram fits its box or has not been measured', () => {
+    expect(initialScroll({ nodes: [at('a', 0, 500)], width: 800 }, 800)).toBe(0);
+    expect(initialScroll({ nodes: [at('a', 0, 500)], width: 1200 }, 0)).toBe(0);
+  });
+
+  it('centres the top row when it fits the box', () => {
+    // Top row from 400 to 840 (centre 620) in a box of 500: scrolled to 370.
+    expect(initialScroll({ nodes: [at('a', 0, 400), at('b', 0, 640), at('c', 1, 0)], width: 1400 }, 500)).toBe(370);
+  });
+
+  it('else centres the longest run of top-row nodes that fits, nearest the middle, so they show whole', () => {
+    // Middle 700. Box 340: one node fits; b (centre 750) is nearer than a (450) and c (1050).
+    const nodes = [at('a', 0, 350), at('b', 0, 650), at('c', 0, 950)];
+    expect(initialScroll({ nodes, width: 1400 }, 340)).toBe(580);
+    // Box 560: two fit (a+b from 350 to 850, or b+c from 650 to 1150); a+b is nearer the middle.
+    expect(initialScroll({ nodes, width: 1400 }, 560)).toBe(320);
+    // A box narrower than a node: that node nearest the middle, centred all the same.
+    expect(initialScroll({ nodes, width: 1400 }, 150)).toBe(675);
+    // Never past either edge.
+    expect(initialScroll({ nodes: [at('a', 0, 0), at('b', 0, 1200)], width: 1400 }, 340)).toBe(0);
   });
 });

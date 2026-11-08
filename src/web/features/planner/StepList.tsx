@@ -26,7 +26,7 @@ const HEAD = 'py-2 font-display text-xs font-semibold tracking-wider text-muted 
 
 /**
  * The plan's steps as a table, one row per step (wanted items first, extraction last): the item with its badges and
- * its inputs as small chips, the rate, "4× Constructor" and the power. On a phone the buildings go under the rate and
+ * its inputs as small chips ("Steel Ingot 300/min"), the rate, "4× Constructor" and the power. On a phone the buildings go under the rate and
  * the power is left out, so the item keeps its room. A row opens the same step panel as a node of the diagram; the
  * item's name is the row's button, for the keyboard.
  */
@@ -36,9 +36,10 @@ export function StepList({ steps, index, lang, selected, onSelect, editorId, nod
     <table className="w-full border-collapse text-sm">
       <thead>
         <tr className="border-b border-line text-left">
-          <th scope="col" className={`${HEAD} pr-2 pl-3`}>{t('planner.list.item')}</th>
+          {/* The item keeps room for its input chips side by side; the buildings take the rest, so the rate stays next to the item. */}
+          <th scope="col" className={`${HEAD} pr-2 pl-3 sm:min-w-64 lg:min-w-[30rem]`}>{t('planner.list.item')}</th>
           <th scope="col" className={`${HEAD} px-2 text-right`}>{t('planner.list.rate')}</th>
-          <th scope="col" className={`${HEAD} hidden px-2 sm:table-cell`}>{t('planner.buildings')}</th>
+          <th scope="col" className={`${HEAD} hidden w-full px-2 sm:table-cell`}>{t('planner.buildings')}</th>
           <th scope="col" className={`${HEAD} hidden pr-3 pl-2 text-right md:table-cell`}>{t('planner.totalPower')}</th>
         </tr>
       </thead>
@@ -76,9 +77,9 @@ export function StepList({ steps, index, lang, selected, onSelect, editorId, nod
                     {inputs.map(f => {
                       const name = itemName(index, f.item, lang);
                       return (
-                        <li key={f.item} title={name} className="relative inline-flex h-6 items-center gap-1 chamfer border border-line bg-bg px-1.5 text-xs text-muted tabular-nums">
+                        <li key={f.item} className="inline-flex h-6 items-center gap-1 chamfer border border-line bg-bg px-1.5 text-xs whitespace-nowrap text-muted tabular-nums">
                           <GameIcon cls={f.item} px={16} />
-                          <span className="sr-only">{name}: </span>
+                          <span className="text-fg">{name}</span>
                           {formatRate(index, f.item, f.rate, lang, t)}
                         </li>
                       );
@@ -88,12 +89,12 @@ export function StepList({ steps, index, lang, selected, onSelect, editorId, nod
               </th>
               <td className="px-2 py-2 text-right">
                 <span className="block font-display text-base leading-6 font-semibold whitespace-nowrap tabular-nums">{text.amount}</span>
-                <span className="block text-xs text-muted sm:hidden" title={text.exact}>{text.made}</span>
+                <span className="block text-xs whitespace-nowrap text-muted sm:hidden" title={text.exact}>{text.made}</span>
               </td>
               <td className="hidden px-2 py-2 sm:table-cell">
                 <span className={`flex items-center gap-1.5 leading-6 ${built ? '' : 'text-muted'}`} title={text.exact}>
                   {built && <GameIcon cls={picture.cls} px={20} />}
-                  <span className="break-words">{text.made}</span>
+                  <span className="whitespace-nowrap">{text.made}</span>
                 </span>
               </td>
               <td className="hidden py-2 pr-3 pl-2 text-right leading-6 whitespace-nowrap text-muted tabular-nums md:table-cell">
