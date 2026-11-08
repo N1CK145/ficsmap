@@ -2,9 +2,10 @@ import { readBool, saveTimeFromTicks, shortName } from '../extract.js';
 import { extractorLink, isResourceNodeType } from '../resourceNodes.js';
 import { flatPolyline, roundUnit, sampleSpline, simplify, toWorld, yawOf, type SplinePoint, type Transform, type Vec3 } from './geometry.js';
 import { readConnections } from './connections.js';
+import { FLUID_BUFFER_M3, LITRES_PER_M3, MAX_DEPOT_ITEMS, MAX_SLOTS, packStacks } from './inventory.js';
 import { encodeGreyPng, toBase64 } from './png.js';
 import {
-  FACTORY_SNAPSHOT_VERSION, type FactorySnapshot, type SnapshotBuilding, type SnapshotMarker, type SnapshotProduction,
+  FACTORY_SNAPSHOT_VERSION, type FactorySnapshot, type SnapshotBuilding, type SnapshotInventory, type SnapshotMarker, type SnapshotProduction,
   type SnapshotCargo, type SnapshotSpline, type SnapshotStation, type SnapshotVehicle,
 } from './snapshot.js';
 
@@ -157,6 +158,22 @@ export function cargoOf(inv: FactoryObject | undefined): SnapshotCargo[] {
 /** Length cap of a cargo list (the server's schema enforces it too). */
 const MAX_CARGO = 64;
 
+/**
+ * An inventory slot by slot (`SnapshotInventory`), or undefined without the component. `keep` picks the slots that
+ * count (a machine's slots without an allowed item and without an item are unused spares).
+ */
+export function inventoryOf(inv: FactoryObject | undefined, keep: (s: Slot) => boolean = () => true): SnapshotInventory | undefined {
+  if (!inv?.properties) return undefined;
+  const all = slots(inv).filter(keep);
+  return { slots: Math.min(all.length, MAX_SLOTS), items: packStacks(all) };
+}
+
+/** A machine's input or output slot that is in use: it has an allowed item (the recipe's) or holds something. */
+const machineSlot = (s: Slot) => !!s.allowed || !!s.item;
+
+/** The inventory when it holds anything. */
+const filled = (inv: SnapshotInventory | undefined) => (inv && inv.items.length > 0 ? inv : undefined);
+
 function countItems(inv: FactoryObject | undefined, cls: string): number {
   return slots(inv).reduce((n, s) => n + (s.item === cls ? s.count : 0), 0);
 }
@@ -278,6 +295,70 @@ function powerIndex(objects: readonly FactoryObject[], byName: Map<string, Facto
   return { circuitOf };
 }
 
+// --- Inventories -----------------------------------------------------------------------------------
+
+/** Splitters and mergers buffer an item or two in a storage inventory; that is no storage. */
+const NOT_STORAGE = /^Build_ConveyorAttachment/;
+
+/**
+ * What a building holds (see `SnapshotBuilding.inv`, `in`, `out`, `fuel`): storage its storage inventory (also when
+ * empty), a fluid buffer its fluid (`mFluidBox`, m³, as litres of its pipe network's fluid), a machine its input,
+ * output and fuel inventories when they hold anything. Stations keep theirs on `SnapshotStation`.
+ */
+function readInventories(o: FactoryObject, cls: string, b: SnapshotBuilding, byName: Map<string, FactoryObject>, fluidOfNet: Map<number, string>): void {
+  const p = o.properties ?? {};
+  const inv = (k: string) => { const r = ref(p[k]); return r ? byName.get(r) : undefined; };
+  if ('mStorageInventory' in p && !NOT_STORAGE.test(cls)) {
+    const storage = inventoryOf(inv('mStorageInventory'));
+    if (storage) b.inv = storage;
+  }
+  if (cls in FLUID_BUFFER_M3) {
+    // `mFluidBox` is a struct (FFluidBox) whose only field is the content in m³; the parser gives it as `{ value }`.
+    const box = p.mFluidBox?.value;
+    const m3 = (typeof box === 'number' ? box : num(box as Prop | undefined)) ?? 0;
+    let fluid: string | undefined;
+    for (const c of o.components ?? []) {
+      const net = num(byName.get(c.pathName ?? '')?.properties?.mPipeNetworkID);
+      fluid ??= net === undefined ? undefined : fluidOfNet.get(net);
+    }
+    const litres = Math.round(m3 * LITRES_PER_M3);
+    b.inv = { slots: 1, items: fluid && litres > 0 ? [[fluid, litres]] : [] };
+  }
+  if (b.prod) {
+    const input = filled(inventoryOf(inv('mInputInventory'), machineSlot));
+    if (input) b.in = input;
+    const output = filled(inventoryOf(inv('mOutputInventory'), machineSlot));
+    if (output) b.out = output;
+    const fuel = filled(inventoryOf(inv('mFuelInventory')));
+    if (fuel) b.fuel = fuel;
+  }
+}
+
+/** Pipe network id → its fluid (`FGPipeNetwork.mFluidDescriptor`, saved only for some networks). */
+function pipeFluids(objects: readonly FactoryObject[]): Map<number, string> {
+  const out = new Map<number, string>();
+  for (const o of objects) {
+    if (o.typePath !== '/Script/FactoryGame.FGPipeNetwork') continue;
+    const net = num(o.properties?.mPipeNetworkID), fluid = className(ref(o.properties?.mFluidDescriptor));
+    if (net !== undefined && fluid) out.set(net, fluid);
+  }
+  return out;
+}
+
+/** The Dimensional Depot's contents (`FGCentralStorageSubsystem.mStoredItems`): item and amount, empty ones left out. */
+function readDepot(o: FactoryObject): [string, number][] {
+  const list = o.properties?.mStoredItems?.values;
+  const out: [string, number][] = [];
+  if (!Array.isArray(list)) return out;
+  for (const e of list) {
+    const ep = structProps(e);
+    const item = className(ref(ep?.ItemClass));
+    const amount = num(ep?.Amount) ?? 0;
+    if (item && amount > 0 && out.length < MAX_DEPOT_ITEMS) out.push([item, Math.round(amount)]);
+  }
+  return out;
+}
+
 // --- Classification --------------------------------------------------------------------------------
 
 const BUILD_PREFIX = /^build_/i;
@@ -375,6 +456,7 @@ export function extractFactory(save: FactorySaveLike, opts: ExtractFactoryOption
   const byName = new Map<string, FactoryObject>();
   for (const o of objects) byName.set(o.instanceName, o);
   const power = powerIndex(objects, byName);
+  const fluidOfNet = pipeFluids(objects);
 
   const snap: FactorySnapshot = {
     v: FACTORY_SNAPSHOT_VERSION,
@@ -382,6 +464,7 @@ export function extractFactory(save: FactorySaveLike, opts: ExtractFactoryOption
       sessionName: save.header.sessionName.slice(0, 255),
       saveTime: saveTimeOf(save.header.saveDateTime),
       build: save.header.buildVersion,
+      inventories: true,
     },
     buildings: [], lightweight: [], splines: [], powerLines: [], pathNetworks: [], stations: [], vehicles: [],
     markers: [], crates: [],
@@ -414,9 +497,18 @@ export function extractFactory(save: FactorySaveLike, opts: ExtractFactoryOption
       }
       case 'BP_Crate_C': {
         const t = o.transform?.translation;
-        if (t) snap.crates.push({ x: roundUnit(t.x), y: roundUnit(t.y), z: roundUnit(t.z), kind: enumMember(p.mCrateType) ?? 'unknown' });
+        if (!t) continue;
+        const crate: FactorySnapshot['crates'][number] = {
+          id: shortName(o.instanceName), x: roundUnit(t.x), y: roundUnit(t.y), z: roundUnit(t.z), kind: enumMember(p.mCrateType) ?? 'unknown',
+        };
+        const inv = inventoryOf(byName.get(`${o.instanceName}.inventory`));
+        if (inv) crate.inv = inv;
+        snap.crates.push(crate);
         continue;
       }
+      case 'FGCentralStorageSubsystem':
+        snap.depot = readDepot(o);
+        continue;
       case 'FGDockingStationIdentifier': case 'FGTrainStationIdentifier': case 'FGWheeledVehicleIdentifier':
         identifiers.push(o);
         continue;
@@ -449,6 +541,7 @@ export function extractFactory(save: FactorySaveLike, opts: ExtractFactoryOption
     if (swatch !== undefined) b.swatch = swatch;
     const prod = production(o, cls, byName, power);
     if (prod) b.prod = prod;
+    if (!STATION_CLASSES.test(cls)) readInventories(o, cls, b, byName, fluidOfNet);
     const texts = signTexts(p);
     if (texts) b.texts = texts;
     const height = heightOf(p);
@@ -575,8 +668,11 @@ function readStationsAndVehicles(
     }
     // The station's storage is its component `inventory` (truck stations, checked in 1.2 saves); other kinds may name it
     // differently, then there is no cargo.
-    const cargo = cargoOf(byName.get(`${o.instanceName}.inventory`) ?? byName.get(`${o.instanceName}.Inventory`));
+    const store = byName.get(`${o.instanceName}.inventory`) ?? byName.get(`${o.instanceName}.Inventory`);
+    const cargo = cargoOf(store);
     if (cargo.length > 0) s.cargo = cargo;
+    const inv = inventoryOf(store);
+    if (inv) s.inv = inv;
     snap.stations.push(s);
   }
 
@@ -634,6 +730,8 @@ function readStationsAndVehicles(
       if (cargo.length > 0) v.cargo = cargo;
       const n = slots(storage).length;
       if (n > 0) v.slots = n;
+      const inv = inventoryOf(storage);
+      if (inv) v.inv = inv;
     }
     snap.vehicles.push(v);
   }

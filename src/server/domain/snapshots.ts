@@ -7,6 +7,7 @@ import {
   MAX_SNAPSHOT_JSON_BYTES, MAX_SNAPSHOTS_PER_WORLD, snapshotFigures, type SnapshotFigures,
 } from '../../shared/factory/storage.js';
 import { snapshotsToThin } from '../../shared/factory/retention.js';
+import { MAX_DEPOT_ITEMS, MAX_RUNS, MAX_SLOTS } from '../../shared/factory/inventory.js';
 import { HttpError } from '../errors.js';
 import { bumpRev, lastImportOf } from './worlds.js';
 
@@ -27,6 +28,12 @@ const Count = z.number().int().min(0);
 const Flat = (max: number) => z.array(Num).max(max);
 /** Items per class in an inventory (stations, vehicles). */
 const Cargo = z.array(z.object({ item: Cls, count: Count })).max(64);
+
+/** An inventory slot by slot: runs of `[item, count, times?]` (`SnapshotInventory`). */
+const Inventory = z.object({
+  slots: Count.max(MAX_SLOTS),
+  items: z.array(z.union([z.tuple([Cls, Count]), z.tuple([Cls, Count, Count.min(1).max(MAX_SLOTS)])])).max(MAX_RUNS),
+});
 
 const Production = z.object({
   recipe: Cls.optional(),
@@ -50,6 +57,10 @@ const Building = z.object({
   texts: z.array(Str(1024)).max(32).optional(),
   height: Num.optional(),
   node: Id.optional(),
+  inv: Inventory.optional(),
+  in: Inventory.optional(),
+  out: Inventory.optional(),
+  fuel: Inventory.optional(),
 });
 
 const Station = z.object({
@@ -67,6 +78,7 @@ const Station = z.object({
     capacityFluid: Num.optional(),
   })).max(1000),
   cargo: Cargo.optional(),
+  inv: Inventory.optional(),
 });
 
 const Vehicle = z.object({
@@ -79,6 +91,7 @@ const Vehicle = z.object({
   route: z.array(Id).max(1000),
   cargo: Cargo.optional(),
   slots: Count.max(10_000).optional(),
+  inv: Inventory.optional(),
 });
 
 /** Items seen on a belt (class → count); at most 256 classes. */
@@ -121,6 +134,7 @@ export const SnapshotSchema = z.object({
     playTimeSec: z.number().min(0).optional(),
     gamePhase: Str(128).optional(),
     schematics: Count.optional(),
+    inventories: z.boolean().optional(),
   }),
   buildings: z.array(Building).max(200_000),
   lightweight: z.array(z.object({ cls: Cls, xyzYaw: Flat(4 * 500_000) })).max(5_000),
@@ -132,7 +146,8 @@ export const SnapshotSchema = z.object({
   links: z.array(Link).max(200_000).optional(),
   circuits: z.array(Circuit).max(10_000).optional(),
   markers: z.array(Marker).max(10_000),
-  crates: z.array(z.object({ x: Num, y: Num, z: Num, kind: Str(128) })).max(10_000),
+  crates: z.array(z.object({ id: Id.optional(), x: Num, y: Num, z: Num, kind: Str(128), inv: Inventory.optional() })).max(10_000),
+  depot: z.array(z.tuple([Cls, Count])).max(MAX_DEPOT_ITEMS).optional(),
   fog: z.string().max(8 * 2 ** 20).regex(/^[A-Za-z0-9+/]*={0,2}$/).optional(),
 });
 

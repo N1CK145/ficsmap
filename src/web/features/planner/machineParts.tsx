@@ -43,18 +43,27 @@ export function SlotColumn({ label, children }: { label: string; children: React
 
 /**
  * An item slot: picture, name, the main figure and a line under it. `tone` marks a slot that is the problem (an input
- * that ran short) with the conflict colour on its edge; `note` follows the name (a short word, a badge).
+ * that ran short) with the conflict colour on its edge; `note` follows the name (a short word, a badge). `count` is what
+ * lies in the slot, shown on the picture as in the game ("47"); `countLabel` says it to screen readers.
  */
-export function ItemSlot({ item, name, value, sub, tone = 'default', note }: {
-  item: string; name: string; value: ReactNode; sub?: ReactNode; tone?: 'default' | 'danger'; note?: ReactNode;
+export function ItemSlot({ item, name, value, sub, tone = 'default', note, count, countLabel }: {
+  item: string; name: string; value: ReactNode; sub?: ReactNode; tone?: 'default' | 'danger'; note?: ReactNode; count?: string; countLabel?: string;
 }) {
   return (
     <li data-slot={item} className={`flex min-w-0 items-center gap-2 chamfer border bg-bg p-1.5 ${tone === 'danger' ? 'border-conflict' : 'border-line'}`}>
-      <Picture cls={item} px={32} />
+      <span className="relative shrink-0">
+        <Picture cls={item} px={32} />
+        {count !== undefined && (
+          <span aria-hidden="true" data-slot-count={count} className="pointer-events-none absolute right-0 bottom-0 bg-bg/85 px-0.5 font-display text-xs leading-tight font-semibold text-fg tabular-nums">
+            {count}
+          </span>
+        )}
+      </span>
       <span className="min-w-0 flex-1 leading-5">
         <span className="block text-sm break-words">{name}{note}</span>
         <span className="block font-display text-base font-semibold tabular-nums">{value}</span>
         {sub !== undefined && <span className="block text-xs text-muted tabular-nums">{sub}</span>}
+        {countLabel !== undefined && <span className="sr-only">{countLabel}</span>}
       </span>
     </li>
   );

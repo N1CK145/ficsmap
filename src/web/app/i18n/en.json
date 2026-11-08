@@ -1413,7 +1413,46 @@
       "atClock": "at {clock} clock speed",
       "powerMade": "Power production",
       "hints": "Hints",
-      "belt": "At its output: {belt} ({rate})"
+      "belt": "At its output: {belt} ({rate})",
+      "loaded": "Loaded: {amount}",
+      "noFuelLoaded": "No fuel loaded"
+    },
+    "inventory": {
+      "contents": "Contents",
+      "slots": "Slots",
+      "fill": "{used, number} of {slots, plural, one {# slot} other {# slots}}",
+      "fluidFill": "{amount} of {capacity} m³",
+      "empty": "Empty",
+      "byItem": "By item",
+      "stacks": "{count, plural, one {# stack} other {# stacks}}",
+      "inSlot": "{amount} in the slot",
+      "unknown": "This save was imported before contents were read. Import it again to see what lies here.",
+      "crate": {
+        "death": "Death crate",
+        "other": "Crate"
+      }
+    },
+    "storage": {
+      "title": "Storage",
+      "subtitle": "{buildings, plural, one {# storage} other {# storages}} · {used, number} of {slots, number} slots used",
+      "search": "Find a stored item",
+      "searchPlaceholder": "e.g. Copper Ingot",
+      "showing": "{shown, number} of {total, number} items",
+      "item": "Item",
+      "total": "Stored",
+      "stacks": "Slots",
+      "holders": "Storages",
+      "holdersCount": "in {count, plural, one {# storage} other {# storages}}",
+      "noMatch": "No stored item matches “{query}”.",
+      "none": "Nothing lies in storage.",
+      "noStorage": "This save has no storage.",
+      "unknown": "This save was imported before contents were read. Import it again to see what lies in storage.",
+      "storages": "Containers and buffers",
+      "depot": "Dimensional Depot",
+      "depotSubtitle": "{count, plural, one {# item} other {# items}}, reachable from anywhere",
+      "depotEmpty": "Nothing lies in the Dimensional Depot.",
+      "searchKind": "In storage",
+      "searchDetail": "{amount} in {count, plural, one {# storage} other {# storages}}"
     }
   },
   "factoryMap": {

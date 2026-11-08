@@ -143,3 +143,20 @@ export function isMachine(data: Pick<MapData, 'scene' | 'analysis'>, sel: Factor
   if (sel?.kind !== 'building' || !data.scene || data.analysis === null) return false;
   return !!data.scene.byId.get(sel.id)?.b.prod && !data.scene.stationById.has(sel.id);
 }
+
+/**
+ * Whether the selection opens as the storage popup (`MapMachinePopup` with `StorageWindow`): a crate, or a building with
+ * a storage inventory (containers, storage boxes, fluid buffers, Dimensional Depot uploaders; not a station). Needs no
+ * recipe data.
+ */
+export function isStorageSelection(data: Pick<MapData, 'scene'>, sel: FactorySelection | null): boolean {
+  if (!data.scene || !sel) return false;
+  if (sel.kind === 'crate') return data.scene.crateById.has(sel.id);
+  if (sel.kind !== 'building') return false;
+  return !!data.scene.byId.get(sel.id)?.b.inv && !data.scene.stationById.has(sel.id);
+}
+
+/** The selection opens in a popup next to it (a machine's window or a storage's), not in the info window. */
+export function opensPopup(data: Pick<MapData, 'scene' | 'analysis'>, sel: FactorySelection | null): boolean {
+  return isMachine(data, sel) || isStorageSelection(data, sel);
+}

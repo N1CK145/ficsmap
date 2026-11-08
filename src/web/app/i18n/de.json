@@ -1413,7 +1413,46 @@
       "atClock": "bei {clock} Taktrate",
       "powerMade": "Stromerzeugung",
       "hints": "Hinweise",
-      "belt": "Am Ausgang: {belt} ({rate})"
+      "belt": "Am Ausgang: {belt} ({rate})",
+      "loaded": "Geladen: {amount}",
+      "noFuelLoaded": "Kein Treibstoff geladen"
+    },
+    "inventory": {
+      "contents": "Inhalt",
+      "slots": "Plätze",
+      "fill": "{used, number} von {slots, plural, one {# Platz} other {# Plätzen}}",
+      "fluidFill": "{amount} von {capacity} m³",
+      "empty": "Leer",
+      "byItem": "Nach Gegenstand",
+      "stacks": "{count, plural, one {# Stapel} other {# Stapel}}",
+      "inSlot": "{amount} im Platz",
+      "unknown": "Dieser Spielstand wurde importiert, bevor Inhalte gelesen wurden. Importiere ihn erneut, um zu sehen, was hier liegt.",
+      "crate": {
+        "death": "Todeskiste",
+        "other": "Kiste"
+      }
+    },
+    "storage": {
+      "title": "Lager",
+      "subtitle": "{buildings, plural, one {# Lager} other {# Lager}} · {used, number} von {slots, number} Plätzen belegt",
+      "search": "Gelagerten Gegenstand suchen",
+      "searchPlaceholder": "z. B. Kupferbarren",
+      "showing": "{shown, number} von {total, number} Gegenständen",
+      "item": "Gegenstand",
+      "total": "Gelagert",
+      "stacks": "Plätze",
+      "holders": "Lager",
+      "holdersCount": "in {count, plural, one {# Lager} other {# Lagern}}",
+      "noMatch": "Kein gelagerter Gegenstand passt zu „{query}“.",
+      "none": "Im Lager liegt nichts.",
+      "noStorage": "In diesem Spielstand gibt es kein Lager.",
+      "unknown": "Dieser Spielstand wurde importiert, bevor Inhalte gelesen wurden. Importiere ihn erneut, um das Lager zu sehen.",
+      "storages": "Container und Speicher",
+      "depot": "Dimensionales Depot",
+      "depotSubtitle": "{count, plural, one {# Gegenstand} other {# Gegenstände}}, von überall abrufbar",
+      "depotEmpty": "Im Dimensionalen Depot liegt nichts.",
+      "searchKind": "Im Lager",
+      "searchDetail": "{amount} in {count, plural, one {# Lager} other {# Lagern}}"
     }
   },
   "factoryMap": {

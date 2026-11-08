@@ -1,8 +1,9 @@
-import { createContext, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { create } from 'zustand';
 import type { AnalysisData, MachineFlow, MachineHint } from '../../../shared/factory/analysis.js';
 import type { LineHint } from '../../../shared/factory/lines.js';
+import type { FactorySnapshot, SnapshotBuilding } from '../../../shared/factory/snapshot.js';
 import { useIsMobile } from '../../app/useMediaQuery.js';
 import type { FactoryLabels } from './data.js';
 import type { FactoryFormat } from './format.js';
@@ -37,18 +38,22 @@ const close = () => usePageMachine.setState({ open: null });
  * machine when another row is clicked, and closes when the shown save changes (its figures would be the old save's).
  * Opened from the keyboard the focus moves into it and goes back to the row on close.
  */
-export function PageMachinePopup({ data, labels, fmt, snapshotKey, children }: {
+export function PageMachinePopup({ data, labels, fmt, snapshot, children }: {
   data: AnalysisData | null; labels: FactoryLabels; fmt: FactoryFormat;
-  /** The shown save: another one closes the popup. */
-  snapshotKey: unknown;
+  /** The shown save (what lies in the machines' slots); another one closes the popup. */
+  snapshot: FactorySnapshot;
   children: ReactNode;
 }) {
   const open = usePageMachine(s => s.open);
-  useEffect(() => close, [snapshotKey]);
+  useEffect(() => close, [snapshot]);
+  const byId = useMemo(() => new Map(snapshot.buildings.map(b => [b.id, b])), [snapshot]);
+  const building = open ? byId.get(open.m.id) : undefined;
   return (
     <OpenMachineContext.Provider value={data ? openMachine : null}>
       {children}
-      {open && data && createPortal(<Popup open={open} data={data} labels={labels} fmt={fmt} />, document.body)}
+      {open && data && createPortal(
+        <Popup open={open} data={data} labels={labels} fmt={fmt} building={building} inventories={snapshot.meta.inventories === true} />, document.body,
+      )}
     </OpenMachineContext.Provider>
   );
 }
@@ -62,7 +67,9 @@ const subscribe = (update: () => void) => {
   };
 };
 
-function Popup({ open, data, labels, fmt }: { open: OpenMachine; data: AnalysisData; labels: FactoryLabels; fmt: FactoryFormat }) {
+function Popup({ open, data, labels, fmt, building, inventories }: {
+  open: OpenMachine; data: AnalysisData; labels: FactoryLabels; fmt: FactoryFormat; building?: SnapshotBuilding; inventories: boolean;
+}) {
   const mobile = useIsMobile();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const { m, opener, keyboard } = open;
@@ -90,7 +97,7 @@ function Popup({ open, data, labels, fmt }: { open: OpenMachine; data: AnalysisD
       strategy="fixed"
       className={mobile ? 'z-[1250]' : 'z-[1250] w-[min(440px,calc(100vw-16px))]'}
     >
-      <MachineWindow m={m} data={data} labels={labels} fmt={fmt} hints={open.hints} onClose={close} titleRef={titleRef} />
+      <MachineWindow m={m} data={data} labels={labels} fmt={fmt} hints={open.hints} onClose={close} titleRef={titleRef} building={building} inventories={inventories} />
     </MachinePopup>
   );
 }
