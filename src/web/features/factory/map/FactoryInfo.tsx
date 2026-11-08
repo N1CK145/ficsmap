@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MachineFlow, MachineHint } from '../../../../shared/factory/analysis.js';
 import type { SnapshotCargo } from '../../../../shared/factory/snapshot.js';
 import type { WorldCtx } from '../../../app/feature.js';
+import { useIsMobile } from '../../../app/useMediaQuery.js';
 import { Badge } from '../../../components/Badge.js';
+import { IconButton } from '../../../components/IconButton.js';
+import { ChevronDownIcon } from '../../../components/icons.js';
 import { SectionHeading } from '../../../components/SectionHeading.js';
 import { StatList, StatRow } from '../../../components/StatRow.js';
 import { Window } from '../../../components/Window.js';
@@ -20,6 +23,10 @@ import { linePath } from '../lineDiagram.js';
 import { useFactoryView } from '../view.js';
 import { lineAnnouncement, LineCard, ProductPictures } from './LineCard.js';
 import { lineById, lineHas, lineName } from './lineView.js';
+
+/** A drag on the peek's title bar of at least this many px (up or down) unfolds or folds it; less is a tap. */
+const DRAG_PX = 24;
+const TAP_SLOP_PX = 8;
 
 /** A row button in the info window's lists: at least 44 px high (a touch target), its text on up to two lines. */
 const LIST_BASE = 'flex min-h-11 w-full chamfer px-1 py-1 text-left text-sm focus-ring hover:bg-raised';
@@ -64,6 +71,34 @@ function InfoWindow({ ctx, onLineChosen }: { ctx: WorldCtx; onLineChosen: (text:
   const scene = data.scene;
   const line = data.lines ? lineById(data.lines, lineId) : undefined;
   const labels = data.labels;
+  // On phones a line's card opens as a peek over the lower part of the map (name, mean productivity, bottleneck, "Als
+  // Diagramm"), so the tapped building stays in sight above it; a tap or an upward drag on its title bar unfolds it.
+  const mobile = useIsMobile();
+  const peek = mobile && !selection;
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => setExpanded(false), [lineId, selection?.id]);
+  const compact = peek && !expanded;
+  const drag = useRef<{ id: number; y: number; moved: boolean } | null>(null);
+  const onPointerDown = (e: ReactPointerEvent) => {
+    const el = e.target as Element;
+    // The title bar only: not its buttons, not the card's content (that scrolls).
+    if (!peek || el.closest('button, a, input, select, .ficsmap-factory-info-body')) return;
+    drag.current = { id: e.pointerId, y: e.clientY, moved: false };
+    el.setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: ReactPointerEvent) => {
+    const d = drag.current;
+    if (d && d.id === e.pointerId && Math.abs(e.clientY - d.y) > TAP_SLOP_PX) d.moved = true;
+  };
+  const onPointerUp = (e: ReactPointerEvent) => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || d.id !== e.pointerId) return;
+    const dy = e.clientY - d.y;
+    if (!d.moved) setExpanded(x => !x);
+    else if (dy <= -DRAG_PX) setExpanded(true);
+    else if (dy >= DRAG_PX) setExpanded(false);
+  };
 
   useEffect(() => {
     if (line && labels) onLineChosen(lineAnnouncement(line, labels, fmt, t));
@@ -103,6 +138,9 @@ function InfoWindow({ ctx, onLineChosen }: { ctx: WorldCtx; onLineChosen: (text:
         line={line} labels={labels} fmt={fmt}
         onDiagram={() => ctx.navigate(linePath(ctx.worldId, line.id))}
         onFit={() => useFactoryMap.getState().requestLineFit()}
+        onShowMachines={ids => useFactoryView.getState().showOnMap(ids)}
+        compact={compact}
+        onExpand={() => setExpanded(true)}
       />
     );
   } else if (selection.kind === 'vehicle') {
@@ -137,21 +175,39 @@ function InfoWindow({ ctx, onLineChosen }: { ctx: WorldCtx; onLineChosen: (text:
       );
     }
   }
+  // On phones a sheet above the timeline's place and the bottom sheet's peek (`PHONE_BOTTOM_PX`); a line's card folded
+  // at most `PEEK_SHARE` of the map's height.
+  const phoneHeight = compact ? 'max-[899px]:max-h-[32%]' : 'max-[899px]:max-h-[min(60%,calc(100%-152px))]';
   return (
     <IconsContext.Provider value={icons}>
-      <Window
-        as="aside"
-        title={title}
-        titleRef={titleRef}
-        subtitle={kindName}
-        icon={icon ? <GameIcon cls={icon} px={40} placeholder /> : undefined}
-        onClose={close}
-        closeLabel={t('factoryMap.info.close')}
-        className="ficsmap-factory-info pointer-events-auto absolute top-2 right-2 z-[1001] max-h-[calc(100%-1rem)] w-[340px] max-[899px]:top-auto max-[899px]:right-2 max-[899px]:bottom-[136px] max-[899px]:left-2 max-[899px]:max-h-[min(60%,calc(100%-152px))] max-[899px]:w-auto"
-        bodyClassName="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-3"
-      >
-        {body}
-      </Window>
+      {/* display: contents: only to catch the drag on the peek's title bar (the window keeps its own layout). */}
+      <div className="contents" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={() => { drag.current = null; }}>
+        <Window
+          as="aside"
+          title={title}
+          titleRef={titleRef}
+          subtitle={kindName}
+          icon={icon ? <GameIcon cls={icon} px={40} placeholder /> : undefined}
+          actions={peek ? (
+            <IconButton
+              size="sm"
+              aria-expanded={expanded}
+              aria-label={t(expanded ? 'factoryMap.lines.less' : 'factoryMap.lines.more')}
+              title={t(expanded ? 'factoryMap.lines.less' : 'factoryMap.lines.more')}
+              onClick={() => setExpanded(x => !x)}
+              data-testid="factory-info-expand"
+            >
+              <ChevronDownIcon size={14} className={expanded ? '' : 'rotate-180'} />
+            </IconButton>
+          ) : undefined}
+          onClose={close}
+          closeLabel={t('factoryMap.info.close')}
+          className={`ficsmap-factory-info pointer-events-auto absolute top-2 right-2 z-[1001] max-h-[calc(100%-1rem)] w-[340px] max-[899px]:top-auto max-[899px]:right-2 max-[899px]:bottom-[136px] max-[899px]:left-2 max-[899px]:w-auto ${phoneHeight} ${peek ? 'ficsmap-factory-peek' : ''}`}
+          bodyClassName="ficsmap-factory-info-body flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-3"
+        >
+          {body}
+        </Window>
+      </div>
     </IconsContext.Provider>
   );
 }
@@ -257,24 +313,45 @@ function recipeName(data: MapData, recipe: string, lang: Lang): string {
   return data.recipes?.recipes.get(recipe)?.name[lang] ?? recipe;
 }
 
-/** What lies in a station or vehicle: a picture and count per item ("Iron Plate × 1,200"), most first. */
+/** Cargo rows shown before "+n more" (which shows them all); a list of one more shows that one instead. */
+const CARGO_SHOWN = 4;
+
+/**
+ * What lies in a station or vehicle: a picture, the name (cut to fit) and the count on one line right-aligned per item
+ * ("Iron Plate … × 1,200"), most first; past `CARGO_SHOWN` a "+n more" button shows the rest, nothing is left out.
+ */
 function CargoRow({ label, cargo, labels, fmt }: { label: string; cargo: readonly SnapshotCargo[]; labels: FactoryLabels | undefined; fmt: FactoryFormat }) {
   const { t } = useTranslation();
+  const [all, setAll] = useState(false);
+  const shown = all || cargo.length <= CARGO_SHOWN + 1 ? cargo : cargo.slice(0, CARGO_SHOWN);
+  const more = cargo.length - shown.length;
   return (
-    <StatRow
-      label={label}
-      value={cargo.length === 0 ? t('factory.routes.cargoNone') : (
-        <span className="flex flex-col items-end gap-0.5">
-          {cargo.slice(0, 3).map(c => (
-            <span key={c.item} className="flex items-center gap-1.5">
-              <GameIcon cls={c.item} px={20} placeholder />
-              {`${labels?.item(c.item, fmt.lang) ?? c.item} × ${fmt.int(c.count)}`}
-            </span>
-          ))}
-        </span>
-      )}
-      tone={cargo.length === 0 ? 'muted' : 'default'}
-    />
+    <div className="flex flex-col gap-1 py-1.5" data-testid="factory-cargo">
+      <dt className="text-sm text-muted">{label}</dt>
+      <dd className="min-w-0">
+        {cargo.length === 0 ? <span className="text-sm text-muted">{t('factory.routes.cargoNone')}</span> : (
+          <ul className="flex flex-col gap-0.5 text-sm">
+            {shown.map(c => {
+              const name = labels?.item(c.item, fmt.lang) ?? c.item;
+              return (
+                <li key={c.item} className="flex min-w-0 items-center gap-1.5">
+                  <GameIcon cls={c.item} px={20} placeholder />
+                  <span className="min-w-0 flex-1 truncate" title={name}>{name}</span>
+                  <span className="shrink-0 text-right whitespace-nowrap tabular-nums">× {fmt.int(c.count)}</span>
+                </li>
+              );
+            })}
+            {more > 0 && (
+              <li>
+                <button type="button" className={`${LIST_ROW} text-muted`} onClick={() => setAll(true)}>
+                  {t('factoryMap.cargoMore', { count: more })}
+                </button>
+              </li>
+            )}
+          </ul>
+        )}
+      </dd>
+    </div>
   );
 }
 

@@ -13,24 +13,30 @@ import { requestDetailZoom } from '../../map/zoom.js';
 import { useItemIcons, type ItemIcons } from '../../machineWiki/icons.js';
 import { useFactoryWorld } from '../timeline.js';
 import { useFactoryView } from '../view.js';
-import { changesBox, placeDiff } from './diff.js';
+import { changeAreas, placeDiff } from './diff.js';
 import { useMapData } from './mapData.js';
 import { FactoryCanvasLayer, FOG_PANE, FOG_PANE_Z, type FactoryFrame, type FrameLine } from './FactoryCanvasLayer.js';
 import { pickFactory } from './pick.js';
 import { factoryPicture, onFactoryPictureLoad } from './pictures.js';
-import { boundsOfIds, type Scene, type SceneStation } from './scene.js';
-import { lineById, lineGeometry, lineName, lineOf, pickLineSpline, shownLine } from './lineView.js';
+import { boundsOfIds, type SceneStation } from './scene.js';
+import { lineById, lineGeometry, lineName, lineOf, pickLineSpline, sceneLineById, shownLine } from './lineView.js';
 import { LINES_FROM } from './lod.js';
 import { vehicleRoute } from './routes.js';
 import { useFactoryMap, ZOOM_KEY, type FactorySelection } from './useFactoryMap.js';
 import { HoverTip } from './HoverTip.js';
-import { langOf, vehicleName } from './names.js';
+import { langOf, stationNumber, vehicleName } from './names.js';
 
 const HOVER_CLASS = 'ficsmap-marker-hover';
 /** Hit distance around a belt or pipe of a production line, CSS px. */
 const BELT_HIT_PX = 5;
 /** Fitting to highlighted buildings stops at this zoom (a single machine fills the view otherwise). */
 const FIT_MAX_ZOOM = 8;
+/**
+ * On phones the line card opens as a peek over the map at most this share of the map's height (`FactoryInfo`), above
+ * the timeline's place and the bottom sheet's peek (`PHONE_BOTTOM_PX`): the map keeps what it shows above it.
+ */
+export const PEEK_SHARE = 0.32;
+export const PHONE_BOTTOM_PX = 136;
 
 /** Map units → `[lat, lng]` (CRS.Simple: lng = x, lat = -y). */
 const ll = (mx: number, my: number): L.LatLngTuple => [-my, mx];
@@ -103,7 +109,8 @@ export function clickFactory(hit: FactorySelection | null, lines: ProductionLine
   const id = hit?.kind === 'building' ? hit.id : hit === null ? belt : null;
   const line = lineOf(lines, id, view.lineId);
   if (line && line.id !== view.lineId) {
-    fm.openLine(line.id);
+    // The building (or belt) tapped stays the anchor: the map pans it clear of the card.
+    fm.openLine(line.id, { anchor: id });
     return;
   }
   fm.select(hit);
@@ -149,10 +156,12 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   const [pulse, setPulse] = useState<number | null>(null);
   const coarse = useMediaQuery('(pointer: coarse)');
   const fitChangesSeq = useFactoryMap(s => s.fitChangesSeq);
+  const changeArea = useFactoryMap(s => s.changeArea);
   const lines = data.lines;
   const lineId = useFactoryView(s => s.lineId);
   const fittedLineId = useFactoryMap(s => s.fittedLineId);
   const hoverLineId = useFactoryMap(s => s.hoverLineId);
+  const lineAnchor = useFactoryMap(s => s.lineAnchor);
   /** When the map last fitted to something (`performance.now()`): a selection made with it needs no pan on top. */
   const lastFit = useRef(-Infinity);
 
@@ -169,7 +178,8 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     const box = boundsOfIds(scene, highlightIds);
     if (!box) return;
     lastFit.current = performance.now();
-    fitBox(map, box, mobile, vehicles.length === 1);
+    // Clear of the info window when one is (or will be) open: a vehicle, or a line's card ("On the map" of its machines).
+    fitBox(map, box, mobile, vehicles.length === 1 || fm.selection !== null || useFactoryView.getState().lineId !== null);
     // The halo pulses once where the map lands (a steady halo with reduced motion).
     setPulse(prefersReducedMotion() ? null : performance.now());
   }, [map, highlightSeq, fittedSeq, scene, highlightIds, mobile]);
@@ -179,29 +189,43 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     () => (data.geometry && data.compare && data.buildings && scene ? placeDiff(data.diff, data.geometry, data.compare, data.buildings, scene.t) : null),
     [data.diff, data.geometry, data.compare, data.buildings, scene],
   );
-  // "Go to the changes": fit to the changed buildings (else to the changed floor pieces).
+  // The areas of changes, densest first; the timeline's "Go to the changes" steps through them.
+  const areas = useMemo(() => (scene && diff ? changeAreas(scene, diff) : []), [scene, diff]);
+  useEffect(() => { useFactoryMap.getState().setChangeAreaCount(areas.length); }, [areas]);
   const fittedChanges = useRef(fitChangesSeq);
   useEffect(() => {
-    if (fitChangesSeq === fittedChanges.current || !scene || !diff) return;
+    if (fitChangesSeq === fittedChanges.current) return;
     fittedChanges.current = fitChangesSeq;
-    const box = changesBox(scene, diff);
+    const box = areas[changeArea];
     if (box) {
       lastFit.current = performance.now();
       fitBox(map, box, mobile, false);
     }
-  }, [map, fitChangesSeq, scene, diff, mobile]);
+  }, [map, fitChangesSeq, changeArea, areas, mobile]);
 
   // A production line chosen anywhere but by a click on the map (the panel's list, "Zur Linie", the line diagram's
   // "Karte"): fit once its geometry is there.
+  // A line that arrives from elsewhere (not opened on the map: the diagram's "Karte") also takes the focus to its card,
+  // as a click in the panel's list does.
   useEffect(() => {
     if (lineId === null || lineId === fittedLineId || !scene || lines === undefined) return;
-    useFactoryMap.getState().setFittedLineId(lineId);
+    const fm = useFactoryMap.getState();
+    fm.setFittedLineId(lineId);
+    if (fm.openedLineId !== lineId) useFactoryMap.setState({ openedLineId: lineId, pendingFocus: true, lineAnchor: null });
     const line = lines ? lineById(lines, lineId) : undefined;
     const box = line ? lineGeometry(scene, line).box : null;
     if (!box) return;
     lastFit.current = performance.now();
-    fitBox(map, box, mobile, true);
+    // After the map has its size (it may just have been created by the navigation from the page).
+    whenSized(map, () => fitBox(map, box, mobile, true));
   }, [map, fittedLineId, scene, lines, lineId, mobile]);
+
+  // Closing or choosing anything ends the hover: its tip and lit line never outlive what was pointed at.
+  const selectionId = selection?.id ?? null;
+  useEffect(() => {
+    setHover(null);
+    setHoverBelt(null);
+  }, [selectionId, lineId]);
 
   // The line of the building under the pointer lights up (the panel's list marks its row too).
   useEffect(() => {
@@ -216,11 +240,18 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     return scene && line ? { geom: lineGeometry(scene, line), focus: hover?.kind === 'building' ? hover.id : null } : null;
   }, [scene, lines, hoverLineId, lineId, hover]);
 
-  // A selection made anywhere stays in view: pan the map so the building is clear of the info window.
+  // A selection made anywhere stays in view: pan the map so the building is clear of the info window. A line chosen by
+  // a tap on the map does the same for the building (or belt) tapped, so a second tap reaches it, not the card.
   useEffect(() => {
-    if (!scene || !selection) return;
-    const at = selection.kind === 'vehicle' ? scene.vehicleById.get(selection.id) : scene.byId.get(selection.id);
+    if (!scene) return;
+    let at: { cx: number; cy: number } | undefined;
+    if (selection) at = selection.kind === 'vehicle' ? scene.vehicleById.get(selection.id) : scene.byId.get(selection.id);
+    else if (lineId !== null && lineAnchor !== null) {
+      const l = scene.byId.has(lineAnchor) ? undefined : sceneLineById(scene).get(lineAnchor);
+      at = scene.byId.get(lineAnchor) ?? (l ? { cx: (l.minX + l.maxX) / 2, cy: (l.minY + l.maxY) / 2 } : undefined);
+    }
     if (!at) return;
+    const target = at;
     let id = requestAnimationFrame(() => {
       id = requestAnimationFrame(() => {
         if (performance.now() - lastFit.current < 1500) return;
@@ -234,12 +265,12 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
           if (box.left - mapBox.left > size.x / 2) right = Math.max(pad, mapBox.right - box.left + pad);
           else bottom = Math.max(pad, mapBox.bottom - box.top + pad);
         }
-        map.panInside(ll(at.cx, at.cy), { paddingTopLeft: [pad, pad], paddingBottomRight: [right, bottom], animate: !prefersReducedMotion() });
+        map.panInside(ll(target.cx, target.cy), { paddingTopLeft: [pad, pad], paddingBottomRight: [right, bottom], animate: !prefersReducedMotion() });
       });
     });
     return () => cancelAnimationFrame(id);
-    // Only when the selection changes, not on every new scene of the same selection.
-  }, [map, selection?.kind, selection?.id]);
+    // Only when the selection or the anchor changes, not on every new scene of the same selection.
+  }, [map, selection?.kind, selection?.id, lineId, lineAnchor, !!scene]);
 
   const route = useMemo(() => (scene && selection?.kind === 'vehicle' ? vehicleRoute(scene, selection.id) : null), [scene, selection]);
   const number = useMemo(() => new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0 }), [i18n.language]);
@@ -255,9 +286,9 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     picture: (sb, px) => pictureOf(icons, sb.entry?.icon, px),
     itemPicture: (item, px) => pictureOf(icons, item, px),
     label: sb => sb.entry?.name[lang] ?? sb.b.cls,
-    stationLabel: st => stationLabel(st, t, number),
+    stationLabel: (st, numbered) => stationLabel(st, t, number, numbered && scene ? stationNumber(scene, st.s.id) : null),
     vehicleLabel: v => (scene ? vehicleName(scene, v.v.id, lang) : v.v.cls),
-    fontPx: coarse ? 13 : 12,
+    fontPx: coarse ? 14 : 13,
     loading: data.loading,
   }), [scene, layers, colorMode, diff, highlight, pulse, selection, hover, route, frameLine, icons, lang, t, number, coarse, data.loading]);
 
@@ -290,8 +321,13 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     let frameId = 0;
     let point: L.Point | null = null;
     let dragging = false;
-    const onMove = (e: L.LeafletMouseEvent) => {
-      point = e.containerPoint;
+    // Hover is the mouse's only: a touch or pen never leaves a tip or a lit line behind (pointer events tell them
+    // apart; the compatibility mouse events after a tap would not).
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return;
+      // Over the zoom keys or another control inside the map: nothing on the map is pointed at.
+      if (e.target instanceof Element && e.target.closest('.leaflet-control')) { onOut(); return; }
+      point = map.mouseEventToContainerPoint(e as unknown as MouseEvent);
       if (frameId || dragging) return;
       frameId = requestAnimationFrame(() => {
         frameId = 0;
@@ -303,12 +339,12 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
         setHoverBelt(belt);
       });
     };
-    const onOut = () => {
+    function onOut() {
       point = null;
       container.classList.remove(HOVER_CLASS);
       setHover(null);
       setHoverBelt(null);
-    };
+    }
     let actorBefore: string | null = null;
     const onPreClick = () => { actorBefore = useUiStore.getState().selectedActor; };
     const onClick = (e: L.LeafletMouseEvent) => {
@@ -322,15 +358,16 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     };
     const onDragStart = () => { dragging = true; onOut(); };
     const onDragEnd = () => { dragging = false; };
-    map.on('mousemove', onMove);
-    map.on('mouseout', onOut);
+    // The overlays (info window, timeline) lie beside the map's container, not in it: entering them leaves the map.
+    container.addEventListener('pointermove', onMove);
+    container.addEventListener('pointerleave', onOut);
     map.on('preclick', onPreClick);
     map.on('click', onClick);
     map.on('dragstart', onDragStart);
     map.on('dragend', onDragEnd);
     return () => {
-      map.off('mousemove', onMove);
-      map.off('mouseout', onOut);
+      container.removeEventListener('pointermove', onMove);
+      container.removeEventListener('pointerleave', onOut);
       map.off('preclick', onPreClick);
       map.off('click', onClick);
       map.off('dragstart', onDragStart);
@@ -359,7 +396,9 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   return (
     <>
       {layers.fog && scene.snapshot.fog && <Fog snapshot={scene.snapshot} />}
-      {hover && hover.id !== selection?.id && <HoverTip scene={scene} hit={hover} lang={lang} line={hoverLineText} />}
+      {hover && hover.id !== selection?.id && (
+        <HoverTip scene={scene} hit={hover} lang={lang} line={hoverLineText} cluster={hoverLine ? lineGeometry(scene, hoverLine).buildings : undefined} />
+      )}
     </>
   );
 }
@@ -387,24 +426,41 @@ export function stationFill(st: SceneStation): number | null {
 
 /**
  * "↑ 312 /min · 80 %" (loading, how full) or "↓ …" (unloading), with the player's name for the station first when it
- * has one and the picture of what lies in it; a problem station (no vehicles, nothing moved) in red.
+ * has one, else its number (`no`, from zoom 7: "Nr. 4", as the Fabrik page counts "Lkw-Station 4"), and the picture
+ * of what lies in it; a problem station (no vehicles, nothing moved) in red.
  */
-export function stationLabel(st: SceneStation, t: (k: string, o?: Record<string, unknown>) => string, number: Intl.NumberFormat): StationLabel {
+export function stationLabel(
+  st: SceneStation, t: (k: string, o?: Record<string, unknown>) => string, number: Intl.NumberFormat, no: number | null = null,
+): StationLabel {
   const dir = st.s.loading === false ? '↓' : '↑';
   const fill = stationFill(st);
   const rate = st.state === 'idle' ? t('factoryMap.station.idleShort')
     : fill !== null && st.state === 'active'
       ? t('factoryMap.station.rateFillShort', { rate: number.format(st.flow.itemsPerMin ?? 0), dir, fill: number.format(Math.round(fill * 100)) })
       : t('factoryMap.station.rateShort', { rate: number.format(st.flow.itemsPerMin ?? 0), dir });
-  return { text: st.s.name ? `${st.s.name} · ${rate}` : rate, problem: st.state !== 'active', item: st.flow.cargo?.[0]?.item ?? null };
+  const head = st.s.name ?? (no !== null ? t('factoryMap.station.number', { n: no }) : null);
+  return { text: head ? `${head} · ${rate}` : rate, problem: st.state !== 'active', item: st.flow.cargo?.[0]?.item ?? null };
 }
 
-/** Fits the map to a box of map units, clear of the timeline, the info window (`withInfo`) and on phones the sheet. */
+/** Runs `fn` once the map has a size (a map created this moment may not have one yet: a fit would go to zoom 0). */
+function whenSized(map: L.Map, fn: () => void): void {
+  const size = map.getSize();
+  if (size.x > 0 && size.y > 0) { fn(); return; }
+  map.invalidateSize();
+  if (map.getSize().x > 0 && map.getSize().y > 0) { fn(); return; }
+  map.once('resize', fn);
+}
+
+/**
+ * Fits the map to a box of map units, clear of the timeline, the info window (`withInfo`: on the right, on phones the
+ * peek of the line card, `PEEK_SHARE`) and on phones the sheet.
+ */
 function fitBox(map: L.Map, box: { minX: number; minY: number; maxX: number; maxY: number }, mobile: boolean, withInfo: boolean): void {
   const pad = 0.6;
+  const h = map.getSize().y;
   map.fitBounds(L.latLngBounds(ll(box.minX - pad, box.maxY + pad), ll(box.maxX + pad, box.minY - pad)), {
     paddingTopLeft: [24, 72],
-    paddingBottomRight: mobile ? [24, 24 + Math.round(map.getSize().y / 2)] : [withInfo ? 372 : 24, 140],
+    paddingBottomRight: mobile ? [24, withInfo ? PHONE_BOTTOM_PX + Math.round(h * PEEK_SHARE) + 24 : 24 + Math.round(h / 2)] : [withInfo ? 372 : 24, 140],
     maxZoom: FIT_MAX_ZOOM,
     animate: !prefersReducedMotion(),
   });

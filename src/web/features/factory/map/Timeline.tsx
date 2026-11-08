@@ -25,15 +25,17 @@ const Chevron = ({ dir }: { dir: 'left' | 'right' }) => (
  * older and newer buttons, the shown save's date, and a diamond per save on a time axis (filled: shown, hollow:
  * compared). "Changes" compares with the save before (or a chosen one): new buildings are outlined green, removed ones
  * are red ghosts and productivity changes get a triangle, everything else turns grey; a counter says how many and
- * "Go to the changes" fits the map to them. Arrow keys step through the saves. On phones one row (older, date, newer,
- * changes as an icon toggle), hidden while the info window is open. Without snapshots it explains how to get some.
+ * "Go to the changes" steps the map through the areas of changes, densest first ("Area 1 of 4 ›"). Arrow keys step
+ * through the saves. On phones one row (older, date, newer, changes as an icon toggle), hidden while the info window
+ * (a building's, or a line's card) is open. Without snapshots it explains how to get some.
  */
 export function FactoryTimeline({ ctx }: { ctx: WorldCtx }) {
   const visible = useFactoryMap(s => s.visible);
   const selected = useFactoryMap(s => s.selection) !== null;
+  const lineOpen = useFactoryView(s => s.lineId) !== null;
   const mobile = useIsMobile();
   // On phones the info window takes the timeline's place.
-  return visible && !(mobile && selected) ? <MapTimeline ctx={ctx} /> : null;
+  return visible && !(mobile && (selected || lineOpen)) ? <MapTimeline ctx={ctx} /> : null;
 }
 
 function MapTimeline({ ctx }: { ctx: WorldCtx }) {
@@ -127,6 +129,8 @@ export function TimelineBar({ data }: { data: MapData }) {
     }
   };
   const counts = data.diff || data.geometry ? diffCounts(data.diff, data.geometry) : null;
+  const area = useFactoryMap(s => s.changeArea);
+  const areaCount = useFactoryMap(s => s.changeAreaCount);
   const compared = list.find(s => s.id === compareId);
   const comparedIndex = compared ? list.indexOf(compared) : -1;
   const num = new Intl.NumberFormat(i18n.language);
@@ -246,8 +250,13 @@ export function TimelineBar({ data }: { data: MapData }) {
                 <span className="text-muted max-[899px]:hidden">{t('factoryMap.timeline.lines', { added: num.format(counts.linesAdded), removed: num.format(counts.linesRemoved) })}</span>
               )}
               {anyChange && (
-                <Button size="sm" variant="ghost" className="ml-auto" onClick={() => useFactoryMap.getState().requestFitChanges()}>
-                  {t('factoryMap.timeline.toChanges')}
+                <Button
+                  size="sm" variant="ghost" className="ml-auto" data-testid="timeline-to-changes"
+                  title={area >= 0 && areaCount > 1 ? t('factoryMap.timeline.areaNext') : undefined}
+                  onClick={() => useFactoryMap.getState().requestFitChanges()}
+                >
+                  {area < 0 || areaCount < 2 ? t('factoryMap.timeline.toChanges')
+                    : <>{t('factoryMap.timeline.area', { index: area + 1, count: areaCount })} <span aria-hidden="true">›</span></>}
                 </Button>
               )}
             </>

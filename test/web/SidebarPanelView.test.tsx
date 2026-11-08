@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { SidebarPanel } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
@@ -13,7 +13,7 @@ describe('foldable sidebar panels', () => {
   beforeAll(() => { initI18n(['en']); });
   beforeEach(() => {
     localStorage.clear();
-    usePanelsCollapsed.setState({ collapsed: {} });
+    usePanelsCollapsed.setState({ collapsed: {}, solo: null, soloState: {} });
   });
 
   it('starts folded when the panel says so, unfolds on its heading and remembers it', async () => {
@@ -34,5 +34,23 @@ describe('foldable sidebar panels', () => {
     await userEvent.click(head);
     expect(screen.getByText('Biome rows')).not.toBeVisible();
     expect(screen.getByRole('region', { name: 'Biomes' })).toBeInTheDocument();
+  });
+
+  it('folds the other panels while one has the room and gives them back as they were', async () => {
+    render(<><SidebarPanelView panel={panel()} worldId="w" /><SidebarPanelView panel={panel({ id: 'plan', titleKey: 'factoryMap.title', defaultCollapsed: true, Component: () => <p>Plan rows</p> })} worldId="w" /></>);
+    const biomes = screen.getByRole('button', { name: 'Biomes' });
+    const plan = screen.getByRole('button', { name: 'Factory plan' });
+    expect(plan).toHaveAttribute('aria-expanded', 'false');
+    act(() => usePanelsCollapsed.getState().setSolo('plan'));
+    expect(biomes).toHaveAttribute('aria-expanded', 'false');
+    expect(plan).toHaveAttribute('aria-expanded', 'true');
+    // Nothing is remembered for that.
+    expect(loadPanelsCollapsed()).toEqual({});
+    // What the user opens meanwhile stays open.
+    await userEvent.click(biomes);
+    expect(biomes).toHaveAttribute('aria-expanded', 'true');
+    act(() => usePanelsCollapsed.getState().setSolo(null));
+    expect(biomes).toHaveAttribute('aria-expanded', 'true');
+    expect(plan).toHaveAttribute('aria-expanded', 'false');
   });
 });

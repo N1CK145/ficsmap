@@ -34,6 +34,13 @@ export interface Detail {
   vehicleLabels: boolean;
   /** Marker names. */
   markerLabels: boolean;
+  /** Station plates carry the station's number (as the Fabrik page names it). */
+  stationNumbers: boolean;
+  /**
+   * The close-up: hatching faint, the status in a 3 px border in the band colour and the glyph, stacked floors drawn
+   * apart (the lower ones inset and dimmed, only the top one named).
+   */
+  closeUp: boolean;
 }
 
 export const DOTS_BELOW = 4;
@@ -44,6 +51,8 @@ export const SOFT_FROM = 8;
 export const STATION_LABELS_FROM = 6;
 export const VEHICLE_LABELS_FROM = 6;
 export const MARKER_LABELS_FROM = 3;
+export const STATION_NUMBERS_FROM = 7;
+export const CLOSE_FROM = 8;
 
 export function detailAt(zoom: number): Detail {
   return {
@@ -55,6 +64,8 @@ export function detailAt(zoom: number): Detail {
     stationLabels: zoom >= STATION_LABELS_FROM,
     vehicleLabels: zoom >= VEHICLE_LABELS_FROM,
     markerLabels: zoom >= MARKER_LABELS_FROM,
+    stationNumbers: zoom >= STATION_NUMBERS_FROM,
+    closeUp: zoom >= CLOSE_FROM,
   };
 }
 

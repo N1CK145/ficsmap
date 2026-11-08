@@ -127,12 +127,13 @@ type Box = { minX: number; minY: number; maxX: number; maxY: number };
 const CHANGE_CELL = 6;
 
 /**
- * Where "Go to the changes" leads: the busiest area of changes (added, removed and better or worse buildings; without
- * those the changed floor pieces), so a base that grew in many places still lands on something readable. The area is
- * the densest cell with its eight neighbours; the box covers the changes in it.
+ * Where "Go to the changes" leads: the areas of changes (added, removed and better or worse buildings; without those
+ * the changed floor pieces, which are counted but not drawn), densest first, so a base that grew in many places is
+ * stepped through one readable area at a time ("Area 1 of 4"). An area is the densest cell with its eight neighbours;
+ * its box covers the changes in it, which then leave the search.
  */
-export function changesBox(scene: Scene, diff: DiffOverlay): Box | null {
-  let boxes: Box[] = [];
+export function changeAreas(scene: Scene, diff: DiffOverlay): Box[] {
+  const boxes: Box[] = [];
   for (const id of [...diff.added, ...diff.productivity.keys()]) {
     const sb = scene.byId.get(id);
     if (sb) boxes.push(sb);
@@ -146,26 +147,37 @@ export function changesBox(scene: Scene, diff: DiffOverlay): Box | null {
       }
     }
   }
-  if (boxes.length === 0) return null;
-  const cellOf = (b: Box) => [Math.floor((b.minX + b.maxX) / 2 / CHANGE_CELL), Math.floor((b.minY + b.maxY) / 2 / CHANGE_CELL)] as const;
-  const counts = new Map<string, number>();
+  const cells = new Map<string, Box[]>();
   for (const b of boxes) {
-    const [cx, cy] = cellOf(b);
-    counts.set(`${cx},${cy}`, (counts.get(`${cx},${cy}`) ?? 0) + 1);
+    const key = `${Math.floor((b.minX + b.maxX) / 2 / CHANGE_CELL)},${Math.floor((b.minY + b.maxY) / 2 / CHANGE_CELL)}`;
+    (cells.get(key) ?? cells.set(key, []).get(key)!).push(b);
   }
-  let best: readonly [number, number] = [0, 0], bestN = -1;
-  for (const key of counts.keys()) {
-    const [cx, cy] = key.split(',').map(Number) as [number, number];
-    let n = 0;
-    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) n += counts.get(`${cx + dx},${cy + dy}`) ?? 0;
-    if (n > bestN) { bestN = n; best = [cx, cy]; }
+  const areas: Box[] = [];
+  while (cells.size > 0) {
+    let best: readonly [number, number] = [0, 0], bestN = -1;
+    for (const key of cells.keys()) {
+      const [cx, cy] = key.split(',').map(Number) as [number, number];
+      let n = 0;
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) n += cells.get(`${cx + dx},${cy + dy}`)?.length ?? 0;
+      if (n > bestN) { bestN = n; best = [cx, cy]; }
+    }
+    const inArea: Box[] = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const key = `${best[0] + dx},${best[1] + dy}`;
+        inArea.push(...(cells.get(key) ?? []));
+        cells.delete(key);
+      }
+    }
+    areas.push({
+      minX: Math.min(...inArea.map(b => b.minX)), minY: Math.min(...inArea.map(b => b.minY)),
+      maxX: Math.max(...inArea.map(b => b.maxX)), maxY: Math.max(...inArea.map(b => b.maxY)),
+    });
   }
-  boxes = boxes.filter(b => {
-    const [cx, cy] = cellOf(b);
-    return Math.abs(cx - best[0]) <= 1 && Math.abs(cy - best[1]) <= 1;
-  });
-  return {
-    minX: Math.min(...boxes.map(b => b.minX)), minY: Math.min(...boxes.map(b => b.minY)),
-    maxX: Math.max(...boxes.map(b => b.maxX)), maxY: Math.max(...boxes.map(b => b.maxY)),
-  };
+  return areas;
+}
+
+/** The densest area of changes (`changeAreas`), or null when nothing changed. */
+export function changesBox(scene: Scene, diff: DiffOverlay): Box | null {
+  return changeAreas(scene, diff)[0] ?? null;
 }

@@ -96,6 +96,11 @@ export interface SceneBuilding {
   maxSide: number;
   /** Axis-aligned box of the outline, map units. */
   minX: number; minY: number; maxX: number; maxY: number;
+  /**
+   * Another building of about its size stands right above it (a stacked floor of smelters): close up the map draws it
+   * inset and dimmed under the upper one and gives only the upper one a name (`stackUnder`).
+   */
+  under: boolean;
 }
 
 export interface SceneLine {
@@ -191,6 +196,7 @@ export function placeBuilding(b: SnapshotBuilding, entry: BuildingEntry | undefi
     outline, local,
     minSide: Math.min(w, d), maxSide: Math.max(w, d),
     ...box,
+    under: false,
   };
 }
 
@@ -286,6 +292,8 @@ export function buildScene(
     }
   });
 
+  stackUnder(buildings, grid, t);
+
   const all: number[] = [];
   for (const sb of buildings) all.push(sb.minX, sb.minY, sb.maxX, sb.maxY);
   for (let i = 0; i < floor.length; i++) all.push(floor[i]!);
@@ -319,6 +327,29 @@ export function sceneOf(
   return scene;
 }
 
+/** A building counts as standing on top of another when it is at least this much higher (cm; a floor is 4 m). */
+const STACK_DZ = 250;
+
+/**
+ * Marks the buildings with another one of about their size right above them (`SceneBuilding.under`): the upper one's
+ * centre lies in the lower one's outline (or the other way round), it is at least `STACK_DZ` higher, and its shorter
+ * side is at least half as long. Logistics parts (poles, splitters, lifts) never count, neither below nor above.
+ */
+export function stackUnder(buildings: SceneBuilding[], grid: Map<number, number[]>, t: MapTransform): void {
+  for (const sb of buildings) {
+    if (sb.kind === 'logistics') continue;
+    const cell = grid.get(cellKey(Math.floor(sb.cx / GRID), Math.floor(sb.cy / GRID))) ?? [];
+    for (const j of cell) {
+      const o = buildings[j]!;
+      if (o === sb || o.kind === 'logistics' || o.b.z < sb.b.z + STACK_DZ || o.minSide < sb.minSide * 0.5) continue;
+      if (insideOutline(sb, o.cx, o.cy, t) || insideOutline(o, sb.cx, sb.cy, t)) {
+        sb.under = true;
+        break;
+      }
+    }
+  }
+}
+
 /** 2 machines, 1 other buildings, 0 logistics parts (poles, splitters, lifts, signs). */
 function pickRank(sb: SceneBuilding): number {
   return sb.kind === 'logistics' ? 0 : sb.kind === 'building' ? 1 : 2;
@@ -339,7 +370,7 @@ export function insideOutline(sb: SceneBuilding, mx: number, my: number, t: MapT
 /**
  * The building at a map point, as drawn on top: of all whose outline (grown by `slack` map units) holds the point,
  * machines before other buildings before logistics parts (the canvas's fill order), then the smallest, so a splitter
- * beside a storage container wins where they overlap. Null when none.
+ * beside a storage container wins where they overlap, then the upper of two stacked ones. Null when none.
  */
 export function pickBuilding(scene: Scene, mx: number, my: number, slack = 0): SceneBuilding | null {
   let best: SceneBuilding | null = null;
@@ -353,9 +384,10 @@ export function pickBuilding(scene: Scene, mx: number, my: number, slack = 0): S
         seen.add(i);
         const sb = scene.buildings[i]!;
         if (!insideOutline(sb, mx, my, scene.t, slack)) continue;
-        // Rank first (×1e6 outweighs any area in map units²), then the area.
+        // Rank first (×1e6 outweighs any area in map units²), then the area; of two the same (a stacked floor of
+        // the same machine) the upper one, which is drawn on top.
         const area = (2 - pickRank(sb)) * 1e6 + sb.minSide * sb.maxSide;
-        if (area < bestArea) { best = sb; bestArea = area; }
+        if (area < bestArea - 1e-9 || (best && Math.abs(area - bestArea) <= 1e-9 && sb.b.z > best.b.z)) { best = sb; bestArea = area; }
       }
     }
   }

@@ -25,12 +25,20 @@ export function ProductPictures({ line, px = 20 }: { line: ProductionLine; px?: 
   );
 }
 
+/** The line's machines by class, most first: the class and the ids of its machines in the line. */
+export function machineClasses(line: ProductionLine): { cls: string; ids: string[] }[] {
+  const byCls = new Map<string, string[]>();
+  for (const g of line.groups) if (!g.logistics) (byCls.get(g.cls) ?? byCls.set(g.cls, []).get(g.cls)!).push(...g.members);
+  return [...byCls].map(([cls, ids]) => ({ cls, ids })).sort((a, b) => b.ids.length - a.ids.length || (a.cls < b.cls ? -1 : 1));
+}
+
 /** What the line's machines are, by class: "6 × Schmelzofen, 4 × Konstruktor", most first. */
 export function machineMix(line: ProductionLine, labels: FactoryLabels, lang: FactoryFormat['lang']): string {
-  const counts = new Map<string, number>();
-  for (const g of line.groups) if (!g.logistics) counts.set(g.cls, (counts.get(g.cls) ?? 0) + g.members.length);
-  return [...counts].sort((a, b) => b[1] - a[1]).map(([cls, n]) => `${n}\u00a0×\u00a0${labels.building(cls, lang)}`).join(', ');
+  return machineClasses(line).map(({ cls, ids }) => `${ids.length}\u00a0×\u00a0${labels.building(cls, lang)}`).join(', ');
 }
+
+/** A row button of the card's lists: at least 44 px high (a touch target). */
+const ROW = 'flex min-h-11 w-full items-center gap-2 chamfer px-1 py-1 text-left text-sm focus-ring hover:bg-raised';
 
 /** Whether the line's output is all fluid (its rates then read m³/min). */
 const allFluid = (rates: readonly LineRate[]) => rates.length > 0 && rates.every(r => r.fluid);
@@ -38,16 +46,18 @@ const allFluid = (rates: readonly LineRate[]) => rates.length > 0 && rates.every
 /**
  * A production line's card in the info window: what it makes (pictures and rates), its machines, the mean
  * productivity, nominal against actual output, the bottleneck in words, what comes in from outside, and the ways on:
- * "Als Diagramm" (the Fabrik page's line diagram on this line) and "Zur Linie" (fit the map to it).
+ * "Als Diagramm" (the Fabrik page's line diagram on this line) and "Zum Strang" (fit the map to it). Its machines are
+ * a list of buttons, one per class, each outlining those machines of the line on the map (`onShowMachines`), the
+ * keyboard's way to them. `compact` (the phone's peek): only the mean productivity, the bottleneck, "Als Diagramm"
+ * and the way to the rest (`onExpand`).
  */
-export function LineCard({ line, labels, fmt, onDiagram, onFit }: {
+export function LineCard({ line, labels, fmt, onDiagram, onFit, onShowMachines, compact = false, onExpand }: {
   line: ProductionLine; labels: FactoryLabels; fmt: FactoryFormat; onDiagram: () => void; onFit: () => void;
+  onShowMachines: (ids: readonly string[]) => void; compact?: boolean; onExpand?: () => void;
 }) {
   const { t } = useTranslation();
   const neck = bottleneckText(line, labels, fmt.lang, t);
   const reason = line.bottleneck?.kind === 'group' && line.bottleneck.why !== 'demand' ? line.bottleneck.why : null;
-  const fluid = allFluid(line.products);
-  const lost = line.nominal - line.actual;
   return (
     <div className="flex flex-col gap-3" data-testid="factory-line-card">
       <div className="flex items-center justify-between gap-2 text-sm">
@@ -60,6 +70,25 @@ export function LineCard({ line, labels, fmt, onDiagram, onFit }: {
           <span><span className="font-semibold">{t('factoryMap.lines.bottleneck')}</span> {neck}</span>
         </p>
       )}
+      {compact ? (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="primary" onClick={onDiagram}>{t('factoryMap.lines.asDiagram')}</Button>
+          {onExpand && <Button size="sm" onClick={onExpand} data-testid="factory-line-more">{t('factoryMap.lines.more')}</Button>}
+        </div>
+      ) : <LineDetails line={line} labels={labels} fmt={fmt} onDiagram={onDiagram} onFit={onFit} onShowMachines={onShowMachines} />}
+    </div>
+  );
+}
+
+function LineDetails({ line, labels, fmt, onDiagram, onFit, onShowMachines }: {
+  line: ProductionLine; labels: FactoryLabels; fmt: FactoryFormat; onDiagram: () => void; onFit: () => void;
+  onShowMachines: (ids: readonly string[]) => void;
+}) {
+  const { t } = useTranslation();
+  const fluid = allFluid(line.products);
+  const lost = line.nominal - line.actual;
+  return (
+    <>
       <StatList>
         <StatRow
           label={t('factoryMap.lines.output')}
@@ -67,8 +96,20 @@ export function LineCard({ line, labels, fmt, onDiagram, onFit }: {
           hint={lost > 0.05 ? <span className="text-conflict">{t('factoryMap.info.lost', { rate: fmt.rate(lost, fluid) })}</span> : undefined}
           tone={lost > 0.05 ? 'danger' : 'default'}
         />
-        <StatRow label={t('factoryMap.lines.machines')} value={fmt.int(line.machines.length)} hint={machineMix(line, labels, fmt.lang)} />
+        <StatRow label={t('factoryMap.lines.machines')} value={fmt.int(line.machines.length)} />
       </StatList>
+      {/* The machines by class, each a way to see them on the map (the keyboard's way to a part of the line). */}
+      <ul aria-label={t('factoryMap.lines.machines')} className="-mt-2 flex flex-col" data-testid="factory-line-machines">
+        {machineClasses(line).map(({ cls, ids }) => (
+          <li key={cls}>
+            <button type="button" className={ROW} onClick={() => onShowMachines(ids)} title={t('factoryMap.showOnMapHint')}>
+              <span className="w-8 shrink-0 text-right font-display font-semibold tabular-nums">{fmt.int(ids.length)}&nbsp;×</span>
+              <span className="min-w-0 flex-1 truncate">{labels.building(cls, fmt.lang)}</span>
+              <span className="shrink-0 text-xs text-muted max-[899px]:text-sm">{t('factoryMap.lines.onMap')}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
       {line.products.length > 0 && (
         <div>
           <SectionHeading as="h3">{t('factoryMap.lines.products')}</SectionHeading>
@@ -85,7 +126,7 @@ export function LineCard({ line, labels, fmt, onDiagram, onFit }: {
         <Button size="sm" variant="primary" onClick={onDiagram}>{t('factoryMap.lines.asDiagram')}</Button>
         <Button size="sm" onClick={onFit}>{t('factoryMap.lines.fit')}</Button>
       </div>
-    </div>
+    </>
   );
 }
 

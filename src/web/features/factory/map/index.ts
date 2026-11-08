@@ -8,7 +8,7 @@ import { FactoryPanel } from './FactoryPanel.js';
 import { HighlightChip } from './HighlightChip.js';
 import { FactoryIcon } from '../icons.js';
 import { FactoryTimeline } from './Timeline.js';
-import { useFactoryMap } from './useFactoryMap.js';
+import { FACTORY_PANEL_ID, useFactoryMap } from './useFactoryMap.js';
 
 /**
  * The factory map: what the world's saves have built, drawn on the map from the stored factory snapshots (see
@@ -22,7 +22,7 @@ export const factoryMapFeature: FeatureModule = {
     id: 'factory-map', order: 32, labelKey: 'factoryMap.control', hintKey: 'factoryMap.hint', icon: createElement(FactoryIcon),
     useToggle: useFactoryMap,
   })],
-  sidebarPanels: [{ id: 'factory-map', order: 45, titleKey: 'factoryMap.title', Component: FactoryPanel }],
+  sidebarPanels: [{ id: FACTORY_PANEL_ID, order: 45, titleKey: 'factoryMap.title', Component: FactoryPanel }],
   mapLayers: [{ id: 'factory-map', order: 4, Component: FactoryMapLayer }],
   mapOverlays: [
     { id: 'factory-timeline', order: 20, Component: FactoryTimeline },

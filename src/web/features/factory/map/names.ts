@@ -20,9 +20,18 @@ export function stationName(scene: Scene, id: string, lang: Lang): string {
   const st = scene.stationById.get(id);
   if (!st) return id;
   if (st.s.name) return st.s.name;
-  const same = scene.stations.filter(s => s.s.cls === st.s.cls);
   const entry = scene.byId.get(id)?.entry;
-  return `${buildingName(entry, st.s.cls, lang)} ${same.indexOf(st) + 1}`;
+  return `${buildingName(entry, st.s.cls, lang)} ${stationNumber(scene, id)}`;
+}
+
+/**
+ * A station's number among the stations of its kind in the save, from 1 (the Fabrik page's `stationNames` counts the
+ * same way, so "Nr. 4" on the map's plate is "Lkw-Station 4" there); null for an unknown id.
+ */
+export function stationNumber(scene: Scene, id: string): number | null {
+  const st = scene.stationById.get(id);
+  if (!st) return null;
+  return scene.stations.filter(s => s.s.cls === st.s.cls).indexOf(st) + 1;
 }
 
 /** A vehicle's name: the player's, else its kind with its number among vehicles of that kind ("Tractor 2"). */

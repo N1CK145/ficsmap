@@ -1336,7 +1336,8 @@
       "every": "every {time}",
       "kind": "Station",
       "rateFillShort": "{dir} {rate} /min · {fill} %",
-      "cargo": "Holds"
+      "cargo": "Holds",
+      "number": "No. {n}"
     },
     "vehicle": {
       "kind": "Vehicle",
@@ -1405,7 +1406,9 @@
       "better": "{count, plural, one {{n} better} other {{n} better}}",
       "worse": "{count, plural, one {{n} worse} other {{n} worse}}",
       "toChanges": "Go to the changes",
-      "comparedMark": "compared"
+      "comparedMark": "compared",
+      "area": "Area {index} of {count}",
+      "areaNext": "To the next area with changes"
     },
     "noProduction": "Buildings without production",
     "reasonsLabel": "Reasons",
@@ -1449,7 +1452,11 @@
       "pipe": "Pipeline",
       "groupIssue": "{name}: {why}",
       "groupIssueMany": "{count} × {name}: {why}",
-      "demand": "not taken off"
-    }
+      "demand": "not taken off",
+      "more": "Show details",
+      "less": "Show less",
+      "onMap": "On the map"
+    },
+    "cargoMore": "{count, plural, one {+# more} other {+# more}}"
   }
 }
