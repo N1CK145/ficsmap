@@ -10,7 +10,8 @@ const group = (g: Partial<LineGroup> & Pick<LineGroup, 'id' | 'cls' | 'members' 
 
 export const IRON_LINE: ProductionLine = {
   id: 'plate',
-  products: [{ item: 'Desc_IronPlate_C', perMin: 40 }],
+  // What reaches the storage at its end (`buildLines`: flows into storage, stations, sinks plus outputs with no link).
+  products: [{ item: 'Desc_IronPlate_C', perMin: 20 }],
   inputs: [],
   buildings: ['smelter', 'smelter2', 'merger', 'plate', 'plate2', 'paused', 'box'],
   machines: ['smelter', 'smelter2', 'plate', 'plate2', 'paused'],

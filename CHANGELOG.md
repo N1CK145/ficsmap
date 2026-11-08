@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fabrik page, production lines: the diagram shows what a line makes and where it goes, also with "Nur Maschinen". The flow ends in "Ausgang" nodes, one per product, with its picture, name, rate and where it goes ("→ Lagercontainer, AWESOME-Schredder", a station by its name, "→ nicht angeschlossen" where no belt or pipe carries it away); what comes from storage or stations starts in "Eingang" nodes. With "Nur Maschinen" they take the place of the storage, stations and sinks at the ends; with all logistics those stay and are drawn as outputs and inputs saying what they receive or give, and the belt into them names the item. A node opens the buildings taking or giving it with "Auf der Karte". Above the diagram (also in full screen) a summary: "Erzeugt: Draht 124,0/min, Beton 79,9/min · Ziel: 3× Industrieller Lagercontainer, 2× AWESOME-Schredder · Bezieht: Kabel 4,8/min". "Nur Maschinen" also splits a belt carrying several items into a sink by item, each back to the machines making it.
 - Watcher script (bash) started from Steam's launch options could not reach the server: it inherited Steam's library paths, so curl loaded Steam's old libcurl ("undefined symbol: curl_mime_filename"). The script now drops `LD_LIBRARY_PATH` and `LD_PRELOAD` at start. README: how to start the watcher with the game from Steam's launch options.
 
 ## [0.2.2] - 2026-11-08

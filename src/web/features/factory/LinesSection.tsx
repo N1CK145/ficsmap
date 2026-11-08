@@ -20,15 +20,16 @@ import type { DiagramDirection, DiagramEdge, DiagramOptions } from '../planner/d
 import { FlowDiagram, type EdgeLook, type EdgeState, type FlowMarker } from '../planner/FlowDiagram.js';
 import { Picture, PinnedPicture } from '../planner/pictures.js';
 import type { FactoryLabels, SnapshotAnalysis } from './data.js';
-import type { FactoryFormat } from './format.js';
+import { stationNames, type FactoryFormat } from './format.js';
 import { ExactIcon, FullIcon, NeckIcon } from './icons.js';
 import { MachineLine } from './ItemsSection.js';
 import {
-  bottleneckOf, compactLine, groupsTopDown, isSaturated, LINE_PARAM, lineGraph, loadOf, MACHINES_ONLY_ABOVE, machinesOnly, mainOutput,
-  NODE_WIDTH, throughGroups, type LineLink, type LineLinkKind,
+  bottleneckOf, compactLine, flowsAt, groupsTopDown, IDLE_FLOW, isSaturated, isUnlinked, LINE_PARAM, lineEnds, lineGraph, lineTargets, lineTerminals, loadOf,
+  MACHINES_ONLY_ABOVE, machinesOnly, mainOutput, NODE_WIDTH, throughGroups, withTerminals, type LineEnds, type LineLink, type LineLinkKind,
+  type LineTerminal, type TerminalPlace,
 } from './lineDiagram.js';
 import { bottleneckText, capacityText, groupTitle, isClass, lineHasIssue, lineName, sortLines } from './lineInfo.js';
-import { BottleneckChip, ProductivityBar, ReasonBadge, ShowOnMap, STATE_TEXT } from './parts.js';
+import { BottleneckChip, NONE, ProductivityBar, ReasonBadge, ShowOnMap, STATE_TEXT } from './parts.js';
 import { useFactoryPage } from './timeline.js';
 import { useProductionLines } from './useLines.js';
 import { useFactoryView } from './view.js';
@@ -56,7 +57,16 @@ interface Names {
   labels: FactoryLabels;
   fmt: FactoryFormat;
   t: (key: string, options?: Record<string, unknown>) => string;
+  /** Station names by building id ("Lkw-Station 4", or the player's name). */
+  stations: ReadonlyMap<string, string>;
 }
+
+/** Ends of a line drawn without its storage, stations and sinks as their own nodes (machines only). */
+const NO_ENDS: LineEnds = { receivers: new Set(), sources: new Set() };
+/** Items named in the summary above the diagram before "+n". */
+const SUMMARY_ITEMS = 4;
+/** Items an end's node lists before "+n". */
+const END_ITEMS = 3;
 
 /** "4× Constructor"; a single logistics node just by name ("Conveyor Merger"): `lineInfo.groupTitle`, as on the map. */
 const groupName = (g: LineGroup, { labels, fmt, t }: Names): string => groupTitle(g, labels, fmt.lang, t);
@@ -115,7 +125,8 @@ export function LinesSection({ ctx, shown, data, labels, fmt }: {
   const { line, choose, linked } = useLineChoice(lines);
   const phone = useMediaQuery(PHONE_QUERY);
   const [direction, setDirection] = useDiagramDirection('lines');
-  const names: Names = { labels, fmt, t };
+  const stations = useMemo(() => stationNames(shown.routes.stations, labels, fmt.lang), [shown.routes, labels, fmt.lang]);
+  const names: Names = { labels, fmt, t, stations };
   const hasLinks = (shown.snapshot.links?.length ?? 0) > 0;
   const machines = lines?.reduce((s, l) => s + l.machines.length, 0) ?? 0;
 
@@ -255,6 +266,8 @@ type EdgeTone = 'neck' | 'full' | 'exact' | 'fg' | 'mid' | 'low';
 
 /** Line style is the first cue, colour the second: by-products dotted, loops dashed, as in the planner. */
 const DASH: Record<LineLinkKind, string | undefined> = { flow: undefined, byproduct: '1 5', loop: '6 4' };
+/** A product no belt or pipe carries away: finer dashes than a loop, thin and grey. */
+const UNLINKED_DASH = '2 3';
 
 /**
  * One line: the bottleneck in a sentence, on a phone its groups as a list, the diagram, its legend and, for a selected
@@ -271,18 +284,38 @@ function LineView({ worldId, line: full, analysis, names, phone, direction, reci
   const hasPassThrough = useMemo(() => throughGroups(compact.line).size > 0, [compact]);
   // Large lines open with their machines only, until the switch is used.
   const onlyMachines = hasPassThrough && (machinesChoice ?? compact.line.groups.length > MACHINES_ONLY_ABOVE);
-  const line = useMemo(() => (onlyMachines ? machinesOnly(compact.line) : compact.line), [onlyMachines, compact]);
+  const machinesLine = useMemo(() => (onlyMachines ? machinesOnly(compact.line) : compact.line), [onlyMachines, compact]);
+  // What leaves the line and what comes in as nodes of their own: with machines only in place of the storage,
+  // stations and sinks at its ends; with all logistics those stay (drawn as outputs and inputs) and only what has no
+  // belt or pipe gets a node.
+  const { line, terminals } = useMemo(() => withTerminals(compact.line, machinesLine, onlyMachines), [compact, machinesLine, onlyMachines]);
+  // With all logistics the storage, stations and sinks at the ends are drawn as outputs and inputs, those whose belts
+  // carry next to nothing as the small logistics chips they are.
+  const ends = useMemo((): LineEnds => {
+    if (onlyMachines) return NO_ENDS;
+    const all = lineEnds(line);
+    const live = (id: string, side: 'in' | 'out') => flowsAt(line, id, side).some(r => r.perMin >= IDLE_FLOW);
+    return { receivers: new Set([...all.receivers].filter(id => live(id, 'in'))), sources: new Set([...all.sources].filter(id => live(id, 'out'))) };
+  }, [onlyMachines, line]);
+  const outputs = useMemo(() => lineTerminals(compact.line), [compact]);
   const hidden = onlyMachines ? 0 : compact.hidden;
   // Storage and stations at an end that "Machines only" left out because their belts carry nothing.
-  const idle = onlyMachines ? compact.line.groups.filter(g => g.logistics && !throughGroups(compact.line).has(g.id) && !line.groups.includes(g)).length : 0;
+  const idle = onlyMachines ? compact.line.groups.filter(g => g.logistics && !throughGroups(compact.line).has(g.id) && !machinesLine.groups.includes(g)).length : 0;
   // Large lines fold their dotted by-product links until asked.
   const big = full.machines.length > BYPRODUCTS_FOLD_ABOVE;
   const [showByproducts, setShowByproducts] = useState(false);
   const byproducts = !big || showByproducts;
-  const graph = useMemo(() => lineGraph(line, { byproducts }), [line, byproducts]);
+  const graph = useMemo(() => lineGraph(line, { byproducts, terminals, ends }), [line, byproducts, terminals, ends]);
   const options = useMemo(() => ({ ...OPTIONS, direction }), [direction]);
-  const folded = useMemo(() => (byproducts ? 0 : lineGraph(line).links.filter(l => l.kind === 'byproduct').length), [line, byproducts]);
+  const folded = useMemo(
+    () => (byproducts ? 0 : lineGraph(line, { terminals, ends }).links.length - graph.links.length),
+    [line, byproducts, terminals, ends, graph],
+  );
   const groupOf = useMemo(() => new Map(line.groups.map(g => [g.id, g])), [line]);
+  const terminalOf = useMemo(() => new Map(terminals.map(x => [x.id, x])), [terminals]);
+  const endOf = (id: string): 'out' | 'in' | null => (ends.receivers.has(id) ? 'out' : ends.sources.has(id) ? 'in' : null);
+  /** What a storage, station or sink at an end receives (or gives), leaving out belts that carry next to nothing. */
+  const endFlows = (id: string, side: 'in' | 'out') => flowsAt(line, id, side === 'out' ? 'in' : 'out').filter(r => r.perMin >= IDLE_FLOW);
   const [selected, setSelected] = useState<string | null>(null);
   const editorId = useId();
   const nodePrefix = useId();
@@ -295,6 +328,7 @@ function LineView({ worldId, line: full, analysis, names, phone, direction, reci
   // Wider than its box: the diagram opens at the bottleneck (its group, else the group its full belt leads to).
   const focus = bottleneck.group ?? bottleneck.edge?.to ?? null;
   const group = selected ? groupOf.get(selected) : undefined;
+  const terminal = selected ? terminalOf.get(selected) : undefined;
   const panel = useRef<HTMLDivElement>(null);
 
   const onSelect = (id: string) => setSelected(s => (s === id ? null : id));
@@ -314,6 +348,7 @@ function LineView({ worldId, line: full, analysis, names, phone, direction, reci
   const toneOf = (e: DiagramEdge<LineLink>, state: EdgeState): EdgeTone => {
     const edge = edgeOf(e);
     if (bottleneck.edgeIndex === e.edge) return 'neck';
+    if (isUnlinked(edge)) return state === 'hot' ? 'fg' : 'low';
     if (isSaturated(edge)) return edge.exact ? 'exact' : 'full';
     const load = loadOf(edge);
     return state === 'hot' ? 'fg' : load !== null && load < 0.5 ? 'low' : 'mid';
@@ -323,6 +358,10 @@ function LineView({ worldId, line: full, analysis, names, phone, direction, reci
     const tone = toneOf(e, state);
     const load = loadOf(edge);
     const width = (tone === 'neck' ? 4.5 : tone === 'full' || tone === 'exact' ? 3.5 : 1.25 + 2 * Math.min(1, load ?? 0.25)) + (state === 'hot' ? 1 : 0);
+    // Made but carried by no belt or pipe: a thin, finely dashed line to its output.
+    if (isUnlinked(edge)) {
+      return { kind: 'unlinked', marker: tone === 'fg' ? 'fg' : 'low', className: tone === 'fg' ? 'stroke-fg' : 'stroke-edge', width: state === 'hot' ? 2.25 : 1.25, dash: UNLINKED_DASH, labelClassName: 'text-muted' };
+    }
     if (e.kind === 'byproduct' && tone !== 'neck') {
       return { kind: e.kind, marker: 'byproduct', className: 'stroke-free', width, dash: DASH.byproduct, linecap: 'round', labelClassName: 'text-free' };
     }
@@ -340,11 +379,14 @@ function LineView({ worldId, line: full, analysis, names, phone, direction, reci
     const tone = toneOf(e, state);
     const cap = capacityText(edge, labels, fmt.lang, t, true);
     const each = edge.perLink !== undefined && edge.links > 1;
+    // Into a storage, station or sink at the end: the item by name too, so what leaves the line reads off the belt.
+    const named = endOf(e.to) === 'out' && edge.item !== undefined && !(edge.items && edge.items.length > 1);
     return (
       <>
         {edge.items && edge.items.length > 1
           ? edge.items.slice(0, 3).map(r => <GameIcon key={r.item} cls={r.item} px={16} />)
           : edge.item && <GameIcon cls={edge.item} px={16} />}
+        {named && <span data-label-item className="max-w-28 truncate font-normal">{labels.item(edge.item!, fmt.lang)}</span>}
         {edge.perMin !== undefined && <span>{fmt.rate(edge.perMin, fluid)}</span>}
         {cap && <span className="font-normal text-muted">{each ? ' · ' : ' '}{cap}</span>}
         {tone === 'neck' && <span className="text-conflict" data-neck><NeckIcon /></span>}
@@ -356,6 +398,7 @@ function LineView({ worldId, line: full, analysis, names, phone, direction, reci
 
   return (
     <div data-fullscreen-root="" className="flex min-w-0 flex-col">
+      <LineSummary terminals={outputs} names={names} />
       {(sentence || hasPassThrough || big) && (
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-3 py-1.5">
           {sentence ? (
@@ -394,9 +437,18 @@ function LineView({ worldId, line: full, analysis, names, phone, direction, reci
         nodeId={nodeId}
         focus={focus}
         moreLabel={t('factory.lines.moreRight')}
-        nodeLabel={id => groupLabel(groupOf.get(id)!, names, bottleneck.group === id ? (issue ? 'issue' : 'limit') : null)}
+        nodeLabel={id => {
+          const x = terminalOf.get(id);
+          if (x) return terminalLabel(x, names);
+          const end = endOf(id);
+          if (end) return endLabel(groupOf.get(id)!, endFlows(id, end), end, names);
+          return groupLabel(groupOf.get(id)!, names, bottleneck.group === id ? (issue ? 'issue' : 'limit') : null);
+        }}
         nodeChrome={() => CHROME}
         nodeClassName={(id, isSelected) => {
+          const side = terminalOf.get(id)?.side ?? endOf(id);
+          // Outputs and inputs: framed in the accent (an input dashed, as the planner marks what comes from outside).
+          if (side) return `px-2 py-1.5 ${side === 'out' ? 'border-accent shadow-[inset_0_0_0_1px_var(--color-accent)]' : 'border-dashed border-accent'} ${isSelected ? 'bg-raised' : 'bg-panel hover:bg-raised'}`;
           const g = groupOf.get(id)!;
           // Logistics: a half-height chip on a rail through the row (the button itself stays as high as the row).
           if (g.logistics) return `items-center! justify-center border-transparent bg-transparent group/node ${isSelected ? 'text-accent' : ''}`;
@@ -404,7 +456,11 @@ function LineView({ worldId, line: full, analysis, names, phone, direction, reci
           return `px-2 py-1.5 ${frame} border-l-4 ${STATE_EDGE[g.state]}`;
         }}
         renderNode={(id, contentRef) => {
+          const x = terminalOf.get(id);
+          if (x) return <TerminalCard terminal={x} names={names} contentRef={contentRef} />;
           const g = groupOf.get(id)!;
+          const end = endOf(id);
+          if (end) return <EndCard group={g} side={end} flows={endFlows(id, end)} names={names} contentRef={contentRef} />;
           return g.logistics
             ? <LogisticsCard group={g} names={names} contentRef={contentRef} selected={selected === id} across={direction === 'right'} />
             : <GroupCard group={g} names={names} contentRef={contentRef} neck={bottleneck.group === id ? (issue ? 'issue' : 'limit') : null} />;
@@ -413,11 +469,18 @@ function LineView({ worldId, line: full, analysis, names, phone, direction, reci
         edgeKey={e => `${e.edge}`}
         edgeLook={edgeLook}
         renderLabel={renderLabel}
-        footer={<Legend line={line} links={graph.links} neck={bottleneck.edgeIndex !== undefined} hidden={hidden} idle={idle} folded={folded} estimated={onlyMachines} names={names} />}
+        footer={(
+          <Legend
+            line={line} links={graph.links} neck={bottleneck.edgeIndex !== undefined} hidden={hidden} idle={idle} folded={folded} estimated={onlyMachines}
+            ends={terminals.length > 0 || ends.receivers.size + ends.sources.size > 0} names={names}
+          />
+        )}
       />
-      {group && (
+      {(group || terminal) && (
         <div ref={panel} id={editorId} className="border-t border-line" onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); close(); } }}>
-          <GroupPanel worldId={worldId} group={group} analysis={analysis} names={names} onClose={close} recipeName={recipeName} lines={lines} />
+          {terminal
+            ? <TerminalPanel worldId={worldId} terminal={terminal} groups={compact.line.groups} names={names} onClose={close} />
+            : group && <GroupPanel worldId={worldId} group={group} analysis={analysis} names={names} onClose={close} recipeName={recipeName} lines={lines} />}
         </div>
       )}
     </div>
@@ -515,6 +578,230 @@ function LogisticsCard({ group: g, names, contentRef, selected, across }: {
   );
 }
 
+/** A storage, station or sink by name: a station by its own name ("Lkw-Station 4"), else the building's. */
+function placeName(p: Pick<TerminalPlace, 'cls' | 'members'>, names: Names): string {
+  const station = p.members.length === 1 ? names.stations.get(p.members[0]!) : undefined;
+  if (station) return station;
+  const name = isClass(p.cls) ? names.labels.building(p.cls, names.fmt.lang) : names.t(`factory.lines.kind.${p.cls}`, { defaultValue: p.cls });
+  return p.members.length > 1 ? `${p.members.length}× ${name}` : name;
+}
+
+/**
+ * Where an output goes or an input comes from, short: "Lagercontainer", "Lagercontainer, AWESOME-Schredder",
+ * "2× Lagercontainer +1", "nicht angeschlossen" for the part no belt or pipe carries away.
+ */
+function placesText(x: LineTerminal, names: Names): string {
+  const list = x.places.map(p => placeName(p, names));
+  if (x.unlinked > 0) list.push(names.t('factory.lines.unlinked'));
+  if (list.length === 0) return names.t('factory.lines.unlinked');
+  return list.length > 2 ? `${list.slice(0, 2).join(', ')} +${list.length - 2}` : list.join(', ');
+}
+
+const rateOf = (r: Pick<LineRate, 'item' | 'perMin' | 'fluid'>, names: Names) => names.fmt.rate(r.perMin, r.fluid ?? names.labels.isFluid(r.item));
+
+/** "Output: Wire, 124.0/min, to Storage Container, AWESOME Sink". */
+function terminalLabel(x: LineTerminal, names: Names): string {
+  const { t, labels, fmt } = names;
+  const key = x.side === 'in' ? 'inputName' : x.places.length === 0 ? 'outputNameUnlinked' : 'outputName';
+  return t(`factory.lines.${key}`, { item: labels.item(x.item, fmt.lang), rate: rateOf(x, names), place: placesText(x, names) });
+}
+
+/** "Output: Storage Container, receives Iron Plate 20.0/min": a storage, station or sink at an end. */
+function endLabel(g: LineGroup, flows: readonly LineRate[], side: 'in' | 'out', names: Names): string {
+  const { t, labels, fmt } = names;
+  const items = flows.length > 0 ? flows.map(r => `${labels.item(r.item, fmt.lang)} ${rateOf(r, names)}`).join(', ') : NONE;
+  return t(side === 'out' ? 'factory.lines.endOut' : 'factory.lines.endIn', { name: placeName(g, names), items });
+}
+
+/** "AUSGANG" / "EINGANG" over an output's or input's node. */
+function SideMark({ side }: { side: 'in' | 'out' }) {
+  const { t } = useTranslation();
+  return (
+    <span className={`font-display text-[11px] leading-4 font-semibold tracking-wider uppercase ${side === 'out' ? 'text-accent' : 'text-muted'}`}>
+      {t(side === 'out' ? 'factory.lines.output' : 'factory.lines.input')}
+    </span>
+  );
+}
+
+/**
+ * An output or input node: "AUSGANG", the item's picture and name, its rate, and where it goes ("→ Lagercontainer",
+ * "→ nicht angeschlossen") or comes from ("← Lkw-Station 4").
+ */
+function TerminalCard({ terminal: x, names, contentRef }: { terminal: LineTerminal; names: Names; contentRef(el: HTMLElement | null): void }) {
+  const { labels, fmt } = names;
+  return (
+    <span ref={contentRef} data-terminal={x.side} className="flex w-full min-w-0 flex-col">
+      <SideMark side={x.side} />
+      <span className="flex min-w-0 items-start gap-2">
+        <Picture cls={x.item} px={24} dashed={x.side === 'in'} />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-sm leading-[18px] font-medium break-words">{labels.item(x.item, fmt.lang)}</span>
+          <span className="text-xs leading-4 tabular-nums">{rateOf(x, names)}</span>
+          <span className="text-xs leading-4 break-words text-muted">{x.side === 'out' ? '→ ' : '← '}{placesText(x, names)}</span>
+        </span>
+      </span>
+    </span>
+  );
+}
+
+/**
+ * A storage, station or sink at an end of the line, drawn with all logistics: framed as an output (or input), its
+ * picture and name, and what it receives (or gives) item by item with the rate.
+ */
+function EndCard({ group: g, side, flows, names, contentRef }: {
+  group: LineGroup; side: 'in' | 'out'; flows: readonly LineRate[]; names: Names; contentRef(el: HTMLElement | null): void;
+}) {
+  const { labels, fmt, t } = names;
+  return (
+    <span ref={contentRef} data-end={side} className="flex w-full min-w-0 flex-col">
+      <SideMark side={side} />
+      <span className="flex min-w-0 items-start gap-2">
+        {isClass(g.cls) ? <Picture cls={labels.buildingPicture(g.cls)} px={24} /> : <Picture cls="" px={24} />}
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-sm leading-[18px] font-medium break-words">{placeName(g, names)}</span>
+          {flows.length === 0 && <span className="text-xs leading-4 text-muted">{t(side === 'out' ? 'factory.lines.receivesNothing' : 'factory.lines.givesNothing')}</span>}
+          {flows.slice(0, END_ITEMS).map(r => (
+            <span key={r.item} className="flex min-w-0 items-center gap-1 text-xs leading-4">
+              <GameIcon cls={r.item} px={14} />
+              <span className="min-w-0 truncate">{labels.item(r.item, fmt.lang)}</span>
+              <span className="ml-auto shrink-0 tabular-nums">{rateOf(r, names)}</span>
+            </span>
+          ))}
+          {flows.length > END_ITEMS && <span className="text-xs leading-4 text-muted">+{flows.length - END_ITEMS}</span>}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+/**
+ * What the line makes, where it goes and what it gets, above the diagram (also in full screen and zoomed in):
+ * "Erzeugt: Draht 124,0/min, Beton 79,9/min · Ziel: 3× Lagercontainer, 2× AWESOME-Schredder · Bezieht: Kabel 4,8/min".
+ */
+function LineSummary({ terminals, names }: { terminals: readonly LineTerminal[]; names: Names }) {
+  const { t, labels, fmt } = names;
+  const outs = terminals.filter(x => x.side === 'out');
+  const ins = terminals.filter(x => x.side === 'in');
+  if (outs.length === 0 && ins.length === 0) return null;
+  const targets = lineTargets(terminals);
+  const items = (list: readonly LineTerminal[]) => (
+    <>
+      {list.slice(0, SUMMARY_ITEMS).map((x, i) => (
+        <span key={x.id} className="inline-flex items-center gap-1 whitespace-nowrap">
+          <GameIcon cls={x.item} px={16} />
+          <span>{labels.item(x.item, fmt.lang)} <span className="tabular-nums">{rateOf(x, names)}</span>{i < Math.min(list.length, SUMMARY_ITEMS) - 1 ? ',' : ''}</span>
+        </span>
+      ))}
+      {list.length > SUMMARY_ITEMS && <span className="text-muted">+{list.length - SUMMARY_ITEMS}</span>}
+    </>
+  );
+  const where = [
+    ...targets.places.map(p => {
+      const name = (p.group && names.stations.get(p.group)) ?? (isClass(p.cls) ? labels.building(p.cls, fmt.lang) : p.cls);
+      return p.count > 1 ? `${p.count}× ${name}` : name;
+    }),
+    ...(targets.unlinked ? [t('factory.lines.unlinked')] : []),
+  ];
+  return (
+    <p data-line-summary className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-3 py-1.5 text-sm">
+      {outs.length > 0 && (
+        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          <span className="text-muted">{t('factory.lines.summary.makes')}</span>
+          {items(outs)}
+        </span>
+      )}
+      {where.length > 0 && (
+        <span className="flex flex-wrap items-center gap-x-1.5">
+          <span aria-hidden="true" className="text-muted">·</span>
+          <span className="text-muted">{t('factory.lines.summary.to')}</span>
+          <span>{where.join(', ')}</span>
+        </span>
+      )}
+      {ins.length > 0 && (
+        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          {outs.length > 0 && <span aria-hidden="true" className="text-muted">·</span>}
+          <span className="text-muted">{t('factory.lines.summary.gets')}</span>
+          {items(ins)}
+        </span>
+      )}
+    </p>
+  );
+}
+
+/**
+ * A selected output or input: the item with its rate, then each storage, station or sink taking or giving it with
+ * its rate and "On the map", and for the part no belt or pipe carries away the machines making it.
+ */
+function TerminalPanel({ worldId, terminal: x, groups, names, onClose }: {
+  worldId: string; terminal: LineTerminal; groups: readonly LineGroup[]; names: Names; onClose(): void;
+}) {
+  const { t, labels, fmt } = names;
+  const item = labels.item(x.item, fmt.lang);
+  const title = t(x.side === 'out' ? 'factory.lines.outputTitle' : 'factory.lines.inputTitle', { item });
+  const makers = x.unlinked > 0 ? groups.filter(g => x.makers.includes(g.id)) : [];
+  const all = [...x.places.flatMap(p => p.members), ...makers.flatMap(g => g.members)];
+  return (
+    <Window
+      as="div"
+      level={3}
+      title={title}
+      icon={<Picture cls={x.item} px={24} dashed={x.side === 'in'} />}
+      subtitle={rateOf(x, names)}
+      onClose={onClose}
+      closeLabel={t('factory.lines.close', { name: title })}
+      className="rounded-none border-0 shadow-none"
+      bodyClassName="flex flex-col gap-2 p-3"
+    >
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <span className="text-muted">{t(x.side === 'out' ? 'factory.lines.terminalOut' : 'factory.lines.terminalIn')}</span>
+        <span className="ml-auto"><ShowOnMap worldId={worldId} ids={all} label={title} /></span>
+      </div>
+      {x.places.length > 0 && (
+        <ul aria-label={t(x.side === 'out' ? 'factory.lines.receivers' : 'factory.lines.suppliers')} className="flex flex-col divide-y divide-line">
+          {x.places.map(p => {
+            const name = placeName(p, names);
+            return (
+              <li key={p.group} className="flex items-center justify-between gap-2 py-1.5">
+                <span className="flex min-w-0 items-center gap-2">
+                  {isClass(p.cls) && <Picture cls={labels.buildingPicture(p.cls)} px={20} />}
+                  <span className="truncate">{name}</span>
+                </span>
+                <span className="ml-auto shrink-0 text-sm tabular-nums">{rateOf({ ...x, perMin: p.perMin }, names)}</span>
+                <ShowOnMap worldId={worldId} ids={p.members} label={name} compact />
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {x.unlinked > 0 && (
+        <div className="flex flex-col gap-1">
+          <p className="text-sm">
+            <span className="font-medium">{t('factory.lines.unlinked')}</span>{' '}
+            <span className="tabular-nums">{rateOf({ ...x, perMin: x.unlinked }, names)}</span>
+            <span className="text-muted"> – {t('factory.lines.unlinkedHint')}</span>
+          </p>
+          {makers.length > 0 && (
+            <ul aria-label={t('factory.lines.unlinkedMakers')} className="flex flex-col divide-y divide-line">
+              {makers.map(g => {
+                const name = groupName(g, names);
+                return (
+                  <li key={g.id} className="flex items-center justify-between gap-2 py-1.5">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <PinnedPicture cls={isClass(g.cls) ? labels.buildingPicture(g.cls) : ''} item={x.item} px={20} pin={12} />
+                      <span className="truncate">{name}</span>
+                    </span>
+                    <ShowOnMap worldId={worldId} ids={g.members} label={name} compact />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+    </Window>
+  );
+}
+
 /**
  * On a phone the line's machine groups top down as a list (the diagram below stays scrollable, with the logistics in
  * between); a row opens its machines.
@@ -561,10 +848,14 @@ function GroupList({ line, names, selected, onSelect, editorId, bottleneck, issu
  * where they occur, by-products and loops where drawn, and every productivity band (so "Fast voll" can be read off a
  * node's strip even when none has it).
  */
-function Legend({ line, links, neck, hidden, idle, folded, estimated, names }: {
-  line: ProductionLine; links: readonly LineLink[]; neck: boolean; hidden: number; idle: number; folded: number; estimated: boolean; names: Names;
+function Legend({ line, links, neck, hidden, idle, folded, estimated, ends, names }: {
+  line: ProductionLine; links: readonly LineLink[]; neck: boolean; hidden: number; idle: number; folded: number; estimated: boolean;
+  /** Output or input nodes are drawn. */
+  ends: boolean;
+  names: Names;
 }) {
   const { t } = names;
+  const unlinked = links.some(l => isUnlinked(line.edges[l.edge]!));
   const full = line.edges.some(e => isSaturated(e) && !e.exact);
   const exact = line.edges.some(e => isSaturated(e) && e.exact);
   const kinds = (['byproduct', 'loop'] as const).filter(k => links.some(l => l.kind === k));
@@ -587,6 +878,13 @@ function Legend({ line, links, neck, hidden, idle, folded, estimated, names }: {
       {full && <li className="flex items-center gap-1.5">{sample({ width: 3.5, className: 'stroke-accent' })}<span className="text-accent"><FullIcon /></span>{t('factory.lines.legend.full')}</li>}
       {exact && <li className="flex items-center gap-1.5">{sample({ width: 3.5, className: 'stroke-fg' })}<ExactIcon />{t('factory.lines.legend.exact')}</li>}
       {neck && <li className="flex items-center gap-1.5">{sample({ width: 4.5, className: 'stroke-conflict' })}<span className="text-conflict"><NeckIcon /></span>{t('factory.lines.legend.neck')}</li>}
+      {ends && (
+        <li className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="inline-block h-3 w-5 shrink-0 border-2 border-accent" />
+          {t('factory.lines.legend.ends')}
+        </li>
+      )}
+      {unlinked && <li className="flex items-center gap-1.5">{sample({ width: 1.25, className: 'stroke-edge', dash: UNLINKED_DASH })}{t('factory.lines.legend.unlinked')}</li>}
       {kinds.map(k => (
         <li key={k} className="flex items-center gap-1.5">
           {sample({ width: 1.5, className: k === 'byproduct' ? 'stroke-free' : 'stroke-muted', dash: DASH[k] })}
@@ -636,8 +934,8 @@ function GroupPanel({ worldId, group: g, analysis, names, onClose, recipeName, l
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
         {!g.logistics && <ProductivityBar value={g.productivity} band={g.band ?? bandOf(g.productivity)} paused={g.state === 'paused'} fmt={fmt} />}
-        {g.outputs.length > 0 && <span><span className="text-muted">{t('factory.lines.makes')}</span> {g.logistics ? rates(g.outputs) : groupRate(g, names)}{!g.logistics && g.outputs.length > 1 && <span className="text-muted"> + {rates(g.outputs.slice(1))}</span>}</span>}
-        {g.inputs.length > 0 && <span><span className="text-muted">{t('factory.lines.needs')}</span> {rates(g.inputs)}</span>}
+        {g.outputs.length > 0 && <span><span className="text-muted">{t(g.logistics ? 'factory.lines.gives' : 'factory.lines.makes')}</span> {g.logistics ? rates(g.outputs) : groupRate(g, names)}{!g.logistics && g.outputs.length > 1 && <span className="text-muted"> + {rates(g.outputs.slice(1))}</span>}</span>}
+        {g.inputs.length > 0 && <span><span className="text-muted">{t(g.logistics ? 'factory.lines.receives' : 'factory.lines.needs')}</span> {rates(g.inputs)}</span>}
         <span className="flex flex-wrap gap-1">{sortedReasons(g).map(r => <ReasonBadge key={r.reason} reason={r.reason} count={r.count} />)}</span>
         <span className="ml-auto"><ShowOnMap worldId={worldId} ids={g.members} label={title} /></span>
       </div>
@@ -655,12 +953,13 @@ function GroupPanel({ worldId, group: g, analysis, names, onClose, recipeName, l
       {others.length > 0 && (
         <ul aria-label={t('factory.lines.members')} className="flex flex-col divide-y divide-line">
           {others.map((id, i) => {
-            const name = isClass(g.cls) ? labels.building(g.cls, fmt.lang) : groupName(g, names);
+            const station = names.stations.get(id);
+            const name = station ?? (isClass(g.cls) ? labels.building(g.cls, fmt.lang) : groupName(g, names));
             return (
               <li key={id} className="flex items-center justify-between gap-2 py-1.5">
                 <span className="flex min-w-0 items-center gap-2">
                   {isClass(g.cls) && <Picture cls={labels.buildingPicture(g.cls)} px={20} />}
-                  <span className="truncate">{others.length > 1 ? `${name} ${i + 1}` : name}</span>
+                  <span className="truncate">{others.length > 1 && !station ? `${name} ${i + 1}` : name}</span>
                 </span>
                 <ShowOnMap worldId={worldId} ids={[id]} label={name} compact />
               </li>
