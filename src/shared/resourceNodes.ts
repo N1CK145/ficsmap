@@ -373,6 +373,16 @@ function countShards(inventory: { properties?: Record<string, Prop> } | undefine
   return n;
 }
 
+/** Whether a save object of this type is a resource node actor (ore/oil/SAM node, geyser, fracking core or satellite). */
+export function isResourceNodeType(typePath: string | undefined): boolean {
+  return !!typePath && NODE_CLASS_SUFFIXES.some(s => typePath.endsWith(s));
+}
+
+/** The instance name of the node an extractor building links to (`mExtractableResource`, `mExtractResourceNode`), or null. */
+export function extractorLink(props: Record<string, Prop>): string | null {
+  return LINK_PROPS.map(k => refPath(props[k])).find(p => p !== null) ?? null;
+}
+
 /** Rounded to a millionth (the save holds float32), within the game's range. */
 function clockValue(v: number): number {
   return Math.round(Math.min(MAX_CLOCK, Math.max(0, v)) * 1e6) / 1e6;
@@ -387,7 +397,7 @@ function extractExtractors(objects: readonly SaveObject[], nodes: ReadonlyMap<st
     const kind = EXTRACTOR_CLASSES.get(lastSegment(o.typePath ?? '', '.'));
     const props = o.properties;
     if (!kind || !props) continue;
-    const link = LINK_PROPS.map(k => refPath(props[k])).find(p => p !== null);
+    const link = extractorLink(props);
     const node = link ? nodes.get(link) : undefined;
     if (node === undefined) continue;
     if (NO_POTENTIAL.has(kind)) {
@@ -430,7 +440,7 @@ export function extractResourceNodes(save: SaveNodesLike): SaveResourceNodes {
         inventories.set(o.instanceName, o);
         continue;
       }
-      const isNode = !!o.typePath && NODE_CLASS_SUFFIXES.some(s => o.typePath!.endsWith(s));
+      const isNode = isResourceNodeType(o.typePath);
       if (isNode) nodes.set(o.instanceName, lastSegment(o.instanceName, '.'));
       const props = o.properties;
       if (!props) continue;

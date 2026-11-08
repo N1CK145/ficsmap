@@ -15,7 +15,8 @@
     "dataset": "tsx scripts/build-dataset.ts",
     "machines": "tsx scripts/machines.ts",
     "recipes": "tsx scripts/recipes.ts",
-    "inspect-save": "tsx scripts/inspect-save.ts"
+    "inspect-save": "tsx scripts/inspect-save.ts",
+    "inspect-factory": "tsx scripts/inspect-factory.ts"
   },
   "dependencies": {
     "@etothepii/satisfactory-file-parser": "4.1.2",

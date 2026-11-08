@@ -1,6 +1,7 @@
 import { Parser, SatisfactorySaveHeader, SaveReader } from '@etothepii/satisfactory-file-parser';
 import { indexDataset, type Dataset, type DatasetIndex } from '../shared/dataset.js';
 import { extractCollected, type ExtractResult, type SaveLike } from '../shared/extract.js';
+import { extractFactory, type FactorySaveLike } from '../shared/factory/extract.js';
 import { extractResourceNodes, type SaveNodesLike } from '../shared/resourceNodes.js';
 
 /**
@@ -22,6 +23,7 @@ type ParseIndex = Pick<DatasetIndex, 'resolve' | 'has'>;
 const PARSE_FROM = 10;
 const PARSE_TO = 90;
 const EXTRACT_AT = 95;
+const FACTORY_AT = 97;
 
 /**
  * The save header if these bytes start with a readable one (a session name and a build), else null.
@@ -38,8 +40,9 @@ export function readSaveHeader(buffer: ArrayBuffer): { sessionName: string; buil
 }
 
 /**
- * Parses a save and extracts its collected items and resource node data. Stages: reading 0 → parsing 10–90 (the parser's
- * own progress over the save body) → extracting 95. Percent never goes down. A file whose header
+ * Parses a save and extracts its collected items, resource node data and factory snapshot. Stages: reading 0 →
+ * parsing 10–90 (the parser's own progress over the save body) → extracting 95 (items, nodes) and 97 (factory).
+ * Percent never goes down. The factory snapshot is optional: if its extraction fails, the rest still comes back. A file whose header
  * cannot be read is `not_a_save`; any later failure (a truncated or damaged save) is `failed`.
  */
 export async function handleParse(
@@ -64,6 +67,12 @@ export async function handleParse(
     report('extracting', EXTRACT_AT);
     const result = extractCollected(save as unknown as SaveLike, index);
     result.resourceNodes = extractResourceNodes(save as unknown as SaveNodesLike);
+    report('extracting', FACTORY_AT);
+    try {
+      result.factory = extractFactory(save as unknown as FactorySaveLike);
+    } catch (err) {
+      console.error('Factory extraction failed', err);
+    }
     return { type: 'done', result };
   } catch (err) {
     console.error('Save parsing failed', err);

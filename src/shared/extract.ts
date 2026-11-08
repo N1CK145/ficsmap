@@ -1,4 +1,5 @@
 import type { DatasetIndex } from './dataset.js';
+import type { FactorySnapshot } from './factory/snapshot.js';
 import type { SaveResourceNodes } from './resourceNodes.js';
 
 type Prop = { value?: unknown; flags?: number };
@@ -17,6 +18,8 @@ export interface ExtractResult {
   meta: SaveMeta; collected: string[]; openedNotLooted: string[]; recognised: number;
   /** Resource node data of the save (extractResourceNodes); set by the save worker. */
   resourceNodes?: SaveResourceNodes;
+  /** The factory snapshot (extractFactory); set by the save worker, missing when its extraction failed. */
+  factory?: FactorySnapshot;
 }
 
 const DROP_POD_SUFFIX = '.BP_DropPod_C';
