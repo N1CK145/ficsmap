@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { bandOf, BANDS, lostOf, REASONS, type AnalysisData, type FactoryAnalysis } from '../../../shared/factory/analysis.js';
 import { mergeHints, type LineGroup, type LineRate, type ProductionLine, type ProductionLines } from '../../../shared/factory/lines.js';
+import { canAdmin } from '../../../shared/roles.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { worldPath } from '../../app/pages.js';
 import { useMediaQuery } from '../../app/useMediaQuery.js';
@@ -180,14 +181,14 @@ export function LinesSection({ ctx, shown, data, labels, fmt }: {
   );
 }
 
-/** A save extracted before connections were read: import it again. The owner gets the import dialog. */
+/** A save extracted before connections were read: import it again. The owner and admins get the import dialog. */
 function NoLinks({ ctx }: { ctx: WorldCtx }) {
   const { t } = useTranslation();
   const show = useImportDialog(s => s.show);
   return (
     <div className="flex flex-col items-start gap-2 p-3 text-sm">
       <p>{t('factory.lines.noLinks')}</p>
-      {ctx.world.isOwner
+      {canAdmin(ctx.world.role)
         ? <Button size="sm" onClick={() => show()}>{t('factory.lines.reimport')}</Button>
         : <p className="text-muted">{t('factory.lines.noLinksMember', { owner: ctx.world.owner.displayName })}</p>}
     </div>

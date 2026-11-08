@@ -16,7 +16,7 @@ import { FakeEventSource } from './fakeEventSource.js';
 const W = '11111111-1111-4111-8111-111111111111';
 const ME: MeDto = { id: 1, displayName: 'Nick', avatarUrl: null, email: null, datasetVersion: 'v1' };
 const WORLD: WorldDto = {
-  id: W, name: 'Alpha', isOwner: true, rev: 10, datasetVersion: 'v1', owner: { id: 1, displayName: 'Nick' }, members: [], lastImport: null,
+  id: W, name: 'Alpha', role: 'owner', rev: 10, datasetVersion: 'v1', owner: { id: 1, displayName: 'Nick' }, members: [], lastImport: null,
 };
 
 function makeCtx(): WorldCtx {

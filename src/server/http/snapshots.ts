@@ -20,18 +20,18 @@ function snapshotId(params: unknown): number {
 
 /**
  * Factory snapshots (one per save and world) for the factory map's timeline:
- * - `POST /api/worlds/:id/snapshots` (owner, like the save import): the snapshot JSON, gzip-compressed, with
+ * - `POST /api/worlds/:id/snapshots` (owner or admin, like the save import): the snapshot JSON, gzip-compressed, with
  *   `Content-Type: application/json` and `Content-Encoding: gzip`; at most 4 MB compressed and 32 MB decompressed.
  *   Answers 201 with its `SnapshotSummary`.
  * - `GET /api/worlds/:id/snapshots` (members): the summaries, newest save first.
  * - `GET /api/worlds/:id/snapshots/:sid` (members): the snapshot, served as stored (gzip) and cached as immutable.
- * - `DELETE /api/worlds/:id/snapshots/:sid` (owner).
+ * - `DELETE /api/worlds/:id/snapshots/:sid` (owner or admin).
  * Changes broadcast `snapshots`.
  */
 export function registerSnapshotRoutes(app: FastifyInstance, deps: AppDeps): void {
   const { db, hub } = deps;
   const now = deps.now ?? Date.now;
-  const { requireMember, requireOwner } = makeWorldGuards(db);
+  const { requireMember, requireAdmin } = makeWorldGuards(db);
 
   // An encapsulated scope: its JSON parser takes the gzip body as raw bytes, the rest of the API keeps the default.
   void app.register(async scope => {
@@ -41,8 +41,8 @@ export function registerSnapshotRoutes(app: FastifyInstance, deps: AppDeps): voi
     });
 
     scope.post('/api/worlds/:id/snapshots', {
-      // Checked before the body is read: only the owner gets the server to decompress and parse an upload.
-      onRequest: requireOwner,
+      // Checked before the body is read: only the owner or an admin gets the server to decompress and parse an upload.
+      onRequest: requireAdmin,
       bodyLimit: MAX_SNAPSHOT_GZIP_BYTES,
       config: {
         rateLimit: {
@@ -72,7 +72,7 @@ export function registerSnapshotRoutes(app: FastifyInstance, deps: AppDeps): voi
       return reply.send(await decodeStored(data));
     });
 
-    scope.delete('/api/worlds/:id/snapshots/:sid', { preHandler: requireOwner }, async (req, reply) => {
+    scope.delete('/api/worlds/:id/snapshots/:sid', { preHandler: requireAdmin }, async (req, reply) => {
       const { rev } = deleteSnapshot(db, req.world!.id, snapshotId(req.params));
       hub!.broadcast(req.world!.id, { type: 'snapshots', rev });
       return reply.code(204).send();

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { FactoryDiff, FactoryTotals } from '../../../shared/factory/analysis.js';
 import type { ProductionLines } from '../../../shared/factory/lines.js';
+import { canAdmin } from '../../../shared/roles.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { worldPath } from '../../app/pages.js';
 import { buttonClass } from '../../components/Button.js';
@@ -196,14 +197,14 @@ function TopBottleneck({ worldId, lines, labels, fmt }: { worldId: string; lines
 
 const pctOf = (n: number, total: number, fmt: FactoryFormat) => (total > 0 ? fmt.pct(n / total) : undefined);
 
-/** No snapshot yet: what the page shows and how to fill it (owner: the import dialog; members: ask the owner). */
+/** No snapshot yet: what the page shows and how to fill it (owner and admins: the import dialog; members: ask the owner). */
 function EmptyState({ ctx }: { ctx: WorldCtx }) {
   const { t } = useTranslation();
   const show = useImportDialog(s => s.show);
   return (
     <Window title={t('factory.empty.title')} className="mx-auto w-full max-w-2xl" bodyClassName="flex flex-col gap-3 p-4">
       <p>{t('factory.empty.text')}</p>
-      {ctx.world.isOwner ? (
+      {canAdmin(ctx.world.role) ? (
         <>
           <p className="text-sm text-muted">{t('factory.empty.owner')}</p>
           <div className="flex flex-wrap gap-2">

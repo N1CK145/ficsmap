@@ -1,5 +1,5 @@
 import { openDb } from '../../src/server/db/db.js';
-import { bumpRev, createWorld, progress, removeMember, roleOf } from '../../src/server/domain/worlds.js';
+import { bumpRev, createWorld, listMembers, progress, removeMember, roleOf, setMemberRole } from '../../src/server/domain/worlds.js';
 import { createUserForTest } from '../api/helpers.js';
 import type { DatasetIndex } from '../../src/shared/dataset.js';
 import { HttpError } from '../../src/server/errors.js';
@@ -34,6 +34,19 @@ describe('worlds domain', () => {
     const u = createUserForTest(db, 'u1');
     const w = createWorld(db, u, 'W', 'v1', 5);
     expect(() => removeMember(db, w.id, u)).toThrow(HttpError);
+    expect(roleOf(db, w.id, u)).toBe('owner');
+  });
+  it('roleOf reads admins; setMemberRole changes members but never the owner', () => {
+    const db = openDb(':memory:');
+    const u = createUserForTest(db, 'u1');
+    const v = createUserForTest(db, 'u2');
+    const w = createWorld(db, u, 'W', 'v1', 5);
+    db.prepare("INSERT INTO world_members(world_id, user_id, joined_at, joined_via) VALUES (?, ?, 10, 'invite')").run(w.id, v);
+    expect(roleOf(db, w.id, v)).toBe('member');
+    setMemberRole(db, w.id, v, 'admin');
+    expect(roleOf(db, w.id, v)).toBe('admin');
+    expect(listMembers(db, w.id).map(m => m.role)).toEqual(['owner', 'admin']);
+    expect(() => setMemberRole(db, w.id, u, 'admin')).toThrow(HttpError);
     expect(roleOf(db, w.id, u)).toBe('owner');
   });
 });

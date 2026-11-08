@@ -71,6 +71,15 @@ export function revokeUploadToken(db: Db, worldId: string, id: number, now: numb
   if (changes === 0) throw new HttpError(404, 'not_found', 'Not found');
 }
 
+/**
+ * Revokes the active tokens a user created in this world: a token uploads with its creator's rights, so it stops
+ * when they lose them (removed, left, or no longer admin). Returns how many were revoked.
+ */
+export function revokeUploadTokensBy(db: Db, worldId: string, userId: number, now: number): number {
+  return db.prepare('UPDATE upload_tokens SET revoked_at = ? WHERE world_id = ? AND created_by = ? AND revoked_at IS NULL')
+    .run(now, worldId, userId).changes;
+}
+
 /** The id in a well-formed token (`fsm_<id>_…`), for rate limiting; undefined otherwise. */
 export function uploadTokenId(token: string): string | undefined {
   return UPLOAD_TOKEN_RE.exec(token)?.[1];

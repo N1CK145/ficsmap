@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Admins per world: the owner can make members admins in the world settings ("Zum Admin machen", with a short confirm that says what admins may do) and take it back ("Admin-Rechte entziehen"). Admins may do what the owner may (import saves and older saves, delete factory snapshots, create, see and revoke upload keys, manage invite links, rename the world, change other members' routes, remove plain members), but not delete the world, change roles or remove other admins or the owner. An admin can give up the rights or leave the world. The member list shows each role as a badge (Besitzer / Admin / Mitglied), the world list too; a role change updates the affected user's view live. API: `PUT /api/worlds/:id/members/:userId/role` (`{role: 'admin' | 'member'}`); the world and member DTOs carry `role`.
+
+### Changed
+
+- The world DTO's `isOwner` is replaced by `role` (`owner`, `admin` or `member`).
+- Upload keys stop working when the user who created them loses admin rights, leaves or is removed from the world.
+
 ## [0.2.0] - 2026-11-08
 
 ### Added

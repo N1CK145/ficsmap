@@ -35,10 +35,10 @@ const Body = z.object({
 export function registerImportRoutes(app: FastifyInstance, deps: AppDeps): void {
   const { db, dataset, hub } = deps;
   const now = deps.now ?? Date.now;
-  const { requireOwner } = makeWorldGuards(db);
+  const { requireAdmin } = makeWorldGuards(db);
 
   app.post('/api/worlds/:id/import', {
-    preHandler: requireOwner,
+    preHandler: requireAdmin,
     bodyLimit: 524_288,
     config: {
       rateLimit: {

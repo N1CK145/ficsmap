@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import type { MeDto, RouteDto, RouteInput, WorldDto } from '../../../shared/api.js';
 import type { DatasetIndex } from '../../../shared/dataset.js';
 import { MAX_ROUTE_STOPS } from '../../../shared/route.js';
+import { canAdmin } from '../../../shared/roles.js';
 import { api } from '../../app/api.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { useUiStore, type InteractionMode } from '../../app/store.js';
@@ -19,10 +20,10 @@ export function useRoutesQuery(worldId: string, enabled = true) {
   return useQuery({ queryKey: queryKeys.routes(worldId), queryFn: () => api<RouteDto[]>('GET', routesPath(worldId)), enabled });
 }
 
-/** The creator or the world owner may change a route; a route not saved yet is the user's own. */
+/** The creator, an admin or the world owner may change a route; a route not saved yet is the user's own. */
 export function canEditRoute(route: RouteDto | undefined, draftId: string | null, me: MeDto, world: WorldDto): boolean {
   if (draftId === null) return true;
-  return world.isOwner || (route?.createdBy ?? null) === me.id;
+  return canAdmin(world.role) || (route?.createdBy ?? null) === me.id;
 }
 
 /** "Route N" for a new route, N = the saved routes + 1. */

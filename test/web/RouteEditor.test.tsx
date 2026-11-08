@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { getI18n } from 'react-i18next';
-import type { MeDto, RouteDto, WorldDto } from '../../src/shared/api.js';
+import type { MeDto, RouteDto, WorldDto, WorldRole } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
 import { optimizeRoute } from '../../src/shared/route.js';
 import type { WorldCtx } from '../../src/web/app/feature.js';
@@ -28,12 +28,12 @@ const W = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
 const ROUTE_ID = '0b8e9a52-1c3d-4e5f-8a6b-7c8d9e0f1a2b';
 const ME: MeDto = { id: 1, displayName: 'Nick', avatarUrl: null, email: null, datasetVersion: 'test' };
 
-function world(isOwner: boolean): WorldDto {
+function world(role: WorldRole): WorldDto {
   return {
-    id: W, name: 'Alpha', isOwner, rev: 1, datasetVersion: 'test', owner: { id: isOwner ? 1 : 3, displayName: 'Owner' },
+    id: W, name: 'Alpha', role, rev: 1, datasetVersion: 'test', owner: { id: role === 'owner' ? 1 : 3, displayName: 'Owner' },
     members: [
-      { userId: 1, displayName: 'Nick', avatarUrl: null, joinedVia: 'invite', joinedAt: 0 },
-      { userId: 2, displayName: 'Anna', avatarUrl: null, joinedVia: 'invite', joinedAt: 0 },
+      { userId: 1, displayName: 'Nick', avatarUrl: null, joinedVia: 'invite', joinedAt: 0, role },
+      { userId: 2, displayName: 'Anna', avatarUrl: null, joinedVia: 'invite', joinedAt: 0, role: 'member' },
     ],
     lastImport: null,
   };
@@ -63,10 +63,10 @@ function marks(entries: [string, number][] = []): MarksCache {
   };
 }
 
-function setup(opts: { isOwner?: boolean; route?: RouteDto; marks?: MarksCache } = {}) {
+function setup(opts: { role?: WorldRole; route?: RouteDto; marks?: MarksCache } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
   const r = opts.route ?? route();
-  const w = world(opts.isOwner ?? false);
+  const w = world(opts.role ?? 'member');
   const index = indexDataset(dataset);
   client.setQueryData(queryKeys.me(), ME);
   client.setQueryData(queryKeys.world(W), w);
@@ -116,7 +116,7 @@ describe('RouteEditor', () => {
   });
 
   it('hides Edit, Save and Delete from a member who did not create the route', () => {
-    const { client, route: r } = setup({ isOwner: false, route: route({ createdBy: 2, createdByName: 'Anna' }) });
+    const { client, route: r } = setup({ role: 'member', route: route({ createdBy: 2, createdByName: 'Anna' }) });
     useRouteDraft.getState().load(r);
     renderEditor(client);
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
@@ -129,6 +129,13 @@ describe('RouteEditor', () => {
     const creator = setup();
     useRouteDraft.getState().load(creator.route);
     renderEditor(creator.client);
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+  });
+
+  it("shows Delete to an admin for another member's route", () => {
+    const { client, route: r } = setup({ role: 'admin', route: route({ createdBy: 2, createdByName: 'Anna' }) });
+    useRouteDraft.getState().load(r);
+    renderEditor(client);
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
   });
 

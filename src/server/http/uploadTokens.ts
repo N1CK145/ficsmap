@@ -14,7 +14,7 @@ const Body = z.object({
 const TOKEN_ID = /^[1-9][0-9]{0,15}$/;
 
 /**
- * Upload tokens of the save watcher (owner only, like the save import):
+ * Upload tokens of the save watcher (owner or admin, like the save import):
  * - `GET /api/worlds/:id/upload-tokens`: the active tokens, without secrets.
  * - `POST /api/worlds/:id/upload-tokens` `{label, anySession}`: 201 `{token, secret}`; the secret is shown this once.
  * - `DELETE /api/worlds/:id/upload-tokens/:tid`: revokes it (204).
@@ -22,15 +22,15 @@ const TOKEN_ID = /^[1-9][0-9]{0,15}$/;
 export function registerUploadTokenRoutes(app: FastifyInstance, deps: AppDeps): void {
   const { db } = deps;
   const now = deps.now ?? Date.now;
-  const { requireOwner } = makeWorldGuards(db);
+  const { requireAdmin } = makeWorldGuards(db);
 
-  app.get('/api/worlds/:id/upload-tokens', { preHandler: requireOwner }, async (req, reply): Promise<UploadTokenDto[]> => {
+  app.get('/api/worlds/:id/upload-tokens', { preHandler: requireAdmin }, async (req, reply): Promise<UploadTokenDto[]> => {
     reply.header('Cache-Control', 'no-store');
     return listUploadTokens(db, req.world!.id);
   });
 
   app.post('/api/worlds/:id/upload-tokens', {
-    preHandler: requireOwner,
+    preHandler: requireAdmin,
     config: { rateLimit: { max: 30, timeWindow: '1 hour' } },
   }, async (req, reply): Promise<CreatedUploadTokenDto> => {
     const body = Body.parse(req.body);
@@ -38,7 +38,7 @@ export function registerUploadTokenRoutes(app: FastifyInstance, deps: AppDeps): 
     return reply.code(201).header('Cache-Control', 'no-store').send(created);
   });
 
-  app.delete('/api/worlds/:id/upload-tokens/:tid', { preHandler: requireOwner }, async (req, reply) => {
+  app.delete('/api/worlds/:id/upload-tokens/:tid', { preHandler: requireAdmin }, async (req, reply) => {
     const tid = (req.params as { tid?: string }).tid ?? '';
     if (!TOKEN_ID.test(tid)) throw new HttpError(404, 'not_found', 'Not found');
     revokeUploadToken(db, req.world!.id, Number(tid), now());

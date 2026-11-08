@@ -39,6 +39,10 @@ export const marksFeature: FeatureModule = {
       void ctx.queryClient.invalidateQueries({ queryKey: queryKeys.world(ctx.worldId) });
       void ctx.queryClient.invalidateQueries({ queryKey: queryKeys.worlds() });
     },
-    members: (_e, ctx) => { void ctx.queryClient.invalidateQueries({ queryKey: queryKeys.world(ctx.worldId) }); },
+    // Joins, removals and role changes: the world (members, and the user's own role) and the world list's role badge.
+    members: (_e, ctx) => {
+      void ctx.queryClient.invalidateQueries({ queryKey: queryKeys.world(ctx.worldId) });
+      void ctx.queryClient.invalidateQueries({ queryKey: queryKeys.worlds() });
+    },
   },
 };

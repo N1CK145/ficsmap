@@ -60,7 +60,7 @@ function byNewest(a: SnapshotSummary, b: SnapshotSummary): number {
 
 /**
  * Uploads a snapshot (gzip-compressed). The server replaces a stored snapshot of the same save; the answer replaces
- * it in the cached list too. Throws ApiClientError (413 when too large, 403 for non-owners, 409 `limit_reached`).
+ * it in the cached list too. Throws ApiClientError (413 when too large, 403 for members, 409 `limit_reached`).
  */
 export async function uploadSnapshot(worldId: string, snapshot: FactorySnapshot, queryClient?: QueryClient): Promise<SnapshotSummary> {
   const body = await gzipJson(snapshot);
@@ -78,7 +78,7 @@ export async function uploadSnapshot(worldId: string, snapshot: FactorySnapshot,
   return summary;
 }
 
-/** Deletes a snapshot (owner). */
+/** Deletes a snapshot (owner and admins). */
 export async function deleteSnapshot(worldId: string, id: number, queryClient?: QueryClient): Promise<void> {
   await api<void>('DELETE', `${snapshotsPath(worldId)}/${id}`);
   if (queryClient) {

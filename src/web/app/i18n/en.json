@@ -50,6 +50,7 @@
     "loadFailed": "Couldn't load your worlds.",
     "role": {
       "owner": "Owner",
+      "admin": "Admin",
       "member": "Member"
     },
     "progressLabel": "Progress of {name}",
@@ -472,7 +473,7 @@
     "dropped": "{count, plural, one {# stop is no longer on the map and was removed} other {# stops are no longer on the map and were removed}}",
     "saved": "Route saved",
     "deleted": "Route deleted",
-    "forbidden": "Only the creator or the owner can change this route",
+    "forbidden": "Only the creator, an admin or the owner can change this route",
     "saveFailed": "Couldn't save the route. Please try again.",
     "deleteFailed": "Couldn't delete the route. Please try again.",
     "deleteTitle": "Delete the route “{name}”?",
@@ -495,7 +496,6 @@
     },
     "members": {
       "title": "Members",
-      "owner": "Owner",
       "joinedVia": "joined via invite · {date}",
       "remove": "Remove",
       "removeNamed": "Remove {name}",
@@ -505,7 +505,19 @@
       "leaveConfirm": "Leave {world}? You'll need a new invite to come back.",
       "leaveAction": "Leave",
       "left": "You left {world}",
-      "failed": "Couldn't update the members. Please try again."
+      "failed": "Couldn't update the members. Please try again.",
+      "grant": "Make admin",
+      "grantNamed": "Make {name} an admin",
+      "grantConfirm": "Make {name} an admin? Admins can import saves, invite people, manage upload keys, rename the world and remove members, but not delete the world.",
+      "granted": "{name} is now an admin",
+      "revoke": "Remove admin rights",
+      "revokeNamed": "Remove admin rights from {name}",
+      "revokeConfirm": "Remove admin rights from {name}? {name} stays a member. Upload keys {name} created are revoked.",
+      "revoked": "{name} is no longer an admin",
+      "stepDown": "Give up admin rights",
+      "stepDownConfirm": "Give up your admin rights? Only the owner can give them back. Upload keys you created are revoked.",
+      "steppedDown": "You are no longer an admin",
+      "roleFailed": "The role couldn't be changed. Please try again."
     },
     "invite": {
       "title": "Invite",
@@ -1435,7 +1447,7 @@
     "empty": {
       "title": "No factory data yet",
       "owner": "Import a save to see what is built in this world. Older saves of the same world fill the timeline.",
-      "member": "The factory shows once the owner of this world imports a save.",
+      "member": "The factory shows once the owner or an admin of this world imports a save.",
       "import": "Import save",
       "older": "Add older saves"
     },
@@ -1480,7 +1492,7 @@
       "missingShort": "Connections missing",
       "missing": "Connections are missing in this save – import it again.",
       "missingOwner": "It was imported before ficsmap read the conveyor belts and pipelines between the machines. Import it once more and the map shows its production lines.",
-      "missingMember": "It was imported before ficsmap read the conveyor belts and pipelines between the machines. The owner of this world can import it again.",
+      "missingMember": "It was imported before ficsmap read the conveyor belts and pipelines between the machines. The owner or an admin of this world can import it again.",
       "machinesCount": "{count, plural, one {# machine} other {# machines}}",
       "showAll": "Show all {count}",
       "productivity": "Mean productivity",

@@ -13,6 +13,7 @@ import { langOf, stationName, vehicleName } from './names.js';
 import { BandSwatch, KIND_BG } from './ProdParts.js';
 import type { Scene } from './scene.js';
 import { BANDS, REASONS, type Band, type Reason } from '../../../../shared/factory/analysis.js';
+import { canAdmin } from '../../../../shared/roles.js';
 import { stateKey } from '../parts.js';
 import { bandLook, MAP_KINDS, type MapKind } from './style.js';
 import { EmptyFactory } from './Timeline.js';
@@ -61,7 +62,9 @@ function reasonOrder(legend: Legend): Reason[] {
 export function FactoryPanel({ worldId }: { worldId: string }) {
   const { t } = useTranslation();
   const version = useMe().data?.datasetVersion;
-  const owner = useWorld(worldId).data?.isOwner ?? false;
+  const world = useWorld(worldId).data;
+  // Owner or admin: may import (the empty state and missing lines offer the import dialog).
+  const owner = world ? canAdmin(world.role) : false;
   const visible = useFactoryMap(s => s.visible);
   const toggle = useFactoryMap(s => s.toggle);
   // The list is small and always loaded (for the empty state); snapshots only while the layers are on.

@@ -9,7 +9,7 @@ export { ImportDialog, ImportDialogHost, useImportDialog } from './ImportDialog.
 // The create dialog's "From save file" tab runs this feature's parse flow.
 setCreateFromSaveContent(CreateFromSave);
 
-/** Save import (spec §7): header [Import] for owners, the import dialog and banner, and "From save file". */
+/** Save import (spec §7): header [Import] for the owner and admins, the import dialog and banner, and "From save file". */
 export const importFeature: FeatureModule = {
   id: 'import',
   headerItems: [{ id: 'import', order: 30, mapOnly: true, Component: ImportButton }],

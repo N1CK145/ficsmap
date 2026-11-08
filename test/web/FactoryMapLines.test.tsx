@@ -33,7 +33,7 @@ vi.mock('../../src/shared/factory/lines.js', async orig => ({
 const W = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
 const ME: MeDto = { id: 1, displayName: 'Nick', avatarUrl: null, email: null, datasetVersion: 'test' };
 const WORLD: WorldDto = {
-  id: W, name: 'Alpha', isOwner: true, rev: 1, datasetVersion: 'test', owner: { id: 1, displayName: 'Nick' }, members: [], lastImport: null,
+  id: W, name: 'Alpha', role: 'owner', rev: 1, datasetVersion: 'test', owner: { id: 1, displayName: 'Nick' }, members: [], lastImport: null,
 };
 const DS: Dataset = {
   version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 256_000, maxY: 256_000 }, mapId: 'm', podRequirementsKnown: true,
@@ -326,10 +326,10 @@ describe('production lines: panel list', () => {
 
   it('does not offer the import to members', async () => {
     useFactoryMap.setState({ visible: true });
-    const { wrap } = setup({ list: [makeSummary(1, NO_LINKS.meta.saveTime, 'Alpha')], world: { ...WORLD, isOwner: false } });
+    const { wrap } = setup({ list: [makeSummary(1, NO_LINKS.meta.saveTime, 'Alpha')], world: { ...WORLD, role: 'member' } });
     wrap(<FactoryPanel worldId={W} />);
     const missing = await screen.findByTestId('factory-lines-missing');
-    expect(missing).toHaveTextContent('The owner of this world can import it again.');
+    expect(missing).toHaveTextContent('The owner or an admin of this world can import it again.');
     expect(within(missing).queryByRole('button')).toBeNull();
   });
 

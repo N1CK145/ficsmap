@@ -26,7 +26,7 @@ import { MOBILE, stubMatchMedia } from './matchMedia.js';
 const W = '11111111-1111-4111-8111-111111111111';
 const ME: MeDto = { id: 1, displayName: 'Nick', avatarUrl: null, email: 'nick@example.com', datasetVersion: 'v1' };
 const WORLD: WorldDto = {
-  id: W, name: 'Alpha', isOwner: false, rev: 3, datasetVersion: 'v1', owner: { id: 2, displayName: 'Anna' }, members: [], lastImport: null,
+  id: W, name: 'Alpha', role: 'member', rev: 3, datasetVersion: 'v1', owner: { id: 2, displayName: 'Anna' }, members: [], lastImport: null,
 };
 const DATASET: Dataset = {
   version: 'v1', build: 1, bounds: { minX: 0, minY: 0, maxX: 100_000, maxY: 100_000 }, mapId: 'm', podRequirementsKnown: false,

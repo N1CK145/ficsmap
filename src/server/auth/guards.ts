@@ -3,13 +3,14 @@ import type { Db } from '../db/db.js';
 import type { UserRow } from '../domain/users.js';
 import { HttpError } from '../errors.js';
 import { getWorld, roleOf, type WorldRow } from '../domain/worlds.js';
+import { canAdmin, type WorldRole } from '../../shared/roles.js';
 import { sessionUser } from './session.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
     user?: UserRow;
     world?: WorldRow;
-    role?: 'owner' | 'member';
+    role?: WorldRole;
   }
 }
 
@@ -28,8 +29,17 @@ export const requireUser: preHandlerHookHandler = async req => {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Needs the db, so it is built per app. Non-members and unknown worlds both get 404. */
-export function makeWorldGuards(db: Db): { requireMember: preHandlerHookHandler; requireOwner: preHandlerHookHandler } {
+export interface WorldGuards {
+  /** Any member of the world. */
+  requireMember: preHandlerHookHandler;
+  /** The owner or an admin (src/shared/roles.ts). */
+  requireAdmin: preHandlerHookHandler;
+  /** The owner only: deleting the world. */
+  requireOwner: preHandlerHookHandler;
+}
+
+/** Needs the db, so it is built per app. Non-members and unknown worlds both get 404; members without the role 403. */
+export function makeWorldGuards(db: Db): WorldGuards {
   /** Loads the world into req.world/req.role, or throws 401/404. */
   const loadMembership = (req: FastifyRequest): void => {
     if (!req.user) throw new HttpError(401, 'unauthorized', 'Login required');
@@ -42,9 +52,13 @@ export function makeWorldGuards(db: Db): { requireMember: preHandlerHookHandler;
     req.role = role;
   };
   const requireMember: preHandlerHookHandler = async req => loadMembership(req);
+  const requireAdmin: preHandlerHookHandler = async req => {
+    loadMembership(req);
+    if (!canAdmin(req.role!)) throw new HttpError(403, 'forbidden', 'Owner or admin only');
+  };
   const requireOwner: preHandlerHookHandler = async req => {
     loadMembership(req);
     if (req.role !== 'owner') throw new HttpError(403, 'forbidden', 'Owner only');
   };
-  return { requireMember, requireOwner };
+  return { requireMember, requireAdmin, requireOwner };
 }

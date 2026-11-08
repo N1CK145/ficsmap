@@ -344,7 +344,7 @@ function GeneratorPart({ ctx, secret }: { ctx: WorldCtx; secret: string | undefi
 }
 
 /**
- * World settings → "Automatic upload" (owner): upload tokens for the save watcher and its script generator. A script
+ * World settings → "Automatic upload" (owner and admins): upload tokens for the save watcher and its script generator. A script
  * on the player's PC or server watches the save folder and uploads every new save; the server parses it like an
  * import (`POST /api/worlds/:id/saves`).
  */
