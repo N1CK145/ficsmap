@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ImportResultDto, MeDto, WorldDto } from '../../src/shared/api.js';
+import type { ImportResultDto, MeDto, WorldDto, WorldRole } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
 import type { ExtractResult } from '../../src/shared/extract.js';
 import type { WorldCtx } from '../../src/web/app/feature.js';
@@ -18,7 +18,7 @@ import { stubFetch } from './fetchStub.js';
 const W = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
 const ME: MeDto = { id: 1, displayName: 'Nick', avatarUrl: null, email: null, datasetVersion: 'test' };
 const WORLD: WorldDto = {
-  id: W, name: 'Alpha', isOwner: true, rev: 1, datasetVersion: 'test', owner: { id: 1, displayName: 'Nick' }, members: [], lastImport: null,
+  id: W, name: 'Alpha', role: 'owner', rev: 1, datasetVersion: 'test', owner: { id: 1, displayName: 'Nick' }, members: [], lastImport: null,
 };
 const DATASET: Dataset = {
   version: 'test', build: 500, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true, biomes: [],
@@ -207,14 +207,16 @@ describe('ImportDialog', () => {
     expect(screen.getByText('Large saves parse faster on desktop.')).toBeInTheDocument();
   });
 
-  it('[Import] in the header is for owners only', () => {
+  it('[Import] in the header is for the owner and admins only', () => {
     const client = new QueryClient();
-    const ctx = (isOwner: boolean): WorldCtx => ({
-      worldId: W, world: { ...WORLD, isOwner }, me: ME, index: indexDataset(DATASET), queryClient: client, navigate: () => {}, toast: { show: () => {} },
+    const ctx = (role: WorldRole): WorldCtx => ({
+      worldId: W, world: { ...WORLD, role }, me: ME, index: indexDataset(DATASET), queryClient: client, navigate: () => {}, toast: { show: () => {} },
     });
-    const { rerender } = render(<QueryClientProvider client={client}><ToastProvider><ImportButton ctx={ctx(false)} /></ToastProvider></QueryClientProvider>);
+    const { rerender } = render(<QueryClientProvider client={client}><ToastProvider><ImportButton ctx={ctx('member')} /></ToastProvider></QueryClientProvider>);
     expect(screen.queryByRole('button', { name: 'Import' })).not.toBeInTheDocument();
-    rerender(<QueryClientProvider client={client}><ToastProvider><ImportButton ctx={ctx(true)} /></ToastProvider></QueryClientProvider>);
+    rerender(<QueryClientProvider client={client}><ToastProvider><ImportButton ctx={ctx('owner')} /></ToastProvider></QueryClientProvider>);
+    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
+    rerender(<QueryClientProvider client={client}><ToastProvider><ImportButton ctx={ctx('admin')} /></ToastProvider></QueryClientProvider>);
     expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
   });
 

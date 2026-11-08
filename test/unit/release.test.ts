@@ -20,6 +20,12 @@ describe('changelogSection', () => {
     expect(changelogSection(CHANGELOG, '0.1.0')).toBe('First public release.');
   });
 
+  it('skips an Unreleased section above the versions', () => {
+    const withUnreleased = CHANGELOG.replace('## [0.2.0]', '## [Unreleased]\n\n### Added\n- Admins.\n\n## [0.2.0]');
+    expect(changelogSection(withUnreleased, '0.2.0')).toBe('### Added\n- Route export.');
+    expect(checkRelease({ version: '0.2.0', latestTag: 'v0.1.0', changelog: withUnreleased })).toEqual([]);
+  });
+
   it('is null for a missing or empty section', () => {
     expect(changelogSection(CHANGELOG, '0.3.0')).toBeNull();
     expect(changelogSection('## [0.4.0] - 2026-12-01\n\n## [0.3.0]\nx', '0.4.0')).toBeNull();

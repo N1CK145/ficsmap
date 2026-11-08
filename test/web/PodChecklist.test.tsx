@@ -16,8 +16,8 @@ const W = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
 const ROUTE_ID = '0b8e9a52-1c3d-4e5f-8a6b-7c8d9e0f1a2b';
 const ME: MeDto = { id: 1, displayName: 'Nick', avatarUrl: null, email: null, datasetVersion: 'test' };
 const WORLD: WorldDto = {
-  id: W, name: 'Alpha', isOwner: true, rev: 1, datasetVersion: 'test', owner: { id: 1, displayName: 'Nick' },
-  members: [{ userId: 1, displayName: 'Nick', avatarUrl: null, joinedVia: 'invite', joinedAt: 0 }], lastImport: null,
+  id: W, name: 'Alpha', role: 'owner', rev: 1, datasetVersion: 'test', owner: { id: 1, displayName: 'Nick' },
+  members: [{ userId: 1, displayName: 'Nick', avatarUrl: null, joinedVia: 'invite', joinedAt: 0, role: 'member' }], lastImport: null,
 };
 
 const req = (item: string, amount: number, power = 0) => ({ pod: { item: { en: item, de: item }, amount, power } });

@@ -6,6 +6,7 @@ import type { ImportRequest, ImportResultDto } from '../../../shared/api.js';
 import type { DatasetIndex } from '../../../shared/dataset.js';
 import type { ExtractResult } from '../../../shared/extract.js';
 import { isRandomized } from '../../../shared/resourceNodes.js';
+import { canAdmin } from '../../../shared/roles.js';
 import { api, ApiClientError } from '../../app/api.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { queryKeys } from '../../app/queryKeys.js';
@@ -61,11 +62,11 @@ export function importRequest(fileName: string, r: ExtractResult): ImportRequest
   };
 }
 
-/** Header [Import] (owner only): opens the dialog the world layout hosts (ImportDialogHost). */
+/** Header [Import] (owner and admins): opens the dialog the world layout hosts (ImportDialogHost). */
 export function ImportButton({ ctx }: { ctx: WorldCtx }) {
   const { t } = useTranslation();
   const show = useImportDialog(s => s.show);
-  if (!ctx.world.isOwner) return null;
+  if (!canAdmin(ctx.world.role)) return null;
   // Below 1280 px only the icon shows (the bar keeps room for the world name); the word stays the button's name.
   return (
     <Button size="sm" title={t('import.button')} onClick={() => show()}>
@@ -75,12 +76,12 @@ export function ImportButton({ ctx }: { ctx: WorldCtx }) {
   );
 }
 
-/** The import dialog bound to `useImportDialog`; owner only. Mounted once by the world layout. */
+/** The import dialog bound to `useImportDialog`; owner and admins only. Mounted once by the world layout. */
 export function ImportDialogHost({ ctx }: { ctx: WorldCtx }) {
   const open = useImportDialog(s => s.open);
   const mode = useImportDialog(s => s.mode);
   const hide = useImportDialog(s => s.hide);
-  if (!ctx.world.isOwner) return null;
+  if (!canAdmin(ctx.world.role)) return null;
   return <ImportDialog ctx={ctx} open={open} mode={mode} onClose={hide} />;
 }
 

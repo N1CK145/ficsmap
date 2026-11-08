@@ -43,11 +43,14 @@ describe('WorldListPage', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('renders the worlds with name, progress and role chip', async () => {
-    stubFetch({ 'GET /api/me': { body: ME }, 'GET /api/worlds': { body: [ALPHA, BETA] } });
+    const GAMMA: WorldSummaryDto = { ...BETA, id: '44444444-4444-4444-8444-444444444444', name: 'Gamma', role: 'admin' };
+    stubFetch({ 'GET /api/me': { body: ME }, 'GET /api/worlds': { body: [ALPHA, BETA, GAMMA] } });
     renderAt('/');
     const alpha = (await screen.findByRole('link', { name: 'Alpha' })).closest('li')!;
     const beta = screen.getByRole('link', { name: 'Beta' }).closest('li')!;
+    const gamma = screen.getByRole('link', { name: 'Gamma' }).closest('li')!;
     expect(within(alpha).getByText('Owner')).toBeInTheDocument();
+    expect(within(gamma).getByText('Admin')).toBeInTheDocument();
     expect(within(beta).getByText('Member')).toBeInTheDocument();
     expect(within(alpha).getByText('42 / 1,764')).toBeInTheDocument();
     expect(within(alpha).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '42');

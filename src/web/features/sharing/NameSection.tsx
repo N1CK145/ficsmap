@@ -10,7 +10,7 @@ import { SettingsBlock } from './SettingsPage.js';
 
 const MAX_NAME = 80;
 
-/** Rename the world (owner): 1-80 characters after trimming. */
+/** Rename the world (owner and admins): 1-80 characters after trimming. */
 export function NameSection({ ctx }: { ctx: WorldCtx }) {
   const { t } = useTranslation();
   const { worldId, world, queryClient, toast } = ctx;

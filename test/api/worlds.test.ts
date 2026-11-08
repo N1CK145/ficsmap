@@ -16,7 +16,7 @@ describe('worlds api', () => {
   it('create returns 201 WorldDto; list shows owner role and 0/N progress', async () => {
     const { app, owner, world, create, deps } = await setup();
     expect(create.statusCode).toBe(201);
-    expect(world).toMatchObject({ name: 'My World', isOwner: true, rev: 0, datasetVersion: deps.dataset.ds.version, lastImport: null });
+    expect(world).toMatchObject({ name: 'My World', role: 'owner', rev: 0, datasetVersion: deps.dataset.ds.version, lastImport: null });
     expect(world.members).toHaveLength(1);
     const list = (await app.inject({ url: '/api/worlds', headers: { cookie: owner } })).json();
     expect(list).toEqual([{ id: world.id, name: 'My World', role: 'owner', memberCount: 1, progress: { done: 0, total: deps.dataset.items.length }, lastImportAt: null }]);
@@ -42,7 +42,7 @@ describe('worlds api', () => {
     addMember(deps.db, world.id, otherId);
     const get = await app.inject({ url: `/api/worlds/${world.id}`, headers: { cookie: other } });
     expect(get.statusCode).toBe(200);
-    expect(get.json().isOwner).toBe(false);
+    expect(get.json().role).toBe('member');
     expect(get.json().members).toHaveLength(2);
     const patch = await app.inject({ method: 'PATCH', url: `/api/worlds/${world.id}`, headers: { ...json, cookie: other }, payload: { name: 'x' } });
     expect(patch.statusCode).toBe(403);

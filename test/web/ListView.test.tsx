@@ -25,8 +25,8 @@ const dataset: Dataset = {
   aliases: {},
 };
 const WORLD: WorldDto = {
-  id: W, name: 'Alpha', isOwner: true, rev: 1, datasetVersion: 'v1', owner: { id: 1, displayName: 'Nick' },
-  members: [{ userId: 2, displayName: 'Anna', avatarUrl: null, joinedVia: 'invite', joinedAt: 0 }], lastImport: null,
+  id: W, name: 'Alpha', role: 'owner', rev: 1, datasetVersion: 'v1', owner: { id: 1, displayName: 'Nick' },
+  members: [{ userId: 2, displayName: 'Anna', avatarUrl: null, joinedVia: 'invite', joinedAt: 0, role: 'member' }], lastImport: null,
 };
 
 function marks(entries: Record<string, { mismatch?: boolean; by?: number }>): MarksCache {

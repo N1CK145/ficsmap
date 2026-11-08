@@ -92,6 +92,11 @@ CREATE TABLE upload_tokens(id INTEGER PRIMARY KEY AUTOINCREMENT,
       created_at INT NOT NULL, last_used_at INT, revoked_at INT);
 CREATE INDEX upload_tokens_world ON upload_tokens(world_id);
 `,
+  // 6: a member's role in the world (src/shared/roles.ts): 'admin' may do what the owner may, except deleting the
+  // world, changing roles and removing admins. The owner stays `worlds.owner_id`; their own row keeps 'member'.
+  `
+ALTER TABLE world_members ADD COLUMN role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('member','admin'));
+`,
 ];
 
 export function migrate(db: Db): void {

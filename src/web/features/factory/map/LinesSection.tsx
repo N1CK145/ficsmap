@@ -23,7 +23,7 @@ export const LINES_SHOWN = 10;
  * the bigger ones; each row the products' pictures, the name, machines and the mean productivity as a bar. Pointing at
  * or focusing a row lights the line up on the map; a click (Enter) chooses it, opens its card and fits the map to it.
  * The keyboard way to the lines. Without `links` in the snapshot (imported before connections were read) it says so,
- * with the import button for the owner.
+ * with the import button for the owner and admins.
  */
 export function LinesSection({ data, owner, version }: { data: MapData; owner: boolean; version: string }) {
   const { t } = useTranslation();

@@ -3,6 +3,7 @@ import type { FC, ReactNode } from 'react';
 import type { RouteObject } from 'react-router';
 import type { MeDto, WorldDto } from '../../shared/api.js';
 import type { DatasetIndex, Item } from '../../shared/dataset.js';
+import type { WorldRole } from '../../shared/roles.js';
 import type { SseEvent } from '../../shared/sse.js';
 import type { ToastApi } from '../components/Toast.js';
 import type { InteractionMode } from './store.js';
@@ -141,7 +142,8 @@ export interface WorldPage {
   titleKey: string;
   Component: FC<{ ctx: WorldCtx }>;
 }
-export interface SettingsSection { id: string; order: number; ownerOnly: boolean; Component: FC<{ ctx: WorldCtx }> }
+/** A block of the world settings page, shown to users whose role is `minRole` or above (src/shared/roles.ts). */
+export interface SettingsSection { id: string; order: number; minRole: WorldRole; Component: FC<{ ctx: WorldCtx }> }
 export type SseHandlerMap = { [K in SseEvent['type']]: (e: Extract<SseEvent, { type: K }>, ctx: WorldCtx) => void };
 
 export interface FeatureModule {

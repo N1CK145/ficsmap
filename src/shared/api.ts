@@ -1,4 +1,7 @@
 import type { NodeExtractor, NodeSettings, ResourceNodeOverride, SaveResourceNodes } from './resourceNodes.js';
+import type { MemberRole, WorldRole } from './roles.js';
+
+export type { MemberRole, WorldRole } from './roles.js';
 
 export type ApiErrorCode =
   | 'unauthorized'
@@ -36,12 +39,18 @@ export interface MemberDto {
   avatarUrl: string | null;
   joinedVia: string;
   joinedAt: number;
+  role: WorldRole;
+}
+
+/** `PUT /api/worlds/:id/members/:userId/role`: owner only; an admin may also set themselves back to `member`. */
+export interface MemberRoleInput {
+  role: MemberRole;
 }
 
 export interface WorldSummaryDto {
   id: string;
   name: string;
-  role: 'owner' | 'member';
+  role: WorldRole;
   memberCount: number;
   progress: { done: number; total: number };
   lastImportAt: number | null;
@@ -50,7 +59,8 @@ export interface WorldSummaryDto {
 export interface WorldDto {
   id: string;
   name: string;
-  isOwner: boolean;
+  /** The requesting user's role in this world. */
+  role: WorldRole;
   rev: number;
   datasetVersion: string;
   owner: { id: number; displayName: string };

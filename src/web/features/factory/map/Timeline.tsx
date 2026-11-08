@@ -1,5 +1,6 @@
 import { useId, useMemo, useRef, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { canAdmin } from '../../../../shared/roles.js';
 import type { WorldCtx } from '../../../app/feature.js';
 import { useIsMobile } from '../../../app/useMediaQuery.js';
 import { Button } from '../../../components/Button.js';
@@ -48,7 +49,7 @@ function MapTimeline({ ctx }: { ctx: WorldCtx }) {
       className="ficsmap-factory-timeline pointer-events-auto absolute bottom-3 left-1/2 z-[900] w-[min(760px,calc(100%-1.5rem))] -translate-x-1/2 max-[899px]:bottom-[136px]"
       data-testid="factory-timeline"
     >
-      {data.sel.ordered.length === 0 ? <EmptyFactory owner={ctx.world.isOwner} /> : <TimelineBar data={data} />}
+      {data.sel.ordered.length === 0 ? <EmptyFactory owner={canAdmin(ctx.world.role)} /> : <TimelineBar data={data} />}
     </div>
   );
 }

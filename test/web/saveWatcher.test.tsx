@@ -129,7 +129,7 @@ describe('save watcher script generator', () => {
 });
 
 const world: WorldDto = {
-  id: W, name: 'Alpha', isOwner: true, rev: 1, datasetVersion: 'v1', owner: { id: 1, displayName: 'Nick' }, members: [],
+  id: W, name: 'Alpha', role: 'owner', rev: 1, datasetVersion: 'v1', owner: { id: 1, displayName: 'Nick' }, members: [],
   lastImport: { at: 0, sessionName: 'Letz Fetz', fileName: 'x.sav' },
 };
 

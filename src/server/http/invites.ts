@@ -9,15 +9,15 @@ import { renderInvitePage, type InvitePage } from './invitePage.js';
 export function registerInviteRoutes(app: FastifyInstance, deps: AppDeps): void {
   const { db, config } = deps;
   const now = deps.now ?? Date.now;
-  const { requireOwner } = makeWorldGuards(db);
+  const { requireAdmin } = makeWorldGuards(db);
 
-  app.get('/api/worlds/:id/invite-link', { preHandler: requireOwner }, async (req, reply) => {
+  app.get('/api/worlds/:id/invite-link', { preHandler: requireAdmin }, async (req, reply) => {
     const { token, expiresAt } = await deps.invites!.sign(req.world!.id, req.world!.invite_epoch);
     reply.header('Cache-Control', 'no-store');
     return { url: `${config.publicUrl.replace(/\/$/, '')}/invite/${token}`, expiresAt };
   });
 
-  app.post('/api/worlds/:id/invite-links/revoke', { preHandler: requireOwner }, async req => {
+  app.post('/api/worlds/:id/invite-links/revoke', { preHandler: requireAdmin }, async req => {
     revokeInvites(db, req.world!.id);
     return { ok: true };
   });

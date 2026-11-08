@@ -50,6 +50,7 @@
     "loadFailed": "Deine Welten konnten nicht geladen werden.",
     "role": {
       "owner": "Besitzer",
+      "admin": "Admin",
       "member": "Mitglied"
     },
     "progressLabel": "Fortschritt von {name}",
@@ -472,7 +473,7 @@
     "dropped": "{count, plural, one {# Stopp ist nicht mehr auf der Karte und wurde entfernt} other {# Stopps sind nicht mehr auf der Karte und wurden entfernt}}",
     "saved": "Route gespeichert",
     "deleted": "Route gelöscht",
-    "forbidden": "Nur wer die Route erstellt hat oder die Welt besitzt, kann sie ändern",
+    "forbidden": "Nur wer die Route erstellt hat, ein Admin oder der Besitzer der Welt kann sie ändern",
     "saveFailed": "Die Route konnte nicht gespeichert werden. Bitte versuche es noch einmal.",
     "deleteFailed": "Die Route konnte nicht gelöscht werden. Bitte versuche es noch einmal.",
     "deleteTitle": "Die Route „{name}“ löschen?",
@@ -495,7 +496,6 @@
     },
     "members": {
       "title": "Mitglieder",
-      "owner": "Besitzer",
       "joinedVia": "per Einladung beigetreten · {date}",
       "remove": "Entfernen",
       "removeNamed": "{name} entfernen",
@@ -505,7 +505,19 @@
       "leaveConfirm": "{world} verlassen? Für eine Rückkehr brauchst du eine neue Einladung.",
       "leaveAction": "Verlassen",
       "left": "Du hast {world} verlassen",
-      "failed": "Die Mitglieder konnten nicht geändert werden. Bitte versuche es erneut."
+      "failed": "Die Mitglieder konnten nicht geändert werden. Bitte versuche es erneut.",
+      "grant": "Zum Admin machen",
+      "grantNamed": "{name} zum Admin machen",
+      "grantConfirm": "{name} zum Admin machen? Admins dürfen Spielstände importieren, einladen, Upload-Schlüssel verwalten, die Welt umbenennen und Mitglieder entfernen, aber die Welt nicht löschen.",
+      "granted": "{name} ist jetzt Admin",
+      "revoke": "Admin-Rechte entziehen",
+      "revokeNamed": "{name} die Admin-Rechte entziehen",
+      "revokeConfirm": "{name} die Admin-Rechte entziehen? {name} bleibt Mitglied. Upload-Schlüssel, die {name} erstellt hat, werden widerrufen.",
+      "revoked": "{name} ist kein Admin mehr",
+      "stepDown": "Admin-Rechte abgeben",
+      "stepDownConfirm": "Deine Admin-Rechte abgeben? Nur der Besitzer kann sie dir zurückgeben. Upload-Schlüssel, die du erstellt hast, werden widerrufen.",
+      "steppedDown": "Du bist kein Admin mehr",
+      "roleFailed": "Die Rolle konnte nicht geändert werden. Bitte versuche es erneut."
     },
     "invite": {
       "title": "Einladen",
@@ -1435,7 +1447,7 @@
     "empty": {
       "title": "Noch keine Fabrikdaten",
       "owner": "Importiere einen Spielstand, um zu sehen, was in dieser Welt gebaut ist. Ältere Spielstände derselben Welt füllen den Zeitstrahl.",
-      "member": "Die Fabrik erscheint, sobald der Besitzer dieser Welt einen Spielstand importiert.",
+      "member": "Die Fabrik erscheint, sobald der Besitzer oder ein Admin dieser Welt einen Spielstand importiert.",
       "import": "Spielstand importieren",
       "older": "Ältere Spielstände hinzufügen"
     },
@@ -1480,7 +1492,7 @@
       "missingShort": "Verbindungen fehlen",
       "missing": "Verbindungen fehlen in diesem Spielstand – erneut importieren.",
       "missingOwner": "Er wurde importiert, bevor ficsmap die Förderbänder und Pipelines zwischen den Maschinen las. Importiere ihn noch einmal, dann zeigt die Karte seine Produktionsstränge.",
-      "missingMember": "Er wurde importiert, bevor ficsmap die Förderbänder und Pipelines zwischen den Maschinen las. Der Besitzer dieser Welt kann ihn noch einmal importieren.",
+      "missingMember": "Er wurde importiert, bevor ficsmap die Förderbänder und Pipelines zwischen den Maschinen las. Der Besitzer oder ein Admin dieser Welt kann ihn noch einmal importieren.",
       "machinesCount": "{count, plural, one {# Maschine} other {# Maschinen}}",
       "showAll": "Alle {count} zeigen",
       "productivity": "Ø Produktivität",

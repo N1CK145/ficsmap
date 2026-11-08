@@ -3,6 +3,7 @@ import type { AppDeps } from '../app.js';
 import type { RouteDto } from '../../shared/api.js';
 import { makeWorldGuards } from '../auth/guards.js';
 import { HttpError } from '../errors.js';
+import { canAdmin } from '../../shared/roles.js';
 import { createRoute, deleteRoute, getRoute, listRoutes, RouteInputSchema, updateRoute } from '../domain/routes.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,14 +20,14 @@ export function registerRouteRoutes(app: FastifyInstance, deps: AppDeps): void {
     },
   };
 
-  /** Loads the route in this world and checks creator-or-owner; 404 for unknown ids, 403 otherwise. */
+  /** Loads the route in this world and checks creator, admin or owner; 404 for unknown ids, 403 otherwise. */
   const requireEditable = async (req: Parameters<typeof requireMember>[0]): Promise<void> => {
     const routeId = (req.params as { routeId: string }).routeId;
     if (!UUID_RE.test(routeId)) throw new HttpError(404, 'not_found', 'Not found');
     const route = getRoute(db, req.world!.id, routeId);
     if (!route) throw new HttpError(404, 'not_found', 'Not found');
     const creator = route.createdBy !== null && route.createdBy === req.user!.id;
-    if (!creator && req.role !== 'owner') throw new HttpError(403, 'forbidden', 'Only the creator or the owner can change this route');
+    if (!creator && !canAdmin(req.role!)) throw new HttpError(403, 'forbidden', 'Only the creator, an admin or the owner can change this route');
   };
   const editable = [requireMember, requireEditable];
 

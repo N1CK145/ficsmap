@@ -4,7 +4,7 @@ import { Link, Navigate, useSearchParams } from 'react-router';
 import type { WorldSummaryDto } from '../../../shared/api.js';
 import { formatRelative } from '../../app/format.js';
 import { lastWorld } from '../../app/persist.js';
-import { Badge } from '../../components/Badge.js';
+import { RoleBadge } from './RoleBadge.js';
 import { Button } from '../../components/Button.js';
 import { Footer } from '../../components/Footer.js';
 import { Header } from '../../components/Header.js';
@@ -67,7 +67,7 @@ function WorldRow({ world: w }: { world: WorldSummaryDto }) {
         <Link to={`/w/${w.id}`} className="min-w-0 flex-1 truncate rounded font-display text-2xl leading-tight font-semibold tracking-wide focus-ring hover:text-accent">
           {w.name}
         </Link>
-        <Badge tone={w.role === 'owner' ? 'accent' : 'neutral'}>{t(`worlds.role.${w.role}`)}</Badge>
+        <RoleBadge role={w.role} />
       </div>
       <div className="flex items-center gap-3">
         <div

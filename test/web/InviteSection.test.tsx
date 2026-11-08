@@ -11,7 +11,7 @@ import { stubFetch } from './fetchStub.js';
 const W = '11111111-1111-4111-8111-111111111111';
 const EXPIRES = Date.UTC(2026, 10, 10, 12);
 const WORLD: WorldDto = {
-  id: W, name: 'Alpha', isOwner: true, rev: 1, datasetVersion: 'v1', owner: { id: 1, displayName: 'Nick' }, members: [], lastImport: null,
+  id: W, name: 'Alpha', role: 'owner', rev: 1, datasetVersion: 'v1', owner: { id: 1, displayName: 'Nick' }, members: [], lastImport: null,
 };
 
 function mockClipboard() {

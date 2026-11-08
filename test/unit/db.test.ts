@@ -82,4 +82,25 @@ describe('openDb', () => {
     expect(raw.prepare('SELECT count(*) AS n FROM factory_snapshots').get()).toEqual({ n: 0 });
     raw.close();
   });
+
+  it("migration 6 gives every existing member the role 'member' and accepts only 'member' and 'admin'", () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ficsmap-db-'));
+    const raw = new Database(join(dir, 'app.db'));
+    raw.pragma('foreign_keys = ON');
+    for (let i = 0; i < 5; i++) raw.exec(MIGRATIONS[i]!);
+    raw.pragma('user_version = 5');
+    raw.prepare("INSERT INTO users(id, display_name, created_at, last_login_at) VALUES (1,'a',0,0), (2,'b',0,0)").run();
+    const id = 'w'.repeat(36);
+    raw.prepare("INSERT INTO worlds(id, name, owner_id, dataset_version, created_at) VALUES (?, 'w', 1, 'v', 0)").run(id);
+    raw.prepare("INSERT INTO world_members(world_id, user_id, joined_at, joined_via) VALUES (?, 1, 0, 'owner'), (?, 2, 0, 'invite')").run(id, id);
+    migrate(raw);
+    expect(raw.pragma('user_version', { simple: true })).toBe(MIGRATIONS.length);
+    expect(raw.prepare('SELECT user_id, role FROM world_members ORDER BY user_id').all()).toEqual([
+      { user_id: 1, role: 'member' }, { user_id: 2, role: 'member' },
+    ]);
+    const set = raw.prepare('UPDATE world_members SET role = ? WHERE user_id = 2');
+    expect(() => set.run('admin')).not.toThrow();
+    expect(() => set.run('owner')).toThrow(/CHECK/);
+    raw.close();
+  });
 });
