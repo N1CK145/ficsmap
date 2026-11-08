@@ -34,3 +34,12 @@ describe('IconButton', () => {
     expect(c).not.toContain('px-3');
   });
 });
+
+describe('touch targets', () => {
+  it('grows a small button to 44 px below 900 px, square ones too', () => {
+    expect(buttonClass({ size: 'sm' }).split(/\s+/)).toEqual(expect.arrayContaining(['h-8', 'max-[899px]:h-11']));
+    expect(buttonClass({ size: 'sm', shape: 'square' }).split(/\s+/)).toEqual(expect.arrayContaining(['size-8', 'max-[899px]:size-11']));
+    // The other sizes are touch-sized already or bigger.
+    expect(buttonClass({ size: 'md' })).not.toContain('max-[899px]:');
+  });
+});

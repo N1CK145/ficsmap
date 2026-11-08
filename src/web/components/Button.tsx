@@ -3,7 +3,8 @@ import type { ComponentPropsWithRef } from 'react';
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'link-accent';
 /**
  * `touch` (44 px) is the minimum touch target for small mobile controls; `lg` (56 px) is the mobile
- * item sheet's Check.
+ * item sheet's Check. `sm` (32 px) grows to the 44 px touch size below 900 px, so a small button is never too small
+ * to hit on a phone.
  */
 export type ButtonSize = 'sm' | 'md' | 'touch' | 'lg';
 /** `square`: fixed width = height, no horizontal padding (icon buttons); `round`: the same as a circle. */
@@ -27,9 +28,9 @@ const VARIANTS: Record<ButtonVariant, string> = {
   'link-accent': 'font-semibold text-accent hover:bg-line active:bg-raised',
 };
 
-/** Height and padding only. */
+/** Height and padding only. Below 900 px (phones) `sm` takes the 44 px touch height. */
 const SIZES: Record<ButtonSize, Record<Exclude<ButtonShape, 'round'>, string>> = {
-  sm: { default: 'h-8 px-3 text-sm', square: 'size-8 text-sm' },
+  sm: { default: 'h-8 px-3 text-sm max-[899px]:h-11', square: 'size-8 text-sm max-[899px]:size-11' },
   md: { default: 'h-10 px-4', square: 'size-10' },
   touch: { default: 'h-11 px-4', square: 'size-11' },
   lg: { default: 'h-14 px-4 text-lg', square: 'size-14 text-xl' },

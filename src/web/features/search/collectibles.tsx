@@ -16,7 +16,7 @@ export const ITEM_WEIGHT = 30;
 /**
  * The search entries for the collectibles: one per type ("Somersloop": all of them) and one per
  * item, found by its label in both languages ("Blue Power Slug · Dune Desert 3"), its actor ID and
- * the IDs that alias to it (a Mercer Shrine's). Choosing an item selects it and zooms to it.
+ * the IDs that alias to it (a Mercer Shrine's); the ID is not shown. Choosing an item selects it and zooms to it.
  */
 export function collectibleEntries(index: DatasetIndex, i18n: I18n): SearchEntry[] {
   const locale = detectLocale([i18n.language]);
@@ -49,7 +49,7 @@ export function collectibleEntries(index: DatasetIndex, i18n: I18n): SearchEntry
     return {
       id: `item:${item.name}`,
       label: itemLabel(item, t, biomes, locale),
-      detail: item.name,
+      // The actor ID is found (terms) but not shown: the label says what and where.
       kindKey: 'search.kind.item',
       terms: [item.name, ...(aliasesOf.get(item.name) ?? []), itemLabel(item, en, biomes, 'en'), itemLabel(item, de, biomes, 'de')],
       actors: [item.name],

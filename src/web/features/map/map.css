@@ -74,7 +74,7 @@ body:not(.leaflet-dragging) .ficsmap-map.ficsmap-marker-hover {
   opacity: 0.5;
 }
 
-/* Attribution: small print in the corner, as quiet as the footer. */
+/* Attribution: small print in the corner, as quiet as possible. */
 .ficsmap-map .leaflet-control-attribution {
   background: color-mix(in srgb, var(--color-bg) 80%, transparent);
   color: var(--color-muted);
@@ -144,10 +144,26 @@ body:not(.leaflet-dragging) .ficsmap-map.ficsmap-marker-hover {
   cursor: inherit;
 }
 
-/* Mobile (spec §10.11): the bottom sheet's 96 px peek (PEEK_PX) covers the bottom of the map (the
-   map already ends above the footer the sheet sits on). */
+/* Mobile (spec §10.11): the bottom sheet's 112 px peek (PEEK_PX) covers the bottom of the map, which
+   reaches the bottom of the screen. The zoom keys take the 44 px touch size; the features' controls
+   move down with them (10 px margin + 89 px bar + gap). */
 @media (max-width: 899px) {
   .ficsmap-map .leaflet-bottom {
-    bottom: 96px;
+    bottom: 112px;
+  }
+
+  .ficsmap-map .leaflet-bar a {
+    width: 44px;
+    height: 44px;
+    line-height: 42px;
+    font-size: 22px;
+  }
+
+  .ficsmap-map-controls {
+    top: 108px;
+  }
+
+  .ficsmap-banner-on .ficsmap-map-controls {
+    top: calc(108px + var(--ficsmap-banner-h, 2.5rem));
   }
 }

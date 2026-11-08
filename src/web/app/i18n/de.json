@@ -111,7 +111,7 @@
     "hint": "Position unter dem Mauszeiger in Metern. Z ist die höchste Oberfläche dort: Gelände, Felsen, Bauten und große Bäume, ohne Büsche und kleine Pflanzen."
   },
   "heights": {
-    "control": "Höhen",
+    "control": "Höhenkarte",
     "hint": "Höhenkarte als Farbskala zeigen (höchste Oberfläche, aus den Spieldaten)",
     "legend": "Höhe (höchster Punkt)",
     "metres": "{value} m"
@@ -513,25 +513,23 @@
   "machineWiki": {
     "open": "Maschinen",
     "openHint": "Werte aller Maschinen und Fahrzeuge, aus den Spieldaten",
-    "title": "Maschinen und Fahrzeuge",
+    "title": "Maschinen",
     "failed": "Die Maschinendaten konnten nicht geladen werden.",
     "unavailable": "Dieser Datensatz hat keine Maschinendaten. Sie werden aus den Docs-Dateien des Spiels erzeugt (siehe Datensatz-Build).",
     "search": "Suche",
     "searchPlaceholder": "Name auf Deutsch oder Englisch",
     "listLabel": "Maschinen und Fahrzeuge",
     "noMatch": "Keine Treffer.",
-    "pick": "Wähle eine Maschine oder ein Fahrzeug.",
     "back": "Zurück zur Liste",
     "tierFilter": "Nach Stufe filtern",
     "tierLabel": "Stufe",
     "tierChip": "{key, select, mam {MAM} shop {Shop} other {Andere}}",
     "tierName": "{key, select, tier {Stufe {tier, number}} mam {MAM-Forschung} shop {AWESOME-Shop} other {Andere Freischaltungen}}",
-    "tierHint": "Umschalt-Klick: alles bis zu dieser Stufe",
     "badge": "{key, select, tier {Stufe {tier, number}} mam {MAM} shop {Shop} other {Andere}}",
     "upTo": "Bis Stufe",
     "upToAll": "Alle",
     "upToMixed": "Eigene Auswahl",
-    "clearTiers": "Alle zeigen",
+    "clearTiers": "Filter löschen",
     "showing": "{shown, plural, one {# von {total, number} angezeigt} other {# von {total, number} angezeigt}}",
     "category": {
       "production": "Produktion",
@@ -585,11 +583,13 @@
       "loadSeconds": "{seconds, number} s",
       "unloadSeconds": "{seconds, number} s",
       "clock": "{min, number, percent}–{max, number, percent} ohne Energiefragmente",
+      "clockShards": "{min, number}–{max, number} % (bis {shards, plural, one {# Energiefragment} other {# Energiefragmente}})",
       "powerExponent": "{exponent, number}",
       "somersloopSlots": "{slots, number}"
     },
     "amount": "{fluid, select, yes {{amount, number} m³ {name}} other {{amount, number} × {name}}}",
     "amountPerMinute": "{fluid, select, yes {{amount, number} m³/min {name}} other {{amount, number}/min {name}}}",
+    "rate": "{fluid, select, yes {{amount, number} m³/min} other {{amount, number}/min}}",
     "fuels": "Brennstoffe",
     "plus": "dazu",
     "byproduct": "erzeugt",
@@ -884,8 +884,9 @@
   "search": {
     "label": "Suche",
     "open": "Suche",
-    "placeholder": "Gegenstände, IDs, Biome, Höhlen suchen …",
+    "placeholder": "Suchen: Gegenstände, IDs, Biome, Höhlen …",
     "clear": "Suche leeren",
+    "chip": "Suche: {query}",
     "results": "Suchergebnisse",
     "none": "Keine Treffer",
     "count": "{count, plural, one {# Treffer} other {# Treffer}}",
@@ -907,7 +908,10 @@
       "vehicle": "Fahrzeug"
     }
   },
-  "tools": {
-    "label": "Werkzeuge"
+  "nav": {
+    "label": "Bereiche",
+    "map": "Karte",
+    "menu": "Bereich: {section}",
+    "layers": "Kartenebenen"
   }
 }

@@ -14,8 +14,10 @@ const keywords = (t: (k: string) => string) => t('search.crashSiteTerms').split(
 
 /**
  * One search entry per drop pod's crash site, found by "crash site"/"drop pod" in both languages,
- * by what the pod needs to open, and by what lies around it, its threats and notes (crash-sites.json,
- * English). So "Modular Frame" finds the sites with Modular Frames. Choosing one selects the pod and
+ * by what the pod needs to open, and by what lies around it and its threats (crash-sites.json,
+ * English). So "Modular Frame" finds the sites with Modular Frames. The notes are prose, not search
+ * terms: one that mentions "a Somersloop on the same island" must not make the site a Somersloop match
+ * (it would add its pod to the Somersloops highlighted on the map). Choosing one selects the pod and
  * zooms to it. The pod itself is also found as a Hard Drive by its ID and label (collectibles).
  */
 export function crashSiteEntries(index: DatasetIndex, sites: CrashSites, i18n: I18n): SearchEntry[] {
@@ -39,7 +41,7 @@ export function crashSiteEntries(index: DatasetIndex, sites: CrashSites, i18n: I
       terms: [
         ...words,
         ...(pod?.item ? [pod.item.en, pod.item.de] : []),
-        ...(site ? [...site.items.map(i => i.item), ...site.threats.map(th => th.name), ...site.notes] : []),
+        ...(site ? [...site.items.map(i => i.item), ...site.threats.map(th => th.name)] : []),
       ],
       actors: [item.name],
       icon: <TypeIcon type={type} size={16} />,

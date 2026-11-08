@@ -12,5 +12,5 @@ setCreateFromSaveContent(CreateFromSave);
 /** Save import (spec §7): header [Import] for owners, the import dialog and banner, and "From save file". */
 export const importFeature: FeatureModule = {
   id: 'import',
-  headerItems: [{ id: 'import', order: 30, Component: ImportButton }],
+  headerItems: [{ id: 'import', order: 30, mapOnly: true, Component: ImportButton }],
 };

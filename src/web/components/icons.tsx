@@ -29,7 +29,7 @@ export const GearIcon = (p: IconProps) => (
     <circle cx="8" cy="8" r="4.4" />
   </Icon>
 );
-/** Three sliders: the Tools menu. */
+/** Three sliders (no longer in the top bar; kept for features that want a settings glyph). */
 export const SlidersIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M2 4h12M2 8h12M2 12h12" opacity="0.55" />
@@ -38,8 +38,16 @@ export const SlidersIcon = (p: IconProps) => (
 );
 /** A cave mouth in a rock face. */
 export const CaveIcon = (p: IconProps) => <Icon {...p}><path d="M1.5 13.5L5 4.5l2 2 2-3.5 5.5 10.5zM5.75 13.5c0-2.2 1-3.5 2.25-3.5s2.25 1.3 2.25 3.5" /></Icon>;
-/** Contour lines: the height layer. */
-export const HeightIcon = (p: IconProps) => <Icon {...p}><path d="M1.5 13.5l4.5-8 3 5 1.75-2.75 3.75 5.75zM6 5.5l1.2 2" /></Icon>;
+/** Contour lines around a summit, as on a topographic map: the height map layer (not a mountain, that is the caves'). */
+export const HeightIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2 8.5c0-3.4 2.9-6 6.3-5.8 3.2.2 5.9 2.6 5.7 5.6-.2 3-3 5.2-6.2 5.2C4.6 13.5 2 11.6 2 8.5z" />
+    <path d="M5 8.4c0-1.8 1.6-3.1 3.3-3 1.6.1 2.9 1.3 2.8 2.9-.1 1.5-1.5 2.6-3.1 2.6-1.7 0-3-1-3-2.5z" />
+    <circle cx="8.2" cy="8.2" r="0.6" fill="currentColor" />
+  </Icon>
+);
+/** A folded map: the map tab. */
+export const MapIcon = (p: IconProps) => <Icon {...p}><path d="M1.5 3.75L5.5 2.25l5 2 4-1.5v10l-4 1.5-5-2-4 1.5zM5.5 2.25v10M10.5 4.25v10" /></Icon>;
 /** An ore lump on a node: the resource node layer. */
 export const OreIcon = (p: IconProps) => <Icon {...p}><path d="M3 10.5l1.5-5 4-2.5 4 2.5 1 5-4.5 3zM4.5 5.5l4 2.5 4.5-2.5M8.5 8v5.5" /></Icon>;
 /** A gear on a machine body: the machine wiki. */

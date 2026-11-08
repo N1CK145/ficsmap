@@ -28,8 +28,10 @@ export function isSearchShortcut(e: KeyboardEvent): boolean {
  * matches are highlighted on the map (the rest fades); choosing a result keeps its own items
  * highlighted and runs its action (select an item, scope a biome, show a cave). A combobox with a
  * listbox: arrows move, Enter chooses, Esc closes the list, then clears. On mobile a button in the
- * bar opens it over the bar. On a world page (planner, ...) a result about the map (one with `actors`)
- * goes back to the map first; the others act where they are (a machine opens its wiki entry).
+ * bar opens it over the bar; closing it without a choice clears the search, and a chosen result that
+ * keeps items highlighted shows as a chip under the bar ("Search: Somersloop ×") until it is removed.
+ * On a world page (planner, ...) a result about the map (one with `actors`) goes back to the map first;
+ * the others act where they are (a machine opens its wiki entry).
  */
 export function SearchBox({ ctx }: { ctx: WorldCtx }) {
   const { t } = useTranslation();
@@ -93,11 +95,18 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
     if (mobile) setExpanded(false);
   }
 
-  function clear() {
+  function clear(refocus = true) {
     setQuery('');
     setChosen(null);
     setOpen(false);
-    inputRef.current?.focus();
+    if (refocus) inputRef.current?.focus();
+  }
+
+  /** Mobile: closes the field over the bar. Without a chosen result nothing may stay highlighted out of sight. */
+  function collapse() {
+    if (!chosen) clear(false);
+    setOpen(false);
+    setExpanded(false);
   }
 
   function onKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
@@ -149,7 +158,7 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
   const field = (
     // On a phone the results hang from the whole bar (the field is not their anchor), so they fit the screen.
     <div className={`min-w-0 flex-1 ${mobile ? '' : 'relative'}`} onBlur={onBlur}>
-      <div className="flex h-8 items-center gap-2 chamfer border border-line bg-bg px-2 transition-colors hover:border-edge focus-within:border-accent">
+      <div className="flex h-8 items-center gap-2 chamfer border border-line bg-bg px-2 transition-colors hover:border-edge focus-within:border-accent max-[899px]:h-11">
         <SearchIcon className="text-muted" />
         <input
           ref={inputRef}
@@ -179,7 +188,8 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
             else if (query) setOpen(true);
           }}
           onKeyDown={onKeyDown}
-          className="h-full min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-muted [&::-webkit-search-cancel-button]:appearance-none"
+          // 16 px on a phone: iOS zooms into a focused field with smaller text.
+          className="h-full min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-muted max-[899px]:text-base [&::-webkit-search-cancel-button]:appearance-none"
         />
         {query
           ? (
@@ -187,8 +197,8 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
               type="button"
               aria-label={t('search.clear')}
               title={t('search.clear')}
-              onClick={clear}
-              className="-mr-1 flex size-6 shrink-0 items-center justify-center chamfer text-muted focus-ring hover:bg-line hover:text-fg"
+              onClick={() => clear()}
+              className="-mr-1 flex size-6 shrink-0 items-center justify-center chamfer text-muted focus-ring hover:bg-line hover:text-fg max-[899px]:-mr-2 max-[899px]:size-11"
             >
               <CloseIcon size={14} />
             </button>
@@ -211,18 +221,18 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
                 onMouseDown={e => e.preventDefault()}
                 onMouseMove={() => { if (i !== active) setActiveIdx(i); }}
                 onClick={() => choose(r.entry)}
-                className={`flex cursor-pointer items-center gap-2.5 border-l-2 py-1.5 pr-3 pl-2.5 ${i === active ? 'border-l-accent bg-raised' : 'border-l-transparent'}`}
+                className={`flex cursor-pointer items-center gap-2.5 border-l-2 py-1.5 pr-3 pl-2.5 max-[899px]:min-h-11 ${i === active ? 'border-l-accent bg-raised' : 'border-l-transparent'}`}
               >
                 <span aria-hidden="true" className="flex size-6 shrink-0 items-center justify-center">{r.entry.icon}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-fg">{r.entry.label}</span>
-                  {r.entry.detail && <span className="block truncate text-xs text-muted">{r.entry.detail}</span>}
+                  {r.entry.detail && <span className="block truncate text-xs text-muted max-[899px]:text-sm">{r.entry.detail}</span>}
                 </span>
                 <span className="shrink-0 font-display text-xs tracking-wider text-muted uppercase">{t(r.entry.kindKey)}</span>
               </li>
             ))}
           </ul>
-          <p aria-hidden="true" className="border-t border-line bg-bg/50 px-3 py-1.5 text-xs text-muted">{status}</p>
+          <p aria-hidden="true" className="border-t border-line bg-bg/50 px-3 py-1.5 text-xs text-muted max-[899px]:text-sm">{status}</p>
         </div>
       </div>
       <p role="status" className="sr-only">{listOpen ? status : ''}</p>
@@ -230,6 +240,12 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
   );
 
   if (!mobile) return <div role="search" className="flex w-[clamp(14rem,30vw,28rem)]">{field}</div>;
+  const reopen = () => {
+    setExpanded(true);
+    setFocusTick(n => n + 1);
+  };
+  // A chosen result that keeps items highlighted on the map stays visible, and removable, under the bar.
+  const chip = !expanded && !onPage && chosen?.actors?.length ? chosen.label : null;
   return (
     <>
       <IconButton
@@ -237,17 +253,31 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
         aria-keyshortcuts="/ Control+K"
         size="sm"
         variant={query ? 'link-accent' : 'ghost'}
-        onClick={() => {
-          setExpanded(true);
-          setFocusTick(n => n + 1);
-        }}
+        onClick={reopen}
       >
         <SearchIcon />
       </IconButton>
+      {chip !== null && (
+        <div className="absolute top-full left-2 z-[1050] mt-2 flex h-11 max-w-[calc(100%-1rem)] items-center chamfer border border-accent/60 bg-panel text-accent shadow-[0_6px_18px_rgb(0_0_0/0.4)]">
+          <button type="button" onClick={reopen} className="flex h-full min-w-0 items-center gap-2 pl-3 text-left text-sm font-medium focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none focus-visible:ring-inset">
+            <SearchIcon className="shrink-0" />
+            <span className="min-w-0 truncate">{t('search.chip', { query: chip })}</span>
+          </button>
+          <button
+            type="button"
+            aria-label={t('search.clear')}
+            title={t('search.clear')}
+            onClick={() => clear(false)}
+            className="flex size-11 shrink-0 items-center justify-center chamfer focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none focus-visible:ring-inset hover:bg-accent/20"
+          >
+            <CloseIcon size={14} />
+          </button>
+        </div>
+      )}
       {expanded && (
         <div role="search" className="absolute inset-0 z-[1400] flex items-center gap-2 border-b border-line bg-panel px-2">
           {field}
-          <Button size="sm" variant="ghost" onClick={() => { setOpen(false); setExpanded(false); }}>{t('common.close')}</Button>
+          <Button size="sm" variant="ghost" onClick={collapse}>{t('common.close')}</Button>
         </div>
       )}
     </>

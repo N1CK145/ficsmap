@@ -7,7 +7,7 @@ import { Button } from '../../src/web/components/Button.js';
 import { fieldClass, NumberField } from '../../src/web/components/Field.js';
 import { Fold } from '../../src/web/components/Fold.js';
 import { Header } from '../../src/web/components/Header.js';
-import { PageActions, PageActionsSlot } from '../../src/web/components/PageActions.js';
+import { PageActions, PageActionsSlot, PageBackSlot, usePageBack, type PageBackTarget } from '../../src/web/components/PageActions.js';
 import { SectionHeading } from '../../src/web/components/SectionHeading.js';
 import { StatList, StatRow, StatTile, TileValue } from '../../src/web/components/StatRow.js';
 import { Window, WindowTitleBar } from '../../src/web/components/Window.js';
@@ -143,6 +143,35 @@ describe('NumberField', () => {
   it('fieldClass gives the 3:1 edge and the focus ring, and keeps the caller layout classes', () => {
     const c = fieldClass({ size: 'sm' }, 'w-full').split(/\s+/);
     expect(c).toEqual(expect.arrayContaining(['border-edge', 'focus-ring', 'h-8', 'w-full']));
+  });
+
+  it('keeps form text at 16 px below 900 px, so iOS does not zoom into a focused field', () => {
+    expect(fieldClass({ size: 'sm' }).split(/\s+/)).toContain('max-[899px]:text-base');
+    expect(fieldClass().split(/\s+/)).toContain('max-[899px]:text-base');
+    render(<NumberField label="Rate" size="sm" hint="per minute" />);
+    expect(screen.getByRole('spinbutton', { name: 'Rate' }).parentElement).toHaveClass('text-sm', 'max-[899px]:text-base');
+    // Hints read at 14 px on a phone.
+    expect(screen.getByText('per minute')).toHaveClass('max-[899px]:text-sm');
+  });
+});
+
+describe('page back control', () => {
+  it('lets a page point the header\'s back control somewhere inside it, and gives it back when it is done', () => {
+    let target: PageBackTarget | null = null;
+    function Page({ on }: { on: boolean }) {
+      usePageBack(on ? { to: '/list', label: 'Back to the list' } : null);
+      return null;
+    }
+    const set = (t: PageBackTarget | null) => { target = t; };
+    const { rerender, unmount } = render(<PageBackSlot value={set}><Page on /></PageBackSlot>);
+    expect(target).toEqual({ to: '/list', label: 'Back to the list' });
+    rerender(<PageBackSlot value={set}><Page on={false} /></PageBackSlot>);
+    expect(target).toBeNull();
+    rerender(<PageBackSlot value={set}><Page on /></PageBackSlot>);
+    unmount();
+    expect(target).toBeNull();
+    // Outside a world page it does nothing.
+    render(<Page on />);
   });
 });
 
