@@ -36,6 +36,7 @@ describe('Show on map', () => {
   beforeEach(() => {
     localStorage.clear();
     useUiStore.getState().enterWorld(WORLD);
+    useUiStore.setState({ markersVisible: true });
     vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
     vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(600);
   });
@@ -48,7 +49,9 @@ describe('Show on map', () => {
     const me: MeDto = { id: 1, displayName: 'Anna', avatarUrl: null, email: null, datasetVersion: 'test' };
     const index = indexDataset(dataset);
     const ctx: WorldCtx = { worldId: WORLD, world: {} as WorldDto, me, index, queryClient: client, navigate: () => {}, toast: { show: () => {} } };
-    // Request made while the map is not mounted (the list view was showing): handled when it mounts.
+    // Request made while the map is not mounted (the list view was showing): handled when it mounts. It also shows
+    // the collectibles layer, switched off before.
+    useUiStore.getState().toggleMarkers();
     useUiStore.getState().focusItem('S1');
     render(<QueryClientProvider client={client}><FeaturesProvider features={[itemPanelFeature, grabFeature]}><MapView ctx={ctx} /></FeaturesProvider></QueryClientProvider>);
 
@@ -61,6 +64,7 @@ describe('Show on map', () => {
     expect(useUiStore.getState().focusRequest).toBeNull();
     expect(useUiStore.getState().selectedActor).toBe('S1');
     expect(useUiStore.getState().mainView).toBe('map');
+    expect(useUiStore.getState().markersVisible).toBe(true);
     act(() => {});
   });
 });

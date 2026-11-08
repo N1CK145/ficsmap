@@ -90,6 +90,9 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
     setOpen(false);
     // The entry acts on the map through requests (focus, fit, scope) the map carries out once it is shown.
     if (entry.actors && onPage) ctx.navigate(worldPath(ctx.worldId));
+    // A result that highlights collectibles (a type, an item, a biome's or a cave's items, a crash site's pod) needs the
+    // markers, so it switches their layer on; one with no actors (a resource) leaves it as it is.
+    if (entry.actors?.length) useUiStore.getState().showMarkers();
     entry.onSelect?.(ctx);
     // On a phone the map is what the user wants to see now.
     if (mobile) setExpanded(false);

@@ -132,6 +132,7 @@ describe('SearchBox', () => {
   beforeEach(() => {
     localStorage.clear();
     useUiStore.getState().enterWorld(W);
+    useUiStore.setState({ markersVisible: true });
     useCaveLayer.setState({ visible: false });
     useMapFit.getState().clear();
   });
@@ -269,6 +270,35 @@ describe('SearchBox', () => {
     expect(options()).toEqual(['MotorItem']);
     // An entry without items leaves the map as it is.
     expect(highlight()).toBeNull();
+  });
+
+  it('switches the collectibles layer on for a chosen result that highlights collectibles, not while typing', async () => {
+    useUiStore.setState({ markersVisible: false });
+    const { input } = renderSearch();
+    await userEvent.type(input, 'sloop');
+    expect(highlight()).toEqual(['BP_WAT13', 'BP_WAT139']);
+    expect(useUiStore.getState().markersVisible).toBe(false);
+    // The first result is the type: all Somersloops.
+    await userEvent.keyboard('{Enter}');
+    expect(input).toHaveValue('Somersloop');
+    expect(useUiStore.getState().markersVisible).toBe(true);
+
+    // A single item, through focusItem.
+    useUiStore.setState({ markersVisible: false });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'bp_wat13{Enter}');
+    expect(useUiStore.getState().selectedActor).toBe('BP_WAT13');
+    expect(useUiStore.getState().markersVisible).toBe(true);
+  });
+
+  it('leaves the collectibles layer off for a chosen result without collectibles (a resource)', async () => {
+    useUiStore.setState({ markersVisible: false });
+    const ore: SearchEntry = { id: 'res:ore', label: 'Iron Ore', terms: ['Desc_OreIron_C'], kindKey: 'search.kind.item', actors: [], onSelect: () => {} };
+    const nodes: FeatureModule = { id: 'nodes', searchProviders: [{ id: 'nodes', order: 35, useEntries: () => [ore] }] };
+    const { input } = renderSearch([searchFeature, nodes]);
+    await userEvent.type(input, 'iron ore{Enter}');
+    expect(input).toHaveValue('Iron Ore');
+    expect(useUiStore.getState().markersVisible).toBe(false);
   });
 
   it('opens with / and Ctrl+K, but / types normally in other fields', async () => {

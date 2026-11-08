@@ -94,13 +94,15 @@ describe('ListView', () => {
     expect(labels()).toEqual(['Somersloop · Grass Fields\u00a02']);
   });
 
-  it('Show on map switches the main view and selects the item', async () => {
+  it('Show on map switches the main view and selects the item, with the collectibles layer on', async () => {
     renderList(marks({}));
     const row = screen.getByRole('checkbox', { name: 'Mercer Sphere · Swamp\u00a01' }).closest('tr') as HTMLElement;
     useUiStore.getState().setMainView('list');
+    useUiStore.setState({ markersVisible: false });
     await userEvent.click(within(row).getByRole('button', { name: /^Show on map/ }));
     expect(useUiStore.getState().mainView).toBe('map');
     expect(useUiStore.getState().selectedActor).toBe('M1');
+    expect(useUiStore.getState().markersVisible).toBe(true);
   });
 
   it('puts the Map | List switch first in the sidebar', () => {

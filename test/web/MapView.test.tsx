@@ -95,6 +95,7 @@ describe('MapView clicks', () => {
   beforeEach(() => {
     localStorage.clear();
     useUiStore.getState().enterWorld(WORLD);
+    useUiStore.setState({ markersVisible: true });
     onQuickClick.mockClear();
     onPickMarker.mockClear();
     onPickPoint.mockClear();
@@ -221,6 +222,37 @@ describe('MapView clicks', () => {
     act(() => { useUiStore.getState().setMode('route'); });
     clickAt(map, 256, 256);
     expect(useUiStore.getState().selectedActor).toBe('S1');
+  });
+
+  it('finds no marker while the collectibles layer is off: no selection, no zoom, a pick mode gets the position', () => {
+    renderMap();
+    const map = probedMap!;
+    let layer: MarkerLayer | undefined;
+    map.eachLayer(l => { if (l instanceof MarkerLayer) layer = l; });
+    act(() => { useUiStore.getState().toggleMarkers(); });
+    expect(layer!.pick(256, 256, 21)).toBeNull();
+    clickAt(map, 258, 255);
+    expect(map.getZoom()).toBe(1);
+    act(() => { map.setZoom(3); });
+    clickAt(map, 256, 256);
+    expect(useUiStore.getState().selectedActor).toBeNull();
+    act(() => { useUiStore.getState().setMode('vehicle-route'); });
+    clickAt(map, 256, 256);
+    expect(onPickMarker).not.toHaveBeenCalled();
+    expect(onPickPoint).toHaveBeenCalledTimes(1);
+
+    act(() => { useUiStore.getState().setMode('inspect'); useUiStore.getState().toggleMarkers(); });
+    clickAt(map, 256, 256);
+    expect(useUiStore.getState().selectedActor).toBe('S1');
+  });
+
+  it('starts with the layer off when it was switched off', () => {
+    act(() => { useUiStore.getState().toggleMarkers(); });
+    renderMap();
+    const map = probedMap!;
+    act(() => { map.setZoom(3); });
+    clickAt(map, 256, 256);
+    expect(useUiStore.getState().selectedActor).toBeNull();
   });
 });
 

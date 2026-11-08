@@ -314,6 +314,12 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
     };
   }, [map]);
 
+  // The "Collectibles" layer switch: off, the layer draws nothing and clicks and hover find no marker.
+  const markersVisible = useUiStore(s => s.markersVisible);
+  useEffect(() => {
+    layerRef.current?.setVisible(markersVisible);
+  }, [map, markersVisible]);
+
   // Before paint, so a frame the layer draws never uses the previous markers.
   useLayoutEffect(() => {
     markersRef.current = markers;

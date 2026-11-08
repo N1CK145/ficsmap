@@ -35,7 +35,8 @@ function RouteList({ worldId }: { worldId: string }) {
             <li key={r.id}>
               <button
                 type="button"
-                onClick={() => useRouteDraft.getState().load(r)}
+                // The stops are numbered markers: opening a route shows the collectibles layer.
+                onClick={() => { useRouteDraft.getState().load(r); useUiStore.getState().showMarkers(); }}
                 className="flex w-full flex-col chamfer px-2 py-1.5 text-left focus-ring hover:bg-raised"
               >
                 <span className="truncate">{r.name}</span>
