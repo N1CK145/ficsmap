@@ -63,7 +63,7 @@ export interface FactoryFrame {
    * A station's line on its plate: red for a problem station, with the picture of what lies in it; `numbered` puts the
    * station's number first (as the Fabrik page names it).
    */
-  stationLabel(st: SceneStation, numbered: boolean): { text: string; problem: boolean; item: string | null } | null;
+  stationLabel(st: SceneStation, numbered: boolean): { text: string; problem: boolean; low: boolean; item: string | null } | null;
   vehicleLabel(v: SceneVehicle): string;
   /** Label text size in CSS px: 13, 14 on coarse pointers. */
   fontPx: number;
@@ -631,8 +631,9 @@ export class FactoryCanvasLayer extends L.Layer {
       for (const st of scene.stations) {
         const x = sx(st.cx), y = sy(st.cy);
         if (!onScreen(x, y)) continue;
-        // Problem stations (no vehicles, nothing moved) in red; without vehicles also dashed.
-        const ring = st.state === 'active' ? p.fg : p.conflict;
+        // Problem stations (no vehicles, nothing moved) in red, without vehicles also dashed; hardly any throughput in the
+        // accent (a warning).
+        const ring = st.state !== 'active' ? p.conflict : st.low ? p.accent : p.fg;
         drawStationSymbol(ctx, x, y, sym, st.s.loading, ring, p, st.state === 'idle');
         shown.push({ st, x, y });
       }
@@ -692,7 +693,7 @@ export class FactoryCanvasLayer extends L.Layer {
             .sort((a, b) => order(a.st) - order(b.st))
             .flatMap(({ st }) => {
               const l = f.stationLabel(st, d.stationNumbers);
-              return l ? [{ text: l.text, color: l.problem ? p.conflict : p.fg, icon: l.item ? f.itemPicture(l.item, lineH - 3) : null }] : [];
+              return l ? [{ text: l.text, color: l.problem ? p.conflict : l.low ? p.accent : p.fg, icon: l.item ? f.itemPicture(l.item, lineH - 3) : null }] : [];
             });
           if (lines.length === 0) continue;
           const cx = c.items.reduce((a, it) => a + it.x, 0) / c.items.length;

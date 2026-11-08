@@ -8,7 +8,7 @@ import { IconsContext, useItemIcons } from '../../machineWiki/icons.js';
 import { useImportDialog } from '../../import/ImportDialog.js';
 import type { FactoryLabels } from '../data.js';
 import { useFactoryFormat, type FactoryFormat } from '../format.js';
-import { STATE_FILL, STATE_TEXT } from '../parts.js';
+import { BottleneckChip, STATE_FILL, STATE_TEXT } from '../parts.js';
 import { useFactoryView } from '../view.js';
 import { ProductPictures } from './LineCard.js';
 import { lineHasIssue, lineName, sortLines } from './lineView.js';
@@ -97,8 +97,7 @@ function LineList({ lines, labels, fmt }: { lines: readonly ProductionLine[]; la
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{name}</span>
                   <span className="flex items-center gap-1 text-xs text-muted max-[899px]:text-sm">
-                    {issue && <span className="font-display font-bold text-conflict" aria-hidden="true">!</span>}
-                    {issue && <span className="sr-only">{t('factoryMap.lines.hasIssue')}</span>}
+                    {issue && <><BottleneckChip /><span className="sr-only">: </span></>}
                     {t('factoryMap.lines.machinesCount', { count: l.machines.length })}
                   </span>
                 </span>

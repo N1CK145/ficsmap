@@ -10,6 +10,7 @@ import { useImportDialog } from '../../import/ImportDialog.js';
 import { useFactoryView } from '../view.js';
 import { defaultCompareId } from '../timeline.js';
 import { axisPositions, labelIndices } from '../Timeline.js';
+import { diffSummary } from '../changes.js';
 import { diffCounts } from './diff.js';
 import { useMapData, type MapData } from './mapData.js';
 import { useFactoryMap } from './useFactoryMap.js';
@@ -129,6 +130,9 @@ export function TimelineBar({ data }: { data: MapData }) {
     }
   };
   const counts = data.diff || data.geometry ? diffCounts(data.diff, data.geometry) : null;
+  // The Fabrik page's rows (machines, logistics, foundations, other only when present), so both group the same way;
+  // the map adds the floor pieces and belts, pipes and roads it compares itself.
+  const rows = data.diff && data.labels && counts ? diffSummary(data.diff, data.labels.category, counts) : null;
   const area = useFactoryMap(s => s.changeArea);
   const areaCount = useFactoryMap(s => s.changeAreaCount);
   const compared = list.find(s => s.id === compareId);
@@ -239,16 +243,16 @@ export function TimelineBar({ data }: { data: MapData }) {
           {compared && <span className="text-muted">{t('factoryMap.timeline.comparedWith', { date: when(compared.saveTime, i18n.language, mobile) })}</span>}
           {counts && (
             <>
-              <span className="flex items-center gap-1"><span aria-hidden="true" className="inline-block size-2.5 border-2 border-free" />{t('factoryMap.timeline.added', { count: counts.added, n: num.format(counts.added) })}</span>
-              <span className="flex items-center gap-1"><span aria-hidden="true" className="inline-block size-2.5 border-2 border-dashed border-conflict bg-conflict/30" />{t('factoryMap.timeline.removed', { count: counts.removed, n: num.format(counts.removed) })}</span>
+              {rows?.map(r => (
+                <span key={r.key} className="flex items-baseline gap-1.5" data-row={r.key}>
+                  <span className="text-muted">{t(`factory.changes.row.${r.key}`)}</span>
+                  {r.added > 0 && <span className="font-display font-semibold text-free tabular-nums">{t('factory.changes.added', { count: r.added })}</span>}
+                  {r.removed > 0 && <span className="font-display font-semibold text-conflict tabular-nums">{t('factory.changes.removed', { count: r.removed })}</span>}
+                  {r.added + r.removed === 0 && <span className="text-muted">{t('factory.changes.none')}</span>}
+                </span>
+              ))}
               <span className="flex items-center gap-1"><span aria-hidden="true" className="text-free">▲</span>{t('factoryMap.timeline.better', { count: counts.better, n: num.format(counts.better) })}</span>
               <span className="flex items-center gap-1"><span aria-hidden="true" className="text-conflict">▼</span>{t('factoryMap.timeline.worse', { count: counts.worse, n: num.format(counts.worse) })}</span>
-              {(counts.floorAdded > 0 || counts.floorRemoved > 0) && (
-                <span className="text-muted max-[899px]:hidden">{t('factoryMap.timeline.floor', { added: num.format(counts.floorAdded), removed: num.format(counts.floorRemoved) })}</span>
-              )}
-              {(counts.linesAdded > 0 || counts.linesRemoved > 0) && (
-                <span className="text-muted max-[899px]:hidden">{t('factoryMap.timeline.lines', { added: num.format(counts.linesAdded), removed: num.format(counts.linesRemoved) })}</span>
-              )}
               {anyChange && (
                 <Button
                   size="sm" variant="ghost" className="ml-auto" data-testid="timeline-to-changes"

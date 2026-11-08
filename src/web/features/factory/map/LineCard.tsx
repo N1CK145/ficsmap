@@ -7,9 +7,8 @@ import { StatList, StatRow } from '../../../components/StatRow.js';
 import { GameIcon } from '../../machineWiki/icons.js';
 import type { FactoryLabels } from '../data.js';
 import type { FactoryFormat } from '../format.js';
-import { ReasonIcon } from '../icons.js';
-import { ProductivityBar } from '../parts.js';
-import { bottleneckText, lineName } from './lineView.js';
+import { BottleneckChip, ProductivityBar } from '../parts.js';
+import { bottleneckText, lineHasIssue, lineName } from './lineView.js';
 
 /** At most this many product pictures in a row of the list. */
 const PICTURES = 3;
@@ -57,7 +56,7 @@ export function LineCard({ line, labels, fmt, onDiagram, onFit, onShowMachines, 
 }) {
   const { t } = useTranslation();
   const neck = bottleneckText(line, labels, fmt.lang, t);
-  const reason = line.bottleneck?.kind === 'group' && line.bottleneck.why !== 'demand' ? line.bottleneck.why : null;
+  const issue = lineHasIssue(line);
   return (
     <div className="flex flex-col gap-3" data-testid="factory-line-card">
       <div className="flex items-center justify-between gap-2 text-sm">
@@ -65,9 +64,11 @@ export function LineCard({ line, labels, fmt, onDiagram, onFit, onShowMachines, 
         <ProductivityBar value={line.productivity} band={bandOf(line.productivity)} fmt={fmt} />
       </div>
       {neck && (
-        <p className="flex items-start gap-2 border-l-2 border-l-conflict bg-bg/50 px-2 py-1.5 text-sm" data-testid="factory-line-bottleneck">
-          {reason ? <span className="mt-0.5 text-conflict"><ReasonIcon reason={reason} /></span> : <span aria-hidden="true" className="font-display font-bold text-conflict">!</span>}
-          <span><span className="font-semibold">{t('factoryMap.lines.bottleneck')}</span> {neck}</span>
+        // As on the Fabrik page: a problem with the "Engpass" chip, a line that only ends where what it makes is not
+        // taken off with a muted "Grenze:".
+        <p className="flex items-start gap-2 text-sm" data-testid="factory-line-bottleneck">
+          {issue ? <><BottleneckChip className="mt-px shrink-0" /><span className="sr-only">: </span></> : <span className="shrink-0 text-muted">{t('factory.lines.limit')}</span>}
+          <span className={issue ? '' : 'text-muted'}>{neck}</span>
         </p>
       )}
       {compact ? (
@@ -149,5 +150,5 @@ function RateList({ rates, labels, fmt }: { rates: readonly LineRate[]; labels: 
 export function lineAnnouncement(line: ProductionLine, labels: FactoryLabels, fmt: FactoryFormat, t: (k: string, o?: Record<string, unknown>) => string): string {
   const neck = bottleneckText(line, labels, fmt.lang, t);
   const base = t('factoryMap.lines.announce', { name: lineName(line, labels, fmt.lang), count: line.machines.length, pct: fmt.pct(line.productivity) });
-  return neck ? `${base} ${t('factoryMap.lines.bottleneck')} ${neck}` : base;
+  return neck ? `${base} ${lineHasIssue(line) ? t('factoryMap.lines.bottleneck') : t('factory.lines.limit')} ${neck}` : base;
 }

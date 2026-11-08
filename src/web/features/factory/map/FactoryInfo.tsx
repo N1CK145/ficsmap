@@ -228,7 +228,7 @@ function BuildingBody({ sb, data, fmt }: { sb: SceneBuilding; data: MapData; fmt
           {isNew && <Badge tone="success">{t('factoryMap.info.newSince', { date: compareDate })}</Badge>}
           {change && (
             <Badge tone={change.delta > 0 ? 'success' : 'danger'}>
-              {t('factoryMap.info.change', { before: fmt.pct(change.before), delta: fmt.pctDelta(change.delta) })}
+              {t('factoryMap.info.change', { before: fmt.pct(change.before), delta: fmt.pointsDelta(change.delta) })}
             </Badge>
           )}
         </div>
@@ -363,13 +363,14 @@ function StationBody({ st, scene, lang, fmt, labels }: { st: SceneStation; scene
     <>
       <StatList>
         <StatRow label={t('factoryMap.station.mode')} value={t(st.s.loading === false ? 'factoryMap.station.unloading' : 'factoryMap.station.loading')} />
-        <StatRow label={t('factoryMap.station.throughput')} value={fmt.rate(flow.itemsPerMin ?? 0)} tone={st.state !== 'active' ? 'danger' : 'default'} />
+        <StatRow label={t('factoryMap.station.throughput')} value={fmt.rate(flow.itemsPerMin ?? 0)} tone={st.state !== 'active' ? 'danger' : st.low ? 'accent' : 'default'} />
         {(flow.combinedInterval ?? flow.interval) !== null && (
           <StatRow label={t('factoryMap.station.interval')} value={t('factoryMap.station.every', { time: fmt.duration((flow.combinedInterval ?? flow.interval)!) })} />
         )}
         {flow.cargo && <CargoRow label={t('factoryMap.station.cargo')} cargo={flow.cargo} labels={labels} fmt={fmt} />}
       </StatList>
       <p className={`text-sm ${st.state === 'active' ? 'text-muted' : 'text-conflict'}`} data-testid="station-state">{t(`factoryMap.station.state.${st.state}`)}</p>
+      {st.low && <p className="text-sm text-accent" data-testid="station-low">{t('factory.routes.problem.lowThroughput')}</p>}
       {flow.visits.length > 0 && (
         <div>
           <SectionHeading as="h3">{t('factoryMap.station.vehicles', { count: flow.visits.length })}</SectionHeading>

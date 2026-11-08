@@ -279,6 +279,20 @@ describe('the selected vehicle\'s route', () => {
     expect(route.stops.map(s => [s.label, s.zero])).toEqual([['1', false], ['2', true]]);
     expect(vehicleRoute(scene, 'nope')).toBeNull();
   });
+
+  it('keeps a station that moves hardly anything a warning: not red on the route', () => {
+    const traffic = (items: number) => [{ vehicle: 'v', avgSecBetweenDocks: 60, avgItemsPerDock: items }];
+    const scene = buildScene(snapshot({
+      stations: [
+        { id: 'A', cls: 'Build_TruckStation_C', x: 10_000, y: 10_000, z: 0, yaw: 0, loading: true, traffic: traffic(100) },
+        { id: 'B', cls: 'Build_TruckStation_C', x: 50_000, y: 10_000, z: 0, yaw: 0, loading: false, traffic: traffic(0.5) },
+      ],
+      vehicles: [{ id: 'v', cls: 'BP_Truck_C', x: 5000, y: 5000, z: 0, yaw: 0, autopilot: true, route: ['A', 'B'] }],
+    }), INDEX, BOUNDS);
+    expect(scene.stationById.get('B')).toMatchObject({ state: 'active', low: true });
+    expect(scene.stationById.get('A')!.low).toBe(false);
+    expect(vehicleRoute(scene, 'v')!.legs.map(l => l.zero)).toEqual([false, false]);
+  });
 });
 
 describe('going to the changes', () => {

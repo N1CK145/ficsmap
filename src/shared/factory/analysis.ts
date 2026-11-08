@@ -823,19 +823,26 @@ export interface StationFlow {
 
 /**
  * What is wrong with a station: no vehicle stops (`noVehicles`), vehicles dock and move nothing (`nothingMoved`), or
- * they move hardly anything (`lowThroughput`: under 1 item per minute, or their holds under 5 % full).
+ * they move hardly anything (`lowThroughput`: under 1 item per minute, or their holds under 5 % full while they move
+ * under 10 per minute; a busy station with big holds is not a problem for being little filled).
  */
 export type StationProblem = 'noVehicles' | 'nothingMoved' | 'lowThroughput';
 
-/** Below this many items per minute, or this share of the hold, a station moves "hardly anything". */
+/**
+ * Below `LOW_THROUGHPUT_PER_MIN` items per minute a station moves "hardly anything"; so it does below `LOW_FILL` of the
+ * hold when it also moves under `LOW_FILL_PER_MIN`.
+ */
 export const LOW_THROUGHPUT_PER_MIN = 1;
 export const LOW_FILL = 0.05;
+export const LOW_FILL_PER_MIN = 10;
 
 /** The station problem rule, shared by the Fabrik page's table and the map's plates. */
 export function stationProblem(st: Pick<StationFlow, 'visits' | 'itemsPerMin' | 'fill'>): StationProblem | null {
   if (st.visits.length === 0) return 'noVehicles';
   if (st.visits.every(v => v.empty) || st.itemsPerMin === 0) return 'nothingMoved';
-  if ((st.itemsPerMin !== null && st.itemsPerMin < LOW_THROUGHPUT_PER_MIN) || (st.fill !== null && st.fill < LOW_FILL)) return 'lowThroughput';
+  const rate = st.itemsPerMin;
+  if (rate !== null && rate < LOW_THROUGHPUT_PER_MIN) return 'lowThroughput';
+  if (st.fill !== null && st.fill < LOW_FILL && rate !== null && rate < LOW_FILL_PER_MIN) return 'lowThroughput';
   return null;
 }
 

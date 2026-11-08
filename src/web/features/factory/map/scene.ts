@@ -123,6 +123,8 @@ export interface SceneStation {
    * `StationFlow.problem` when the analysis has one.
    */
   state: 'idle' | 'empty' | 'active';
+  /** In use but hardly anything moves (`StationFlow.problem` `lowThroughput`): a warning, not an outage. */
+  low: boolean;
 }
 
 export interface SceneVehicle {
@@ -272,7 +274,7 @@ export function buildScene(
     const flow = routes.stations[i]!;
     const problem = flow.problem !== undefined ? flow.problem : flow.visits.length === 0 ? 'noVehicles' : (flow.itemsPerMin ?? 0) <= 0 ? 'nothingMoved' : null;
     const state = problem === 'noVehicles' ? 'idle' : problem === 'nothingMoved' ? 'empty' : 'active';
-    return { s, cx: t.x(s.x), cy: t.y(s.y), flow, state };
+    return { s, cx: t.x(s.x), cy: t.y(s.y), flow, state, low: state === 'active' && problem === 'lowThroughput' };
   });
   const vehicles = snapshot.vehicles.map((v, i): SceneVehicle => {
     const entry = index.get(v.cls);

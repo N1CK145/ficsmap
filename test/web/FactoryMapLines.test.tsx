@@ -293,8 +293,8 @@ describe('production lines: panel list', () => {
       expect.stringMatching(/^Wire.*3 machines.*80 %$/),
       expect.stringMatching(/^Iron Plate.*4 machines.*100 %$/),
     ]);
-    expect(rows[0]).toHaveTextContent('With a bottleneck:');
-    expect(rows[2]).not.toHaveTextContent('With a bottleneck:');
+    expect(rows[0]).toHaveTextContent('Bottleneck');
+    expect(rows[2]).not.toHaveTextContent('Bottleneck');
     expect(screen.getByText('3 lines, 2 with a bottleneck')).toBeInTheDocument();
 
     await user.hover(rows[1]!);

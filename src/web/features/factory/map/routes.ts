@@ -86,8 +86,9 @@ function shortestWay(
 
 /**
  * The selected vehicle's way along the roads between its stops, in map units, and its stops with their numbers. A stop
- * is marked where this vehicle moves nothing (0 /min) or where the station has a problem (the route analysis's
- * `StationFlow.problem`: no vehicles, nothing moved); a leg into a marked stop, or out of a problem station, too.
+ * is marked where this vehicle moves nothing (0 /min) or where the station is out of use (the route analysis's
+ * `StationFlow.problem`: no vehicles, nothing moved; not `lowThroughput`, a warning only); a leg into a marked stop, or
+ * out of such a station, too.
  */
 export function vehicleRoute(scene: Scene, id: string): FrameRoute | null {
   const v = scene.vehicleById.get(id);
@@ -95,7 +96,7 @@ export function vehicleRoute(scene: Scene, id: string): FrameRoute | null {
   const zeroAt = new Set(v.flow.stops.filter(s => s.visit !== null && (s.visit.itemsPerMin ?? 0) <= 0).map(s => s.station));
   const problem = (sid: string) => {
     const st = scene.stationById.get(sid);
-    return !!st && (st.flow.problem != null || st.state !== 'active');
+    return !!st && st.state !== 'active';
   };
   const marked = (sid: string) => zeroAt.has(sid) || problem(sid);
   // The same stops `routePath` walks: known stations, consecutive pairs (back to the first), repeats skipped.

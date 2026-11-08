@@ -228,7 +228,9 @@ describe('factory map: timeline', () => {
     expect(changes).toHaveAttribute('aria-pressed', 'true');
     const counts = await within(bar).findByTestId('timeline-counts');
     // 05.11 → 07.11: c built, a dropped from 100 % to 50 %.
-    await waitFor(() => expect(counts).toHaveTextContent('+2 buildings'));
+    // The Fabrik page's rows (`diffSummary`): machines, logistics, foundations.
+    await waitFor(() => expect(counts).toHaveTextContent('Machines+2'));
+    expect(counts).toHaveTextContent('Foundationsunchanged');
     expect(counts).toHaveTextContent('1 worse');
     await user.click(within(counts).getByRole('button', { name: 'Go to the changes' }));
     expect(useFactoryMap.getState().fitChangesSeq).toBe(1);

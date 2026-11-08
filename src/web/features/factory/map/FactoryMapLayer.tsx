@@ -414,6 +414,8 @@ export interface StationLabel {
   text: string;
   /** No vehicle stops here, or vehicles dock and move nothing: drawn in the danger colour. */
   problem: boolean;
+  /** Hardly anything moves (`lowThroughput`): drawn in the warning colour, not the danger colour. */
+  low: boolean;
   /** What lies in the station (the most), for its picture in front of the line; null when empty or unknown. */
   item: string | null;
 }
@@ -427,7 +429,8 @@ export function stationFill(st: SceneStation): number | null {
 /**
  * "↑ 312 /min · 80 %" (loading, how full) or "↓ …" (unloading), with the player's name for the station first when it
  * has one, else its number (`no`, from zoom 7: "Nr. 4", as the Fabrik page counts "Lkw-Station 4"), and the picture
- * of what lies in it; a problem station (no vehicles, nothing moved) in red.
+ * of what lies in it; a problem station (no vehicles, nothing moved) in red, one that moves hardly anything in the
+ * accent (a warning).
  */
 export function stationLabel(
   st: SceneStation, t: (k: string, o?: Record<string, unknown>) => string, number: Intl.NumberFormat, no: number | null = null,
@@ -439,7 +442,7 @@ export function stationLabel(
       ? t('factoryMap.station.rateFillShort', { rate: number.format(st.flow.itemsPerMin ?? 0), dir, fill: number.format(Math.round(fill * 100)) })
       : t('factoryMap.station.rateShort', { rate: number.format(st.flow.itemsPerMin ?? 0), dir });
   const head = st.s.name ?? (no !== null ? t('factoryMap.station.number', { n: no }) : null);
-  return { text: head ? `${head} · ${rate}` : rate, problem: st.state !== 'active', item: st.flow.cargo?.[0]?.item ?? null };
+  return { text: head ? `${head} · ${rate}` : rate, problem: st.state !== 'active', low: st.low, item: st.flow.cargo?.[0]?.item ?? null };
 }
 
 /** Runs `fn` once the map has a size (a map created this moment may not have one yet: a fit would go to zoom 0). */
