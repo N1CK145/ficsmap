@@ -73,6 +73,8 @@ export function renderInvitePage(page: InvitePage, locale: Locale): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <title>ficsmap</title>
 <style>${CSS}</style>
 </head>
