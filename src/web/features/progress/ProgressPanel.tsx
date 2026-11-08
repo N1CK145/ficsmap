@@ -34,7 +34,7 @@ export function ProgressPanel({ worldId }: { worldId: string }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <ul className="flex flex-col">
+      <ul className="-mx-1 flex flex-col">
         {COLLECTIBLE_TYPES.map(type => (
           <li key={type.id}>
             <ProgressRow type={type} count={counts.byType[type.id]} biomeName={biomeName} enabled={typeFilter.has(type.id)} />
@@ -110,11 +110,11 @@ function ProgressRow({ type, count, biomeName, enabled }: { type: CollectibleTyp
       onContextMenu={e => { if (longPressed.current || timer.current !== undefined) e.preventDefault(); }}
       onKeyDown={onKeyDown}
       onClick={onClick}
-      className={`flex h-9 w-full items-center gap-2 rounded px-2 text-left select-none focus-ring hover:bg-bg ${enabled ? 'text-fg' : 'text-muted'}`}
+      className={`flex h-9 w-full items-center gap-2.5 chamfer px-2 text-left select-none focus-ring hover:bg-raised ${enabled ? 'text-fg' : 'text-muted'}`}
     >
       <TypeIcon type={type} className={`shrink-0 ${enabled ? '' : 'opacity-40'}`} />
       <span className="min-w-0 flex-1 truncate">{t(`progress.types.${type.id}`)}</span>
-      <span className="shrink-0 font-display tabular-nums">
+      <span className={`shrink-0 font-display font-semibold tabular-nums ${count.total > 0 && count.done === count.total ? 'text-free' : ''}`}>
         {biomeName === null ? t('progress.count', numbers) : t('progress.inBiome', { ...numbers, biome: biomeName })}
       </span>
     </button>

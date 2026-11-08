@@ -10,7 +10,8 @@ import { biomeName, sortBiomeRows, useBiomeHover, type BiomeRow } from './useBio
 /**
  * The Biomes panel (spec §10.4): one row per biome with done/total of the enabled types and a mini
  * bar, most items left first. A click scopes the map to the biome, a second click clears it.
- * Biomes without any item in the dataset are not listed.
+ * Biomes without any item in the dataset are not listed. A biome without items of the enabled types shows a dash
+ * instead of 0/0; with every type switched off the counts and bars give way to one note.
  */
 export function BiomesPanel({ worldId }: { worldId: string }) {
   const { t, i18n } = useTranslation();
@@ -30,34 +31,45 @@ export function BiomesPanel({ worldId }: { worldId: string }) {
     return sortBiomeRows(unsorted);
   }, [index, marks, typeFilter, i18n.language]);
   if (!rows) return null;
+  const noTypes = typeFilter.size === 0;
 
   return (
-    <ul className="flex flex-col" aria-label={t('biomes.title')}>
-      {rows.map(({ idx, name, count }) => {
-        const active = biomeScope === idx;
-        return (
-          <li key={idx}>
-            <button
-              type="button"
-              aria-pressed={active}
-              onClick={() => setBiomeScope(active ? null : idx)}
-              onMouseEnter={() => setHovered(idx)}
-              onMouseLeave={() => setHovered(null)}
-              onFocus={() => setHovered(idx)}
-              onBlur={() => setHovered(null)}
-              className={`flex w-full flex-col gap-1 rounded px-2 py-1.5 text-left focus-ring hover:bg-bg ${active ? 'text-accent' : hovered === idx ? 'bg-bg text-fg' : 'text-fg'}`}
-            >
-              <span className="flex w-full items-center gap-2">
-                <span className="min-w-0 flex-1 truncate">{name}</span>
-                <span className="shrink-0 font-display tabular-nums">{t('progress.count', { done: count.done, total: count.total })}</span>
-              </span>
-              <span aria-hidden className="block h-1 w-full overflow-hidden rounded bg-line">
-                <span className={`block h-full ${active ? 'bg-accent' : 'bg-muted'}`} style={{ width: `${count.total === 0 ? 0 : (count.done / count.total) * 100}%` }} />
-              </span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="flex flex-col gap-2">
+      {noTypes && <p className="text-sm text-muted">{t('biomes.noTypes')}</p>}
+      <ul className="-mx-1 flex flex-col" aria-label={t('biomes.title')}>
+        {rows.map(({ idx, name, count }) => {
+          const active = biomeScope === idx;
+          return (
+            <li key={idx}>
+              <button
+                type="button"
+                aria-pressed={active}
+                onClick={() => setBiomeScope(active ? null : idx)}
+                onMouseEnter={() => setHovered(idx)}
+                onMouseLeave={() => setHovered(null)}
+                onFocus={() => setHovered(idx)}
+                onBlur={() => setHovered(null)}
+                className={`flex w-full flex-col gap-1 border-l-2 px-2 py-1.5 text-left focus-ring hover:bg-raised ${active ? 'border-l-accent bg-raised text-accent' : hovered === idx ? 'border-l-transparent bg-raised text-fg' : 'border-l-transparent text-fg'}`}
+              >
+                <span className="flex w-full items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate">{name}</span>
+                  {!noTypes && (count.total === 0
+                    ? <span className="shrink-0 text-muted"><span aria-hidden="true">–</span><span className="sr-only">{t('biomes.noneShown')}</span></span>
+                    : <span className="shrink-0 font-display font-semibold tabular-nums">{t('progress.count', { done: count.done, total: count.total })}</span>)}
+                </span>
+                {!noTypes && count.total > 0 && (
+                  <span aria-hidden className="block h-1 w-full overflow-hidden bg-line">
+                    <span
+                      className={`block h-full ${active ? 'bg-accent' : count.done === count.total ? 'bg-free' : 'bg-muted'}`}
+                      style={{ width: `${(count.done / count.total) * 100}%` }}
+                    />
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

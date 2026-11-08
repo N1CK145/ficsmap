@@ -2,14 +2,17 @@ import { useId, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { collect, type WorldCtx } from '../../app/feature.js';
 import { useFeatures } from '../../app/FeaturesContext.js';
+import { SectionMarker } from '../../components/SectionHeading.js';
+import { WindowTitleBar } from '../../components/Window.js';
 
-/** A titled block of the settings page; `danger` outlines it in the conflict colour. */
+/** A titled block of the settings page, a window of its own; `danger` gives it the conflict colour and hazard stripes. */
 export function SettingsBlock({ title, danger = false, children }: { title: string; danger?: boolean; children: ReactNode }) {
   const titleId = useId();
   return (
-    <section aria-labelledby={titleId} className={`flex flex-col gap-3 rounded border bg-panel p-4 ${danger ? 'border-conflict' : 'border-line'}`}>
-      <h3 id={titleId} className="font-display text-lg font-semibold tracking-wider uppercase">{title}</h3>
-      {children}
+    <section aria-labelledby={titleId} className={`flex flex-col overflow-hidden chamfer-window border bg-panel ${danger ? 'border-conflict/60' : 'border-line'}`}>
+      <WindowTitleBar title={title} titleId={titleId} level={3} tone={danger ? 'danger' : 'accent'} />
+      {danger && <div aria-hidden="true" className="h-1 shrink-0 hazard-danger" />}
+      <div className="flex flex-col gap-3 p-4">{children}</div>
     </section>
   );
 }
@@ -25,7 +28,7 @@ export function SettingsPage({ ctx }: { ctx: WorldCtx }) {
   return (
     <div className="h-full overflow-y-auto">
       <main className="mx-auto flex w-full max-w-[720px] flex-col gap-4 p-4">
-        <h2 className="font-display text-2xl font-bold">{t('settings.title')}</h2>
+        <h2 className="flex items-center gap-2 font-display text-2xl font-bold tracking-wider uppercase"><SectionMarker size="lg" />{t('settings.title')}</h2>
         {sections.filter(s => !s.ownerOnly || ctx.world.isOwner).map(s => <s.Component key={s.id} ctx={ctx} />)}
       </main>
     </div>

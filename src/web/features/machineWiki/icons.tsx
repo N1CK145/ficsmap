@@ -50,12 +50,13 @@ export const IconsContext = createContext<ItemIcons | null>(null);
  * A game picture of an item, machine or vehicle, `px` CSS pixels square, loaded lazily. Decorative by default (empty
  * alt, hidden from screen readers) because a name stands next to it; pass `alt` where the picture stands for itself.
  * Without a picture (no index, not in it, or the file fails) it renders nothing, or with `placeholder` an empty box
- * of the same size, so layouts keep their shape.
+ * of the same size, so layouts keep their shape. `icons` stands in for the context where there is none (the header search).
  */
-export function GameIcon({ cls, px, alt = '', placeholder = false, className = '' }: {
-  cls: string; px: number; alt?: string; placeholder?: boolean; className?: string;
+export function GameIcon({ cls, px, alt = '', placeholder = false, className = '', icons: given }: {
+  cls: string; px: number; alt?: string; placeholder?: boolean; className?: string; icons?: ItemIcons | null;
 }) {
-  const icons = useContext(IconsContext);
+  const fromContext = useContext(IconsContext);
+  const icons = given === undefined ? fromContext : given;
   const [failed, setFailed] = useState<string | null>(null);
   const urls = icons?.has(cls) ? icons.urls(cls, px) : null;
   const style = { width: px, height: px };

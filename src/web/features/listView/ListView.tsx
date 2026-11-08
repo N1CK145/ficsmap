@@ -6,6 +6,7 @@ import { detectLocale } from '../../../shared/i18n.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { useUiStore } from '../../app/store.js';
 import { Button } from '../../components/Button.js';
+import { PinIcon } from '../../components/icons.js';
 import { itemLabel } from '../itemPanel/label.js';
 import { TypeIcon } from '../map/TypeIcon.js';
 import { hasMismatch, isCollected, useMarks, useSetMark, type SetMark } from '../marks/useMarks.js';
@@ -21,12 +22,24 @@ interface RowProps {
 }
 
 const Row = memo(function Row({ item, label, typeLabel, biome, collected, conflict, by, someone, texts, setMark, show }: RowProps) {
-  const cell = 'px-3 py-1.5 align-middle';
+  const cell = 'px-2 py-1.5 align-middle @2xl:px-3';
+  // Narrow (the phone's full sheet): the type, biome and "changed by" columns give way; the item cell shows the type's
+  // icon and who changed it, and "Show on map" is an icon. The label already names type and biome.
+  const wide = 'hidden @2xl:table-cell';
+  const changed = by === undefined ? texts.none : by ?? someone;
   return (
-    <tr className="border-t border-line hover:bg-panel">
-      <td className={cell}><span className="flex items-center gap-2"><TypeIcon type={typeById(item.type)} className="shrink-0" /><span>{typeLabel}</span></span></td>
-      <td className={cell}>{label}</td>
-      <td className={cell}>{biome}</td>
+    <tr className="border-t border-line hover:bg-raised">
+      <td className={`${cell} ${wide}`}><span className="flex items-center gap-2"><TypeIcon type={typeById(item.type)} className="shrink-0" /><span>{typeLabel}</span></span></td>
+      <td className={cell}>
+        <span className="flex items-center gap-2">
+          <TypeIcon type={typeById(item.type)} className="shrink-0 @2xl:hidden" />
+          <span className="min-w-0">
+            {label}
+            {by !== undefined && <span className="block text-xs text-muted @2xl:hidden">{changed}</span>}
+          </span>
+        </span>
+      </td>
+      <td className={`${cell} ${wide}`}>{biome}</td>
       <td className={cell}>
         <label className="flex items-center gap-2">
           <input type="checkbox" aria-label={label} checked={collected} onChange={() => void setMark(item.name, !collected)} className="size-4 accent-accent focus-ring" />
@@ -38,10 +51,11 @@ const Row = memo(function Row({ item, label, typeLabel, biome, collected, confli
           )}
         </label>
       </td>
-      <td className={cell}>{by === undefined ? texts.none : by ?? someone}</td>
-      <td className={cell}>
-        <Button size="sm" onClick={() => show(item.name)}>
-          {texts.showOnMap}<span className="sr-only"> {label}</span>
+      <td className={`${cell} ${wide}`}>{changed}</td>
+      <td className={`${cell} text-right`}>
+        <Button size="sm" title={texts.showOnMap} onClick={() => show(item.name)}>
+          <PinIcon className="@2xl:hidden" />
+          <span className="@max-2xl:sr-only">{texts.showOnMap}</span><span className="sr-only"> {label}</span>
         </Button>
       </td>
     </tr>
@@ -95,20 +109,24 @@ export function ListView({ ctx }: { ctx: WorldCtx }) {
 
   if (!marks) return null;
   return (
-    <div className="h-full overflow-auto p-4">
-      <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-        <caption className="sr-only">{t('list.caption')}</caption>
-        <thead className="sticky top-0 bg-bg text-muted">
-          <tr>
-            {(['type', 'item', 'biome', 'status', 'changedBy'] as const).map(c => <th key={c} scope="col" className="px-3 py-2 font-medium">{t(`list.${c}`)}</th>)}
-            <th scope="col" className="px-3 py-2"><span className="sr-only">{t('list.showOnMap')}</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(r => <Row key={r.item.name} {...r} someone={someone} texts={texts} setMark={setMark} show={show} />)}
-        </tbody>
-      </table>
-      {rows.length === 0 && <p className="p-4 text-muted">{t('list.empty')}</p>}
+    <div className="h-full overflow-auto @container">
+      <div className="p-2 @2xl:p-4">
+        <table className="w-full border-collapse text-left text-sm @2xl:min-w-[720px]">
+          <caption className="sr-only">{t('list.caption')}</caption>
+          <thead className="sticky top-0 z-10 bg-raised font-display text-xs tracking-wider text-muted uppercase">
+            <tr>
+              {(['type', 'item', 'biome', 'status', 'changedBy'] as const).map(c => (
+                <th key={c} scope="col" className={`px-2 py-2 font-semibold @2xl:px-3 ${c === 'type' || c === 'biome' || c === 'changedBy' ? 'hidden @2xl:table-cell' : ''}`}>{t(`list.${c}`)}</th>
+              ))}
+              <th scope="col" className="px-2 py-2 @2xl:px-3"><span className="sr-only">{t('list.showOnMap')}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => <Row key={r.item.name} {...r} someone={someone} texts={texts} setMark={setMark} show={show} />)}
+          </tbody>
+        </table>
+        {rows.length === 0 && <p className="p-4 text-muted">{t('list.empty')}</p>}
+      </div>
     </div>
   );
 }

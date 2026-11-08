@@ -49,7 +49,7 @@ export function CoordsReadout({ ctx }: { ctx: WorldCtx }) {
   const z = available === false ? null : heightAt(pos.x, pos.y);
   return (
     <div
-      className="pointer-events-none absolute bottom-2 left-2 z-[800] rounded border border-line bg-panel/90 px-2 py-1 text-xs text-fg tabular-nums"
+      className="pointer-events-none absolute bottom-2 left-2 z-[800] chamfer border border-line bg-panel/90 px-2 py-1 font-display text-xs font-semibold tracking-wide text-fg tabular-nums"
       title={t('coords.hint')}
       data-testid="coords-readout"
     >

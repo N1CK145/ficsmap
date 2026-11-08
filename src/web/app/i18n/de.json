@@ -94,7 +94,9 @@
   "biomes": {
     "title": "Biome",
     "scope": "Bereich: {name}",
-    "clearScope": "Bereich aufheben"
+    "clearScope": "Bereich aufheben",
+    "noTypes": "Alle Sammelobjekt-Typen sind ausgeschaltet, es gibt nichts zu zählen. Typen unter Fortschritt einschalten.",
+    "noneShown": "keine der gezeigten Typen"
   },
   "caves": {
     "control": "Höhlen",

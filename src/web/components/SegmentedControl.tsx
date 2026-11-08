@@ -30,7 +30,7 @@ export function SegmentedControl<V extends string>({ label, options, value, onCh
   }
 
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded border border-line bg-bg p-0.5">
+    <div role="radiogroup" aria-label={label} className="inline-flex gap-0.5 chamfer border border-line bg-bg p-0.5">
       {options.map((o, i) => {
         const checked = o.value === value;
         return (
@@ -43,7 +43,7 @@ export function SegmentedControl<V extends string>({ label, options, value, onCh
             tabIndex={checked ? 0 : -1}
             onClick={() => onChange(o.value)}
             onKeyDown={e => onKeyDown(e, i)}
-            className={`h-8 rounded px-3 text-sm font-medium focus-ring ${checked ? 'bg-accent text-bg' : 'text-muted hover:text-fg'}`}
+            className={`h-8 chamfer px-3 text-sm transition-colors focus-ring ${checked ? 'bg-accent font-semibold text-on-accent' : 'font-medium text-muted hover:bg-raised hover:text-fg'}`}
           >
             {o.label}
           </button>

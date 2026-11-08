@@ -178,7 +178,7 @@ function NodeInfo({ node, extractors, pressurizer, label, rates, pinned, ctx }: 
       role={pinned ? 'dialog' : 'tooltip'}
       aria-label={res.name}
       data-testid="node-info"
-      className="pointer-events-none absolute z-[800] w-max max-w-60 rounded border border-line bg-panel/95 px-2 py-1.5 text-xs text-fg shadow"
+      className="pointer-events-none absolute z-[800] w-max max-w-60 chamfer border border-line bg-panel/95 px-2 py-1.5 text-xs text-fg shadow"
       style={{ left: right ? p.x + BOX_OFFSET : undefined, right: right ? undefined : size.x - p.x + BOX_OFFSET, top: p.y, transform: 'translateY(-50%)' }}
     >
       <div className="flex items-center gap-1.5 font-semibold">

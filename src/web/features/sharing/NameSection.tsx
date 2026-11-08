@@ -5,6 +5,7 @@ import type { WorldCtx } from '../../app/feature.js';
 import { api } from '../../app/api.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { Button } from '../../components/Button.js';
+import { fieldClass } from '../../components/Field.js';
 import { SettingsBlock } from './SettingsPage.js';
 
 const MAX_NAME = 80;
@@ -49,7 +50,7 @@ export function NameSection({ ctx }: { ctx: WorldCtx }) {
           value={draft}
           maxLength={MAX_NAME + 20}
           onChange={e => setDraft(e.target.value)}
-          className="h-10 min-w-0 flex-1 rounded border border-line bg-bg px-3 text-fg focus-ring"
+          className={fieldClass({}, 'min-w-0 flex-1')}
         />
         <Button type="submit" variant="primary" disabled={!valid || name === world.name || rename.isPending}>{t('settings.name.save')}</Button>
       </form>

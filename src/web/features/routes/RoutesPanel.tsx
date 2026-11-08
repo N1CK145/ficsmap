@@ -36,7 +36,7 @@ function RouteList({ worldId }: { worldId: string }) {
               <button
                 type="button"
                 onClick={() => useRouteDraft.getState().load(r)}
-                className="flex w-full flex-col rounded px-2 py-1.5 text-left focus-ring hover:bg-bg"
+                className="flex w-full flex-col chamfer px-2 py-1.5 text-left focus-ring hover:bg-raised"
               >
                 <span className="truncate">{r.name}</span>
                 <span className="text-sm text-muted">

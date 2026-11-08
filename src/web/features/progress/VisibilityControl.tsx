@@ -11,7 +11,7 @@ export function VisibilityControl() {
   const setVisibility = useUiStore(s => s.setVisibility);
   const label = t('progress.visibility');
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
       <span className="text-sm text-muted">{label}</span>
       <SegmentedControl
         label={label}

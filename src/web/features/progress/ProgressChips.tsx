@@ -37,11 +37,11 @@ export function ProgressChips({ worldId }: { worldId: string }) {
               type="button"
               aria-pressed={enabled}
               onClick={() => toggleType(type.id)}
-              className={`flex h-11 items-center gap-1.5 rounded border border-line px-2 focus-ring ${enabled ? 'bg-bg text-fg' : 'text-muted'}`}
+              className={`flex h-11 items-center gap-1.5 chamfer border px-2.5 focus-ring ${enabled ? 'border-edge bg-raised text-fg' : 'border-line text-muted'}`}
             >
               <TypeIcon type={type} className={`shrink-0 ${enabled ? '' : 'opacity-40'}`} />
               <span className="sr-only">{t(`progress.types.${type.id}`)}</span>
-              <span className="font-display tabular-nums">{t('progress.count', { done: count.done, total: count.total })}</span>
+              <span className="font-display font-semibold tabular-nums">{t('progress.count', { done: count.done, total: count.total })}</span>
             </button>
           </li>
         );

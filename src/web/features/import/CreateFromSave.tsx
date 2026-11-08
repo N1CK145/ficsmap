@@ -8,6 +8,7 @@ import { api } from '../../app/api.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { Button } from '../../components/Button.js';
 import { useToast } from '../../components/Toast.js';
+import { fieldClass } from '../../components/Field.js';
 import { useDatasetQuery } from '../map/useDataset.js';
 import { useMe } from '../worlds/queries.js';
 import { WORLD_NAME_MAX, type CreateFromSaveProps } from '../worlds/CreateWorldDialog.js';
@@ -92,7 +93,7 @@ function Flow({ version, index, onClose }: { version: string; index: DatasetInde
         maxLength={WORLD_NAME_MAX}
         autoComplete="off"
         onChange={e => setName(e.target.value)}
-        className="h-10 rounded border border-line bg-bg px-3 text-fg focus-ring"
+        className={fieldClass()}
       />
       {failed && <p role="alert" className="text-sm">{t('worlds.create.failed')}</p>}
       <div className="flex justify-end gap-2">

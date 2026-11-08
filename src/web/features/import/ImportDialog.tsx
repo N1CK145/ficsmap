@@ -9,6 +9,7 @@ import { api, ApiClientError } from '../../app/api.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { Button } from '../../components/Button.js';
+import { UploadIcon } from '../../components/icons.js';
 import { Dialog } from '../../components/Dialog.js';
 import { useMarks, type MarksCache } from '../marks/useMarks.js';
 import { useNodeSettingsText } from '../resourceNodes/nodeSettings.js';
@@ -58,7 +59,13 @@ export function ImportButton({ ctx }: { ctx: WorldCtx }) {
   const { t } = useTranslation();
   const show = useImportDialog(s => s.show);
   if (!ctx.world.isOwner) return null;
-  return <Button size="sm" onClick={show}>{t('import.button')}</Button>;
+  // Below 1280 px only the icon shows (the bar keeps room for the world name); the word stays the button's name.
+  return (
+    <Button size="sm" title={t('import.button')} onClick={show}>
+      <UploadIcon />
+      <span className="max-[1279px]:sr-only">{t('import.button')}</span>
+    </Button>
+  );
 }
 
 /** The import dialog bound to `useImportDialog`; owner only. Mounted once by the world layout. */
@@ -131,7 +138,7 @@ function ImportFlow({ ctx, onClose }: { ctx: WorldCtx; onClose(): void }) {
     <div className="flex flex-col gap-3">
       <SaveSummary result={result} index={ctx.index} preview={preview} confirming={confirming} />
       {failed && (
-        <div role="alert" className="rounded border border-conflict px-3 py-2 text-sm">
+        <div role="alert" className="chamfer border border-conflict px-3 py-2 text-sm">
           <p className="font-medium">{failed.message}</p>
           {failed.detail && <p className="mt-1 font-mono text-xs break-words text-muted">{failed.detail}</p>}
         </div>
@@ -189,12 +196,12 @@ export function SaveSummary({ result, index, preview, counts = true, confirming 
       <NodeSummary result={result} />
       {counts && <p className="font-display text-lg font-semibold">{t('import.counts', { willCheck: preview.willCheck, conflicts: preview.conflicts })}</p>}
       {preview.buildNewer && (
-        <p role="note" className="rounded border border-line bg-bg px-3 py-2 text-sm">
+        <p role="note" className="chamfer border border-line bg-bg px-3 py-2 text-sm">
           {t('import.buildNewer', { save: String(meta.build), data: String(index.ds.build) })}
         </p>
       )}
       {result.recognised === 0 && (
-        <p role="alert" className="rounded border border-conflict px-3 py-2 text-sm">
+        <p role="alert" className="chamfer border border-conflict px-3 py-2 text-sm">
           {confirming ? t('import.confirmNoMatch', { count: preview.conflicts }) : t('import.noMatch')}
         </p>
       )}
@@ -219,7 +226,7 @@ function NodeSummary({ result }: { result: ExtractResult }) {
   let differs: ReactNode = null;
   if (nodes.overrides.length > 0) differs = <p className="text-sm">{t('resourceNodes.importChanged', { count: nodes.overrides.length })}</p>;
   else if (isRandomized(nodes.settings)) {
-    differs = <p role="note" className="rounded border border-line bg-bg px-3 py-2 text-sm">{t('resourceNodes.importRandomized', { mode: settingsText(nodes.settings) })}</p>;
+    differs = <p role="note" className="chamfer border border-line bg-bg px-3 py-2 text-sm">{t('resourceNodes.importRandomized', { mode: settingsText(nodes.settings) })}</p>;
   }
   return <>{differs}{placed}</>;
 }

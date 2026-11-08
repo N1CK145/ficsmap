@@ -9,17 +9,22 @@ export type ButtonSize = 'sm' | 'md' | 'touch' | 'lg';
 /** `square`: fixed width = height, no horizontal padding (icon buttons); `round`: the same as a circle. */
 export type ButtonShape = 'default' | 'square' | 'round';
 
-// Disabled buttons get no pointer events, so plain `hover:` is safe and also works on <a>.
-const BASE = 'inline-flex shrink-0 items-center justify-center gap-2 font-medium transition-colors focus-ring '
-  + 'disabled:pointer-events-none disabled:opacity-50';
+// Disabled buttons get no pointer events, so plain `hover:` is safe and also works on <a>. Pressed buttons sink by a
+// pixel. Font weight lives in the variants (two weights in one class list would fight).
+const BASE = 'inline-flex shrink-0 items-center justify-center gap-2 transition-[color,background-color,border-color,filter] '
+  + 'duration-100 focus-ring active:translate-y-px disabled:pointer-events-none disabled:opacity-50';
 
-/** Colour, border and background only. */
+/**
+ * Colour, border, background and weight only. `primary` is the one main action of a view (FICSIT orange);
+ * `secondary` a plate in the raised grey; `ghost` only shows on hover; `danger` destroys something;
+ * `link-accent` an accent text action (a toast's Undo).
+ */
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-accent text-bg hover:brightness-110',
-  secondary: 'border border-line bg-panel text-fg hover:bg-line',
-  ghost: 'text-fg hover:bg-line',
-  danger: 'bg-conflict text-bg hover:brightness-110',
-  'link-accent': 'text-accent hover:bg-line',
+  primary: 'bg-accent font-semibold text-on-accent hover:bg-accent-hi active:bg-accent-lo',
+  secondary: 'border border-line bg-raised font-medium text-fg hover:border-edge hover:bg-line active:bg-panel',
+  ghost: 'font-medium text-fg hover:bg-line active:bg-raised',
+  danger: 'bg-conflict font-semibold text-on-accent hover:brightness-110 active:brightness-95',
+  'link-accent': 'font-semibold text-accent hover:bg-line active:bg-raised',
 };
 
 /** Height and padding only. */
@@ -38,7 +43,7 @@ export interface ButtonStyle { variant?: ButtonVariant; size?: ButtonSize; shape
  * stylesheet order decides between conflicting utilities, not the order in `class`.
  */
 export function buttonClass({ variant = 'secondary', size = 'md', shape = 'default' }: ButtonStyle = {}, className = ''): string {
-  const box = shape === 'round' ? `${SIZES[size].square} rounded-full` : `${SIZES[size][shape]} rounded`;
+  const box = shape === 'round' ? `${SIZES[size].square} rounded-full` : `${SIZES[size][shape]} chamfer`;
   return `${BASE} ${VARIANTS[variant]} ${box} ${className}`.trim();
 }
 

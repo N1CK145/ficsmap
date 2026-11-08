@@ -9,7 +9,7 @@ import { useFeatures } from '../../app/FeaturesContext.js';
 import { shouldIgnoreGlobalKey } from '../../app/keyboard.js';
 import { useUiStore } from '../../app/store.js';
 import { Button } from '../../components/Button.js';
-import { IconButton } from '../../components/IconButton.js';
+import { WINDOW_FRAME, WindowTitleBar } from '../../components/Window.js';
 import { TypeIcon } from '../map/TypeIcon.js';
 
 /** The selected item, if it is on the map. */
@@ -30,7 +30,7 @@ export function ItemPanel({ ctx }: { ctx: WorldCtx }) {
   return (
     <aside
       aria-label={t('item.panel')}
-      className="ficsmap-item-panel absolute top-2 right-2 z-[1001] flex max-h-[calc(100%-1rem)] w-[340px] flex-col rounded border border-line bg-panel shadow-lg"
+      className={`ficsmap-item-panel absolute top-2 right-2 z-[1001] flex max-h-[calc(100%-1rem)] w-[340px] flex-col overflow-hidden ${WINDOW_FRAME}`}
     >
       <ItemDetails item={item} ctx={ctx} />
     </aside>
@@ -65,13 +65,13 @@ export function ItemDetails({ item, ctx }: { item: Item; ctx: WorldCtx }) {
 
   return (
     <>
-      <header className="flex items-start gap-2 border-b border-line p-3">
-        <TypeIcon type={type} size={20} className="mt-0.5 shrink-0" />
-        <div className="min-w-0 flex-1">
-          <h2 className="font-display text-lg font-semibold tracking-wider uppercase">{t(type.labelKey)}</h2>
-          <p className="text-sm text-muted">{biome ? `${biome[detectLocale([i18n.language])]} ${item.seq}` : item.seq}</p>
-        </div>
-        <IconButton aria-label={t('common.close')} size="sm" onClick={close}><span aria-hidden="true">×</span></IconButton>
+      <header>
+        <WindowTitleBar
+          icon={<TypeIcon type={type} size={24} />}
+          title={t(type.labelKey)}
+          subtitle={biome ? `${biome[detectLocale([i18n.language])]} ${item.seq}` : item.seq}
+          onClose={close}
+        />
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="flex flex-col gap-2 border-b border-line p-3">
@@ -98,9 +98,9 @@ function Footer({ item, ctx }: { item: Item; ctx: WorldCtx }) {
     ctx.toast.show({ message: t('item.copied') });
   };
   return (
-    <footer className="flex flex-col gap-1 border-t border-line p-3 text-sm">
+    <footer className="flex flex-col gap-1 border-t border-line bg-bg/50 px-3 py-2 text-sm">
       <div className="flex items-center justify-between gap-2">
-        <span className="tabular-nums">{t('item.coords', { x: m(item.x), y: m(item.y), z: m(item.z) })}</span>
+        <span className="font-display font-semibold tracking-wide tabular-nums">{t('item.coords', { x: m(item.x), y: m(item.y), z: m(item.z) })}</span>
         <Button variant="ghost" size="sm" onClick={() => void copy()}>{t('item.copyId')}</Button>
       </div>
       <code className="truncate font-mono text-xs text-muted select-all" title={item.name}>{item.name}</code>

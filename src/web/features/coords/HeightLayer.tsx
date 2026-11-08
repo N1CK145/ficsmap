@@ -107,10 +107,10 @@ export function HeightLayer({ ctx }: { ctx: WorldCtx }) {
   const [lo, hi] = source.meta.range;
   return (
     <div
-      className="pointer-events-none absolute bottom-10 left-2 z-[800] rounded border border-line bg-panel/90 px-2 py-1 text-xs text-fg"
+      className="pointer-events-none absolute bottom-10 left-2 z-[800] chamfer border border-line bg-panel/90 px-2 py-1 text-xs text-fg"
       data-testid="height-legend"
     >
-      <div className="mb-1 text-muted">{t('heights.legend')}</div>
+      <div className="mb-1 font-display font-semibold tracking-wider text-muted uppercase">{t('heights.legend')}</div>
       <div className="h-2 w-40 rounded-sm" style={{ background: HEIGHT_GRADIENT }} />
       <div className="mt-0.5 flex justify-between tabular-nums">
         <span>{t('heights.metres', { value: metres.format(lo / UNITS_PER_METER) })}</span>

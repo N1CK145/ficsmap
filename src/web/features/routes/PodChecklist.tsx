@@ -125,7 +125,7 @@ export function PodChecklist({ worldId }: { worldId: string }) {
   if (!needs) return null;
   const open = openCount(needs, ticks);
   return (
-    <section aria-label={t('routes.podNeeds.title')} className="flex flex-col gap-2 rounded border border-line p-2">
+    <section aria-label={t('routes.podNeeds.title')} className="flex flex-col gap-2 chamfer border border-line p-2">
       <h4 className="flex items-baseline justify-between gap-2 text-sm font-medium">
         <span>{t('routes.podNeeds.title')}</span>
         {open > 0 && <span className="text-muted">{t('routes.podNeeds.open', { count: open })}</span>}

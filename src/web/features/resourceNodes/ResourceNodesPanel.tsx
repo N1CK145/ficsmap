@@ -11,7 +11,7 @@ import { useRateTexts } from './rates.js';
 import { PURITY_TEXT, resourceToken, sortResources, useResourceLabels } from './resourceStyle.js';
 import { useNodeFilter, useNodeLayer, useWorldNodes } from './useResourceNodes.js';
 
-const ROW = 'flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm select-none focus-ring hover:bg-bg';
+const ROW = 'flex h-8 w-full items-center gap-2 chamfer px-2 text-left text-sm select-none focus-ring hover:bg-raised';
 
 /**
  * The Resource nodes panel: the layer switch, the filters by resource (Alt-click: only this one, each with the
@@ -53,7 +53,7 @@ export function ResourceNodesPanel({ worldId }: { worldId: string }) {
 
       {changed > 0 && <p className="text-xs text-muted">{t('resourceNodes.changedNote', { count: changed })}</p>}
       {changed === 0 && isRandomized(settings) && (
-        <p role="note" className="rounded border border-conflict px-2 py-1 text-xs">
+        <p role="note" className="chamfer border border-conflict px-2 py-1 text-xs">
           {t('resourceNodes.randomizedNote', { mode: settingsText(settings) })}
         </p>
       )}
