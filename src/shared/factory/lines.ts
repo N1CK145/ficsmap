@@ -5,7 +5,8 @@
  *
  * Implemented by `buildLines` (this file); the UI only reads these types.
  */
-import type { Band, MachineState, Reason } from './analysis.js';
+import type { AnalysisData, Band, FactoryAnalysis, MachineState, Reason } from './analysis.js';
+import type { FactorySnapshot } from './snapshot.js';
 
 export interface ProductionLine {
   /** Stable within a snapshot: the id of its most downstream machine. */
@@ -79,3 +80,20 @@ export type LineBottleneck =
 
 /** Which line every building belongs to (building id → line id), for the map's hover. */
 export type LineIndex = ReadonlyMap<string, string>;
+
+export interface ProductionLines {
+  lines: ProductionLine[];
+  /** building id → line id */
+  index: LineIndex;
+}
+
+/**
+ * Groups the snapshot's machines into production lines along `links`. Snapshots without `links` (extracted before
+ * connections were read) give no lines. Contract stub: the implementation follows in feature/lines-data.
+ */
+export function buildLines(
+  s: Pick<FactorySnapshot, 'buildings' | 'links'>, _analysis: FactoryAnalysis, _data: AnalysisData,
+): ProductionLines {
+  if (!s.links?.length) return { lines: [], index: new Map() };
+  return { lines: [], index: new Map() };
+}
