@@ -1,3 +1,4 @@
+import { ICON } from '../map/drawMarker.js';
 import type { NodeKind, Purity } from '../../../shared/resourceNodes.js';
 
 /*
@@ -21,14 +22,19 @@ export function nodeSize(zoom: number): NodeSize {
 
 export const PURITY_PIPS: Record<Purity, 1 | 2 | 3> = { impure: 1, normal: 2, pure: 3 };
 
-const RADIUS: Record<NodeSize, number> = { dot: 0, small: 8, full: 13 };
+/**
+ * From zoom 2 a node looks like a collectible's icon marker (drawMarker.ts `ICON`), at the same size: the picture
+ * (32 px) on a see-through plate in a 2 px ring, here in the purity's colour.
+ */
+const ICON_R = ICON.discR + ICON.ring / 2;
+const RADIUS: Record<NodeSize, number> = { dot: 0, small: ICON_R, full: ICON_R };
 /** Width of the purity ring. */
-const RING: Record<Exclude<NodeSize, 'dot'>, number> = { small: 2, full: 3 };
+const RING: Record<Exclude<NodeSize, 'dot'>, number> = { small: ICON.ring, full: ICON.ring };
 const DOT_R: Record<Purity, number> = { impure: 3, normal: 4, pure: 5 };
 const SATELLITE_SCALE = 0.8;
 const PIP = { small: { r: 1.9, gap: 5 }, full: { r: 2.4, gap: 6.2 } } as const;
-/** The plate behind the picture: nearly opaque on nodes, see-through on cores. */
-const PLATE_ALPHA = { node: 0.9, core: 0.55 } as const;
+/** The plate behind the picture: as on the collectible markers, lighter on cores. */
+const PLATE_ALPHA = { node: 0.75, core: 0.5 } as const;
 const CORE_DASH = [3, 2.5];
 
 /** Resolved theme colours (tokens read at runtime; no raw values here). */
@@ -138,8 +144,8 @@ export function drawNode(
   ctx.globalAlpha = 1;
 
   if (img) {
-    // The picture reaches under the ring, which is drawn on top; the pictures have transparent corners.
-    const s = (r - w) * 2 + 2;
+    // The picture at the markers' icon size (smaller on well satellites).
+    const s = ICON.size * (r / ICON_R);
     ctx.drawImage(img, x - s / 2, y - s / 2, s, s);
   } else {
     const fill = p.resources[n.token] ?? p.fg;
@@ -161,11 +167,6 @@ export function drawNode(
   ctx.lineWidth = w;
   ctx.stroke();
   if (core) ctx.setLineDash([]);
-  // A thin dark edge, so the ring stands out on light map tiles too.
-  circle(ctx, x, y, r + 0.5);
-  ctx.strokeStyle = p.bg;
-  ctx.lineWidth = 1;
-  ctx.stroke();
 
   if (n.purity !== null) {
     const { r: pr, gap } = PIP[size];
