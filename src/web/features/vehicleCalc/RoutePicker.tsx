@@ -20,10 +20,10 @@ function Pin({ letter }: { letter: 'A' | 'B' }) {
 
 /**
  * Step 1 of the calculator, above the route length: [Pick on the map]; once start and destination are set, one line
- * with the straight line between them and the height difference (from the dataset's height map, when it has one),
- * [Pick again] and [×] (clear the points). The route length field below says what the straight line means for the
- * vehicle. Picking goes to the map in PICK_MODE (a history entry of its own, `PICK_STATE`); `PickReturn` comes back.
- * On a phone the buttons are 44 px high.
+ * with A–B and the height difference between them (from the dataset's height map, when it has one), [Pick again] and
+ * [×] (clear the points). The straight line itself is not repeated here: the route length field below holds it (or,
+ * once typed, offers it back), and says what it means for the vehicle. Picking goes to the map in PICK_MODE (a history
+ * entry of its own, `PICK_STATE`); `PickReturn` comes back. On a phone the buttons are 44 px high.
  */
 export function RoutePicker({ ctx }: { ctx: WorldCtx }) {
   const { t, i18n } = useTranslation();
@@ -48,7 +48,6 @@ export function RoutePicker({ ctx }: { ctx: WorldCtx }) {
     );
   }
 
-  const metres = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0 });
   const signed = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0, signDisplay: 'exceptZero' });
   const starts = available ? heightAt(route.start.x, route.start.y) : null;
   const ends = available ? heightAt(route.end.x, route.end.y) : null;
@@ -68,7 +67,6 @@ export function RoutePicker({ ctx }: { ctx: WorldCtx }) {
         <span className="inline-flex items-center gap-1">
           <Pin letter="A" /><span aria-hidden="true" className="h-0.5 w-4 bg-cat-vehicles" /><Pin letter="B" />
         </span>
-        <span className={fact}>{t('vehicleCalc.routeInfo.straight')}<span className={value}>{t('vehicleCalc.routeInfo.metres', { value: metres.format(g.meters) })}</span></span>
         {climb !== null && <span className={fact}>{t('vehicleCalc.routeInfo.climb')}<span className={value}>{climb}</span></span>}
       </p>
       <div className="flex shrink-0 gap-1">

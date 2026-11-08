@@ -13,6 +13,7 @@ import { CoordsReadout } from '../../src/web/features/coords/CoordsReadout.js';
 import { HeightLayer } from '../../src/web/features/coords/HeightLayer.js';
 import { HEIGHT_LUT, HEIGHT_RAMP, paintHeights } from '../../src/web/features/coords/heightColors.js';
 import { coordsFeature } from '../../src/web/features/coords/index.js';
+import { wholeMetres } from '../../src/web/features/coords/metres.js';
 import { useHeightLayer } from '../../src/web/features/coords/useHeights.js';
 import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
 import userEvent from '@testing-library/user-event';
@@ -73,6 +74,13 @@ describe('coordinates under the mouse', () => {
     await waitFor(() => expect(screen.getByTestId('coords-readout').textContent).toBe('X 600 · Y 100 · Z –'));
     leave();
     await waitFor(() => expect(screen.queryByTestId('coords-readout')).toBeNull());
+  });
+
+  it('formats whole metres in the UI language without a "-0"', () => {
+    expect(wholeMetres('de')(123_456)).toBe('1.235');
+    expect(wholeMetres('en')(-165_700)).toBe('-1,657');
+    expect(wholeMetres('en')(-40)).toBe('0');
+    expect(wholeMetres('de')(-49)).toBe('0');
   });
 
   it('shows no height for a dataset without a height map', async () => {

@@ -23,7 +23,7 @@ export function ItemSheet({ ctx }: { ctx: WorldCtx }) {
       data-item-sheet=""
       className="fixed inset-x-0 bottom-0 z-[1200] flex h-[50dvh] flex-col bg-panel shadow-[0_-8px_24px_rgb(0_0_0/0.45)]"
     >
-      <ItemDetails item={item} ctx={ctx} />
+      <ItemDetails item={item} ctx={ctx} footerScrolls />
       {nextStop && <div className="shrink-0 border-t border-line bg-bg/50 p-2"><NextStopButton worldId={ctx.worldId} /></div>}
     </aside>
   );

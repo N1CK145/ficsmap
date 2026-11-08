@@ -31,8 +31,10 @@ function ResourcePicture({ id, icons, purity }: { id: string; icons: ItemIcons |
  * Per resource on the map one search entry, found by its name in both languages and its class ("Eisenerz", detail
  * "46 rein · 42 normal · 39 unrein"), and one per purity it has ("Eisenerz · Rein", found by "eisen rein" or "iron
  * pure"), ranked after it. Choosing one switches the resource node layer on and filters it to that resource (and
- * purity); the entry's nodes are its `actors`, so the collectibles fade like non-matches of a search. Counts are the
- * world's extraction points (with the last save import), not well centres.
+ * purity), which isolates its nodes. Their `actors` are empty: the entry is about the map (on a world page the search
+ * goes to the map; on a phone the chosen entry stays as the search chip), but the nodes are no collectibles, so none
+ * is highlighted, nothing fades (drop pods next to the nodes stay visible) and the status counts no objects. Counts
+ * are the world's extraction points (with the last save import), not well centres.
  */
 export function resourceNodeEntries(nodes: readonly ResourceNode[], file: ResourceNodesFile, i18n: I18n, icons: ItemIcons | null = null): SearchEntry[] {
   const lang = i18n.language === 'de' ? 'de' : 'en';
@@ -60,7 +62,7 @@ export function resourceNodeEntries(nodes: readonly ResourceNode[], file: Resour
       detail: present.map(p => t(`resourceNodes.search.purity.${p}`, { count: perPurity.get(p)!.length })).join(' · '),
       kindKey: 'search.kind.resource',
       terms: [names.en, names.de, id],
-      actors: present.flatMap(p => perPurity.get(p)!),
+      actors: [],
       weight: ORDER,
       icon: <ResourcePicture id={id} icons={icons} />,
       onSelect: () => useNodeLayer.getState().showResource(id, all, null),
@@ -73,7 +75,7 @@ export function resourceNodeEntries(nodes: readonly ResourceNode[], file: Resour
         detail: t('resourceNodes.search.nodes', { count: perPurity.get(p)!.length }),
         kindKey: 'search.kind.resource',
         terms: [label('en'), label('de')],
-        actors: perPurity.get(p)!,
+        actors: [],
         weight: purityWeight(p),
         icon: <ResourcePicture id={id} icons={icons} purity={p} />,
         onSelect: () => useNodeLayer.getState().showResource(id, all, p),

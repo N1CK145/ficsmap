@@ -42,7 +42,8 @@ function dataset(podRequirementsKnown = true): Dataset {
       ['P2', 'hard_drive', 1000, 5000, 500, 0, 5, { pod: { item: null, amount: 0, power: 0 } }],
       ['P3', 'hard_drive', 9000, 9000, 500, 0, 6],
       ['B1', 'slug_blue', 1000, 2000, -1300, 0, 1, { shards: 1 }],
-      ['F1', 'mercer_sphere', 90_000, 90_000, 0, 0, 1],
+      // Just below zero: shown as "Z 0", not "Z -0".
+      ['F1', 'mercer_sphere', 90_000, 90_000, -40, 0, 1],
     ],
     aliases: {},
   };
@@ -124,6 +125,21 @@ describe('ItemPanel', () => {
     expect(panel()).toHaveTextContent(/Last changed by someone/);
   });
 
+  it('sums the piles of one item at a crash site, keeping piles at another place apart', async () => {
+    stubFetch({
+      'GET /data/test/crash-sites.json': { body: { P1: {
+        items: [
+          { item: 'Motor', amount: 17 }, { item: 'Stator', amount: 5 }, { item: 'Motor', amount: 30 },
+          { item: 'Motor', amount: 4, where: 'below' },
+        ],
+        threats: [], notes: [],
+      } } },
+    });
+    renderPanel('P1');
+    const section = await within(panel()).findByRole('region', { name: 'Crash site' });
+    expect(within(section).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Motor47×', 'Stator5×', 'Motor · below4×']);
+  });
+
   it('shows the crash site: items with location hints, threats and notes', async () => {
     stubFetch({
       'GET /data/test/crash-sites.json': { body: { P1: {
@@ -192,7 +208,7 @@ describe('ItemPanel', () => {
   it('lists nearby items with distance, height and status; a row selects its item', async () => {
     renderPanel('S1', { marks: marksCache([['B1', {}]]) });
     const nearby = screen.getByRole('region', { name: /Nearby/ });
-    const slug = within(nearby).getByRole('button', { name: /Blue Power Slug · Grass Fields 1/ });
+    const slug = within(nearby).getByRole('button', { name: /Blue Power Slug · Grass Fields\u00a01/ });
     expect(slug).toHaveTextContent('21 m');
     expect(slug).toHaveTextContent('18 m below');
     expect(slug).toHaveTextContent('Collected');
@@ -205,11 +221,24 @@ describe('ItemPanel', () => {
     const writeText = vi.fn(async () => {});
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
     const { toasts } = renderPanel('P1');
-    expect(panel()).toHaveTextContent('X 50 · Y 10 · Z 5');
-    expect(within(panel()).getByText('P1')).toBeInTheDocument();
+    const footer = panel().querySelector('footer')!;
+    expect(footer).toHaveTextContent(/^X 50 · Y 10 · Z 5Copy ID$/);
+    // The raw ID is not shown, the button's tooltip names it.
+    expect(within(panel()).queryByText('P1')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Copy ID' })).toHaveAttribute('title', 'P1');
     await userEvent.click(screen.getByRole('button', { name: 'Copy ID' }));
     expect(writeText).toHaveBeenCalledWith('P1');
     await waitFor(() => expect(toasts).toContainEqual({ message: 'Copied' }));
+  });
+
+  it('shows a height just below zero as 0, not -0', () => {
+    renderPanel('F1');
+    expect(panel().querySelector('footer')).toHaveTextContent(/^X 900 · Y 900 · Z 0Copy ID$/);
+  });
+
+  it('pins the footer under the scrolling sections', () => {
+    renderPanel('S1');
+    expect(panel().querySelector('footer')!.parentElement).toBe(panel());
   });
 
   it('closes on Esc and with the × button', async () => {
@@ -272,6 +301,8 @@ describe('ItemSheet (mobile)', () => {
     expect(within(sheet).getByRole('heading', { level: 2, name: 'Somersloop' })).toBeInTheDocument();
     const check = within(sheet).getByRole('button', { name: 'Check' });
     expect(check).toHaveClass('h-14', 'w-full');
+    // The coordinates scroll with the sections, so they do not take room from them on a phone.
+    expect(sheet.querySelector('footer')!.parentElement).toHaveClass('overflow-y-auto');
     await userEvent.click(check);
     await waitFor(() => expect(calls).toContainEqual({ method: 'PUT', path: `/api/worlds/${W}/marks/S1`, body: { collected: true } }));
   });

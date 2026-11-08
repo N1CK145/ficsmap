@@ -33,6 +33,7 @@ import { sortResources } from '../../src/web/features/resourceNodes/resourceStyl
 import { resourceNodeEntries, resourceNodesSearch } from '../../src/web/features/resourceNodes/search.js';
 import { useNodeLayer } from '../../src/web/features/resourceNodes/useResourceNodes.js';
 import { stubFetch, type StubReply } from './fetchStub.js';
+import { MOBILE, stubMatchMedia } from './matchMedia.js';
 
 const W = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
 const ME: MeDto = { id: 1, displayName: 'Nick', avatarUrl: null, email: null, datasetVersion: 'test' };
@@ -695,9 +696,9 @@ describe('resource nodes in the header search', () => {
     ]);
     const iron = entries[0]!;
     expect(iron.terms).toEqual(['Iron Ore', 'Eisenerz', 'Desc_OreIron_C']);
-    expect([...iron.actors!].sort()).toEqual(['N1', 'N2']);
+    // About the map (an empty list), but nothing to highlight: the nodes are no collectibles.
+    expect(entries.map(e => e.actors)).toEqual(entries.map(() => []));
     expect(entries[1]!.terms).toEqual(['Iron Ore · Pure', 'Eisenerz · Rein']);
-    expect(entries[1]!.actors).toEqual(['N2']);
     // "eisen" finds the resource first, then its purities; "eisen rein" or "iron pure" the pure ones alone.
     const prepared = prepare(entries);
     expect(rank(prepared, 'eisen').map(r => r.entry.label)).toEqual(['Eisenerz', 'Eisenerz · Rein', 'Eisenerz · Unrein']);
@@ -710,7 +711,7 @@ describe('resource nodes in the header search', () => {
     expect(resourceNodesFeature.searchProviders).toEqual([resourceNodesSearch]);
   });
 
-  it('switches the layer on with only that resource (and purity) when chosen, and fades the collectibles', async () => {
+  it('switches the layer on with only that resource (and purity) when chosen, without fading the collectibles', async () => {
     initI18n(['de']);
     const { ctx } = setup();
     useUiStore.getState().enterWorld(W);
@@ -729,17 +730,44 @@ describe('resource nodes in the header search', () => {
     await waitFor(() => expect(options()).toEqual([
       'Eisenerz1 rein · 1 unreinRohstoffvorkommen', 'Eisenerz · Rein1 VorkommenRohstoffvorkommen', 'Eisenerz · Unrein1 VorkommenRohstoffvorkommen',
     ]));
+    // While typing: no objects counted as highlighted, nothing fades.
+    expect(screen.getByRole('status')).toHaveTextContent(/^3 Treffer$/);
+    expect(useUiStore.getState().searchHighlight).toBeNull();
     await user.keyboard('{Enter}');
     expect(useNodeLayer.getState()).toMatchObject({ visible: true, hiddenResources: ['Desc_Water_C', 'Desc_Unobtainium_C'], purities: PURITIES });
-    // The nodes are the entry's items: no collectible matches, so every collectible fades.
-    expect([...useUiStore.getState().searchHighlight!].sort()).toEqual(['N1', 'N2']);
+    // The layer filter isolates the nodes; the collectibles (drop pods next to them) stay as they are.
+    expect(useUiStore.getState().searchHighlight).toBeNull();
 
     await user.clear(input);
     await user.type(input, 'eisen rein');
     await waitFor(() => expect(options()).toEqual(['Eisenerz · Rein1 VorkommenRohstoffvorkommen']));
     await user.keyboard('{Enter}');
     expect(useNodeLayer.getState()).toMatchObject({ visible: true, hiddenResources: ['Desc_Water_C', 'Desc_Unobtainium_C'], purities: ['pure'] });
-    expect([...useUiStore.getState().searchHighlight!]).toEqual(['N2']);
+    expect(useUiStore.getState().searchHighlight).toBeNull();
     expect(loadResourceNodeView()).toMatchObject({ visible: true, purities: ['pure'] });
+  });
+
+  it('on mobile keeps a chosen resource as the search chip, which ends the search', async () => {
+    initI18n(['de']);
+    stubMatchMedia({ [MOBILE]: true });
+    const { ctx } = setup();
+    useUiStore.getState().enterWorld(W);
+    render(
+      <QueryClientProvider client={ctx.queryClient}>
+        <FeaturesProvider features={[resourceNodesFeature, searchFeature]}>
+          <MemoryRouter initialEntries={[`/w/${W}`]}><SearchBox ctx={ctx} /></MemoryRouter>
+        </FeaturesProvider>
+      </QueryClientProvider>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Suche' }));
+    await user.type(screen.getByRole('combobox', { name: 'Suche' }), 'eisen rein');
+    await waitFor(() => expect(within(screen.getByRole('listbox', { hidden: true })).queryAllByRole('option')).toHaveLength(1));
+    await user.keyboard('{Enter}');
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(useUiStore.getState().searchHighlight).toBeNull();
+    const chip = screen.getByRole('button', { name: 'Suche: Eisenerz · Rein' });
+    await user.click(screen.getByRole('button', { name: 'Suche leeren' }));
+    expect(chip).not.toBeInTheDocument();
   });
 });

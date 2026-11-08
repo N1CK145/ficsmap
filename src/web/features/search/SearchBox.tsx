@@ -28,8 +28,8 @@ export function isSearchShortcut(e: KeyboardEvent): boolean {
  * matches are highlighted on the map (the rest fades); choosing a result keeps its own items
  * highlighted and runs its action (select an item, scope a biome, show a cave). A combobox with a
  * listbox: arrows move, Enter chooses, Esc closes the list, then clears. On mobile a button in the
- * bar opens it over the bar; closing it without a choice clears the search, and a chosen result that
- * keeps items highlighted shows as a chip under the bar ("Search: Somersloop ×") until it is removed.
+ * bar opens it over the bar; closing it without a choice clears the search, and a chosen result about
+ * the map (with `actors`) shows as a chip under the bar ("Search: Somersloop ×") until it is removed.
  * On a world page (planner, ...) a result about the map (one with `actors`) goes back to the map first;
  * the others act where they are (a machine opens its wiki entry).
  */
@@ -244,8 +244,9 @@ export function SearchBox({ ctx }: { ctx: WorldCtx }) {
     setExpanded(true);
     setFocusTick(n => n + 1);
   };
-  // A chosen result that keeps items highlighted on the map stays visible, and removable, under the bar.
-  const chip = !expanded && !onPage && chosen?.actors?.length ? chosen.label : null;
+  // A chosen result about the map (one with `actors`) stays visible, and removable, under the bar; also one whose
+  // `actors` are empty, as resource nodes, which the node layer shows instead of a highlight.
+  const chip = !expanded && !onPage && chosen?.actors ? chosen.label : null;
   return (
     <>
       <IconButton

@@ -777,7 +777,7 @@
     },
     "routeInfo": {
       "title": "Strecke auf der Karte",
-      "straight": "Luftlinie",
+      "straightLength": "Luftlinie {value} m",
       "climb": "Höhenunterschied",
       "metres": "{value} m",
       "loading": "…",
@@ -785,7 +785,8 @@
       "adjust": {
         "road": "Straßen sind länger: Wert anpassen.",
         "freightCar": "Gleise sind länger: Wert anpassen.",
-        "drone": "Drohnen fliegen die Luftlinie."
+        "drone": "Drohnen fliegen die Luftlinie.",
+        "droneTyped": "Gilt für Fahrzeuge am Boden; Drohnen fliegen die Luftlinie ({value} m)."
       }
     },
     "capacity": {
@@ -860,7 +861,8 @@
       "fuelPerMinute": "{value}/min",
       "load": "Ladung je Fahrt: {load} · inklusive {stop} Laden und Entladen",
       "fuelNote": {
-        "autopilot": "Treibstoff geschätzt aus dem Verbrauch pro gefahrenem Meter laut Spieldaten; Schlepper und Explorer verbrauchen bergauf mehr.",
+        "autopilot": "Treibstoff geschätzt aus dem Verbrauch pro gefahrenem Meter laut Spieldaten.",
+        "autopilotUphill": "Treibstoff geschätzt aus dem Verbrauch pro gefahrenem Meter laut Spieldaten; bergauf verbraucht er mehr.",
         "dronePort": "Treibstoffverbrauch der Drohne laut Spielertests."
       },
       "missing": {
@@ -883,7 +885,7 @@
       "perMinute": "Verbrauch pro Minute",
       "stacks": "Stapel/min",
       "fastest": "Schnellster: {fuel}",
-      "cheapest": "Sparsamster: {fuel}"
+      "yours": "{fuel} · {value}/min"
     },
     "fleet": {
       "question": {
