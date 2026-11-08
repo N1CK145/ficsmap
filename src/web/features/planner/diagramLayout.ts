@@ -436,3 +436,27 @@ export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<Di
   const ys = [...nodes.map(n => n.y + n.height), ...out.flatMap(e => [...e.points.map(p => p.y), e.label.y + o.labelHeight / 2])];
   return { nodes, edges: out, rows, width: Math.ceil(Math.max(...xs) + o.padding), height: Math.ceil(Math.max(...ys) + o.padding) };
 }
+
+/**
+ * Where a diagram wider than its box starts (its `scrollLeft`), so the box shows whole nodes rather than the diagram's
+ * left edge: of the top row's runs of neighbouring nodes that fit the box, the longest (then the one nearest the
+ * diagram's middle) is centred; where not even one node fits, the node nearest the middle. 0 when the diagram fits.
+ */
+export function initialScroll(layout: Pick<DiagramLayout, 'nodes' | 'width'>, box: number): number {
+  const top = layout.nodes.filter(n => n.row === 0).sort((a, b) => a.x - b.x);
+  if (box <= 0 || layout.width <= box || top.length === 0) return 0;
+  const middle = layout.width / 2;
+  let best: { left: number; right: number; count: number } | null = null;
+  for (let i = 0; i < top.length; i++) {
+    for (let j = i; j < top.length; j++) {
+      const left = top[i]!.x;
+      const right = top[j]!.x + top[j]!.width;
+      const count = j - i + 1;
+      if (right - left > box && count > 1) break;
+      const off = (r: { left: number; right: number }) => Math.abs((r.left + r.right) / 2 - middle);
+      if (!best || count > best.count || (count === best.count && off({ left, right }) < off(best))) best = { left, right, count };
+    }
+  }
+  const centre = (best!.left + best!.right) / 2;
+  return Math.round(Math.min(Math.max(centre - box / 2, 0), layout.width - box));
+}

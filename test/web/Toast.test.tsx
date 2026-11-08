@@ -91,4 +91,19 @@ describe('Toast', () => {
     act(() => { vi.advanceTimersByTime(1000); });
     expect(screen.queryByText('Checked')).not.toBeInTheDocument();
   });
+
+  it('with focusAction takes the focus to its action, and stays until the focus leaves it', () => {
+    vi.useFakeTimers();
+    const show = setup([{ message: 'Plan cleared.', durationMs: 1000, focusAction: true, action: { label: 'Undo', run: () => {} } }, { message: 'Plain', action: { label: 'Redo', run: () => {} } }]);
+    show(0);
+    expect(screen.getByRole('button', { name: 'Undo' })).toHaveFocus();
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(screen.getByText('Plan cleared.')).toBeInTheDocument();
+    act(() => { screen.getByRole('button', { name: 'Undo' }).blur(); });
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(screen.queryByText('Plan cleared.')).not.toBeInTheDocument();
+    // Without it the focus stays where it was.
+    show(1);
+    expect(screen.getByRole('button', { name: 'Redo' })).not.toHaveFocus();
+  });
 });

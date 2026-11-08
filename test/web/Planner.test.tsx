@@ -12,6 +12,8 @@ import { matchItems } from '../../src/web/features/planner/ItemPicker.js';
 import { plannerFeature, plannerTool } from '../../src/web/features/planner/index.js';
 import { EXAMPLE } from '../../src/web/features/planner/Planner.js';
 import { loadPlanner, usePlanner } from '../../src/web/features/planner/usePlanner.js';
+import { useNodeLayer } from '../../src/web/features/resourceNodes/useResourceNodes.js';
+import { useUiStore } from '../../src/web/app/store.js';
 import { RECIPE_DATA } from '../fixtures/recipeData.js';
 import { stubFetch, type StubRoute } from './fetchStub.js';
 import { MOBILE, stubMatchMedia } from './matchMedia.js';
@@ -93,7 +95,7 @@ describe('production planner', () => {
     expect(plannerTool.icon).toBeDefined();
   });
 
-  it('starts with a short note, the game mode and an example to try; Start over in the page header can be undone', async () => {
+  it('starts with a short note, the game mode and an example to try; Start over in the title bar can be undone', async () => {
     // The example needs its item in the dataset; this one has it.
     const withExample = {
       ...RECIPE_DATA,
@@ -109,27 +111,30 @@ describe('production planner', () => {
     expect(empty).toHaveTextContent('Pick an item and how many per minute');
     expect(empty).toHaveTextContent(/The numbers are for the default game mode/);
     // Nothing to switch or clear yet.
-    const header = screen.getByRole('heading', { name: 'Planner' }).closest('div')!.parentElement!;
-    expect(within(header).queryByRole('radiogroup', { name: 'View' })).toBeNull();
-    expect(within(header).queryByRole('button', { name: 'Start over' })).toBeNull();
+    const needs = screen.getByRole('region', { name: 'What do you need?' });
+    expect(screen.queryByRole('radiogroup', { name: 'View' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Start over' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Remove/ })).toBeNull();
 
     await userEvent.click(within(empty).getByRole('button', { name: 'Example: Reinforced Iron Plate, 5/min' }));
     expect(screen.getByRole('combobox', { name: 'Item 1' })).toHaveValue('Reinforced Iron Plate');
     expect(screen.getByRole('spinbutton', { name: 'Per minute of Reinforced Iron Plate' })).toHaveValue(5);
     expect(buildingsFold(screen.getByRole('region', { name: 'Totals' })).querySelector('summary')).toHaveTextContent('Buildings6');
-    expect(within(header).getByRole('radiogroup', { name: 'View' })).toBeInTheDocument();
-    await userEvent.click(within(header).getByRole('button', { name: 'Start over' }));
+    // The view switch is in the steps' title bar, Start over in the title bar of what it clears.
+    const steps = screen.getByRole('region', { name: 'Production steps' });
+    expect(within(steps.firstElementChild as HTMLElement).getByRole('radiogroup', { name: 'View' })).toBeInTheDocument();
+    await userEvent.click(within(needs.firstElementChild as HTMLElement).getByRole('button', { name: 'Start over' }));
     expect(usePlanner.getState().targets.map(t => t.item)).toEqual([null]);
     expect(screen.getByRole('region', { name: 'Totals' })).toHaveTextContent('Pick an item');
 
-    // The toast's Undo puts the plan back.
+    // The toast takes the focus to its Undo, which puts the plan back and the focus on the first item.
     expect(toast.show).toHaveBeenCalledTimes(1);
     const shown = toast.show.mock.calls[0]![0];
-    expect(shown).toMatchObject({ message: 'Plan cleared.', action: { label: 'Undo' } });
+    expect(shown).toMatchObject({ message: 'Plan cleared.', focusAction: true, action: { label: 'Undo' } });
     act(() => shown.action!.run());
     expect(usePlanner.getState().targets.map(t => [t.item, t.rate])).toEqual([[EXAMPLE.item, EXAMPLE.rate]]);
     expect(screen.getByRole('combobox', { name: 'Item 1' })).toHaveValue('Reinforced Iron Plate');
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Item 1' })).toHaveFocus());
   });
 
   it('leaves the example out when the dataset does not have its item', async () => {
@@ -152,10 +157,10 @@ describe('production planner', () => {
     expect(screen.getByRole('link', { name: 'Planner' })).toHaveAttribute('aria-current', 'page');
     await userEvent.type(await screen.findByRole('combobox', { name: 'Item 1' }), 'plate');
     await userEvent.keyboard('{Enter}');
-    // The recipes and the index of the game's pictures.
-    expect(calls.map(c => c.path).sort()).toEqual(['/data/test/icons/items/index.json', '/data/test/recipes.json']);
+    // The recipes, the index of the game's pictures and, for a resource mined on nodes, the resource nodes.
+    expect(calls.map(c => c.path).sort()).toEqual(['/data/test/icons/items/index.json', '/data/test/recipes.json', '/data/test/resource-nodes.json']);
 
-    await userEvent.click(screen.getByRole('link', { name: 'Back to the map' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Map' }));
     expect(router.state.location.pathname).toBe(`/w/${W}`);
     expect(screen.queryByRole('heading', { name: 'Planner' })).toBeNull();
     await userEvent.click(screen.getByRole('link', { name: 'Planner' }));
@@ -203,7 +208,8 @@ describe('production planner', () => {
     // On a phone the buildings show under the rate (the cell of their own is hidden by CSS then).
     expect(within(plate.cells[1]!).getByText('3× Constructor')).toHaveClass('sm:hidden');
     expect(within(plate).getByText('12 MW')).toBeInTheDocument();
-    expect(within(plate).getByRole('list', { name: 'Input' })).toHaveTextContent('ingot: 90/min');
+    // The inputs as chips with the item's name and rate.
+    expect(within(within(plate).getByRole('list', { name: 'Input' })).getAllByRole('listitem').map(li => li.textContent)).toEqual(['ingot90/min']);
     expect(built('ore').getByText('2× Miner Mk.1').parentElement).toHaveAttribute('title', 'exact 1.5');
     // No editor in the list: a row opens the step panel.
     expect(within(table).queryByRole('combobox')).toBeNull();
@@ -218,6 +224,8 @@ describe('production planner', () => {
     expect(tile(totals, 'Power')).toBe('31.5 MW'); // 3x4 + 3x4 + 1.5x5
     expect(within(totals).queryByText('Power Shards', { selector: 'dt' })).toBeNull();
     expect(rows(within(totals).getByRole('region', { name: 'Raw resources' }))).toEqual([['ore2× Miner Mk.1', '90/min']]);
+    // Without the dataset's resource nodes there is no map to show them on.
+    expect(within(totals).queryByRole('link')).toBeNull();
     const fold = buildingsFold(totals);
     expect(fold).not.toHaveAttribute('open');
     expect(fold.querySelector('summary')).toHaveTextContent('Buildings8');
@@ -325,6 +333,33 @@ describe('production planner', () => {
     expect(tile(totals, 'Power')).toBe('0 MW');
     // The pressurizers' shards are in the note, not in the count for all buildings.
     expect(within(totals).queryByText('Power Shards', { selector: 'dt' })).toBeNull();
+  });
+
+  it('links a resource mined on nodes to the map, showing only its nodes of the step\'s purity', async () => {
+    const nodes = { version: 'test', resources: [{ id: 'ore', name: 'Ore' }, { id: 'water', name: 'Water' }, { id: 'Geyser', name: 'Geyser' }], nodes: [] };
+    useNodeLayer.setState({ visible: false, hiddenResources: [], purities: ['impure', 'normal', 'pure'] });
+    useUiStore.setState({ mainView: 'list' });
+    const { router } = setup('present', undefined, { 'GET /data/test/resource-nodes.json': { body: nodes } });
+    await openAndPick('plate');
+    await openStep('ore');
+    await userEvent.selectOptions(within(screen.getByRole('region', { name: 'Production' })).getByLabelText('Purity'), 'pure');
+    const raw = within(screen.getByRole('region', { name: 'Totals' })).getByRole('region', { name: 'Raw resources' });
+    const link = await within(raw).findByRole('link', { name: 'Show on map: ore (Pure)' });
+    expect(link).toHaveAttribute('href', `/w/${W}`);
+    await userEvent.click(link);
+    expect(router.state.location.pathname).toBe(`/w/${W}`);
+    expect(useNodeLayer.getState()).toMatchObject({ visible: true, hiddenResources: ['water', 'Geyser'], purities: ['pure'] });
+    expect(useUiStore.getState().mainView).toBe('map');
+  });
+
+  it('links no resource that is not mined on a node, nor any without the dataset\'s resource nodes', async () => {
+    const nodes = { version: 'test', resources: [{ id: 'ore', name: 'Ore' }, { id: 'water', name: 'Water' }], nodes: [] };
+    usePlanner.setState({ choices: { water: { kind: 'extract', extractor: 'pump' } } });
+    setup('present', undefined, { 'GET /data/test/resource-nodes.json': { body: nodes } });
+    await openAndPick('water');
+    const raw = within(screen.getByRole('region', { name: 'Totals' })).getByRole('region', { name: 'Raw resources' });
+    expect(rows(raw)).toEqual([['water1× Water Extractor', '60 m³/min']]);
+    expect(within(raw).queryByRole('link')).toBeNull();
   });
 
   it('runs production buildings at a set clock speed', async () => {
@@ -695,6 +730,32 @@ describe('production planner diagram', () => {
     act(() => media.set(MOBILE, true));
     expect(node('plate')).toBeInTheDocument();
     expect(loadPlanner()?.view).toBe('diagram');
+  });
+
+  it('explains the Power Shard mark in the legend when a step needs shards', async () => {
+    usePlanner.setState({ steps: { ingot: { clock: '200' } } });
+    setup();
+    await openAndPick('plate');
+    expect(within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Material per minute', '◆Power Shard']);
+  });
+
+  it('scrolls a selected step\'s window into view only where it is not docked beside the steps', async () => {
+    const media = stubMatchMedia({ '(min-width: 1280px)': true });
+    const scroll = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scroll;
+    try {
+      setup();
+      await openAndPick('plate');
+      await userEvent.click(node('ingot'));
+      const docked = screen.getByRole('region', { name: 'Edit ingot' });
+      expect(scroll.mock.contexts).not.toContain(docked);
+      act(() => media.set('(min-width: 1280px)', false));
+      await userEvent.click(node('ore'));
+      expect(scroll.mock.contexts).toContain(screen.getByRole('region', { name: 'Edit ore' }));
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
   });
 
   it('draws by-products and steps covered by them, with a legend', async () => {

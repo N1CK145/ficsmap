@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { PlanStep, Purity } from '../../../shared/planner.js';
 import type { RecipeIndex } from '../../../shared/recipes.js';
 import { GameIcon } from '../machineWiki/icons.js';
-import { layoutDiagram, type DiagramEdge, type DiagramNode } from './diagramLayout.js';
+import { initialScroll, layoutDiagram, type DiagramEdge, type DiagramNode } from './diagramLayout.js';
 import { formatRate, type Lang } from './format.js';
 import { StepBadges, StepPicture } from './pictures.js';
 import { stepText, type StepText } from './stepText.js';
@@ -51,8 +51,8 @@ export interface PlanDiagramProps {
  * node (measured after rendering). Under them an SVG with the edges and HTML rate labels with the item's picture; the
  * edges of the selected or hovered node stand out. One tab stop; the arrow keys move between nodes (left and right in a
  * row, up and down to the nearest node of the next row). Centred in its box on a dotted canvas; a wider diagram starts
- * at its left edge, with a fade on the side it continues, or is scaled to the box (`fit`). A legend only for by-products,
- * loops and items supplied from outside.
+ * with whole nodes of its top row in view (`initialScroll`), with a fade on each side it continues, or is scaled to the
+ * box (`fit`). A legend only for by-products, loops, items supplied from outside and Power Shards.
  */
 export function PlanDiagram({ steps, index, lang, selected, onSelect, onDismiss, editorId, nodeId, defaultPurity, fit, onOverflow }: PlanDiagramProps) {
   const { t } = useTranslation();
@@ -117,6 +117,15 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, onDismiss,
   }, [updateFade]);
   const wider = boxWidth > 0 && layout.width > boxWidth;
   useEffect(() => onOverflow(wider), [wider, onOverflow]);
+  // Wider than its box: start with whole nodes of the top row in view (`initialScroll`), once per top row.
+  const topRow = byRow[0]?.map(n => n.item).join('\n') ?? '';
+  const scrolledFor = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el || zoom !== 1 || !wider || scrolledFor.current === topRow) return;
+    scrolledFor.current = topRow;
+    el.scrollLeft = initialScroll(layout, el.clientWidth);
+  }, [layout, zoom, wider, topRow]);
 
   function onKeyDown(e: KeyboardEvent, n: DiagramNode) {
     if (e.key === 'Escape') {
@@ -278,13 +287,13 @@ function NodeCard({ step, text, contentRef }: { step: PlanStep; text: StepText; 
   );
 }
 
-/** What the special lines and marks of this plan mean; only when it has by-products, loops or items supplied from outside. */
+/** What the special lines and marks of this plan mean; only when it has by-products, loops, items supplied from outside or Power Shards. */
 function Legend({ steps, edges }: { steps: readonly PlanStep[]; edges: readonly DiagramEdge[] }) {
   const { t } = useTranslation();
   const styles = EDGE_STYLES.filter(k => edges.some(e => styleOf(e) === k));
   const external = steps.some(s => s.choice.kind === 'external');
   const shards = steps.some(s => s.shards > 0);
-  if (!external && !styles.some(k => k !== 'input')) return null;
+  if (!external && !shards && !styles.some(k => k !== 'input')) return null;
   return (
     <ul aria-label={t('planner.diagram.legend.label')} className="flex flex-wrap gap-x-4 gap-y-1 border-t border-line px-3 py-2 text-xs text-muted">
       {styles.map(k => (

@@ -6,6 +6,11 @@ export interface ToastInput {
   action?: { label: string; run(): void };
   /** Default 6000 (spec §10.3). */
   durationMs?: number;
+  /**
+   * Moves the focus to the action when the toast shows, so keyboard and screen reader users reach it (an Undo after
+   * something was cleared). The toast then stays until the focus leaves it.
+   */
+  focusAction?: boolean;
 }
 
 export interface ToastApi { show(t: ToastInput): void }
@@ -38,7 +43,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 /**
  * One toast and its dismiss timer. The timer pauses while the pointer is over the toast or the
- * focus is in it (WCAG 2.2.1), and resumes with the time that was left.
+ * focus is in it (WCAG 2.2.1), and resumes with the time that was left. With `focusAction` its action takes the focus.
  */
 function ToastView({ toast, onDone }: { toast: ToastInput; onDone(): void }) {
   const [hovered, setHovered] = useState(false);
@@ -47,6 +52,11 @@ function ToastView({ toast, onDone }: { toast: ToastInput; onDone(): void }) {
   const paused = hovered || focused;
   const done = useRef(onDone);
   useEffect(() => { done.current = onDone; });
+  const actionRef = useRef<HTMLButtonElement>(null);
+  const focusAction = toast.focusAction === true;
+  useEffect(() => {
+    if (focusAction) actionRef.current?.focus();
+  }, [focusAction]);
 
   useEffect(() => {
     if (paused) return;
@@ -68,7 +78,7 @@ function ToastView({ toast, onDone }: { toast: ToastInput; onDone(): void }) {
     >
       <span className="min-w-0">{toast.message}</span>
       {toast.action && (
-        <Button variant="link-accent" size="sm" onClick={() => { toast.action?.run(); onDone(); }}>
+        <Button ref={actionRef} variant="link-accent" size="sm" onClick={() => { toast.action?.run(); onDone(); }}>
           {toast.action.label}
         </Button>
       )}

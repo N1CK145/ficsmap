@@ -41,7 +41,7 @@
   --color-cave: #E8DD55;
 
   /* Resource node purity: the ring around a node (zoomed out its dot), the purity filter and the info box. Never the
-     only cue: nodes also carry 1-3 pips (zoomed out the dot grows with the purity) and the UI names the purity. Each is
+     only cue: zoomed out the dot grows with the purity, and the panel, info box and search name it (no pips). Each is
      at least 5.3:1 against bg and panel (as ring and as text), and bg text on it at least 5.9:1. */
   --color-purity-impure: #FF5C5C;
   --color-purity-normal: #FFA94D;

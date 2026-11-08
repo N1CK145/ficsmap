@@ -286,18 +286,18 @@ describe('machine wiki', () => {
     expect(within(page).queryByRole('article')).toBeNull();
   });
 
-  it('on a phone has one back control for an entry: the page header\'s, leading to the list', async () => {
+  it('on a phone has one back control for an entry: the one above the page, leading to the list', async () => {
     stubMatchMedia({ [NARROW_QUERY]: true });
     const { router } = setup('present', 'present', `/w/${W}/wiki/Build_ConstructorMk1_C`);
     const page = await screen.findByRole('main', { name: 'Machines' });
     const article = await within(page).findByRole('article', { name: 'Constructor' });
     expect(within(article).queryByRole('button', { name: 'Back to the list' })).toBeNull();
-    expect(within(page).queryByRole('link', { name: 'Back to the map' })).toBeNull();
     const back = within(page).getByRole('link', { name: 'Back to the list' });
     expect(back).toHaveAttribute('href', `/w/${W}/wiki`);
     await user().click(back);
     expect(router.state.location.pathname).toBe(`/w/${W}/wiki`);
-    expect(within(page).getByRole('link', { name: 'Back to the map' })).toHaveAttribute('href', `/w/${W}`);
+    // In the list there is nothing to go back to inside the page.
+    expect(within(page).queryByRole('link')).toBeNull();
   });
 
   it('puts the open entry into the URL, so Back goes through the entries and keeps the focus in the list', async () => {

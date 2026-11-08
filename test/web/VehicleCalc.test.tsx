@@ -363,7 +363,7 @@ describe('vehicle calculator', () => {
     expect(useVehicleCalc.getState().form.item).toBe('Eisenplatte');
     expect(stat('Pro Fahrzeug', 'Ergebnis')).toBe('18 Stapel/min | 3.600 Stück/min');
     expect(stat('Hin und zurück', 'Ergebnis')).toBe('2 min 40 s | Hinweg 1 min 12 s');
-    await user().click(within(page).getByRole('link', { name: 'Zurück zur Karte' }));
+    await user().click(screen.getByRole('link', { name: 'Karte' }));
     expect(screen.queryByRole('main')).toBeNull();
     await user().click(screen.getByRole('link', { name: 'Fahrzeuge' }));
     // Back again: the item is kept, and its section is open.

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
@@ -105,7 +105,9 @@ describe('world pages', () => {
 
     expect(router.state.location.pathname).toBe(`/w/${W}/${path}`);
     const page = screen.getByRole('main', { name: heading });
+    // The tab names the page; its heading is the landmark's name and takes the focus, for screen readers only.
     expect(within(page).getByRole('heading', { level: 2, name: heading })).toHaveFocus();
+    expect(within(page).getByRole('heading', { level: 2, name: heading })).toHaveClass('sr-only');
     // No sidebar, map or item panel; the header keeps the world and the search, the tabs stay.
     expect(screen.queryByRole('complementary', { name: 'Sidebar' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Map' })).toBeNull();
@@ -113,8 +115,8 @@ describe('world pages', () => {
     expect(header().getByRole('heading', { level: 1, name: 'Alpha' })).toBeInTheDocument();
     expect(header().getByRole('combobox', { name: 'Search' })).toBeInTheDocument();
     expect(tabs().getByRole('link', { name: tool })).toHaveAttribute('aria-current', 'page');
-    // The Map tab is the way back here; the page's own [←] is for narrower screens.
-    expect(within(page).getByRole('link', { name: 'Back to the map' })).toHaveClass('min-[1280px]:hidden');
+    // No page header repeating the tab: the Map tab is the way back.
+    expect(within(page).queryByRole('link')).toBeNull();
     // The world stays loaded: the same event stream.
     expect(FakeEventSource.instances).toEqual([stream]);
 
@@ -124,15 +126,19 @@ describe('world pages', () => {
     expect(screen.getByRole('complementary', { name: 'Sidebar' })).toBeInTheDocument();
   });
 
-  it.each(PAGES)('opens $heading from the section menu below 1280 px and goes back with [←]', async ({ tool, heading, path }) => {
+  it.each(PAGES)('opens $heading from the section menu below 1280 px and goes back with it', async ({ tool, heading, path }) => {
     const router = renderAt(`/w/${W}`);
     expect(await screen.findByRole('region', { name: 'Map' })).toBeInTheDocument();
     await userEvent.click(header().getByRole('button', { name: 'Section: Map' }));
     await userEvent.click(screen.getByRole('menuitem', { name: tool }));
     expect(router.state.location.pathname).toBe(`/w/${W}/${path}`);
     const page = screen.getByRole('main', { name: heading });
+    // The menu button names the page, so the page shows no heading or back control of its own.
     expect(header().getByRole('button', { name: `Section: ${tool}` })).toBeInTheDocument();
-    await userEvent.click(within(page).getByRole('link', { name: 'Back to the map' }));
+    expect(within(page).getByRole('heading', { level: 2, name: heading })).toHaveClass('sr-only');
+    expect(within(page).queryByRole('link')).toBeNull();
+    await userEvent.click(header().getByRole('button', { name: `Section: ${tool}` }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Map' }));
     expect(router.state.location.pathname).toBe(`/w/${W}`);
     expect(await screen.findByRole('region', { name: 'Map' })).toBeInTheDocument();
   });
@@ -213,16 +219,30 @@ describe('world pages', () => {
     expect(screen.getByRole('main', { name: PLANNER })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Panels' })).toBeNull();
     expect(header().getByRole('button', { name: 'Search' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('link', { name: 'Back to the map' }));
+    await userEvent.click(header().getByRole('button', { name: 'Section: Planner' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Map' }));
     expect(await screen.findByRole('region', { name: 'Panels' })).toBeInTheDocument();
   });
 
   it('speaks German', async () => {
     initI18n(['de']);
     renderAt(`/w/${W}/wiki`);
-    const page = await screen.findByRole('main', { name: de.machineWiki.title });
-    expect(within(page).getByRole('link', { name: 'Zurück zur Karte' })).toHaveAttribute('href', `/w/${W}`);
+    expect(await screen.findByRole('main', { name: de.machineWiki.title })).toBeInTheDocument();
     expect(header().getByRole('button', { name: 'Bereich: Maschinen' })).toBeInTheDocument();
+    expect(document.title).toBe('Maschinen · Alpha · ficsmap');
     initI18n(['en']);
+  });
+
+  it('names the section and the world in the browser tab, and only "ficsmap" once the world is left', async () => {
+    const router = renderAt(`/w/${W}`);
+    await screen.findByRole('region', { name: 'Map' });
+    expect(document.title).toBe('Map · Alpha · ficsmap');
+    await act(() => router.navigate(`/w/${W}/planner`));
+    expect(await screen.findByRole('main', { name: PLANNER })).toBeInTheDocument();
+    expect(document.title).toBe(`${PLANNER} · Alpha · ficsmap`);
+    await act(() => router.navigate(`/w/${W}/settings`));
+    expect(document.title).toBe('Settings · Alpha · ficsmap');
+    await act(() => router.navigate('/'));
+    await waitFor(() => expect(document.title).toBe('ficsmap'));
   });
 });

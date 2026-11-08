@@ -37,6 +37,7 @@ import { AccountMenu } from './AccountMenu.js';
 import { useMe, useWorld } from './queries.js';
 import { SectionMenu, WIDE_QUERY, WorldTabs } from './ToolsNav.js';
 import { useSidebarKey } from './useSidebarKey.js';
+import { useWorldTitle } from './useWorldTitle.js';
 import { WorldPageView } from './WorldPageView.js';
 
 /**
@@ -141,6 +142,7 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
   useWorldEvents(ctx.worldId, ctx);
   useUndoShortcut(ctx);
   useSidebarKey(!mobile && onMap);
+  useWorldTitle(page ? t(page.titleKey) : inSettings ? t('settings.title') : t('nav.map'), ctx.world.name);
   // Sidebar panels' `visible` read the marks cache, so the shell re-renders when it changes.
   useMarks(ctx.worldId);
 
