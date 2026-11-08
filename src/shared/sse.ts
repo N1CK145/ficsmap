@@ -6,7 +6,9 @@ export type SseEvent =
   | { type: 'members' }
   | { type: 'removed'; userId: number }
   | { type: 'deleted' }
-  | { type: 'routes'; rev: number };
+  | { type: 'routes'; rev: number }
+  /** A factory snapshot was added, replaced or deleted (the timeline list changed). */
+  | { type: 'snapshots'; rev: number };
 
 export function encodeSse(e: SseEvent): string {
   return `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`;

@@ -8,6 +8,8 @@ export type ApiErrorCode =
   | 'invalid_origin'
   | 'rate_limited'
   | 'invite_invalid'
+  /** A per-world limit is reached (e.g. the number of factory snapshots). */
+  | 'limit_reached'
   | 'internal';
 
 export interface ApiError {
