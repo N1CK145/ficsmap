@@ -42,9 +42,10 @@ export interface ItemDetailSection { id: string; order: number; applies(item: It
 export interface ItemAction { id: string; order: number; Component: FC<{ item: Item; ctx: WorldCtx }> }
 /**
  * `slot`: where in the top bar the item goes. `start` (default) follows the world name; `center` is
- * centred in the bar (the search). On mobile both sit in one row.
+ * centred in the bar (the search). On mobile both sit in one row. `mapOnly`: only while the map is shown, not on a
+ * world page (planner, ...) or the settings, where it would do nothing (Import, the biome scope).
  */
-export interface HeaderItem { id: string; order: number; slot?: 'start' | 'center'; Component: FC<{ ctx: WorldCtx }> }
+export interface HeaderItem { id: string; order: number; slot?: 'start' | 'center'; mapOnly?: boolean; Component: FC<{ ctx: WorldCtx }> }
 
 /** What a tool shows and does right now; returned by `Tool.useTool` on every render. */
 export interface ToolState {
@@ -57,10 +58,10 @@ export interface ToolState {
 }
 
 /**
- * A tool in the top bar's tool navigation (next to the search): a switch such as a map layer or a
- * mode, or an action. Shown as buttons on wide screens and in a "Tools" menu on narrow ones and on
- * mobile, so a tool only describes itself. `toggleTool()` (app/tools.ts) builds one for a
- * `{ visible, toggle }` store.
+ * A tool in the world's navigation: a section (a world page, `page`) or a switch of the map such as a layer, or an
+ * action. Sections are tabs from 1280 px and entries of the section menu below that; switches and actions belong to
+ * the map and show only while it is shown (at the right end of the tab strip, or under "Map layers" in the menu), so
+ * a tool only describes itself. `toggleTool()` and `pageTool()` (app/tools.ts) build them.
  */
 export interface Tool {
   id: string; order: number; labelKey: string;
@@ -70,14 +71,12 @@ export interface Tool {
   icon?: ReactNode;
   /** `aria-keyshortcuts`, e.g. "Q"; the feature handles the key itself. */
   shortcut?: string;
-  /**
-   * Not a map switch (a world page such as the planner, or something else of its own). On wide screens such tools are
-   * listed in the Tools menu next to the map switches' buttons, so the top bar stays short.
-   */
+  /** Not an on/off switch but an action of its own (a plain button or menu item). Page tools have it too. */
   action?: boolean;
   /**
-   * The id of the world page (`FeatureModule.pages`) the tool leads to: the tool is a link to that page, marked as the
-   * current page (`aria-current="page"`) while it is shown. `pageTool()` (app/tools.ts) builds one.
+   * The id of the world page (`FeatureModule.pages`) the tool leads to: the tool is a section of the world, a tab (a
+   * link) marked as the current page (`aria-current="page"`) while it is shown. Its label is the section's word, the
+   * same as the page's heading. `pageTool()` (app/tools.ts) builds one.
    */
   page?: string;
   /** A hook, called by the tool's own button component on every render. */
@@ -160,7 +159,7 @@ export interface FeatureModule {
   itemDetailSections?: ItemDetailSection[];
   itemActions?: ItemAction[];
   headerItems?: HeaderItem[];
-  /** Switches and actions in the top bar's tool navigation (desktop: buttons, mobile: a menu). */
+  /** Sections (world pages) and the map's switches in the world's navigation (wide: tabs, else the section menu). */
   tools?: Tool[];
   /** Pages of their own under the world's URL (`/w/:id/<id>`), shown at full width in place of the map. */
   pages?: WorldPage[];

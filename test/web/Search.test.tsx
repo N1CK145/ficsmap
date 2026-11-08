@@ -92,6 +92,8 @@ describe('search providers', () => {
     const sphere = entries.find(e => e.id === 'item:BP_WAT2_X')!;
     expect(sphere.label).toBe('Mercer-Sphäre · Dünenwüste 2');
     expect(sphere.terms).toEqual(['BP_WAT2_X', 'BP_MercerShrine_A', 'Mercer Sphere · Dune Desert 2', 'Mercer-Sphäre · Dünenwüste 2']);
+    // The ID is found, not shown: the label says what and where.
+    expect(sphere.detail).toBeUndefined();
     expect(entries.find(e => e.id === 'type:slug_blue')!.terms).toContain('Blue Power Slugs');
   });
 
@@ -116,6 +118,12 @@ describe('search providers', () => {
     const [site] = crashSiteEntries(indexDataset(DS), SITES, initI18n(['en']));
     expect(site).toMatchObject({ label: 'Crash site · Swamp 3', detail: 'To open: 5× Motor', actors: ['BP_DropPod1'] });
     expect(site!.terms).toEqual(expect.arrayContaining(['crash site', 'drop pod', 'Absturzort', 'Motor', 'Modular Frame', 'Alpha Hog']));
+  });
+
+  it('does not search the crash sites\' notes, so a note about a Somersloop nearby does not count as one', () => {
+    const notes: CrashSites = { BP_DropPod1: { ...SITES.BP_DropPod1!, notes: ['A Somersloop is on the same island.'] } };
+    const [site] = crashSiteEntries(indexDataset(DS), notes, initI18n(['en']));
+    expect(site!.terms.join(' ')).not.toMatch(/Somersloop/);
   });
 });
 
@@ -147,7 +155,8 @@ describe('SearchBox', () => {
   it('ranks an exact ID first and chooses it with Enter: selected, zoomed to, alone highlighted', async () => {
     const { input } = renderSearch();
     await userEvent.type(input, 'bp_wat13');
-    expect(options().slice(0, 2).map(o => o?.split('BP_')[1])).toEqual(['WAT13Item', 'WAT139Item']);
+    // The results show what and where; the ID they were found by is not repeated.
+    expect(options().slice(0, 2)).toEqual(['Somersloop · Swamp 1Item', 'Somersloop · Dune Desert 1Item']);
     await userEvent.keyboard('{Enter}');
     expect(useUiStore.getState().selectedActor).toBe('BP_WAT13');
     expect(useUiStore.getState().focusRequest).toEqual({ actor: 'BP_WAT13' });
@@ -301,5 +310,52 @@ describe('SearchBox', () => {
     expect(screen.queryByRole('combobox')).toBeNull();
     act(() => { fireEvent.keyDown(window, { key: '/' }); });
     expect(screen.getByRole('combobox')).toHaveValue('Somersloop · Swamp 1');
+  });
+
+  function renderMobile() {
+    stubMatchMedia({ [MOBILE]: true });
+    stubFetch({});
+    const ctx = makeCtx();
+    render(
+      <QueryClientProvider client={ctx.queryClient}>
+        <FeaturesProvider features={FEATURES}><MemoryRouter initialEntries={[`/w/${W}`]}><SearchBox ctx={ctx} /></MemoryRouter></FeaturesProvider>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('on mobile clears the search when it is closed without a choice, so nothing stays dimmed out of sight', async () => {
+    renderMobile();
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+    await userEvent.type(screen.getByRole('combobox', { name: 'Search' }), 'sloop');
+    expect(highlight()).not.toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(highlight()).toBeNull();
+    expect(screen.queryByText(/^Search:/)).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+    expect(screen.getByRole('combobox')).toHaveValue('');
+  });
+
+  it('on mobile shows a chosen result that keeps items highlighted as a chip under the bar, until it is removed', async () => {
+    renderMobile();
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+    await userEvent.type(screen.getByRole('combobox', { name: 'Search' }), 'somersloop');
+    await userEvent.keyboard('{Enter}');
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(highlight()).toEqual(['BP_WAT13', 'BP_WAT139']);
+    const chip = screen.getByRole('button', { name: 'Search: Somersloop' });
+    // Its × ends the search, and with it the dimming.
+    await userEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(highlight()).toBeNull();
+    expect(chip).not.toBeInTheDocument();
+  });
+
+  it('on mobile reopens the search from the chip', async () => {
+    renderMobile();
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+    await userEvent.type(screen.getByRole('combobox', { name: 'Search' }), 'somersloop{Enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'Search: Somersloop' }));
+    expect(screen.getByRole('combobox', { name: 'Search' })).toHaveValue('Somersloop');
+    expect(screen.queryByRole('button', { name: 'Search: Somersloop' })).toBeNull();
   });
 });

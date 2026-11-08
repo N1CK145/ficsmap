@@ -30,19 +30,30 @@ const heightsFeature: FeatureModule = {
   tools: [{ ...toggleTool({ id: 'heights', order: 10, labelKey: 'heights.control', useToggle: useHeightsProbe }), icon: '✓', shortcut: 'H' }],
 };
 const ran: string[] = [];
-const actionTool: Tool = { id: 'export', order: 40, labelKey: 'common.retry', useTool: () => ({ available: true, run: () => ran.push('export') }) };
+const actionTool: Tool = { id: 'export', order: 40, labelKey: 'common.retry', action: true, useTool: () => ({ available: true, run: () => ran.push('export') }) };
 const actionFeature: FeatureModule = { id: 'export', tools: [actionTool] };
+const plannerFeature: FeatureModule = {
+  id: 'planner',
+  tools: [pageTool({ id: 'planner', order: 50, labelKey: 'planner.button', hintKey: 'planner.hint', page: 'planner' })],
+  pages: [{ id: 'planner', titleKey: 'planner.title', Component: () => null }],
+};
 
-function renderNav({ mobile = false } = {}) {
-  const ctx: WorldCtx = {
-    worldId: W, world: {} as WorldDto, me: ME, index: indexDataset({ version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true, biomes: [], items: [], aliases: {} }),
-    queryClient: new QueryClient(), navigate: () => {}, toast: { show: () => {} },
-  };
-  return render(
+const ctx: WorldCtx = {
+  worldId: W, world: {} as WorldDto, me: ME,
+  index: indexDataset({ version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true, biomes: [], items: [], aliases: {} }),
+  queryClient: new QueryClient(), navigate: () => {}, toast: { show: () => {} },
+};
+
+/** The navigation at `url` (the map at /w/:id), with the features above. */
+function renderNav({ mobile = false, url = `/w/${W}`, features = [actionFeature, nodesFeature, heightsFeature, plannerFeature] } = {}) {
+  const Nav = () => <ToolsNav ctx={ctx} mobile={mobile} />;
+  const router = createMemoryRouter([{ path: '/w/:id/*', Component: Nav }], { initialEntries: [url] });
+  render(
     <QueryClientProvider client={ctx.queryClient}>
-      <FeaturesProvider features={[actionFeature, nodesFeature, heightsFeature]}><ToolsNav ctx={ctx} mobile={mobile} /></FeaturesProvider>
+      <FeaturesProvider features={features}><RouterProvider router={router} /></FeaturesProvider>
     </QueryClientProvider>,
   );
+  return router;
 }
 
 describe('ToolsNav', () => {
@@ -56,142 +67,140 @@ describe('ToolsNav', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('shows a button per tool on wide screens, in order, switches with aria-pressed', async () => {
-    stubMatchMedia({ [WIDE_QUERY]: true });
-    renderNav();
-    const nav = screen.getByRole('navigation', { name: 'Tools' });
-    expect(within(nav).getAllByRole('button').map(b => b.textContent)).toEqual(['✓Heights', 'Caves', 'Retry']);
-    const heights = within(nav).getByRole('button', { name: 'Heights' });
-    expect(heights).toHaveAttribute('aria-keyshortcuts', 'H');
-    await userEvent.click(heights);
-    expect(heights).toHaveAttribute('aria-pressed', 'true');
-    expect(useHeightsProbe.getState().visible).toBe(true);
-    const nodes = within(nav).getByRole('button', { name: 'Caves' });
-    expect(nodes).toHaveAttribute('title', 'Show caves and their entrances (from the game data)');
-    await userEvent.click(nodes);
-    expect(useNodes.getState().visible).toBe(true);
-    expect(nodes).toHaveAttribute('aria-pressed', 'true');
-    // An action is a plain button.
-    expect(within(nav).getByRole('button', { name: 'Retry' })).not.toHaveAttribute('aria-pressed');
+  describe('from 1280 px: a tab strip', () => {
+    beforeEach(() => { stubMatchMedia({ [WIDE_QUERY]: true }); });
+
+    it('has a tab for the map and one per page, the one shown marked', async () => {
+      const router = renderNav();
+      const tabs = screen.getByRole('navigation', { name: 'Sections' });
+      expect(within(tabs).getAllByRole('link').map(l => l.textContent)).toEqual(['Map', 'Planner']);
+      expect(within(tabs).getByRole('link', { name: 'Map' })).toHaveAttribute('aria-current', 'page');
+      const planner = within(tabs).getByRole('link', { name: 'Planner' });
+      expect(planner).toHaveAttribute('href', `/w/${W}/planner`);
+      expect(planner).toHaveAttribute('title', 'Production planner: from the items you need down to miners and pumps');
+      expect(planner).not.toHaveAttribute('aria-current');
+      await userEvent.click(planner);
+      expect(router.state.location.pathname).toBe(`/w/${W}/planner`);
+      expect(within(screen.getByRole('navigation', { name: 'Sections' })).getByRole('link', { name: 'Planner' })).toHaveAttribute('aria-current', 'page');
+    });
+
+    it('shows the map\'s switches and actions at its end on the map, switches with aria-pressed', async () => {
+      renderNav();
+      const layers = screen.getByRole('group', { name: 'Map layers' });
+      expect(within(layers).getAllByRole('button').map(b => b.textContent)).toEqual(['✓Height map', 'Caves', 'Retry']);
+      const heights = within(layers).getByRole('button', { name: 'Height map' });
+      expect(heights).toHaveAttribute('aria-keyshortcuts', 'H');
+      await userEvent.click(heights);
+      expect(heights).toHaveAttribute('aria-pressed', 'true');
+      expect(useHeightsProbe.getState().visible).toBe(true);
+      const nodes = within(layers).getByRole('button', { name: 'Caves' });
+      expect(nodes).toHaveAttribute('title', 'Show caves and their entrances (from the game data)');
+      await userEvent.click(nodes);
+      expect(useNodes.getState().visible).toBe(true);
+      // An action is a plain button.
+      const action = within(layers).getByRole('button', { name: 'Retry' });
+      expect(action).not.toHaveAttribute('aria-pressed');
+      await userEvent.click(action);
+      expect(ran).toEqual(['export']);
+    });
+
+    it('leaves the map\'s switches out on a world page', () => {
+      renderNav({ url: `/w/${W}/planner` });
+      expect(screen.getByRole('navigation', { name: 'Sections' })).toBeInTheDocument();
+      expect(screen.queryByRole('group', { name: 'Map layers' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Caves' })).toBeNull();
+    });
+
+    it('hides a tool that is not available', () => {
+      nodesAvailable = false;
+      renderNav();
+      expect(screen.queryByRole('button', { name: 'Caves' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Height map' })).toBeInTheDocument();
+    });
   });
 
-  it('lists tools that open something of their own (action) in a Tools menu next to the switches on wide screens', async () => {
-    stubMatchMedia({ [WIDE_QUERY]: true });
-    const dialogTool: Tool = { id: 'planner', order: 50, labelKey: 'common.close', action: true, useTool: () => ({ available: true, run: () => ran.push('planner') }) };
-    const ctx: WorldCtx = {
-      worldId: W, world: {} as WorldDto, me: ME, index: indexDataset({ version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true, biomes: [], items: [], aliases: {} }),
-      queryClient: new QueryClient(), navigate: () => {}, toast: { show: () => {} },
-    };
-    render(
-      <QueryClientProvider client={ctx.queryClient}>
-        <FeaturesProvider features={[nodesFeature, { id: 'planner', tools: [dialogTool] }]}><ToolsNav ctx={ctx} mobile={false} /></FeaturesProvider>
-      </QueryClientProvider>,
-    );
-    const nav = screen.getByRole('navigation', { name: 'Tools' });
-    expect(within(nav).queryByRole('button', { name: 'Close' })).toBeNull();
-    const menuButton = within(nav).getByRole('button', { name: 'Tools' });
-    expect(within(nav).getAllByRole('button').map(b => b.textContent)).toEqual(['Caves', 'Tools']);
-    await userEvent.click(menuButton);
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Close' }));
-    expect(ran).toEqual(['planner']);
+  describe('below 1280 px: the section menu', () => {
+    it('is a menu button named after the section shown, with the sections and the map layers', async () => {
+      renderNav();
+      const button = screen.getByRole('button', { name: 'Section: Map' });
+      expect(button).toHaveTextContent('Map');
+      expect(button).toHaveAttribute('aria-haspopup', 'menu');
+      expect(screen.queryByRole('navigation')).toBeNull();
+      await userEvent.click(button);
+      const menu = screen.getByRole('menu', { name: 'Sections' });
+      const sections = within(menu).getByRole('group', { name: 'Sections' });
+      expect(within(sections).getAllByRole('menuitem').map(i => i.textContent)).toEqual(['Map', 'Planner']);
+      expect(within(sections).getByRole('menuitem', { name: 'Map' })).toHaveAttribute('aria-current', 'page');
+      expect(within(sections).getByRole('menuitem', { name: 'Map' })).toHaveFocus();
+      const layers = within(menu).getByRole('group', { name: 'Map layers' });
+      expect(within(layers).getAllByRole('menuitemcheckbox').map(i => i.textContent)).toEqual(['✓Height mapH', 'Caves']);
+      expect(within(layers).getByRole('menuitem', { name: 'Retry' })).toBeInTheDocument();
+    });
+
+    it('works with the keyboard: arrows, Enter on a switch, End', async () => {
+      renderNav();
+      const button = screen.getByRole('button', { name: 'Section: Map' });
+      await userEvent.click(button);
+      const menu = screen.getByRole('menu');
+      await userEvent.keyboard('{ArrowDown}{ArrowDown}');
+      const heights = within(menu).getByRole('menuitemcheckbox', { name: /Height map/ });
+      expect(heights).toHaveFocus();
+      expect(heights).toHaveAttribute('aria-checked', 'false');
+      await userEvent.keyboard('{ArrowDown}{Enter}');
+      expect(useNodes.getState().visible).toBe(true);
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(button).toHaveFocus();
+      await userEvent.click(button);
+      expect(within(screen.getByRole('menu')).getByRole('menuitemcheckbox', { name: /Caves/ })).toHaveAttribute('aria-checked', 'true');
+      await userEvent.keyboard('{End}{Enter}');
+      expect(ran).toEqual(['export']);
+    });
+
+    it('closes with Esc and leaves the key to nobody else', async () => {
+      renderNav();
+      await userEvent.click(screen.getByRole('button', { name: 'Section: Map' }));
+      const seen: boolean[] = [];
+      const listener = (e: KeyboardEvent) => seen.push(e.defaultPrevented);
+      window.addEventListener('keydown', listener);
+      await userEvent.keyboard('{Escape}');
+      window.removeEventListener('keydown', listener);
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(seen).toEqual([true]);
+      expect(screen.getByRole('button', { name: 'Section: Map' })).toHaveFocus();
+    });
+
+    it('follows a section with Space as any menu item, and is then named after it, without the map layers', async () => {
+      const router = renderNav();
+      await userEvent.click(screen.getByRole('button', { name: 'Section: Map' }));
+      await userEvent.keyboard('{ArrowDown} ');
+      expect(router.state.location.pathname).toBe(`/w/${W}/planner`);
+      expect(screen.queryByRole('menu')).toBeNull();
+      const button = screen.getByRole('button', { name: 'Section: Planner' });
+      expect(button).toHaveFocus();
+      await userEvent.click(button);
+      const menu = screen.getByRole('menu');
+      expect(within(menu).getByRole('menuitem', { name: 'Planner' })).toHaveAttribute('aria-current', 'page');
+      expect(within(menu).getByRole('menuitem', { name: 'Map' })).toHaveAttribute('href', `/w/${W}`);
+      expect(within(menu).queryByRole('group', { name: 'Map layers' })).toBeNull();
+    });
+
+    it('is the same menu on mobile, also on wide phones in landscape', async () => {
+      stubMatchMedia({ [WIDE_QUERY]: true });
+      renderNav({ mobile: true });
+      expect(screen.queryByRole('navigation')).toBeNull();
+      await userEvent.click(screen.getByRole('button', { name: 'Section: Map' }));
+      expect(screen.getByRole('menu').querySelectorAll('[role^="menuitem"]')).toHaveLength(5);
+    });
   });
 
-  it('hides a tool that is not available', () => {
-    stubMatchMedia({ [WIDE_QUERY]: true });
-    nodesAvailable = false;
-    renderNav();
-    expect(screen.queryByRole('button', { name: 'Caves' })).toBeNull();
-  });
-
-  it('puts the tools in a menu on narrower screens: checkbox items for switches, keyboard included', async () => {
-    renderNav();
-    const button = screen.getByRole('button', { name: 'Tools' });
-    expect(button).toHaveAttribute('aria-haspopup', 'menu');
-    await userEvent.click(button);
-    const menu = screen.getByRole('menu', { name: 'Tools' });
-    const heights = within(menu).getByRole('menuitemcheckbox', { name: /Heights/ });
-    expect(heights).toHaveFocus();
-    expect(heights).toHaveAttribute('aria-checked', 'false');
-    expect(within(menu).getByRole('menuitem', { name: 'Retry' })).toBeInTheDocument();
-    await userEvent.keyboard('{ArrowDown}');
-    expect(within(menu).getByRole('menuitemcheckbox', { name: /Caves/ })).toHaveFocus();
-    await userEvent.keyboard('{Enter}');
-    expect(useNodes.getState().visible).toBe(true);
-    expect(screen.queryByRole('menu')).toBeNull();
-    expect(button).toHaveFocus();
-    await userEvent.click(button);
-    expect(within(screen.getByRole('menu')).getByRole('menuitemcheckbox', { name: /Caves/ })).toHaveAttribute('aria-checked', 'true');
-    await userEvent.keyboard('{End}{Enter}');
-    expect(ran).toEqual(['export']);
-  });
-
-  it('closes the menu with Esc and leaves the key to nobody else', async () => {
-    renderNav();
-    await userEvent.click(screen.getByRole('button', { name: 'Tools' }));
-    const seen: boolean[] = [];
-    const listener = (e: KeyboardEvent) => seen.push(e.defaultPrevented);
-    window.addEventListener('keydown', listener);
-    await userEvent.keyboard('{Escape}');
-    window.removeEventListener('keydown', listener);
-    expect(screen.queryByRole('menu')).toBeNull();
-    expect(seen).toEqual([true]);
-    expect(screen.getByRole('button', { name: 'Tools' })).toHaveFocus();
-  });
-
-  it('links a tool to its world page, marked as the current page while it is shown, in the menu too', async () => {
-    stubMatchMedia({ [WIDE_QUERY]: true });
-    const tool = pageTool({ id: 'planner', order: 50, labelKey: 'planner.button', hintKey: 'planner.hint', page: 'planner' });
-    const features: FeatureModule[] = [nodesFeature, { id: 'planner', tools: [tool], pages: [{ id: 'planner', titleKey: 'planner.title', Component: () => null }] }];
-    const ctx: WorldCtx = {
-      worldId: W, world: {} as WorldDto, me: ME, index: indexDataset({ version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true, biomes: [], items: [], aliases: {} }),
-      queryClient: new QueryClient(), navigate: () => {}, toast: { show: () => {} },
-    };
-    const Nav = () => <ToolsNav ctx={ctx} mobile={false} />;
-    const router = createMemoryRouter([{ path: '/w/:id/*', Component: Nav }], { initialEntries: [`/w/${W}`] });
-    render(
-      <QueryClientProvider client={ctx.queryClient}>
-        <FeaturesProvider features={features}><RouterProvider router={router} /></FeaturesProvider>
-      </QueryClientProvider>,
-    );
-    // On wide screens it is in the Tools menu, like the other tools that are not map switches.
-    const nav = screen.getByRole('navigation', { name: 'Tools' });
-    expect(within(nav).getAllByRole('button').map(b => b.textContent)).toEqual(['Caves', 'Tools']);
-    await userEvent.click(within(nav).getByRole('button', { name: 'Tools' }));
-    const item = screen.getByRole('menuitem', { name: 'Planner' });
-    expect(item.tagName).toBe('A');
-    expect(item).toHaveAttribute('href', `/w/${W}/planner`);
-    expect(item).toHaveAttribute('title', 'Production planner: from the items you need down to miners and pumps');
-    expect(item).not.toHaveAttribute('aria-current');
-    expect(item).toHaveFocus();
-    // Space works as on any menu item.
-    await userEvent.keyboard(' ');
-    expect(router.state.location.pathname).toBe(`/w/${W}/planner`);
-    expect(screen.queryByRole('menu')).toBeNull();
-    expect(within(nav).getByRole('button', { name: 'Tools' })).toHaveFocus();
-    await userEvent.click(within(nav).getByRole('button', { name: 'Tools' }));
-    expect(screen.getByRole('menuitem', { name: 'Planner' })).toHaveAttribute('aria-current', 'page');
-  });
-
-  it('shows a page tool as a link button outside the menu', () => {
+  it('shows a page tool as a link button (ToolButton, for pages rendered alone)', () => {
     const tool = pageTool({ id: 'planner', order: 50, labelKey: 'planner.button', page: 'planner' });
-    const features: FeatureModule[] = [{ id: 'planner', tools: [tool], pages: [{ id: 'planner', titleKey: 'planner.title', Component: () => null }] }];
-    const ctx = { worldId: W } as WorldCtx;
     const Button = () => <ToolButton tool={tool} ctx={ctx} />;
     render(
-      <FeaturesProvider features={features}>
+      <FeaturesProvider features={[plannerFeature]}>
         <RouterProvider router={createMemoryRouter([{ path: '/w/:id/*', Component: Button }], { initialEntries: [`/w/${W}/planner`] })} />
       </FeaturesProvider>,
     );
     expect(screen.getByRole('link', { name: 'Planner' })).toHaveAttribute('aria-current', 'page');
-  });
-
-  it('is an icon button with the same menu on mobile', async () => {
-    stubMatchMedia({ [WIDE_QUERY]: true });
-    renderNav({ mobile: true });
-    expect(screen.queryByRole('navigation')).toBeNull();
-    const button = screen.getByRole('button', { name: 'Tools' });
-    expect(button).toHaveTextContent('');
-    await userEvent.click(button);
-    expect(screen.getByRole('menu').querySelectorAll('[role^="menuitem"]')).toHaveLength(3);
   });
 });

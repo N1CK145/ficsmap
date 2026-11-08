@@ -8,9 +8,8 @@ import { useFeatures } from '../../app/FeaturesContext.js';
 import { useWorldPage } from '../../app/pages.js';
 import { loadView, setLastWorld } from '../../app/persist.js';
 import { useUiStore } from '../../app/store.js';
-import { useIsMobile } from '../../app/useMediaQuery.js';
+import { useIsMobile, useMediaQuery } from '../../app/useMediaQuery.js';
 import { Button, buttonClass } from '../../components/Button.js';
-import { Footer } from '../../components/Footer.js';
 import { Header } from '../../components/Header.js';
 import { IconButton } from '../../components/IconButton.js';
 import { SidebarIcon } from '../../components/icons.js';
@@ -36,17 +35,18 @@ import { NextStopButton } from '../routes/NextStopButton.js';
 import { useRouteDraft } from '../routes/useRoutes.js';
 import { AccountMenu } from './AccountMenu.js';
 import { useMe, useWorld } from './queries.js';
-import { ToolsNav } from './ToolsNav.js';
+import { SectionMenu, WIDE_QUERY, WorldTabs } from './ToolsNav.js';
 import { useSidebarKey } from './useSidebarKey.js';
 import { WorldPageView } from './WorldPageView.js';
 
 /**
- * `/w/:id`: loads everything a world needs (me, world, dataset, marks), then renders the header,
- * the sidebar panels from the features' extension points, the map (which hosts the map ones) and the
- * item panel over it. Ctrl+Z, Q, Esc and `[` (sidebar) work anywhere in the world. Below 900 px the
- * panels move into a bottom sheet and the item panel into an item sheet (spec §10.11). The settings
- * (`/w/:id/settings`) and the features' world pages (`/w/:id/<page>`) are child routes: they replace
- * the sidebar, the map and the sheets while the layout stays mounted.
+ * `/w/:id`: loads everything a world needs (me, world, dataset, marks), then renders the header, from 1280 px the
+ * tab strip of the world's sections under it, the sidebar panels from the features' extension points, the map (which
+ * hosts the map ones) and the item panel over it. Ctrl+Z, Q, Esc and `[` (sidebar) work anywhere in the world. Below
+ * 900 px the panels move into a bottom sheet and the item panel into an item sheet (spec §10.11). The settings
+ * (`/w/:id/settings`) and the features' world pages (`/w/:id/<page>`) are child routes: they replace the sidebar, the
+ * map and the sheets while the layout stays mounted. There is no footer inside a world: the account menu has the
+ * version and the source link.
  */
 export function WorldLayout() {
   const { id = '' } = useParams();
@@ -124,7 +124,6 @@ function Screen({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <main className="flex flex-1 flex-col items-center justify-center gap-4 p-4 text-center">{children}</main>
-      <Footer />
     </div>
   );
 }
@@ -137,6 +136,7 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
   // The settings and the world pages take the whole main area: no sidebar, map, item panel or sheets.
   const onMap = !inSettings && page === undefined;
   const mobile = useIsMobile();
+  const wide = useMediaQuery(WIDE_QUERY) && !mobile;
   const features = useFeatures();
   useWorldEvents(ctx.worldId, ctx);
   useUndoShortcut(ctx);
@@ -157,20 +157,23 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
   const hasSidebar = onMap && !mobile;
   // On mobile the map is always the main area; the sheet's full height is the list view.
   const view = inSettings ? 'settings' : mobile ? 'map' : mainView;
-  // The settings page has neither the search nor the tools; the world pages have both (a map result found there
-  // goes back to the map). On mobile the search is a button next to the tools rather than in the middle of the bar.
+  // The settings page has neither the search nor the navigation (it has its own way back); the world pages have both
+  // (a map result found there goes back to the map). From 1280 px the sections are a tab strip under the bar, below
+  // that a menu in it. On mobile the search is a button next to the menu rather than in the middle of the bar.
   const centered = inSettings ? null : centerItems.map(h => <h.Component key={h.id} ctx={ctx} />);
-  const toolsNav = inSettings ? null : <ToolsNav ctx={ctx} mobile={mobile} />;
+  const menu = inSettings || wide ? null : <SectionMenu ctx={ctx} />;
   const center = mobile || !centered ? undefined : centered;
-  const tools = mobile ? <>{centered}{toolsNav}</> : toolsNav;
+  const tools = mobile ? <>{centered}{menu}</> : menu;
 
   return (
-    <div className="flex h-dvh flex-col">
-      <Header center={center} tools={tools} end={<AccountMenu />}>
+    // overflow-hidden: nothing (a screen-reader-only text, a menu) can make the whole screen scroll.
+    <div className="flex h-dvh flex-col overflow-hidden">
+      <Header center={center} tools={tools ?? undefined} end={<AccountMenu />}>
         {hasSidebar && <SidebarToggle sidebarId={sidebarId} />}
-        <h1 title={ctx.world.name} className="min-w-12 truncate font-display text-lg font-semibold tracking-wide">{ctx.world.name}</h1>
-        {startItems.map(h => <h.Component key={h.id} ctx={ctx} />)}
+        <h1 title={ctx.world.name} className="min-w-12 truncate font-display text-lg font-semibold tracking-wide max-[899px]:mr-1 max-[899px]:text-base">{ctx.world.name}</h1>
+        {startItems.filter(h => onMap || !h.mapOnly).map(h => <h.Component key={h.id} ctx={ctx} />)}
       </Header>
+      {wide && !inSettings && <WorldTabs ctx={ctx} />}
       <div className="flex min-h-0 flex-1">
         {hasSidebar && <Sidebar id={sidebarId} ctx={ctx} panels={shown} />}
         {page ? <WorldPageView key={page.id} page={page} ctx={ctx} /> : (
@@ -181,8 +184,6 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
           </section>
         )}
       </div>
-      {/* Always visible; on mobile the sheets sit on top of it (FOOTER_PX). */}
-      <Footer className="border-t border-line bg-panel" />
       {onMap && mobile && <MobileSheets ctx={ctx} panels={shown.filter(p => !p.desktopOnly)} />}
       <ImportDialogHost ctx={ctx} />
     </div>

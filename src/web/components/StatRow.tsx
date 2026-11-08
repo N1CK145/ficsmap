@@ -52,6 +52,7 @@ export function TileValue({ value, unit }: { value: ReactNode; unit?: ReactNode 
 /**
  * One row of a `StatList`: label left, value right in tabular figures, as the game lists a machine's numbers
  * ("Power consumption ........ 4 MW"). The value is the row's `dd`, so screen readers read label and value together.
+ * A long value (a sentence, a list of names) wraps within two thirds of the row instead of pushing the label out.
  */
 export function StatRow({ label, value, unit, icon, hint, tone = 'default' }: StatRowProps) {
   return (
@@ -60,10 +61,10 @@ export function StatRow({ label, value, unit, icon, hint, tone = 'default' }: St
         {icon !== undefined && <span aria-hidden="true" className="flex shrink-0 items-center self-center">{icon}</span>}
         <span className="min-w-0">
           {label}
-          {hint !== undefined && <span className="block text-xs">{hint}</span>}
+          {hint !== undefined && <span className="block text-xs max-[899px]:text-sm">{hint}</span>}
         </span>
       </dt>
-      <dd className={`shrink-0 text-right font-display text-base font-semibold tabular-nums ${VALUE_TONES[tone]}`}>
+      <dd className={`max-w-[65%] shrink-0 text-right font-display text-base font-semibold tabular-nums [overflow-wrap:anywhere] ${VALUE_TONES[tone]}`}>
         {value}
         {unit !== undefined && <span className="ml-1 font-sans text-sm font-medium text-muted">{unit}</span>}
       </dd>

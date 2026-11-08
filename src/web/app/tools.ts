@@ -37,8 +37,8 @@ export interface PageToolOptions {
 }
 
 /**
- * A tool that leads to a world page (`/w/:id/<page>`): a link in the tool navigation (in the Tools menu on wide
- * screens too, like other tools that are not map switches), marked as the current page while that page is shown.
+ * A tool that leads to a world page (`/w/:id/<page>`): a section of the world, a tab from 1280 px and an entry of the
+ * section menu below that, marked as the current page while that page is shown.
  */
 export function pageTool({ useAvailable, ...meta }: PageToolOptions): Tool {
   return {

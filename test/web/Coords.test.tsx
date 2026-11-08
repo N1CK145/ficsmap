@@ -108,7 +108,7 @@ describe('height layer', () => {
   it('offers the switch when the dataset has heights, and remembers it', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(META), { headers: { 'content-type': 'application/json' } })));
     renderControl();
-    const button = await screen.findByRole('button', { name: 'Heights' });
+    const button = await screen.findByRole('button', { name: 'Height map' });
     await userEvent.click(button);
     expect(useHeightLayer.getState().visible).toBe(true);
     expect(localStorage.getItem('ficsmap:heights')).toBe('1');
@@ -119,7 +119,7 @@ describe('height layer', () => {
     renderControl();
     await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled());
     await new Promise(r => setTimeout(r, 20));
-    expect(screen.queryByRole('button', { name: 'Heights' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Height map' })).toBeNull();
   });
 
   it('draws the layer with its legend while switched on', async () => {

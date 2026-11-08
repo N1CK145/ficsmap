@@ -57,8 +57,11 @@ export interface WindowProps extends Omit<WindowTitleBarProps, 'titleId'> {
   children: ReactNode;
   /** A bar of buttons under the content, right-aligned. */
   footer?: ReactNode;
-  /** The landmark or element: `section` (default, named by the title), `aside` for complementary boxes, `div`. */
-  as?: 'section' | 'aside' | 'div';
+  /**
+   * The landmark or element: `section` (default, named by the title), `aside` for complementary boxes, `article` for a
+   * self-contained entry (the machine wiki's), `div`.
+   */
+  as?: 'section' | 'aside' | 'article' | 'div';
   /** Layout only (width, position, max height). */
   className?: string;
   /** The content's padding and layout; `p-3` by default. */

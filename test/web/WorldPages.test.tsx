@@ -15,6 +15,8 @@ import { FEATURES } from '../../src/web/features/index.js';
 import { useMachineWiki } from '../../src/web/features/machineWiki/index.js';
 import { pickRouteMode, useVehicleCalc } from '../../src/web/features/vehicleCalc/index.js';
 import { EMPTY_FORM } from '../../src/web/features/vehicleCalc/useVehicleCalc.js';
+import en from '../../src/web/app/i18n/en.json';
+import de from '../../src/web/app/i18n/de.json';
 import { appRoutes } from '../../src/web/router.js';
 import { RECIPE_DATA } from '../fixtures/recipeData.js';
 import { FakeEventSource } from './fakeEventSource.js';
@@ -46,11 +48,13 @@ const TRANSPORT: TransportData = {
   items: [],
   fuels: [],
 };
+// The headings come from the pages' own keys, whatever words their features choose.
 const PAGES = [
-  { tool: 'Planner', heading: 'Production planner', path: 'planner' },
-  { tool: 'Vehicles', heading: 'Vehicle calculator', path: 'vehicles' },
-  { tool: 'Machines', heading: 'Machines and vehicles', path: 'wiki' },
+  { tool: 'Planner', heading: en.planner.title, path: 'planner' },
+  { tool: 'Vehicles', heading: en.vehicleCalc.title, path: 'vehicles' },
+  { tool: 'Machines', heading: en.machineWiki.title, path: 'wiki' },
 ];
+const [PLANNER, VEHICLES, WIKI] = PAGES.map(p => p.heading) as [string, string, string];
 
 function renderAt(url: string) {
   stubFetch({
@@ -91,47 +95,60 @@ describe('world pages', () => {
     expect(collect(FEATURES, 'headerItems').map(h => h.id)).not.toEqual(expect.arrayContaining([expect.stringMatching(/dialog/)]));
   });
 
-  it.each(PAGES)('opens $heading from the Tools menu at /w/:id/$path, full width under the header, the world kept', async ({ tool, heading, path }) => {
+  it.each(PAGES)('opens $heading from its tab at /w/:id/$path, full width under the header, the world kept', async ({ tool, heading, path }) => {
     stubMatchMedia({ '(min-width: 1280px)': true });
     const router = renderAt(`/w/${W}`);
     expect(await screen.findByRole('region', { name: 'Map' })).toBeInTheDocument();
     const stream = FakeEventSource.last();
-    await userEvent.click(header().getByRole('button', { name: 'Tools' }));
-    await userEvent.click(screen.getByRole('menuitem', { name: tool }));
+    const tabs = () => within(screen.getByRole('navigation', { name: 'Sections' }));
+    await userEvent.click(tabs().getByRole('link', { name: tool }));
 
     expect(router.state.location.pathname).toBe(`/w/${W}/${path}`);
     const page = screen.getByRole('main', { name: heading });
     expect(within(page).getByRole('heading', { level: 2, name: heading })).toHaveFocus();
-    // No sidebar, map or item panel; the header keeps the world, the search and the tools.
+    // No sidebar, map or item panel; the header keeps the world and the search, the tabs stay.
     expect(screen.queryByRole('complementary', { name: 'Sidebar' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Map' })).toBeNull();
     expect(screen.queryByRole('button', { name: /sidebar/ })).toBeNull();
     expect(header().getByRole('heading', { level: 1, name: 'Alpha' })).toBeInTheDocument();
     expect(header().getByRole('combobox', { name: 'Search' })).toBeInTheDocument();
-    await userEvent.click(header().getByRole('button', { name: 'Tools' }));
-    expect(screen.getByRole('menuitem', { name: tool })).toHaveAttribute('aria-current', 'page');
-    await userEvent.keyboard('{Escape}');
+    expect(tabs().getByRole('link', { name: tool })).toHaveAttribute('aria-current', 'page');
+    // The Map tab is the way back here; the page's own [←] is for narrower screens.
+    expect(within(page).getByRole('link', { name: 'Back to the map' })).toHaveClass('min-[1280px]:hidden');
     // The world stays loaded: the same event stream.
     expect(FakeEventSource.instances).toEqual([stream]);
 
-    await userEvent.click(within(page).getByRole('link', { name: 'Back to the map' }));
+    await userEvent.click(tabs().getByRole('link', { name: 'Map' }));
     expect(router.state.location.pathname).toBe(`/w/${W}`);
     expect(await screen.findByRole('region', { name: 'Map' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Sidebar' })).toBeInTheDocument();
   });
 
+  it.each(PAGES)('opens $heading from the section menu below 1280 px and goes back with [←]', async ({ tool, heading, path }) => {
+    const router = renderAt(`/w/${W}`);
+    expect(await screen.findByRole('region', { name: 'Map' })).toBeInTheDocument();
+    await userEvent.click(header().getByRole('button', { name: 'Section: Map' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: tool }));
+    expect(router.state.location.pathname).toBe(`/w/${W}/${path}`);
+    const page = screen.getByRole('main', { name: heading });
+    expect(header().getByRole('button', { name: `Section: ${tool}` })).toBeInTheDocument();
+    await userEvent.click(within(page).getByRole('link', { name: 'Back to the map' }));
+    expect(router.state.location.pathname).toBe(`/w/${W}`);
+    expect(await screen.findByRole('region', { name: 'Map' })).toBeInTheDocument();
+  });
+
   it('goes between pages and back with the browser history', async () => {
     const router = renderAt(`/w/${W}/planner`);
-    expect(await screen.findByRole('heading', { name: 'Production planner' })).toHaveFocus();
+    expect(await screen.findByRole('heading', { level: 2, name: PLANNER })).toHaveFocus();
     await act(() => router.navigate(`/w/${W}/vehicles`));
-    expect(await screen.findByRole('heading', { name: 'Vehicle calculator' })).toHaveFocus();
+    expect(await screen.findByRole('heading', { level: 2, name: VEHICLES })).toHaveFocus();
     await act(() => router.navigate(-1));
-    expect(await screen.findByRole('heading', { name: 'Production planner' })).toHaveFocus();
+    expect(await screen.findByRole('heading', { level: 2, name: PLANNER })).toHaveFocus();
   });
 
   it('opens a wiki entry from its URL, and the browser goes back between entries', async () => {
     const router = renderAt(`/w/${W}/wiki/Build_SmelterMk1_C`);
-    const page = await screen.findByRole('main', { name: 'Machines and vehicles' });
+    const page = await screen.findByRole('main', { name: WIKI });
     expect(await within(page).findByRole('article', { name: 'Smelter' })).toBeInTheDocument();
     await userEvent.click(within(page).getByRole('button', { name: 'Constructor' }));
     expect(router.state.location.pathname).toBe(`/w/${W}/wiki/Build_ConstructorMk1_C`);
@@ -142,7 +159,7 @@ describe('world pages', () => {
 
   it('goes back to the map for a map result of the search, and to the wiki for a machine', async () => {
     const router = renderAt(`/w/${W}/planner`);
-    await screen.findByRole('main', { name: 'Production planner' });
+    await screen.findByRole('main', { name: PLANNER });
     const search = header().getByRole('combobox', { name: 'Search' });
     await userEvent.type(search, 'constructor');
     expect(await screen.findByRole('option', { name: /Constructor/ })).toBeInTheDocument();
@@ -164,7 +181,7 @@ describe('world pages', () => {
     const router = renderAt(`/w/${W}`);
     await screen.findByRole('region', { name: 'Map' });
     await act(() => router.navigate(`/w/${W}/vehicles`));
-    const page = await screen.findByRole('main', { name: 'Vehicle calculator' });
+    const page = await screen.findByRole('main', { name: VEHICLES });
     await userEvent.click(await within(page).findByRole('button', { name: 'Pick on the map' }));
 
     expect(router.state.location.pathname).toBe(`/w/${W}`);
@@ -174,7 +191,7 @@ describe('world pages', () => {
     act(() => pickRouteMode.onMapClick!({ x: 0, y: 0 }, ctx));
     act(() => pickRouteMode.onMapClick!({ x: 30_000, y: 40_000 }, ctx));
 
-    const back = await screen.findByRole('main', { name: 'Vehicle calculator' });
+    const back = await screen.findByRole('main', { name: VEHICLES });
     expect(router.state.location.pathname).toBe(`/w/${W}/vehicles`);
     expect(within(back).getByLabelText('Route length (one way)')).toHaveValue(500);
     expect(within(back).getByRole('region', { name: 'Route on the map' })).toHaveTextContent('Straight line500 m');
@@ -190,10 +207,10 @@ describe('world pages', () => {
     stubMatchMedia({ [MOBILE]: true });
     const router = renderAt(`/w/${W}`);
     expect(await screen.findByRole('region', { name: 'Panels' })).toBeInTheDocument();
-    await userEvent.click(header().getByRole('button', { name: 'Tools' }));
+    await userEvent.click(header().getByRole('button', { name: 'Section: Map' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Planner' }));
     expect(router.state.location.pathname).toBe(`/w/${W}/planner`);
-    expect(screen.getByRole('main', { name: 'Production planner' })).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: PLANNER })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Panels' })).toBeNull();
     expect(header().getByRole('button', { name: 'Search' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('link', { name: 'Back to the map' }));
@@ -203,8 +220,9 @@ describe('world pages', () => {
   it('speaks German', async () => {
     initI18n(['de']);
     renderAt(`/w/${W}/wiki`);
-    const page = await screen.findByRole('main', { name: 'Maschinen und Fahrzeuge' });
+    const page = await screen.findByRole('main', { name: de.machineWiki.title });
     expect(within(page).getByRole('link', { name: 'Zurück zur Karte' })).toHaveAttribute('href', `/w/${W}`);
+    expect(header().getByRole('button', { name: 'Bereich: Maschinen' })).toBeInTheDocument();
     initI18n(['en']);
   });
 });

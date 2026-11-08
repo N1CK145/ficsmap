@@ -2,7 +2,10 @@ import { useId, type ComponentPropsWithRef, type ReactNode } from 'react';
 
 export type FieldSize = 'sm' | 'md';
 
-const FIELD_SIZES: Record<FieldSize, string> = { sm: 'h-8 px-2 text-sm', md: 'h-10 px-3' };
+/**
+ * Below 900 px the text is 16 px whatever the size: iOS zooms the page into a focused control with smaller text.
+ */
+const FIELD_SIZES: Record<FieldSize, string> = { sm: 'h-8 px-2 text-sm max-[899px]:text-base', md: 'h-10 px-3 max-[899px]:text-base' };
 
 /** The box of a form control: dark inset, a 3:1 edge (`edge`), cut corners, the accent ring on focus. */
 const BOX = 'chamfer border border-edge bg-bg text-fg transition-colors hover:border-muted';
@@ -47,7 +50,7 @@ export function NumberField({ label, hideLabel = false, unit, hint, size = 'md',
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
       <label htmlFor={inputId} className={hideLabel ? 'sr-only' : FIELD_LABEL}>{label}</label>
-      <div className={`flex items-center ${BOX} focus-within:border-accent focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2 focus-within:ring-offset-bg ${size === 'sm' ? 'h-8 text-sm' : 'h-10'} ${boxClassName}`}>
+      <div className={`flex items-center ${BOX} focus-within:border-accent focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2 focus-within:ring-offset-bg ${size === 'sm' ? 'h-8 text-sm max-[899px]:text-base' : 'h-10 max-[899px]:text-base'} ${boxClassName}`}>
         <input
           inputMode="decimal"
           {...input}
@@ -58,7 +61,7 @@ export function NumberField({ label, hideLabel = false, unit, hint, size = 'md',
         />
         {unit !== undefined && <span id={unitId} className={`shrink-0 text-sm text-muted ${size === 'sm' ? 'pr-2' : 'pr-3'}`}>{unit}</span>}
       </div>
-      {hint !== undefined && <p id={hintId} className="text-xs text-muted">{hint}</p>}
+      {hint !== undefined && <p id={hintId} className="text-xs text-muted max-[899px]:text-sm">{hint}</p>}
     </div>
   );
 }

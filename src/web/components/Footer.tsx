@@ -1,14 +1,15 @@
 import { useTranslation } from 'react-i18next';
 import { APP_VERSION, RELEASE_URL, REPO_URL } from '../app/version.js';
 
-/** The footer's fixed height; the mobile sheets sit above it. */
+/** The footer's fixed height. */
 export const FOOTER_PX = 28;
 
 const linkClass = 'rounded focus-ring hover:text-accent';
 
 /**
- * One line of small print at the bottom of every page: this build's version (its release page)
- * and the source repository. Always `FOOTER_PX` high, so the world view can lay out around it.
+ * One line of small print at the bottom of the world list and the sign-in page: this build's version (its release
+ * page) and the source repository. Inside a world the account menu has both instead, so the map and the tool pages
+ * keep the whole height. Always `FOOTER_PX` high.
  */
 export function Footer({ className = '' }: { className?: string }) {
   const { t } = useTranslation();

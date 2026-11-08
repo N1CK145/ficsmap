@@ -111,7 +111,7 @@
     "hint": "Position under the mouse in metres. Z is the highest surface there: terrain, rocks, structures and big trees, without bushes and small plants."
   },
   "heights": {
-    "control": "Heights",
+    "control": "Height map",
     "hint": "Show the height map as a colour scale (highest surface, from the game data)",
     "legend": "Height (highest point)",
     "metres": "{value} m"
@@ -524,25 +524,23 @@
   "machineWiki": {
     "open": "Machines",
     "openHint": "Stats of every machine and vehicle, from the game data",
-    "title": "Machines and vehicles",
+    "title": "Machines",
     "failed": "The machine data could not be loaded.",
     "unavailable": "This dataset has no machine data. It is built from the game's Docs files (see the dataset build).",
     "search": "Search",
     "searchPlaceholder": "Name in English or German",
     "listLabel": "Machines and vehicles",
     "noMatch": "Nothing matches.",
-    "pick": "Pick a machine or vehicle.",
     "back": "Back to the list",
     "tierFilter": "Filter by tier",
     "tierLabel": "Tier",
     "tierChip": "{key, select, mam {MAM} shop {Shop} other {Other}}",
     "tierName": "{key, select, tier {Tier {tier, number}} mam {MAM research} shop {AWESOME Shop} other {Other unlocks}}",
-    "tierHint": "Shift-click: everything up to this tier",
     "badge": "{key, select, tier {Tier {tier, number}} mam {MAM} shop {Shop} other {Other}}",
     "upTo": "Up to tier",
     "upToAll": "All",
     "upToMixed": "Custom",
-    "clearTiers": "Show all",
+    "clearTiers": "Clear filter",
     "showing": "{shown, plural, one {# of {total, number} shown} other {# of {total, number} shown}}",
     "category": {
       "production": "Production",
@@ -596,11 +594,13 @@
       "loadSeconds": "{seconds, number} s",
       "unloadSeconds": "{seconds, number} s",
       "clock": "{min, number, percent}–{max, number, percent} without Power Shards",
+      "clockShards": "{min, number}–{max, number}% (up to {shards, plural, one {# Power Shard} other {# Power Shards}})",
       "powerExponent": "{exponent, number}",
       "somersloopSlots": "{slots, number}"
     },
     "amount": "{fluid, select, yes {{amount, number} m³ {name}} other {{amount, number} × {name}}}",
     "amountPerMinute": "{fluid, select, yes {{amount, number} m³/min {name}} other {{amount, number}/min {name}}}",
+    "rate": "{fluid, select, yes {{amount, number} m³/min} other {{amount, number}/min}}",
     "fuels": "Fuels",
     "plus": "plus",
     "byproduct": "makes",
@@ -909,6 +909,7 @@
     "open": "Search",
     "placeholder": "Search items, IDs, biomes, caves …",
     "clear": "Clear search",
+    "chip": "Search: {query}",
     "results": "Search results",
     "none": "No matches",
     "count": "{count, plural, one {# result} other {# results}}",
@@ -931,7 +932,10 @@
       "resource": "Resource node"
     }
   },
-  "tools": {
-    "label": "Tools"
+  "nav": {
+    "label": "Sections",
+    "map": "Map",
+    "menu": "Section: {section}",
+    "layers": "Map layers"
   }
 }

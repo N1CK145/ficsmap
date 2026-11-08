@@ -9,6 +9,6 @@ export const biomesFeature: FeatureModule = {
   id: 'biomes',
   sidebarPanels: [{ id: 'biomes', order: 100, titleKey: 'biomes.title', Component: BiomesPanel, defaultCollapsed: true }],
   mapLayers: [{ id: 'biomes', order: 10, Component: BiomeLayer }],
-  headerItems: [{ id: 'biome-scope', order: 20, Component: ScopeChip }],
+  headerItems: [{ id: 'biome-scope', order: 20, mapOnly: true, Component: ScopeChip }],
   searchProviders: [biomesSearch],
 };

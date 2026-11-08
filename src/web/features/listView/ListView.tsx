@@ -41,8 +41,11 @@ const Row = memo(function Row({ item, label, typeLabel, biome, collected, confli
       </td>
       <td className={`${cell} ${wide}`}>{biome}</td>
       <td className={cell}>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" aria-label={label} checked={collected} onChange={() => void setMark(item.name, !collected)} className="size-4 accent-accent focus-ring" />
+        {/* The label is the touch target around the box: 44 px square on a phone. */}
+        <label className="flex items-center gap-2 max-[899px]:-my-1.5 max-[899px]:cursor-pointer">
+          <span className="flex shrink-0 items-center justify-center max-[899px]:size-11">
+            <input type="checkbox" aria-label={label} checked={collected} onChange={() => void setMark(item.name, !collected)} className="size-4 accent-accent focus-ring max-[899px]:size-5" />
+          </span>
           {conflict && (
             <>
               <span aria-hidden="true" className="font-bold text-conflict">!</span>

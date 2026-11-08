@@ -6,19 +6,36 @@ import type { WorldCtx } from '../../app/feature.js';
 import { useUiStore } from '../../app/store.js';
 import { useIsMobile } from '../../app/useMediaQuery.js';
 import { prefersReducedMotion } from '../map/motion.js';
+import { ITEM_SHEET_SHARE } from '../mobile/ItemSheet.js';
 
 /** The item panel's width plus its margins: a selected marker must not end up under it. */
 const PANEL_PADDING_PX = 360;
+
+/** Room between a selected marker and the item sheet's top edge on mobile: the marker's own size and a margin. */
+export const SHEET_MARGIN_PX = 32;
 
 /** Zoom a "Show on map" request ends at least on: markers are full-size from there (DOT_ZOOM is 2). */
 export const FOCUS_ZOOM = 4;
 
 /**
- * The part of the map the item panel covers, as [right, bottom] px: the 340 px panel on the right
- * on desktop, the half-height item sheet at the bottom on mobile.
+ * Where the mobile item sheet begins, in viewport px: its measured top edge while it is shown, else where it will be
+ * (it takes `ITEM_SHEET_SHARE` of the screen's height from the bottom).
+ */
+function itemSheetTop(): number {
+  const sheet = document.querySelector('[data-item-sheet]');
+  return sheet ? sheet.getBoundingClientRect().top : window.innerHeight * (1 - ITEM_SHEET_SHARE);
+}
+
+/**
+ * The part of the map the item panel covers, as [right, bottom] px: the 340 px panel on the right on desktop; on
+ * mobile the item sheet, from its real top edge to the map's bottom (the sheet sits on the screen's bottom, not the
+ * map's), plus `SHEET_MARGIN_PX` so the whole marker stays clear of it.
  */
 export function panelPadding(map: L.Map, mobile: boolean): L.PointTuple {
-  return mobile ? [0, Math.round(map.getSize().y / 2)] : [PANEL_PADDING_PX, 0];
+  if (!mobile) return [PANEL_PADDING_PX, 0];
+  const mapBottom = map.getContainer().getBoundingClientRect().bottom;
+  const covered = Math.max(0, Math.min(map.getSize().y, mapBottom - itemSheetTop()));
+  return [0, Math.round(covered) + SHEET_MARGIN_PX];
 }
 
 /** The map centre that puts `latlng` in the middle of the part of the map the item panel leaves free. */

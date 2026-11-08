@@ -1,11 +1,9 @@
 import { useEffect, useId, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FOOTER_PX } from '../../components/Footer.js';
-import { nearestSnap, nextSnap, snapHeights, TOAST_OFFSET_PX, type Snap } from './snap.js';
+import { nearestSnap, nextSnap, PEEK_PX, snapHeights, TOAST_OFFSET_PX, type Snap } from './snap.js';
 
-/** The space above the footer, which the sheet sits on; half and full are shares of it (snapHeights). */
-const AVAILABLE = `(100dvh - ${FOOTER_PX}px)`;
-const CSS_HEIGHT: Record<Snap, string> = { peek: '96px', half: `calc(${AVAILABLE} * 0.5)`, full: `calc(${AVAILABLE} * 0.92)` };
+/** The sheet's heights in CSS; half and full are shares of the screen's height (snapHeights). */
+const CSS_HEIGHT: Record<Snap, string> = { peek: `${PEEK_PX}px`, half: '50dvh', full: '92dvh' };
 /** Movement below this is a tap on the handle, not a drag. */
 const DRAG_SLOP_PX = 4;
 /** The release velocity is measured over the last this many ms of the drag. */
@@ -26,10 +24,10 @@ export interface BottomSheetProps {
 }
 
 /**
- * The mobile bottom sheet (spec §10.11), fixed to the bottom (on top of the footer) with three
- * heights: peek 96 px, half 50 % and full 92 % of the space above the footer. The grab handle is a button: a tap, Enter or Space goes peek → half → full →
- * peek; dragging it (touch-action: none on the handle only) resizes the sheet and the release
- * settles on `nearestSnap`. Size changes animate unless the user prefers reduced motion.
+ * The mobile bottom sheet (spec §10.11), fixed to the bottom of the screen with three heights: peek 112 px, half 50 %
+ * and full 92 % of the screen. The grab handle is a button, 44 px high with a thin bar in it: a tap, Enter or Space
+ * goes peek → half → full → peek; dragging it (touch-action: none on the handle only) resizes the sheet and the
+ * release settles on `nearestSnap`. Size changes animate unless the user prefers reduced motion.
  */
 export function BottomSheet({ label, snap, onSnap, children, footer }: BottomSheetProps) {
   const { t } = useTranslation();
@@ -46,7 +44,7 @@ export function BottomSheet({ label, snap, onSnap, children, footer }: BottomShe
     return () => { root.style.removeProperty('--ficsmap-toast-offset'); };
   }, []);
 
-  const heights = () => snapHeights(window.innerHeight - FOOTER_PX);
+  const heights = () => snapHeights(window.innerHeight);
   const heightAt = (d: Drag, clientY: number) => {
     const h = heights();
     return Math.min(h.full, Math.max(h.peek, d.startHeight + d.startY - clientY));
@@ -105,8 +103,8 @@ export function BottomSheet({ label, snap, onSnap, children, footer }: BottomShe
   return (
     <section
       aria-label={label}
-      style={{ height: dragging ? `${dragHeight}px` : CSS_HEIGHT[snap], bottom: FOOTER_PX }}
-      className={`fixed inset-x-0 z-[1100] flex flex-col overflow-clip border-t border-line bg-panel shadow-[0_-8px_24px_rgb(0_0_0/0.45)] ${dragging ? '' : 'motion-safe:transition-[height] motion-safe:duration-200'}`}
+      style={{ height: dragging ? `${dragHeight}px` : CSS_HEIGHT[snap] }}
+      className={`fixed inset-x-0 bottom-0 z-[1100] flex flex-col overflow-clip border-t border-line bg-panel shadow-[0_-8px_24px_rgb(0_0_0/0.45)] ${dragging ? '' : 'motion-safe:transition-[height] motion-safe:duration-200'}`}
     >
       <button
         type="button"
@@ -120,7 +118,7 @@ export function BottomSheet({ label, snap, onSnap, children, footer }: BottomShe
         onLostPointerCapture={onPointerCancel}
         onClick={onClick}
         // Inset ring: an outer one would be clipped by the sheet at its top edge.
-        className="group flex h-7 w-full shrink-0 cursor-grab touch-none items-center justify-center bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
+        className="group flex h-11 w-full shrink-0 cursor-grab touch-none items-center justify-center bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
       >
         <span aria-hidden="true" className="h-1 w-12 bg-edge group-active:bg-accent" />
       </button>

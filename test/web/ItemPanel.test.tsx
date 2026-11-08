@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import L from 'leaflet';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
 import { worldToLatLng } from '../../src/shared/geo.js';
@@ -14,6 +15,7 @@ import { useUiStore } from '../../src/web/app/store.js';
 import { ToastProvider, type ToastInput } from '../../src/web/components/Toast.js';
 import { itemPanelFeature } from '../../src/web/features/itemPanel/index.js';
 import { ItemPanel } from '../../src/web/features/itemPanel/ItemPanel.js';
+import { SHEET_MARGIN_PX } from '../../src/web/features/itemPanel/SelectionPan.js';
 import { MapView } from '../../src/web/features/map/MapView.js';
 import { marksFeature } from '../../src/web/features/marks/index.js';
 import { AccountMenu } from '../../src/web/features/worlds/AccountMenu.js';
@@ -234,7 +236,7 @@ describe('ItemPanel', () => {
   });
 
   it('does not close on the Esc that closes the account menu', async () => {
-    renderPanel('S1', { extra: <AccountMenu /> });
+    renderPanel('S1', { extra: <MemoryRouter><AccountMenu /></MemoryRouter> });
     await userEvent.click(screen.getByRole('button', { name: 'Account' }));
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
@@ -264,7 +266,9 @@ describe('ItemSheet (mobile)', () => {
     const { calls } = stubFetch({ [`PUT /api/worlds/${W}/marks/S1`]: { body: { rev: 2 } } });
     renderPanel('S1', { sheet: true });
     const sheet = panel();
-    expect(sheet).toHaveClass('h-[50dvh]');
+    // Half the screen from its bottom (no footer under it); the map measures it by its data attribute.
+    expect(sheet).toHaveClass('h-[50dvh]', 'bottom-0');
+    expect(sheet).toHaveAttribute('data-item-sheet');
     expect(within(sheet).getByRole('heading', { level: 2, name: 'Somersloop' })).toBeInTheDocument();
     const check = within(sheet).getByRole('button', { name: 'Check' });
     expect(check).toHaveClass('h-14', 'w-full');
@@ -330,10 +334,20 @@ describe('SelectionPan', () => {
     );
   });
 
-  it('on mobile pans the marker out from under the item sheet (bottom half) instead', () => {
+  it('on mobile pans the marker above the item sheet\'s real top edge, with room for the marker, instead', () => {
     stubMatchMedia({ [MOBILE]: true });
     // A fresh point each call: Leaflet mutates the one it gets.
-    vi.spyOn(L.Map.prototype, 'getSize').mockImplementation(() => L.point(390, 700));
+    vi.spyOn(L.Map.prototype, 'getSize').mockImplementation(() => L.point(390, 796));
+    // The map fills the screen under the 48 px top bar (to 844 px); the sheet starts at 422 px.
+    const sheet = document.createElement('aside');
+    sheet.setAttribute('data-item-sheet', '');
+    document.body.append(sheet);
+    const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 390, width: 390, height: bottom - top, x: 0, y: top, toJSON: () => ({}) });
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      if (this === sheet) return rect(422, 844) as DOMRect;
+      if (this.classList.contains('leaflet-container')) return rect(48, 844) as DOMRect;
+      return rect(0, 0) as DOMRect;
+    });
     const panInside = vi.spyOn(L.Map.prototype, 'panInside');
     const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
     client.setQueryData(queryKeys.marks(W), marksCache());
@@ -347,8 +361,10 @@ describe('SelectionPan', () => {
     act(() => { useUiStore.getState().select('P1'); });
     expect(panInside).toHaveBeenCalledWith(
       worldToLatLng(5000, 1000, index.ds.bounds),
-      expect.objectContaining({ paddingTopLeft: [0, 0], paddingBottomRight: [0, 350] }),
+      // 844 - 422 px under the sheet, plus SHEET_MARGIN_PX for the marker.
+      expect.objectContaining({ paddingTopLeft: [0, 0], paddingBottomRight: [0, 422 + SHEET_MARGIN_PX] }),
     );
+    sheet.remove();
     vi.unstubAllGlobals();
   });
 });
