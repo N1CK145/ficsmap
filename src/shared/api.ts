@@ -10,6 +10,10 @@ export type ApiErrorCode =
   | 'invite_invalid'
   /** A per-world limit is reached (e.g. the number of factory snapshots). */
   | 'limit_reached'
+  /** An uploaded save belongs to another session than the world's (save watcher). */
+  | 'session_mismatch'
+  /** The server cannot take the request now (the save parse queue is full); try again later. */
+  | 'busy'
   | 'internal';
 
 export interface ApiError {
@@ -110,4 +114,45 @@ export interface ResourceNodesDto {
   overrides: ResourceNodeOverride[];
   settings: NodeSettings | null;
   extractors: NodeExtractor[];
+}
+
+/** An upload token of the save watcher (`GET /api/worlds/:id/upload-tokens`); the secret is never listed. */
+export interface UploadTokenDto {
+  id: number;
+  label: string;
+  /** Saves of any session are accepted, not only the world's. */
+  anySession: boolean;
+  createdAt: number;
+  createdBy: string | null;
+  lastUsedAt: number | null;
+}
+
+export interface UploadTokenInput {
+  label: string;
+  anySession: boolean;
+}
+
+/** `POST /api/worlds/:id/upload-tokens`: the new token and its secret, shown this once. */
+export interface CreatedUploadTokenDto {
+  token: UploadTokenDto;
+  secret: string;
+}
+
+/**
+ * `POST /api/worlds/:id/saves` (save watcher): `imported` = newer than the world's last import, applied like an import
+ * and stored as a snapshot; `snapshot` = older, stored for the timeline only; `duplicate` = the world has it already.
+ */
+export type SaveUploadStatus = 'imported' | 'snapshot' | 'duplicate';
+
+export interface SaveUploadResultDto {
+  status: SaveUploadStatus;
+  sessionName: string;
+  saveTime: number;
+  /** Only for `imported`: as `ImportResultDto`. */
+  newlyChecked?: number;
+  conflicts?: number;
+  /** A factory snapshot of this save was stored. False when the save had none or the world's limit is reached. */
+  snapshot: boolean;
+  /** Why no snapshot was stored, when that matters (`limit_reached`). */
+  note?: string;
 }

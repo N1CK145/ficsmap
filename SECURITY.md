@@ -22,4 +22,4 @@ Out of scope: your own deployment setup (reverse proxy, TLS, host), the Discord 
 
 ## Handling secrets
 
-Never post secrets in an issue or report: no `.env` contents, Discord client secrets, session or invite secrets, cookies or invite links. Never attach save files.
+Never post secrets in an issue or report: no `.env` contents, Discord client secrets, session or invite secrets, cookies, invite links, upload keys (`fsm_…`) or the save watcher scripts that contain them. Never attach save files.

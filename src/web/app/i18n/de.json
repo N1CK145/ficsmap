@@ -1451,5 +1451,101 @@
       "groupIssueMany": "{count} × {name}: {why}",
       "demand": "wird nicht abgenommen"
     }
+  },
+  "saveWatcher": {
+    "title": "Automatischer Upload",
+    "intro": "Ein kleines Skript auf deinem PC oder Server beobachtet den Spielstand-Ordner und lädt jeden neuen Spielstand in diese Welt hoch. ficsmap wertet ihn aus wie einen Import: Häkchen, Rohstoffvorkommen und Fabrik-Zeitstrahl.",
+    "copy": "Kopieren",
+    "copied": "Kopiert ✓",
+    "tokens": {
+      "title": "Upload-Schlüssel",
+      "none": "Noch kein Schlüssel.",
+      "loadFailed": "Die Schlüssel konnten nicht geladen werden.",
+      "label": "Name des neuen Schlüssels",
+      "labelPlaceholder": "z. B. Gaming-PC",
+      "create": "Schlüssel erstellen",
+      "anySession": "Spielstände jeder Sitzung annehmen",
+      "anySessionHint": "Sonst lehnt ficsmap Spielstände ab, die zu einer anderen Sitzung gehören als diese Welt.",
+      "anySessionBadge": "jede Sitzung",
+      "created": "Erstellt {date} von {name}",
+      "neverUsed": "noch nie benutzt",
+      "lastUsed": "zuletzt benutzt {date}",
+      "revoke": "Widerrufen",
+      "revokeNamed": "{name} widerrufen",
+      "revokeConfirm": "Schlüssel „{name}“ widerrufen? Skripte mit diesem Schlüssel können danach nichts mehr hochladen.",
+      "revokeAction": "Schlüssel widerrufen",
+      "revoked": "Schlüssel widerrufen",
+      "revokeFailed": "Der Schlüssel konnte nicht widerrufen werden. Bitte versuche es erneut.",
+      "createFailed": "Der Schlüssel konnte nicht erstellt werden. Bitte versuche es erneut.",
+      "limit": "Eine Welt hat höchstens 20 Schlüssel. Widerrufe einen, den du nicht mehr brauchst.",
+      "createdTitle": "Schlüssel „{name}“ erstellt",
+      "secretLabel": "Neuer Upload-Schlüssel",
+      "secretHint": "Wird nur jetzt angezeigt. Er steckt auch im Skript, das du unten herunterlädst."
+    },
+    "platform": {
+      "label": "Plattform",
+      "docker": "Docker",
+      "bash": "Linux (bash)",
+      "powershell": "Windows (PowerShell)"
+    },
+    "script": {
+      "title": "Skript",
+      "token": "Upload-Schlüssel",
+      "tokenHint": "Erstelle oben einen Schlüssel oder füge einen ein, den du noch hast.",
+      "tokenFromNew": "Der neue Schlüssel ist eingetragen.",
+      "folder": "Spielstand-Ordner",
+      "folderDocker": "Spielstand-Ordner auf dem Docker-Host",
+      "presets": "Bekannte Ordner:",
+      "presetOwn": "Eigener Ordner",
+      "folderHint": "Unterordner (etwa der mit deiner Steam- oder Epic-ID) werden mit durchsucht.",
+      "session": "Sitzungsname",
+      "sessionHint": "Nur Dateien, deren Name mit „Sitzungsname_“ beginnt. Leer: alle Spielstände.",
+      "poll": "Prüfen alle",
+      "seconds": "s",
+      "pollHint": "{min}–{max} Sekunden. Neue Dateien bemerkt das Skript meist sofort; das ist die Rückfallebene.",
+      "mode": "Was hochladen?",
+      "modes": {
+        "newest": "Nur den neuesten Spielstand",
+        "newestHint": "Kommen mehrere neue Spielstände auf einmal, nur der neueste.",
+        "all": "Alle neuen Spielstände",
+        "allHint": "Jeder neue Spielstand, der älteste zuerst; ältere landen im Zeitstrahl."
+      },
+      "warning": "Die Datei enthält deinen Upload-Schlüssel. Gib sie nicht weiter: Wer sie hat, kann Spielstände in diese Welt hochladen.",
+      "download": "{file} herunterladen",
+      "downloaded": "Heruntergeladen"
+    },
+    "problems": {
+      "token": "Erst einen Upload-Schlüssel erstellen oder eintragen.",
+      "saveDir": "Gib den Spielstand-Ordner an.",
+      "sessionFilter": "Der Sitzungsname enthält ungültige Zeichen.",
+      "pollSeconds": "Prüfen alle 5 bis 3600 Sekunden.",
+      "serverUrl": "Die Adresse dieses Servers lässt sich nicht verwenden.",
+      "worldId": "Ungültige Welt."
+    },
+    "run": {
+      "title": "Starten",
+      "bash": {
+        "run": "Im Ordner der Datei ausführen",
+        "note": "Läuft, bis du es mit Strg+C beendest; mit --once lädt es einmal hoch und endet (etwa für cron). Mit dem Paket inotify-tools bemerkt es neue Spielstände sofort."
+      },
+      "powershell": {
+        "run": "In PowerShell im Ordner der Datei ausführen",
+        "autostart": "Bei jeder Anmeldung starten (Aufgabenplanung): Datei nach %USERPROFILE%\\ficsmap legen, dann in PowerShell",
+        "note": "Protokoll und Liste der hochgeladenen Spielstände: %LOCALAPPDATA%\\ficsmap. Verlangt Windows Administratorrechte, die Befehle in einer PowerShell als Administrator ausführen."
+      },
+      "docker": {
+        "compose": "Entpacken und mit Docker Compose starten",
+        "dockerRun": "Oder ohne Compose",
+        "note": "Das Image wird aus dem Dockerfile im Ordner gebaut. Der Spielstand-Ordner ist nur lesend eingebunden. Protokoll: docker compose logs -f"
+      }
+    },
+    "presets": {
+      "windows": "Windows (Steam, Epic)",
+      "windowsServer": "Windows, dedizierter Server",
+      "proton": "Linux, Steam (Proton)",
+      "flatpak": "Linux, Steam als Flatpak",
+      "steamDeck": "Steam Deck",
+      "linuxServer": "Linux, dedizierter Server"
+    }
   }
 }

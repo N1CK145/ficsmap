@@ -25,6 +25,7 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 - **Worlds.** Track a world alone or share it with co-op friends. Invite links work once and are valid for 7 days. The owner can revoke all open links.
 - **Live sync.** When a member ticks something off, everyone else sees it at once (Server-Sent Events).
 - **Save import.** Read a save file to mark everything you have already collected. The save is parsed in your browser.
+- **Automatic upload.** A small script (Windows PowerShell, Linux bash or Docker) watches your save folder and uploads every new save to your world, so checks, resource nodes and the factory timeline stay current without opening ficsmap. The owner configures and downloads it under world settings → "Automatic upload". See [Automatic upload](#automatic-upload).
 - **Conflict review.** If the save says an item is still in the world but it is ticked off in ficsmap, it is flagged. Resolve conflicts one by one or in bulk, with undo.
 - **Search.** One field in the middle of the top bar (`/` or Ctrl+K) finds collectibles by type, label or actor ID (`BP_WAT139`, also partial), biomes and caves in English and German, crash sites by what lies there or what the pod needs, and machines and vehicles of the wiki. Matches are highlighted on the map; choosing one selects the item, scopes the biome or shows the cave (from a tool page it goes back to the map first), and a machine opens its wiki entry.
 - **Sections and map layers.** A world has four sections, tabs under the top bar on wide screens and a menu named after the section shown on narrower ones and phones: Map, Planner, Vehicles and Machines. The planner, the vehicle calculator and the machine wiki are pages of their own under the world's address: `/w/<world>/planner`, `/w/<world>/vehicles` and `/w/<world>/wiki`, with an entry at `/w/<world>/wiki/<entry>` (e.g. `…/wiki/Build_ConstructorMk1_C`). They use the full width of the window in place of the sidebar and the map, can be bookmarked, and keep what you entered when you go back to the map (the Map tab, [←] on narrower screens, or the browser's Back). The cave, height map and resource node layers are switched next to the tabs (in the menu under "Map layers" on narrower screens) while the map is shown.
@@ -45,8 +46,24 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 
 - You sign in with Discord. ficsmap reads your Discord ID, name and avatar. The Discord access token is used once and never stored.
 - Accounts are invite-only. A new account is created only for a Discord ID listed in `OWNER_DISCORD_IDS` or for someone who opens a valid invite link.
-- **Your save file never leaves your browser.** It is parsed locally in a Web Worker. Only the list of collected item names (for example `BP_Crystal_mk29`) is sent to the server, together with the file name and the session name, save time and game build from the save header, and for resource nodes: the resource or purity the save sets per node (randomised worlds), the node randomisation settings, and which extractor stands on which node (building type, node name, clock speed, number of Power Shards).
+- **With the normal import your save file never leaves your browser.** It is parsed locally in a Web Worker. Only the list of collected item names (for example `BP_Crystal_mk29`) is sent to the server, together with the file name and the session name, save time and game build from the save header, and for resource nodes: the resource or purity the save sets per node (randomised worlds), the node randomisation settings, and which extractor stands on which node (building type, node name, clock speed, number of Power Shards).
+- The **automatic upload** is the exception you opt into: its script sends the whole save file to your ficsmap server, which parses it there (the same extraction as in the browser) and keeps only what an import keeps. The save itself is not stored.
 - Ticks, routes and members are stored in a SQLite database on the server you run.
+
+## Automatic upload
+
+The owner of a world can let a script upload new saves automatically:
+
+1. World settings → **Automatic upload** → create an **upload key** (a name such as "Gaming PC"; "accept saves of any session" only if the world's saves come from more than one session). The key is shown once.
+2. Pick the platform, check the save folder (presets for Windows, Steam on Linux (Proton, Flatpak), the Steam Deck and dedicated servers), the session name, how often to check and whether to upload only the newest or every new save, then **Download**.
+3. Run it as shown under the button:
+   - **Windows:** `powershell -ExecutionPolicy Bypass -File ficsmap-watch.ps1`; the page also shows how to start it at every sign-in with the Task Scheduler. Log: `%LOCALAPPDATA%\ficsmap`.
+   - **Linux:** `chmod +x ficsmap-watch.sh && ./ficsmap-watch.sh` (needs bash, curl and sha256sum; with `inotify-tools` it notices new saves at once). `--once` uploads once and exits, for cron.
+   - **Docker:** unzip `ficsmap-watch.zip`, then `docker compose up -d --build` in the folder. The image is built locally from the included Dockerfile; the save folder is mounted read-only.
+
+A save newer than the world's last import is imported (checks, resource nodes) and added to the factory timeline; an older one is only added to the timeline; one the world already has is skipped. Saves of another session are refused unless the key accepts any session. On the first start the script uploads only the newest save that is already there; older ones can be added with "Add older saves".
+
+**The downloaded file contains the key.** Keep it private. Anyone with it can upload saves to that world (nothing else). Revoke a key in the same place when you no longer need it or the file got out. Behind nginx, raise `client_max_body_size` (see [Reverse proxy](#reverse-proxy)), or uploads fail with 413.
 
 ## Self-hosting
 
@@ -132,6 +149,7 @@ location / {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_buffering off;
     proxy_read_timeout 3600s;
+    client_max_body_size 64m;   # saves from the automatic upload
 }
 ```
 
