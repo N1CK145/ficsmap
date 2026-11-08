@@ -185,6 +185,14 @@ export function Timeline({ sel, fmt, loading }: { sel: TimelineSelection; fmt: F
               <span aria-hidden="true" className="inline-block size-2.5 rotate-45 border-2 border-accent" />
               {t('factory.timeline.comparedLegend')}
             </span>
+            {/* "Änderungen" sits below the production lines: a way down to it. */}
+            <a
+              href="#factory-changes"
+              onClick={e => { e.preventDefault(); document.getElementById('factory-changes')?.scrollIntoView?.({ block: 'start' }); }}
+              className="font-medium text-accent underline-offset-2 hover:underline focus-ring"
+            >
+              {t('factory.timeline.toChanges')}
+            </a>
           </>
         )}
       </div>

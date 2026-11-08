@@ -5,15 +5,19 @@ import { Parser } from '@etothepii/satisfactory-file-parser';
 import { indexBuildings, type BuildingsFile } from '../src/shared/buildings.js';
 import { analyzeFactory, type AnalysisData } from '../src/shared/factory/analysis.js';
 import { extractFactory, type FactorySaveLike } from '../src/shared/factory/extract.js';
-import { buildLines, type ProductionLine } from '../src/shared/factory/lines.js';
+import { buildLines, lineHasIssue, lineLoss, sortLines, type ProductionLine } from '../src/shared/factory/lines.js';
 import type { MachineData } from '../src/shared/machines.js';
 import { indexRecipes, type RecipeData } from '../src/shared/recipes.js';
 import { applyOverrides, extractResourceNodes, readResourceNodes, type ResourceNodesFile } from '../src/shared/resourceNodes.js';
+import { IntlMessageFormat } from 'intl-messageformat';
+import { factoryLabels } from '../src/web/features/factory/data.js';
+import { bottleneckText, lineName } from '../src/web/features/factory/lineInfo.js';
 
 /**
  * Summary of a save's factory snapshot: counts per group, productivity, issues, size and timing; with a dataset
  * (`--data data/<version>`, default `data/1.2.5.0` when present) also its production lines.
- * `--json out.json` writes the snapshot, `--lines out.json` the lines (`index` as an object).
+ * `--json out.json` writes the snapshot, `--lines out.json` the lines (`index` as an object). The lines are listed
+ * as the Fabrik page and the map read them (`lineInfo.ts`: order, name, issue, bottleneck sentence) in `--lang de|en`.
  */
 
 const file = process.argv[2];
@@ -26,6 +30,7 @@ const jsonOut = ji >= 0 ? process.argv[ji + 1] : undefined;
 const arg = (name: string) => { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; };
 const dataDir = arg('--data') ?? (existsSync('data/1.2.5.0/recipes.json') ? 'data/1.2.5.0' : undefined);
 const linesOut = arg('--lines');
+const lang = arg('--lang') === 'en' ? 'en' : 'de';
 
 const buf = readFileSync(file);
 let t = performance.now();
@@ -131,6 +136,19 @@ if (dataDir) {
   };
   console.log('top 10 lines by machines');
   for (const l of result.lines.slice(0, 10)) describe(l);
+
+  // The lines as the page and the map read them: order, name, issue flag, bottleneck sentence.
+  const messages = JSON.parse(readFileSync(new URL(`../src/web/app/i18n/${lang}.json`, import.meta.url), 'utf8')) as Record<string, unknown>;
+  const tr = (key: string, o: Record<string, unknown> = {}) => {
+    let x: unknown = messages;
+    for (const k of key.split('.')) x = (x as Record<string, unknown> | undefined)?.[k];
+    return typeof x === 'string' ? String(new IntlMessageFormat(x, lang).format(o as Record<string, string>)) : (o.defaultValue as string | undefined) ?? key;
+  };
+  const labels = factoryLabels(data.recipes, data.machines ? { machines: [...data.machines.values()] } as MachineData : null, data.buildings ?? null);
+  console.log(`\nlines as the Fabrik page reads them (${lang}): problem first, then lost machine-equivalents`);
+  for (const l of sortLines(result.lines)) {
+    console.log(`  ${lineHasIssue(l) ? '!' : ' '} ${lineName(l, labels, lang)} · ${l.machines.length} machines · ${lineLoss(l).toFixed(1)} lost · ${bottleneckText(l, labels, lang, tr) ?? '-'}`);
+  }
   const verbose = arg('--line');
   const one = verbose ? result.lines.find(l => l.id === verbose || l.buildings.includes(verbose)) : undefined;
   if (one) {

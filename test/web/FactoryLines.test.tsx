@@ -141,29 +141,32 @@ describe('production lines on the factory page', () => {
 
     // The bottleneck in a sentence above the diagram.
     expect(sec.querySelector('[data-bottleneck]')).toHaveTextContent(
-      'Bottleneck: Conveyor Belt Mk.1 between 2× Smelter and Conveyor Merger (60.0/min of 60, full)',
+      'Bottleneck: Conveyor Belt Mk.1 full between 2× Smelter (Iron Ingot) and Conveyor Merger (60.0/min of 60) – upgrade to Conveyor Belt Mk.2',
     );
     expect(await diagram()).toHaveAccessibleDescription(/^Inputs at the top, products at the bottom/);
   });
 
-  it('draws a full belt heavier with a warning mark, the others by their load', async () => {
+  it('draws the bottleneck belt apart by colour and glyph, the others by their load', async () => {
     setup();
     const d = await diagram();
     const full = d.querySelector('path[data-from="g-smelt"][data-to="g-merge"]')!;
-    expect(full).toHaveAttribute('data-edge', 'saturated');
-    expect(full).toHaveClass('stroke-accent');
+    expect(full).toHaveAttribute('data-edge', 'bottleneck');
+    expect(full).toHaveClass('stroke-conflict');
     const half = d.querySelector('path[data-from="g-merge"][data-to="g-plate"]')!;
     expect(half).toHaveAttribute('data-edge', 'flow');
     expect(Number(full.getAttribute('stroke-width'))).toBeGreaterThan(Number(half.getAttribute('stroke-width')));
     const label = d.querySelector('[data-label-to="g-merge"]')!;
     expect(label).toHaveTextContent('60.0/min');
     expect(label).toHaveTextContent('of 60');
-    expect(label.querySelector('[data-full]')).toBeInTheDocument();
+    expect(label.querySelector('[data-neck]')).toBeInTheDocument();
+    expect(label.querySelector('[data-full]')).toBeNull();
     expect(d.querySelector('[data-label-to="g-plate"]')).toHaveTextContent('30.0/min of 120');
-    expect(d.querySelector('[data-label-to="g-plate"] [data-full]')).toBeNull();
+    expect(d.querySelector('[data-label-to="g-plate"] [data-neck]')).toBeNull();
     const legend = within(await section()).getByRole('list', { name: 'Legend' });
-    expect(legend).toHaveTextContent('Full (≥ 95 %)');
+    expect(legend).toHaveTextContent('Bottleneck');
+    // Every band, so a node's strip can always be read off.
     expect(legend).toHaveTextContent('Part load');
+    expect(legend).toHaveTextContent('Nearly full');
   });
 
   it('opens a group\'s machines from its node; "On the map" shows them; Escape puts the focus back', async () => {
@@ -208,7 +211,7 @@ describe('production lines on the factory page', () => {
     expect(d.querySelector('path[data-from="g-smelt"][data-to="g-plate"]')).toBeInTheDocument();
     expect(d.querySelector('[data-label-to="g-plate"]')).toHaveTextContent('30.0/min of 120');
     // The bottleneck sentence still names the belt the diagram now leaves out.
-    expect((await section()).querySelector('[data-bottleneck]')).toHaveTextContent('Bottleneck: Conveyor Belt Mk.1 between 2× Smelter and Conveyor Merger');
+    expect((await section()).querySelector('[data-bottleneck]')).toHaveTextContent('Bottleneck: Conveyor Belt Mk.1 full between 2× Smelter (Iron Ingot) and Conveyor Merger');
     expect(within(await section()).getByRole('list', { name: 'Legend' })).toHaveTextContent('estimated');
   });
 
@@ -285,8 +288,8 @@ describe('production lines on the factory page', () => {
     await user().click(rows[1]!);
     expect(rows[1]).toHaveAttribute('aria-expanded', 'true');
     expect(document.getElementById(rows[1]!.getAttribute('aria-controls')!)).toHaveTextContent('3× Constructor');
-    // No "Fit to width" on a phone.
-    expect(within(await section()).queryByRole('button', { name: 'Fit to width' })).toBeNull();
+    // "Fit to width" on a phone too (doing nothing while the diagram fits).
+    expect(within(await section()).getByRole('button', { name: 'Fit to width' })).toBeInTheDocument();
   });
 
   it('speaks German with the game\'s terms', async () => {
@@ -295,7 +298,7 @@ describe('production lines on the factory page', () => {
     const sec = await screen.findByRole('region', { name: 'Produktionsstränge' });
     expect(sec).toHaveTextContent('2 Stränge · 6 Maschinen');
     expect(sec.querySelector('[data-bottleneck]')).toHaveTextContent(
-      'Engpass: Förderband Mk.1 zwischen 2× Schmelzofen und Förderband-Fusionator (60,0/min von 60, voll)',
+      'Engpass: Förderband Mk.1 voll zwischen 2× Schmelzofen (Eisenbarren) und Förderband-Fusionator (60,0/min von 60) – auf Förderband Mk.2 aufrüsten',
     );
     const sw = within(sec).getByRole('radiogroup', { name: 'Strang zeigen als' });
     expect(within(sw).getAllByRole('radio').map(r => r.textContent)).toEqual(['Diagramm', 'Karte']);

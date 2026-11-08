@@ -1,5 +1,8 @@
 import { analyzeFactory, type AnalysisData } from '../../src/shared/factory/analysis.js';
-import { buildLines, layer, SPLIT_ABOVE, type ProductionLine } from '../../src/shared/factory/lines.js';
+import { itemCause } from '../../src/shared/factory/analysis.js';
+import {
+  buildLines, causeContext, layer, lineHasIssue, lineLoss, mergeHints, sortLines, SPLIT_ABOVE, stationConsumers, type ProductionLine,
+} from '../../src/shared/factory/lines.js';
 import type { FactorySnapshot, SnapshotBuilding, SnapshotLink, SnapshotProduction } from '../../src/shared/factory/snapshot.js';
 import type { MachineEntry } from '../../src/shared/machines.js';
 import { indexRecipes, type RecipeData } from '../../src/shared/recipes.js';
@@ -13,16 +16,21 @@ const RECIPES: RecipeData = {
     { id: 'Desc_IronPlate_C', name: { en: 'Iron Plate', de: 'Eisenplatte' }, form: 'solid' },
     { id: 'Desc_Coal_C', name: { en: 'Coal', de: 'Kohle' }, form: 'solid' },
     { id: 'Desc_Water_C', name: { en: 'Water', de: 'Wasser' }, form: 'liquid' },
+    { id: 'Desc_IronScrew_C', name: { en: 'Screws', de: 'Schrauben' }, form: 'solid' },
+    { id: 'Desc_IronPlateReinforced_C', name: { en: 'Reinforced Iron Plate', de: 'Verstärkte Eisenplatte' }, form: 'solid' },
   ],
   recipes: [
     { id: 'Recipe_IngotIron_C', name: { en: 'Iron Ingot', de: 'Eisenbarren' }, alternate: false, machine: 'Build_SmelterMk1_C', duration: 2,
       ingredients: [{ item: 'Desc_OreIron_C', amount: 1 }], products: [{ item: 'Desc_IronIngot_C', amount: 1 }] },
     { id: 'Recipe_IronPlate_C', name: { en: 'Iron Plate', de: 'Eisenplatte' }, alternate: false, machine: 'Build_ConstructorMk1_C', duration: 6,
       ingredients: [{ item: 'Desc_IronIngot_C', amount: 3 }], products: [{ item: 'Desc_IronPlate_C', amount: 2 }] },
+    { id: 'Recipe_IronPlateReinforced_C', name: { en: 'Reinforced Iron Plate', de: 'Verstärkte Eisenplatte' }, alternate: false, machine: 'Build_AssemblerMk1_C', duration: 12,
+      ingredients: [{ item: 'Desc_IronPlate_C', amount: 6 }, { item: 'Desc_IronScrew_C', amount: 12 }], products: [{ item: 'Desc_IronPlateReinforced_C', amount: 1 }] },
   ],
   machines: [
     { id: 'Build_SmelterMk1_C', name: { en: 'Smelter', de: 'Schmelzofen' }, power: 4, powerExponent: 1.321929 },
     { id: 'Build_ConstructorMk1_C', name: { en: 'Constructor', de: 'Konstruktor' }, power: 4, powerExponent: 1.321929 },
+    { id: 'Build_AssemblerMk1_C', name: { en: 'Assembler', de: 'Fabrikator' }, power: 15, powerExponent: 1.321929 },
   ],
   extractors: [
     { id: 'Build_MinerMk1_C', name: { en: 'Miner Mk.1', de: 'Miner Mk.1' }, kind: 'miner', tier: 1, rate: 60, power: 5, powerExponent: 1.321929, resources: ['Desc_OreIron_C'], onNode: true },
@@ -32,6 +40,8 @@ const RECIPES: RecipeData = {
     { id: 'Build_ConveyorBeltMk1_C', name: { en: 'Conveyor Belt Mk.1', de: 'Förderband Mk.1' }, kind: 'belt', rate: 60 },
     { id: 'Build_ConveyorBeltMk2_C', name: { en: 'Conveyor Belt Mk.2', de: 'Förderband Mk.2' }, kind: 'belt', rate: 120 },
   ],
+  // Pipeline Mk.1: mFlowLimit 5 m³/s in the Docs.
+  pipes: [{ id: 'Build_Pipeline_C', name: { en: 'Pipeline Mk.1', de: 'Pipeline Mk.1' }, rate: 300 }],
 };
 
 const entry = (id: string, category: MachineEntry['category'], stats: MachineEntry['stats']): MachineEntry => ({
@@ -53,6 +63,7 @@ const machine = (id: string, prod: Partial<SnapshotProduction>, extra: Partial<S
 const miner = (id: string, prod: Partial<SnapshotProduction> = {}, nodeName = 'Node_Normal') => machine(id, prod, { node: nodeName });
 const smelter = (id: string, prod: Partial<SnapshotProduction> = {}) => machine(id, { recipe: 'Recipe_IngotIron_C', ...prod });
 const constructor = (id: string, prod: Partial<SnapshotProduction> = {}) => machine(id, { recipe: 'Recipe_IronPlate_C', ...prod });
+const assembler = (id: string, prod: Partial<SnapshotProduction> = {}) => machine(id, { recipe: 'Recipe_IronPlateReinforced_C', ...prod });
 const belt = (from: string, to: string, extra: Partial<SnapshotLink> = {}): SnapshotLink =>
   ({ from, to, kind: 'belt', via: [`Build_ConveyorBeltMk2_C_${from.split('_').pop()}${to.split('_').pop()}`], slowest: 'Build_ConveyorBeltMk2_C', ...extra });
 const pipe = (from: string, to: string, extra: Partial<SnapshotLink> = {}): SnapshotLink =>
@@ -156,7 +167,7 @@ describe('buildLines', () => {
       [miner(MI), node(S), smelter(SM, { productivity: 1 }), smelter(SM2, { productivity: 0, issues: ['starved'] })],
       [belt(MI, S, { slowest: 'Build_ConveyorBeltMk1_C' }), belt(S, SM), belt(S, SM2)],
     );
-    expect(lines(s).lines[0]!.bottleneck).toEqual({ kind: 'group', group: SM, why: 'starved' });
+    expect(lines(s).lines[0]!.bottleneck).toMatchObject({ kind: 'group', group: SM, why: 'starved', short: { item: 'Desc_OreIron_C', makers: 1, extractors: true } });
   });
 
   it('backing up to the end: smelters and constructor blocked, the plates go nowhere → demand at the end', () => {
@@ -205,7 +216,7 @@ describe('buildLines', () => {
     expect(gens.inputs).toEqual([{ item: 'Desc_Water_C', perMin: 90, fluid: true }, { item: 'Desc_Coal_C', perMin: 30 }]);
     const water = edgeBetween(line, J1, G1);
     expect(water).toMatchObject({ item: 'Desc_Water_C', perMin: 90, links: 2 });
-    expect(water.capacity).toBeUndefined(); // no pipe rates in the dataset
+    expect(water).toMatchObject({ capacity: 600, perLink: 300, pipe: true }); // two Pipeline Mk.1, 300 m³/min each (Docs)
     expect(edgeBetween(line, W, J1).perMin).toBeCloseTo(90);
     expect(line.inputs).toEqual([{ item: 'Desc_Coal_C', perMin: 30 }]);
     expect(line.products).toEqual([]);
@@ -245,6 +256,128 @@ describe('buildLines', () => {
     expect(second.buildings).toContain('Build_StorageContainerMk1_C_4');
     expect(index.get('Build_StorageContainerMk1_C_4')).toBe(first.id);
     expect(groupWith(second, 'Build_StorageContainerMk1_C_4').stage).toBe(0);
+  });
+});
+
+describe('bottleneck rules (the same as the item chain)', () => {
+  const ids = (n: number, cls: string, from = 1) => Array.from({ length: n }, (_, i) => `${cls}_${from + i}`);
+
+  it('a jam is not handed to a group losing a small fraction of where it started: it ends in demand, as the item chain says (copper sheet)', () => {
+    // 4 smelters back up (3.2 lost), 4 constructors back up (3.6), 1 assembler lacks screws, not plates (0.2).
+    const MI = 'Build_MinerMk1_C_1', A = 'Build_AssemblerMk1_C_2';
+    const sms = ids(4, 'Build_SmelterMk1_C', 10), cons = ids(4, 'Build_ConstructorMk1_C', 20);
+    const s = snapshot(
+      [miner(MI, { productivity: 0.3, issues: ['blocked'] }), ...sms.map(id => smelter(id, { productivity: 0.2, issues: ['blocked'] })),
+        ...cons.map(id => constructor(id, { productivity: 0.1, issues: ['blocked'] })), assembler(A, { productivity: 0.8, issues: ['starved'] })],
+      [...sms.map(id => belt(MI, id)), ...sms.flatMap(sm => cons.map(c => belt(sm, c))), ...cons.map(c => belt(c, A, { items: { Desc_IronPlate_C: 12 } }))],
+    );
+    const analysis = analyzeFactory(s, DATA);
+    expect(analysis.byId.get(A)!.starvedFor).toEqual(['Desc_IronScrew_C']);
+    const pl = buildLines(s, analysis, DATA);
+    const line = pl.lines[0]!;
+    expect(line.bottleneck).toEqual({ kind: 'group', group: groupWith(line, cons[0]!).id, why: 'demand' });
+    expect(lineHasIssue(line)).toBe(false);
+    const cause = itemCause(analysis, 'Desc_IronIngot_C', causeContext(pl, analysis));
+    expect(cause.jamEnds).toEqual([{ item: 'Desc_IronPlate_C', why: 'demand', path: ['Desc_IronIngot_C', 'Desc_IronPlate_C'] }]);
+  });
+
+  it('a starved group names what it lacks: iron ore, 120 of 180 per minute, its miners at 100 %', () => {
+    const sms = ids(6, 'Build_SmelterMk1_C', 10);
+    const s = snapshot(
+      [miner('Build_MinerMk1_C_1'), miner('Build_MinerMk1_C_2'), node('Build_ConveyorAttachmentMerger_C_3'),
+        ...sms.map(id => smelter(id, { productivity: 2 / 3, issues: ['starved'] }))],
+      [belt('Build_MinerMk1_C_1', 'Build_ConveyorAttachmentMerger_C_3'), belt('Build_MinerMk1_C_2', 'Build_ConveyorAttachmentMerger_C_3'),
+        ...sms.map(id => belt('Build_ConveyorAttachmentMerger_C_3', id))],
+    );
+    const line = lines(s).lines[0]!;
+    expect(line.bottleneck).toMatchObject({ kind: 'group', group: groupWith(line, sms[0]!).id, why: 'starved' });
+    const short = line.bottleneck!.kind === 'group' ? line.bottleneck!.short! : undefined;
+    expect(short).toMatchObject({ item: 'Desc_OreIron_C', need: 180, makers: 2, makersProductivity: 1, extractors: true });
+    expect(short!.supply).toBeCloseTo(120);
+    expect(lineHasIssue(line)).toBe(true);
+  });
+
+  it('a full shared belt (coal): rule (1) also when the machines after it run intermittently; the miners get "shared belt full"', () => {
+    const M = 'Build_ConveyorAttachmentMerger_C_3';
+    const sms = ids(4, 'Build_SmelterMk1_C', 10);
+    const s = snapshot(
+      [miner('Build_MinerMk1_C_1', { productivity: 0.75 }), miner('Build_MinerMk1_C_2', { productivity: 0.75 }), node(M),
+        ...sms.map(id => smelter(id, { productivity: 0.5 }))],
+      [belt('Build_MinerMk1_C_1', M), belt('Build_MinerMk1_C_2', M), belt(M, 'Build_ConveyorAttachmentSplitter_C_4', { slowest: 'Build_ConveyorBeltMk1_C' }),
+        ...sms.map(id => belt('Build_ConveyorAttachmentSplitter_C_4', id))],
+    );
+    // The splitter is a building of the snapshot too.
+    s.buildings.push(node('Build_ConveyorAttachmentSplitter_C_4'));
+    const analysis = analyzeFactory(s, DATA);
+    const pl = buildLines(s, analysis, DATA);
+    const line = pl.lines[0]!;
+    const full = edgeBetween(line, M, 'Build_ConveyorAttachmentSplitter_C_4');
+    expect(full).toMatchObject({ perMin: 60, capacity: 60, saturated: true });
+    expect(full.exact).toBeUndefined();
+    expect(line.bottleneck).toEqual({ kind: 'edge', edge: line.edges.indexOf(full), why: 'capacity' });
+    expect(mergeHints(analysis.byId.get('Build_MinerMk1_C_1')!, pl)).toContainEqual({ kind: 'sharedBeltFull', belt: 'Build_ConveyorBeltMk1_C', rate: 60 });
+  });
+
+  it('a full belt that carries exactly what its makers make is no fault ("full, just enough")', () => {
+    const s = snapshot(
+      // A miner on a pure node makes 120/min; the two Mk.1 belts on carry all of it.
+      [miner('Build_MinerMk1_C_1', {}, 'Node_Pure'), node('Build_ConveyorAttachmentMerger_C_2'), smelter('Build_SmelterMk1_C_3'), smelter('Build_SmelterMk1_C_4')],
+      [belt('Build_MinerMk1_C_1', 'Build_ConveyorAttachmentMerger_C_2'), belt('Build_ConveyorAttachmentMerger_C_2', 'Build_SmelterMk1_C_3', { slowest: 'Build_ConveyorBeltMk1_C' }),
+        belt('Build_ConveyorAttachmentMerger_C_2', 'Build_SmelterMk1_C_4', { slowest: 'Build_ConveyorBeltMk1_C' })],
+    );
+    const analysis = analyzeFactory(s, DATA);
+    const pl = buildLines(s, analysis, DATA);
+    const edge = edgeBetween(pl.lines[0]!, 'Build_ConveyorAttachmentMerger_C_2', 'Build_SmelterMk1_C_3');
+    expect(edge).toMatchObject({ saturated: true, exact: true, capacity: 120, perLink: 60, links: 2 });
+    expect(pl.lines[0]!.bottleneck).toBeUndefined();
+    expect(mergeHints(analysis.byId.get('Build_MinerMk1_C_1')!, pl)).toContainEqual({ kind: 'beltExact', belt: 'Build_ConveyorBeltMk1_C', rate: 60 });
+  });
+
+  it('a belt carrying next to nothing between a maker that backs up and a consumer starving for that item: check the connection', () => {
+    const SM = 'Build_SmelterMk1_C_1', C = 'Build_ConstructorMk1_C_2';
+    const s = snapshot(
+      [smelter(SM, { productivity: 0.1, issues: ['blocked'] }), constructor(C, { productivity: 0.05, issues: ['starved'] }), node('Build_StorageContainerMk1_C_3')],
+      [belt('Build_StorageContainerMk1_C_3', SM), belt(SM, C)],
+    );
+    const analysis = analyzeFactory(s, DATA);
+    const pl = buildLines(s, analysis, DATA);
+    const line = pl.lines[0]!;
+    expect(line.bottleneck).toEqual({ kind: 'edge', edge: line.edges.indexOf(edgeBetween(line, SM, C)), why: 'connection' });
+    expect(itemCause(analysis, 'Desc_IronIngot_C', causeContext(pl, analysis))).toMatchObject({ transportLimited: true, why: 'connection' });
+  });
+
+  it('pipes have their Docs capacity (Pipeline Mk.1: 300 m³/min)', () => {
+    const W = 'Build_WaterPump_C_1', G = 'Build_GeneratorCoal_C_2';
+    const s = snapshot([machine(W, {}), machine(G, {})], [pipe(W, G)]);
+    expect(lines(s).lines[0]!.edges[0]).toMatchObject({ capacity: 300, pipe: true });
+  });
+
+  it('a merger passes on what comes in: its inflow equals its outflow even when the consumer behind needs less', () => {
+    const M = 'Build_ConveyorAttachmentMerger_C_3', C = 'Build_ConstructorMk1_C_4';
+    const s = snapshot(
+      [smelter('Build_SmelterMk1_C_1'), smelter('Build_SmelterMk1_C_2'), node(M), constructor(C)],
+      [belt('Build_SmelterMk1_C_1', M), belt('Build_SmelterMk1_C_2', M), belt(M, C)],
+    );
+    const g = groupWith(lines(s).lines[0]!, M);
+    expect(g.inputs[0]!.perMin).toBeCloseTo(60);
+    expect(g.outputs[0]!.perMin).toBeCloseTo(60);
+  });
+
+  it('orders lines problems first, then by lost machine-equivalents; an unloading station knows its consumers', () => {
+    const ST = 'Build_TruckStation_C_9', C = 'Build_ConstructorMk1_C_2', C2 = 'Build_ConstructorMk1_C_3';
+    const s = snapshot(
+      [node(ST), constructor(C, { productivity: 0.5, issues: ['starved'] }), constructor(C2, { productivity: 0.5, issues: ['starved'] }), node('Build_StorageContainerMk1_C_4'),
+        smelter('Build_SmelterMk1_C_5', { productivity: 0.1, issues: ['blocked'] }), node('Build_StorageContainerMk1_C_6'), node('Build_StorageContainerMk1_C_7')],
+      [belt(ST, C), belt(ST, C2), belt(C, 'Build_StorageContainerMk1_C_4'), belt(C2, 'Build_StorageContainerMk1_C_4'),
+        belt('Build_StorageContainerMk1_C_6', 'Build_SmelterMk1_C_5'), belt('Build_SmelterMk1_C_5', 'Build_StorageContainerMk1_C_7')],
+    );
+    const analysis = analyzeFactory(s, DATA);
+    const pl = buildLines(s, analysis, DATA);
+    const sorted = sortLines(pl.lines);
+    // The plates line starves (a problem, 1.0 lost), the ingot line backs up into storage (demand, 0.9 lost).
+    expect(sorted.map(l => l.id)).toEqual([pl.index.get(C), pl.index.get('Build_SmelterMk1_C_5')]);
+    expect(lineLoss(sorted[0]!)).toBeCloseTo(1);
+    expect(stationConsumers(pl, analysis, DATA, ST, ['Desc_IronIngot_C'])).toEqual([{ item: 'Desc_IronIngot_C', consumers: 2, starving: 2, ids: [C, C2] }]);
   });
 });
 

@@ -62,9 +62,10 @@ export const mainOutput = (g: Pick<LineGroup, 'outputs'>): string | undefined =>
 
 /**
  * The line as a graph: rows are the groups' stages without gaps (extractors and inputs at the top); within a row the
- * groups keep the line's order. Edges to an unknown group or from a group to itself are left out.
+ * groups keep the line's order. Edges to an unknown group or from a group to itself are left out, and by-product
+ * links too with `byproducts: false` (folded on large lines).
  */
-export function lineGraph(line: Pick<ProductionLine, 'groups' | 'edges'>): LineGraph {
+export function lineGraph(line: Pick<ProductionLine, 'groups' | 'edges'>, { byproducts = true }: { byproducts?: boolean } = {}): LineGraph {
   const stages = [...new Set(line.groups.map(g => g.stage))].sort((a, b) => a - b);
   const rowOfStage = new Map(stages.map((s, i) => [s, i]));
   const rows = new Map(line.groups.map(g => [g.id, rowOfStage.get(g.stage)!]));
@@ -76,6 +77,7 @@ export function lineGraph(line: Pick<ProductionLine, 'groups' | 'edges'>): LineG
     if (!from || !byId.has(e.to) || e.from === e.to) return;
     const back = rows.get(e.to)! <= rows.get(e.from)!;
     const byproduct = !from.logistics && e.item !== undefined && from.outputs.length > 1 && mainOutput(from) !== e.item;
+    if (byproduct && !back && !byproducts) return;
     links.push({ from: e.from, to: e.to, edge, kind: back ? 'loop' : byproduct ? 'byproduct' : 'flow' });
   });
   return { nodes, links, rows };
@@ -117,8 +119,12 @@ export function compactLine(line: ProductionLine): { line: ProductionLine; hidde
       ...(b.item ?? a.item ? { item: b.item ?? a.item } : {}),
       ...(b.perMin ?? a.perMin) !== undefined ? { perMin: b.perMin ?? a.perMin } : {},
       ...(narrow.capacity !== undefined ? { capacity: narrow.capacity } : {}),
+      ...(narrow.perLink !== undefined ? { perLink: narrow.perLink } : {}),
       ...(narrow.slowest ? { slowest: narrow.slowest } : {}),
+      ...(a.pipe || b.pipe ? { pipe: true } : {}),
       ...(a.saturated || b.saturated ? { saturated: true } : {}),
+      // Full and just enough only when every full part of it is.
+      ...((a.saturated || b.saturated) && (!a.saturated || a.exact) && (!b.saturated || b.exact) ? { exact: true } : {}),
     };
     if (bottleneckEdge === a || bottleneckEdge === b) bottleneckEdge = merged;
     edges = edges.filter(e => e !== a && e !== b);
@@ -145,8 +151,8 @@ export function throughGroups(line: Pick<ProductionLine, 'groups' | 'edges'>): S
 }
 
 /**
- * Only the machines (and where items enter or leave: storage at an end, stations, sinks): every logistics group items
- * pass through (`throughGroups`) is left out, and an edge from one into a kept group becomes an edge
+ * Only the machines (and where items enter or leave: storage at an end, stations, sinks, unless all their belts carry
+ * next to nothing): every logistics group items pass through (`throughGroups`) is left out, and an edge from one into a kept group becomes an edge
  * from each kept group upstream of it that makes the item (through other such groups), the flow split by
  * what each of them makes of it. Capacity and fullness are those of the last belt or pipe into the group (parallel ones
  * added up). A bottleneck edge between two kept groups stays marked. The flows over a manifold are therefore an
@@ -193,6 +199,8 @@ export function machinesOnly(line: ProductionLine): ProductionLine {
       ...(old.perMin !== undefined || perMin !== undefined ? { perMin: (old.perMin ?? 0) + (perMin ?? 0) } : {}),
       ...(old.capacity !== undefined || e.capacity !== undefined ? { capacity: (old.capacity ?? 0) + (e.capacity ?? 0) } : {}),
       links: old.links + e.links, via: [...old.via, ...e.via], saturated: Boolean(old.saturated && e.saturated),
+      exact: Boolean(old.saturated && e.saturated && old.exact && e.exact),
+      ...(old.perLink !== undefined && old.perLink === e.perLink ? {} : { perLink: undefined }),
     });
     return key;
   };
@@ -209,26 +217,26 @@ export function machinesOnly(line: ProductionLine): ProductionLine {
     const total = weights.reduce((a, b) => a + b, 0);
     from.forEach((id, i) => add(id, e, total > 0 ? weights[i]! / total : 1 / from.length));
   }
-  const edges = [...merged.values()];
-  const groups = line.groups.filter(g => !through.has(g.id));
+  // Storage and stations at an end whose belts all carry next to nothing add only empty boxes: left out too.
+  const neck = line.bottleneck?.kind === 'group' ? line.bottleneck.group : undefined;
+  const all = [...merged.values()];
+  const live = (id: string) => all.some(e => (e.from === id || e.to === id) && (e.perMin ?? 0) >= IDLE_FLOW);
+  const groups = line.groups.filter(g => !through.has(g.id) && (!g.logistics || g.id === neck || live(g.id)));
+  const kept = new Set(groups.map(g => g.id));
+  const edges = all.filter(e => kept.has(e.from) && kept.has(e.to));
+  const neckEdge = bottleneckKey ? merged.get(bottleneckKey) : undefined;
   const bottleneck = line.bottleneck?.kind === 'edge'
-    ? (bottleneckKey ? { kind: 'edge' as const, edge: edges.indexOf(merged.get(bottleneckKey)!), why: line.bottleneck.why } : undefined)
-    : line.bottleneck && byId.has(line.bottleneck.group) && !pass(line.bottleneck.group) ? line.bottleneck : undefined;
+    ? (neckEdge && edges.includes(neckEdge) ? { kind: 'edge' as const, edge: edges.indexOf(neckEdge), why: line.bottleneck.why } : undefined)
+    : line.bottleneck && kept.has(line.bottleneck.group) ? line.bottleneck : undefined;
   return { ...line, groups, edges, bottleneck };
 }
+
+/** Below this flow per minute a belt carries nothing worth drawing (`machinesOnly` leaves out ends with only such). */
+export const IDLE_FLOW = 0.05;
 
 /** The line's groups top down (by row, then in the line's order): the list a phone shows. */
 export function groupsTopDown(line: Pick<ProductionLine, 'groups'>): LineGroup[] {
   return line.groups.map((g, i) => ({ g, i })).sort((a, b) => a.g.stage - b.g.stage || a.i - b.i).map(x => x.g);
-}
-
-/** Reasons that make a group's bottleneck worth a badge in the list (not "less is taken off" or "runs intermittently"). */
-const PROBLEMS: ReadonlySet<string> = new Set(['noPower', 'noRecipe', 'noFuel', 'starved', 'blocked']);
-
-/** Whether the line's bottleneck is a problem to fix: a full belt or pipe, or a group that lacks something or backs up. */
-export function hasProblemBottleneck(line: Pick<ProductionLine, 'bottleneck'>): boolean {
-  const b = line.bottleneck;
-  return b !== undefined && (b.kind === 'edge' || PROBLEMS.has(b.why));
 }
 
 /** The edge or group the line names as its bottleneck. */

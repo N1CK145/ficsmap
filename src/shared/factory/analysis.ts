@@ -3,7 +3,7 @@ import type { MachineEntry } from '../machines.js';
 import { PURITY_FACTOR } from '../planner.js';
 import type { GameBelt, GameExtractor, RecipeIndex } from '../recipes.js';
 import type { Purity, ResourceNode } from '../resourceNodes.js';
-import type { FactorySnapshot, SnapshotBuilding, SnapshotCargo, SnapshotProduction, SnapshotStation, SnapshotVehicle } from './snapshot.js';
+import type { FactorySnapshot, SnapshotBuilding, SnapshotCargo, SnapshotLink, SnapshotProduction, SnapshotStation, SnapshotVehicle } from './snapshot.js';
 import { IDLE_PRODUCTIVITY, snapshotFigures } from './storage.js';
 
 /*
@@ -66,7 +66,8 @@ export interface ItemRate {
  * - `beltLimits`: the belt (or lift) at its output carries less than it should make;
  * - `beltBehind`: what it makes matches a slower belt tier than the one at its output, so one probably sits further on;
  * - `noBelt`: no belt or lift starts at its output;
- * - `overclockUseless`: it makes no more than at 100 %, so its Power Shards do nothing.
+ * - `overclockUseless`: it makes no more than at 100 %, so its Power Shards do nothing (now).
+ * The production lines add hints of their own (`LineHint` in `lines.ts`).
  */
 export type MachineHint =
   | { kind: 'beltLimits'; belt: string; rate: number }
@@ -119,6 +120,11 @@ export interface MachineFlow {
   /** Solid extractors with belt data: the belt at its output (null: none found). */
   belt?: BeltMatch | null;
   hints: MachineHint[];
+  /**
+   * Starved machines: the inputs it lacks, when the snapshot's links tell (a recipe with one ingredient: that one;
+   * several: those no input belt carries any of). Missing when unknown: then it may lack any of them (`starvesFor`).
+   */
+  starvedFor?: string[];
 }
 
 /**
@@ -224,6 +230,11 @@ export function reasonsOf(prod: SnapshotProduction, productivity: number, kind: 
   if (set.size === 0 && productivity < FULL_FROM) set.add(kind === 'extractor' ? 'blocked' : 'unknown');
   if (kind === 'extractor' && set.size === 1 && set.has('blocked')) return ['surplus'];
   return REASONS.filter(r => set.has(r));
+}
+
+/** Whether a machine starves for this item (it is starved and lacks this input, or it is not known which it lacks). */
+export function starvesFor(m: Pick<MachineFlow, 'reasons' | 'starvedFor' | 'paused'>, item: string): boolean {
+  return !m.paused && m.reasons.includes('starved') && (m.starvedFor === undefined || m.starvedFor.includes(item));
 }
 
 /** The one rule behind every "inefficient" count (see `MachineFlow.inefficient`). */
@@ -407,7 +418,7 @@ function inputsOf(m: MachineFlow, data: AnalysisData): string[] {
  * The analysis of one snapshot. With the snapshot's splines and `data.recipes.data.belts` it also finds the belt at
  * each solid extractor's output (`MachineFlow.belt`, `hints`); with its stations, which items wait at loading stations.
  */
-export function analyzeFactory(s: Pick<FactorySnapshot, 'buildings'> & Partial<Pick<FactorySnapshot, 'splines' | 'stations'>>, data: AnalysisData): FactoryAnalysis {
+export function analyzeFactory(s: Pick<FactorySnapshot, 'buildings'> & Partial<Pick<FactorySnapshot, 'splines' | 'stations' | 'links'>>, data: AnalysisData): FactoryAnalysis {
   const pressurizers = pressurizerClocks(s as FactorySnapshot);
   const machines = s.buildings.filter(b => b.prod).map(b => machineFlow(b, data, pressurizers));
   const byId = new Map(machines.map(m => [m.id, m]));
@@ -427,6 +438,21 @@ export function analyzeFactory(s: Pick<FactorySnapshot, 'buildings'> & Partial<P
 
   const consumers = new Map<string, MachineFlow[]>();
   for (const m of machines) for (const item of inputsOf(m, data)) consumers.set(item, [...(consumers.get(item) ?? []), m]);
+  if (s.links) {
+    const into = new Map<string, SnapshotLink[]>();
+    for (const l of s.links) (into.get(l.to) ?? into.set(l.to, []).get(l.to)!).push(l);
+    for (const m of machines) {
+      const lacks = lackedInputs(m, inputsOf(m, data), into.get(m.id) ?? [], data);
+      if (lacks) m.starvedFor = lacks;
+    }
+  }
+  // A slower belt further on is no likely cause when what it makes backs up at its consumers (they take no more).
+  for (const m of machines) {
+    const out = m.outputs[0];
+    if (out && m.hints.some(h => h.kind === 'beltBehind') && (consumers.get(out.item) ?? []).some(backsUp)) {
+      m.hints = m.hints.filter(h => h.kind !== 'beltBehind');
+    }
+  }
   const loadedAt = new Map<string, number>();
   for (const st of s.stations ?? []) {
     if (st.loading === false) continue;
@@ -488,6 +514,25 @@ export function analyzeFactory(s: Pick<FactorySnapshot, 'buildings'> & Partial<P
   };
 }
 
+/**
+ * The inputs a starved machine lacks, from what lies on its input belts: one ingredient is that one; with several,
+ * those no input belt carries any of (a pipe counts as carrying its fluid). Null when not starved or not known.
+ */
+function lackedInputs(m: MachineFlow, ingredients: readonly string[], into: readonly SnapshotLink[], data: AnalysisData): string[] | null {
+  if (!m.reasons.includes('starved') || ingredients.length === 0) return null;
+  if (m.kind === 'generator') return null; // fuels are alternatives, not a recipe
+  if (ingredients.length === 1) return [...ingredients];
+  if (into.length === 0) return null;
+  const seen = new Set<string>();
+  for (const l of into) {
+    if (l.kind === 'pipe') { if (l.fluid) seen.add(l.fluid); else return null; continue; }
+    for (const [item, n] of Object.entries(l.items ?? {})) if (n > 0) seen.add(item);
+  }
+  const fluid = (item: string) => (data.recipes.items.get(item)?.form ?? 'solid') !== 'solid';
+  const lacks = ingredients.filter(i => !seen.has(i) && !(fluid(i) && into.some(l => l.kind === 'pipe' && !l.fluid)));
+  return lacks.length > 0 ? lacks : null;
+}
+
 /** A machine's lost output of one item per minute. */
 export function lostOf(m: MachineFlow, item: string): number {
   return m.outputs.find(o => o.item === item)?.lost ?? 0;
@@ -528,17 +573,31 @@ export interface ConsumerGroup {
 }
 
 /**
- * Why a jam ends at an item: nothing in the factory uses it (`noConsumer`), its users starve or vehicles take it away
- * (`transport`: the belts, pipes or vehicles in between carry too little), or its users run and need no more (`demand`).
+ * Why a jam ends at an item: nothing in the factory uses it (`noConsumer`); its users starve for it while it backs up:
+ * the belt or pipe to them is full (`capacity`), carries next to nothing (`connection`: check how it is connected),
+ * or neither can be told (`transport`); vehicles take it away from loading stations too slowly (`vehicles`); or its
+ * users run and need no more (`demand`).
  */
-export type JamEndWhy = 'noConsumer' | 'transport' | 'demand';
+export type JamEndWhy = 'noConsumer' | 'capacity' | 'connection' | 'transport' | 'vehicles' | 'demand';
+
+/**
+ * What the item chain may read from the production lines (`causeContext` in `lines.ts`): the line of a machine, and
+ * how the belts and pipes bring an item to some of its users.
+ */
+export interface CauseContext {
+  lineOf?(id: string): string | undefined;
+  supply?(item: string, users: readonly string[]): 'capacity' | 'connection' | 'transport' | null;
+}
 export interface JamEnd { item: string; why: JamEndWhy; /** Items from the start to here. */ path: string[] }
 
 export interface ItemCause {
   item: string;
   /** Users of the item in this factory, most machines first. */
   consumers: ConsumerGroup[];
-  /** Its makers back up while its users starve: the transport in between is the limit. */
+  /**
+   * Its makers back up while users starve for it (in the same production line, when lines are known): the transport
+   * in between is the limit.
+   */
   transportLimited: boolean;
   /** Why the jam ends at the item itself (its makers back up, none of its users does), or null. */
   why: JamEndWhy | null;
@@ -574,20 +633,31 @@ export function consumerGroups(users: readonly MachineFlow[]): ConsumerGroup[] {
  * The cause of an item's loss across the chain (pure): its users with their state; whether its makers back up while
  * its users starve (transport); and, following users that back up to what they make, where the jam ends.
  */
-export function itemCause(a: FactoryAnalysis, item: string): ItemCause {
+export function itemCause(a: FactoryAnalysis, item: string, ctx: CauseContext = {}): ItemCause {
   const itemsById = new Map(a.items.map(i => [i.item, i]));
   const users = (id: string) => a.consumers.get(id) ?? [];
-  const whyAt = (id: string): JamEndWhy => {
-    const u = users(id);
-    if (u.some(m => m.reasons.includes('starved')) || (itemsById.get(id)?.loadedAt ?? 0) > 0) return 'transport';
-    return u.length === 0 ? 'noConsumer' : 'demand';
+  /** Users starving for `id` while makers of it back up (in their line, when lines are known). */
+  const starving = (id: string, makers: readonly MachineFlow[]) => {
+    const jammed = makers.filter(backsUp);
+    const lineOf = ctx.lineOf;
+    const lines = lineOf ? new Set(jammed.map(m => lineOf(m.id))) : null;
+    return users(id).filter(m => starvesFor(m, id) && (!lines || !lineOf || lines.has(lineOf(m.id))));
   };
-  const makersBackUp = (itemsById.get(item)?.machines ?? []).some(backsUp);
+  const whyAt = (id: string, makers: readonly MachineFlow[]): JamEndWhy => {
+    const hungry = starving(id, makers);
+    if (hungry.length > 0) return ctx.supply?.(id, hungry.map(m => m.id)) ?? 'transport';
+    if ((itemsById.get(id)?.loadedAt ?? 0) > 0) return 'vehicles';
+    return users(id).length === 0 ? 'noConsumer' : 'demand';
+  };
+  const makers = itemsById.get(item)?.machines ?? [];
+  const makersBackUp = makers.some(backsUp);
   const consumers = consumerGroups(users(item));
-  const transportLimited = makersBackUp && users(item).some(m => m.reasons.includes('starved'));
+  const transportLimited = makersBackUp && starving(item, makers).length > 0;
 
   const jamEnds: JamEnd[] = [];
   if (makersBackUp) {
+    /** The jammed makers of each item on the way (those the jam came through). */
+    const makersOf = new Map<string, MachineFlow[]>();
     const seen = new Set([item]);
     const queue: string[][] = [[item]];
     while (queue.length > 0 && seen.size < MAX_CHAIN) {
@@ -595,11 +665,12 @@ export function itemCause(a: FactoryAnalysis, item: string): ItemCause {
       const here = path[path.length - 1]!;
       const jammed = users(here).filter(backsUp);
       if (jammed.length === 0) {
-        if (here !== item) jamEnds.push({ item: here, why: whyAt(here), path });
+        if (here !== item) jamEnds.push({ item: here, why: whyAt(here, makersOf.get(here) ?? []), path });
         continue;
       }
       for (const m of jammed) {
         for (const o of m.outputs) {
+          makersOf.set(o.item, [...(makersOf.get(o.item) ?? []), m]);
           if (seen.has(o.item)) continue;
           seen.add(o.item);
           queue.push([...path, o.item]);
@@ -608,7 +679,7 @@ export function itemCause(a: FactoryAnalysis, item: string): ItemCause {
     }
   }
   const endsHere = makersBackUp && !users(item).some(backsUp);
-  return { item, consumers, transportLimited, why: endsHere ? whyAt(item) : null, jamEnds };
+  return { item, consumers, transportLimited, why: endsHere ? whyAt(item, makers) : null, jamEnds };
 }
 
 // --- Difference between two snapshots --------------------------------------------------------------
@@ -740,11 +811,39 @@ export interface StationFlow {
   combinedInterval: number | null;
   /** What lay in it when saved, most first. */
   cargo: SnapshotCargo[];
-  /** `noVehicles`: no vehicle stops here; `nothingMoved`: vehicles dock but move nothing; null otherwise. */
-  problem: 'noVehicles' | 'nothingMoved' | null;
+  /**
+   * How full its vehicles are, the mean over the visits that tell (0 when vehicles dock and move nothing); null when
+   * no visit tells. `fillApprox` when a stack size behind it is a mean.
+   */
+  fill: number | null;
+  fillApprox: boolean;
+  /** The one station problem rule of the page and the map (`stationProblem`). */
+  problem: StationProblem | null;
 }
 
-export interface RouteStop { station: string; loading: boolean | null; visit: StationVisit | null }
+/**
+ * What is wrong with a station: no vehicle stops (`noVehicles`), vehicles dock and move nothing (`nothingMoved`), or
+ * they move hardly anything (`lowThroughput`: under 1 item per minute, or their holds under 5 % full).
+ */
+export type StationProblem = 'noVehicles' | 'nothingMoved' | 'lowThroughput';
+
+/** Below this many items per minute, or this share of the hold, a station moves "hardly anything". */
+export const LOW_THROUGHPUT_PER_MIN = 1;
+export const LOW_FILL = 0.05;
+
+/** The station problem rule, shared by the Fabrik page's table and the map's plates. */
+export function stationProblem(st: Pick<StationFlow, 'visits' | 'itemsPerMin' | 'fill'>): StationProblem | null {
+  if (st.visits.length === 0) return 'noVehicles';
+  if (st.visits.every(v => v.empty) || st.itemsPerMin === 0) return 'nothingMoved';
+  if ((st.itemsPerMin !== null && st.itemsPerMin < LOW_THROUGHPUT_PER_MIN) || (st.fill !== null && st.fill < LOW_FILL)) return 'lowThroughput';
+  return null;
+}
+
+/**
+ * A stop of a route. The station tracks each vehicle once however often it stops there, so a station the route
+ * visits again carries the figures only at its first stop (`repeat`: the number of that first stop, 1-based).
+ */
+export interface RouteStop { station: string; loading: boolean | null; visit: StationVisit | null; repeat?: number }
 
 export interface VehicleFlow {
   id: string;
@@ -830,21 +929,29 @@ export function analyzeRoutes(s: Pick<FactorySnapshot, 'stations' | 'vehicles'>,
     });
     const itemsPerMin = sumOrNull(visits.map(v => v.itemsPerMin));
     const rates = visits.map(v => v.interval).filter((x): x is number => x !== null);
+    const fills = visits.filter(v => v.fill !== null);
+    const fill = meanOrNull(fills.map(v => v.fill)) ?? (visits.length > 0 && visits.every(v => v.empty) ? 0 : null);
     const flow: StationFlow = {
       id: st.id, cls: st.cls, x: st.x, y: st.y, z: st.z, loading: st.loading ?? null, visits,
       itemsPerMin, interval: meanOrNull(visits.map(v => v.interval)),
       combinedInterval: rates.length > 0 ? 1 / rates.reduce((sum, x) => sum + 1 / x, 0) : null,
       cargo: st.cargo ?? [],
-      problem: visits.length === 0 ? 'noVehicles' : visits.every(v => v.empty) ? 'nothingMoved' : null,
+      fill, fillApprox: fills.some(v => v.fillApprox),
+      problem: null,
     };
+    flow.problem = stationProblem(flow);
     if (st.name) flow.name = st.name;
     return flow;
   });
   const byId = new Map(stations.map(st => [st.id, st]));
   const vehicles: VehicleFlow[] = s.vehicles.map(v => {
-    const stops: RouteStop[] = v.route.map(id => {
+    const first = new Map<string, number>();
+    const stops: RouteStop[] = v.route.map((id, i) => {
       const st = byId.get(id);
-      return { station: id, loading: st?.loading ?? null, visit: st?.visits.find(x => x.vehicle === v.id) ?? null };
+      const stop: RouteStop = { station: id, loading: st?.loading ?? null, visit: st?.visits.find(x => x.vehicle === v.id) ?? null };
+      const at = first.get(id);
+      if (at !== undefined) stop.repeat = at + 1; else first.set(id, i);
+      return stop;
     });
     const unique = [...new Map(stops.map(x => [x.station, x])).values()];
     const count = (id: string) => stops.filter(x => x.station === id).length;

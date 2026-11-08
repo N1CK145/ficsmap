@@ -56,6 +56,15 @@ export interface FlowDiagramProps<L extends GraphLink> {
   renderLabel(e: DiagramEdge<L>, state: EdgeState): ReactNode;
   /** Shown under the diagram (a legend). */
   footer?: ReactNode;
+  /**
+   * A node to bring into view first when the diagram is wider than its box (the factory's bottleneck), instead of the
+   * top row's whole nodes; either way no node is cut at the left edge.
+   */
+  focus?: string | null;
+  /** "Fit to width" never scales below this (so text stays readable); the rest scrolls. */
+  minZoom?: number;
+  /** A visible "more →" chip while the diagram continues to the right (it scrolls on); none without a label. */
+  moreLabel?: string;
 }
 
 /**
@@ -71,7 +80,7 @@ export interface FlowDiagramProps<L extends GraphLink> {
 export function FlowDiagram<L extends GraphLink>(props: FlowDiagramProps<L>) {
   const {
     nodes, links, options, label, hint, selected, onSelect, onDismiss, editorId, nodeId, fit, onOverflow, nodeLabel, nodeClassName, nodeChrome,
-    renderNode, markers, edgeKey, edgeLook, renderLabel, footer,
+    renderNode, markers, edgeKey, edgeLook, renderLabel, footer, focus = null, minZoom = 0, moreLabel,
   } = props;
   const known = useMemo(() => new Set(nodes.map(n => n.id)), [nodes]);
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map());
@@ -92,7 +101,7 @@ export function FlowDiagram<L extends GraphLink>(props: FlowDiagramProps<L>) {
   const uid = useId().replace(/[^\w-]/g, '');
   const hintId = useId();
   const tabStop = [active, selected].find(i => i !== null && known.has(i)) ?? layout.nodes[0]?.item;
-  const zoom = fit && boxWidth > 0 && layout.width > boxWidth ? boxWidth / layout.width : 1;
+  const zoom = fit && boxWidth > 0 && layout.width > boxWidth ? Math.min(1, Math.max(minZoom, boxWidth / layout.width)) : 1;
 
   // Each row as high as its tallest node: measure the content after rendering, lay out again if it differs (before
   // the browser paints). Not while scaled down, and not where nothing has a size (tests).
@@ -134,15 +143,22 @@ export function FlowDiagram<L extends GraphLink>(props: FlowDiagramProps<L>) {
   }, [updateFade]);
   const wider = boxWidth > 0 && layout.width > boxWidth;
   useEffect(() => onOverflow(wider), [wider, onOverflow]);
-  // Wider than its box: start with whole nodes of the top row in view (`initialScroll`), once per top row.
-  const topRow = byRow[0]?.map(n => n.item).join('\n') ?? '';
+  // Wider than its box (also when scaled down only to `minZoom`): start with the `focus` node in the middle, else whole
+  // nodes of the top row in view (`initialScroll`), never with a node cut at the left; once per top row and zoom.
+  const topRow = `${byRow[0]?.map(n => n.item).join('\n') ?? ''}@${zoom}`;
   const scrolledFor = useRef<string | null>(null);
   useLayoutEffect(() => {
     const el = box.current;
-    if (!el || zoom !== 1 || !wider || scrolledFor.current === topRow) return;
+    if (!el || layout.width * zoom <= el.clientWidth + 1 || scrolledFor.current === topRow) return;
     scrolledFor.current = topRow;
-    el.scrollLeft = initialScroll(layout, el.clientWidth);
-  }, [layout, zoom, wider, topRow]);
+    const view = el.clientWidth / zoom;
+    const target = focus ? layout.nodes.find(n => n.item === focus) : undefined;
+    let left = target ? target.x + target.width / 2 - view / 2 : initialScroll(layout, view);
+    left = Math.max(0, Math.min(left, layout.width - view));
+    const cut = layout.nodes.find(n => n.x < left && n.x + n.width > left);
+    if (cut && (!target || cut.x >= target.x + target.width - view)) left = Math.max(0, cut.x - 16);
+    el.scrollLeft = left * zoom;
+  }, [layout, zoom, topRow, focus]);
 
   function onKeyDown(e: KeyboardEvent, n: DiagramNode) {
     if (e.key === 'Escape') {
@@ -261,6 +277,17 @@ export function FlowDiagram<L extends GraphLink>(props: FlowDiagramProps<L>) {
         </div>
         {fade.left && <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-linear-to-r from-bg to-transparent" />}
         {fade.right && <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-linear-to-l from-bg to-transparent" />}
+        {fade.right && moreLabel && (
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-hidden="true"
+            onClick={() => box.current?.scrollBy?.({ left: (box.current?.clientWidth ?? 0) * 0.8, behavior: 'smooth' })}
+            className="absolute top-2 right-2 chamfer border border-accent bg-panel px-2 py-1 font-display text-xs font-semibold tracking-wider text-accent uppercase shadow"
+          >
+            {moreLabel}
+          </button>
+        )}
       </div>
       {footer}
     </div>

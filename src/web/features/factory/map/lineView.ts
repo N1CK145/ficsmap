@@ -1,11 +1,12 @@
-import type { LineEdge, LineGroup, ProductionLine, ProductionLines } from '../../../../shared/factory/lines.js';
+import type { LineEdge, ProductionLine, ProductionLines } from '../../../../shared/factory/lines.js';
 import type { FactoryLabels } from '../data.js';
 import type { Lang } from '../format.js';
+import { bottleneckText as sharedBottleneckText, groupTitle, lineName as sharedLineName } from '../lineInfo.js';
 import type { Scene, SceneBuilding, SceneLine } from './scene.js';
 
 /**
- * Production lines on the map (pure): their order in the panel's list, their names and bottleneck in words, and their
- * geometry (the buildings, and the belts and pipes of each connection oriented along the flow), built once per scene
+ * Production lines on the map (pure): their order, names and bottleneck in words (delegated to the page's
+ * `lineInfo.ts`, so page and map say the same), and their geometry (the buildings, and the belts and pipes of each connection oriented along the flow), built once per scene
  * and line.
  */
 
@@ -29,24 +30,8 @@ export function edgeLoad(e: LineEdge): EdgeLoad {
   return r >= SATURATED ? 'saturated' : r >= LOAD_MID ? 'mid' : 'low';
 }
 
-/**
- * Whether the line has a problem worth looking at first: a full connection, or a group held back by something other
- * than missing demand or surplus (those are the end of a line that makes more than is taken, not a fault in it).
- */
-export function lineHasIssue(l: ProductionLine): boolean {
-  const b = l.bottleneck;
-  if (!b) return false;
-  return b.kind === 'edge' || (b.why !== 'demand' && b.why !== 'surplus');
-}
-
-/** The panel's order: lines with an issue first, then the bigger ones (more machines), then the weaker ones. */
-export function sortLines(lines: readonly ProductionLine[]): ProductionLine[] {
-  return [...lines].sort((a, b) =>
-    Number(lineHasIssue(b)) - Number(lineHasIssue(a))
-    || b.machines.length - a.machines.length
-    || a.productivity - b.productivity
-    || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-}
+/** The one issue rule and order of the Fabrik page (`lineInfo.ts`, from `src/shared/factory/lines.ts`). */
+export { lineHasIssue, sortLines } from '../lineInfo.js';
 
 const byIdCache = new WeakMap<ProductionLines, Map<string, ProductionLine>>();
 
@@ -113,45 +98,25 @@ export function shownLine(pl: ProductionLines | null | undefined, hoverId: strin
   return lineById(pl, hoverId) ?? lineById(pl, chosenId);
 }
 
-/** A line's name: its main product ("Kupferbarren"), with "+2" when it makes more. */
+/** A line's name, as the Fabrik page names it ("Draht, Beton +1"; `lineInfo.lineName`). */
 export function lineName(l: ProductionLine, labels: FactoryLabels | undefined, lang: Lang): string {
-  const main = l.products[0];
-  if (!main) return labels ? groupName(l, l.groups.find(g => !g.logistics)?.id ?? '', labels, lang) : l.id;
-  const name = labels?.item(main.item, lang) ?? main.item;
-  return l.products.length > 1 ? `${name} +${l.products.length - 1}` : name;
+  return sharedLineName(l, labels, lang);
 }
 
-function groupOf(l: ProductionLine, id: string): LineGroup | undefined {
-  return l.groups.find(g => g.id === id);
-}
-
-/** The name of a group's building class ("Konstruktor"); the group id when unknown. */
+/** A group's name as the page writes it ("4× Konstruktor", a single logistics node by name); the group id when unknown. */
 export function groupName(l: ProductionLine, groupId: string, labels: FactoryLabels, lang: Lang): string {
-  const g = groupOf(l, groupId);
-  return g ? labels.building(g.cls, lang) : groupId;
+  const g = l.groups.find(x => x.id === groupId);
+  return g ? groupTitle(g, labels, lang) : groupId;
 }
 
 type T = (key: string, opts?: Record<string, unknown>) => string;
 
 /**
- * The bottleneck in words: "Förderband Mk.2 voll zwischen Schmelzofen und Konstruktor" (a full connection) or
- * "Konstruktor: Mangel" (a group and its reason; "3 × Konstruktor: Mangel" for several). Null without one.
+ * The bottleneck in one sentence, the same as on the Fabrik page (`lineInfo.bottleneckText`), shown after the
+ * "Engpass" chip (`BottleneckChip` in `parts.tsx`). Null without one.
  */
 export function bottleneckText(l: ProductionLine, labels: FactoryLabels, lang: Lang, t: T): string | null {
-  const b = l.bottleneck;
-  if (!b) return null;
-  if (b.kind === 'edge') {
-    const e = l.edges[b.edge];
-    if (!e) return null;
-    const from = groupName(l, e.from, labels, lang), to = groupName(l, e.to, labels, lang);
-    const link = e.slowest ? labels.building(e.slowest, lang) : t(e.item && labels.isFluid(e.item) ? 'factoryMap.lines.pipe' : 'factoryMap.lines.belt');
-    return t('factoryMap.lines.edgeFull', { link, from, to });
-  }
-  const g = groupOf(l, b.group);
-  const name = g ? labels.building(g.cls, lang) : b.group;
-  const why = b.why === 'demand' ? t('factoryMap.lines.demand') : t(`factory.reason.${b.why}`);
-  const count = g && !g.logistics ? g.members.length : 1;
-  return count > 1 ? t('factoryMap.lines.groupIssueMany', { count, name, why }) : t('factoryMap.lines.groupIssue', { name, why });
+  return sharedBottleneckText(l, labels, lang, t);
 }
 
 // ---------------------------------------------------------------------------------------------------------------

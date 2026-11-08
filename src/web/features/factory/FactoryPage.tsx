@@ -1,22 +1,32 @@
 import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate, useSearchParams } from 'react-router';
 import type { FactoryDiff, FactoryTotals } from '../../../shared/factory/analysis.js';
+import type { ProductionLines } from '../../../shared/factory/lines.js';
 import type { WorldCtx } from '../../app/feature.js';
+import { worldPath } from '../../app/pages.js';
+import { buttonClass } from '../../components/Button.js';
+import { FlowIcon, MapIcon } from '../../components/icons.js';
 import { Button } from '../../components/Button.js';
 import { StatTile, TileValue } from '../../components/StatRow.js';
 import { Window } from '../../components/Window.js';
 import { useImportDialog } from '../import/ImportDialog.js';
 import { IconsContext, useItemIcons } from '../machineWiki/icons.js';
 import { ChangesSection } from './ChangesSection.js';
-import { useFactoryData, useFactoryDiff, useSnapshotAnalysis, type SnapshotAnalysis } from './data.js';
+import { useFactoryData, useFactoryDiff, useSnapshotAnalysis, type FactoryLabels, type SnapshotAnalysis } from './data.js';
 import { nearestBiome, useFactoryFormat, type FactoryFormat } from './format.js';
 import { ItemsSection } from './ItemsSection.js';
+import { LINE_PARAM } from './lineDiagram.js';
+import { geometryDiffOf } from './map/diff.js';
+import { bottleneckText, lineHasIssue, lineName, sortLines } from './lineInfo.js';
 import { LinesSection } from './LinesSection.js';
-import { LocateContext, NONE } from './parts.js';
+import { BottleneckChip, LocateContext, NONE } from './parts.js';
 import { MachinesSection } from './MachinesSection.js';
 import { RoutesSection } from './RoutesSection.js';
 import { Timeline } from './Timeline.js';
-import { useFactoryWorld, useTimeline } from './timeline.js';
+import { useFactoryPage, useFactoryWorld, useTimeline } from './timeline.js';
+import { useProductionLines } from './useLines.js';
+import { useFactoryView } from './view.js';
 
 /** The world page id: `/w/:id/factory`. */
 export const FACTORY_PAGE = 'factory';
@@ -69,7 +79,7 @@ export function FactoryPage({ ctx }: { ctx: WorldCtx }) {
           {current.failed && <p role="alert" className="text-conflict">{t('factory.snapshotFailed')}</p>}
           {data?.analysis === null && <p className="text-sm text-muted">{t('factory.noRecipes')}</p>}
           {shown && data && (
-            <Body ctx={ctx} shown={shown} diff={sel.compared ? diff : null} since={sel.compared?.saveTime ?? null} fmt={fmt} data={data} />
+            <Body ctx={ctx} shown={shown} before={sel.compared ? compared.value ?? null : null} diff={sel.compared ? diff : null} since={sel.compared?.saveTime ?? null} fmt={fmt} data={data} />
           )}
           {!shown && !current.failed && data?.analysis !== null && <p className="text-muted">{t('common.loading')}</p>}
         </div>
@@ -78,19 +88,27 @@ export function FactoryPage({ ctx }: { ctx: WorldCtx }) {
   );
 }
 
-function Body({ ctx, shown, diff, since, fmt, data }: {
-  ctx: WorldCtx; shown: SnapshotAnalysis; diff: FactoryDiff | null; since: number | null; fmt: FactoryFormat;
+function Body({ ctx, shown, before, diff, since, fmt, data }: {
+  ctx: WorldCtx; shown: SnapshotAnalysis; before: SnapshotAnalysis | null; diff: FactoryDiff | null; since: number | null; fmt: FactoryFormat;
   data: NonNullable<ReturnType<typeof useFactoryData>>;
 }) {
   const { labels } = data;
+  // Floor pieces and belts for the changes' summary rows, as the map counts them.
+  const geometry = useMemo(() => {
+    if (!before) return null;
+    const g = geometryDiffOf(before.snapshot, shown.snapshot);
+    return { floorAdded: g.floorAdded.length, floorRemoved: g.floorRemoved.length, linesAdded: g.linesAdded.size, linesRemoved: g.linesRemoved.length };
+  }, [before, shown]);
+  const lines = useProductionLines(shown, data.analysis) ?? null;
   return (
     <>
       <Kpis totals={shown.analysis.totals} diff={diff} since={since} fmt={fmt} />
+      {lines && <TopBottleneck worldId={ctx.worldId} lines={lines} labels={labels} fmt={fmt} />}
       {data.analysis && <LinesSection ctx={ctx} shown={shown} data={data.analysis} labels={labels} fmt={fmt} />}
-      {diff && since !== null && <ChangesSection worldId={ctx.worldId} diff={diff} since={since} labels={labels} fmt={fmt} />}
-      <ItemsSection worldId={ctx.worldId} analysis={shown.analysis} labels={labels} fmt={fmt} />
+      {diff && since !== null && <ChangesSection worldId={ctx.worldId} diff={diff} since={since} labels={labels} fmt={fmt} geometry={geometry} />}
+      <ItemsSection worldId={ctx.worldId} analysis={shown.analysis} lines={lines} labels={labels} fmt={fmt} />
       <MachinesSection worldId={ctx.worldId} analysis={shown.analysis} labels={labels} fmt={fmt} recipes={data.analysis?.recipes ?? null} />
-      <RoutesSection worldId={ctx.worldId} routes={shown.routes} labels={labels} fmt={fmt} index={ctx.index} />
+      <RoutesSection worldId={ctx.worldId} routes={shown.routes} labels={labels} fmt={fmt} index={ctx.index} lines={lines} analysis={shown.analysis} data={data.analysis} />
     </>
   );
 }
@@ -110,7 +128,7 @@ function Kpis({ totals, diff, since, fmt }: { totals: FactoryTotals; diff: Facto
         {fmt.int(totals.machines)}
       </StatTile>
       {/* The same mean as the timeline's points and tooltip (`FactoryTotals.avgProductivity`). */}
-      <StatTile label={t('factory.kpi.avg')} main sub={delta(d?.avgProductivity != null ? fmt.pctDelta(d.avgProductivity) : null) ?? t('factory.kpi.avgHint')}>
+      <StatTile label={t('factory.kpi.avg')} main sub={delta(d?.avgProductivity != null ? fmt.pointsDelta(d.avgProductivity) : null) ?? t('factory.kpi.avgHint')}>
         {totals.avgProductivity === null ? NONE : fmt.pct(totals.avgProductivity)}
       </StatTile>
       <StatTile label={t('factory.kpi.idle')} sub={delta(d ? fmt.intDelta(d.idle) : null) ?? t('factory.kpi.idleHint')}>
@@ -129,6 +147,50 @@ function Kpis({ totals, diff, since, fmt }: { totals: FactoryTotals; diff: Facto
         </StatTile>
       )}
     </dl>
+  );
+}
+
+/**
+ * "Start here": the worst problem of the factory under the figures, the first line with a problem in the one order of
+ * lines (`sortLines`), its bottleneck in a sentence, with ways to its diagram and to the map. Nothing without one.
+ */
+function TopBottleneck({ worldId, lines, labels, fmt }: { worldId: string; lines: ProductionLines; labels: FactoryLabels; fmt: FactoryFormat }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [, setParams] = useSearchParams();
+  const setLine = useFactoryPage(s => s.setLine);
+  const selectLine = useFactoryView(s => s.selectLine);
+  const top = useMemo(() => sortLines(lines.lines).find(lineHasIssue), [lines]);
+  if (!top) return null;
+  const name = lineName(top, labels, fmt.lang);
+  const sentence = bottleneckText(top, labels, fmt.lang, t);
+  const toDiagram = () => {
+    setLine(top.id);
+    setParams(p => { const next = new URLSearchParams(p); next.set(LINE_PARAM, top.id); return next; }, { replace: true, preventScrollReset: true });
+    document.getElementById('factory-lines')?.scrollIntoView?.({ block: 'start' });
+  };
+  const toMap = () => {
+    selectLine(top.id);
+    void navigate(worldPath(worldId));
+  };
+  return (
+    <section aria-labelledby="factory-top" data-top-bottleneck className="flex flex-wrap items-center gap-x-3 gap-y-1.5 chamfer border border-line border-l-4 border-l-accent bg-panel px-3 py-2">
+      <h2 id="factory-top" className="flex shrink-0 items-center gap-2 font-display text-sm font-semibold tracking-wider uppercase">
+        <BottleneckChip label={t('factory.top.title')} />
+      </h2>
+      <p className="min-w-0 flex-1 text-sm max-sm:basis-full">
+        <span className="font-semibold">{name}</span>
+        {sentence && <span className="text-muted"> – {sentence}</span>}
+      </p>
+      <span className="flex shrink-0 gap-1">
+        <button type="button" onClick={toDiagram} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
+          <FlowIcon />{t('factory.top.diagram')}
+        </button>
+        <button type="button" onClick={toMap} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
+          <MapIcon />{t('factory.top.map')}
+        </button>
+      </span>
+    </section>
   );
 }
 

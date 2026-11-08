@@ -74,6 +74,15 @@ export interface GameExtractor {
 }
 
 /** A conveyor belt or lift tier: what it carries per minute (the game's `mSpeed` / 2). */
+/** A pipeline class and its flow limit (`mFlowLimit` × 60, m³/min). */
+export interface GamePipe {
+  /** Building class, e.g. `Build_PipelineMK2_C`. */
+  id: string;
+  name: Names;
+  /** m³ per minute. */
+  rate: number;
+}
+
 export interface GameBelt {
   /** Building class, e.g. `Build_ConveyorBeltMk2_C`. */
   id: string;
@@ -108,6 +117,8 @@ export interface RecipeData {
   wellPressurizer?: { id: string; name: Names; power: number; powerExponent: number };
   /** Conveyor belts and lifts with their rate, slowest first; missing in datasets built before it was added. */
   belts?: GameBelt[];
+  /** Pipelines with their flow limit (m³/min), slowest first; missing in datasets built before it was added. */
+  pipes?: GamePipe[];
 }
 
 export interface RecipeIndex {
