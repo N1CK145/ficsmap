@@ -1,5 +1,5 @@
 import {
-  lastWorld, loadLocale, loadMarkersVisible, saveMarkersVisible, loadResourceNodeView, saveResourceNodeView, loadPodChecklistCollapsed, loadPodTicks, loadView, saveLocale, savePodChecklistCollapsed, savePodTicks, saveView,
+  lastWorld, loadDiagramDirection, loadLocale, loadMarkersVisible, saveMarkersVisible, loadResourceNodeView, saveResourceNodeView, loadPodChecklistCollapsed, loadPodTicks, loadView, saveLocale, savePodChecklistCollapsed, savePodTicks, saveDiagramDirection, saveView,
   setLastWorld, type PersistedView,
 } from '../../src/web/app/persist.js';
 
@@ -100,5 +100,15 @@ describe('persist', () => {
     expect(loadResourceNodeView()).toEqual({ visible: false, hiddenResources: ['A'], purities: ['impure', 'pure'], occupancy: 'all' });
     localStorage.setItem('ficsmap:resourceNodes', '{not json');
     expect(loadResourceNodeView().purities).toHaveLength(3);
+  });
+  it('remembers each diagram\'s direction on its own, top to bottom by default', () => {
+    expect(loadDiagramDirection('planner')).toBe('down');
+    saveDiagramDirection('planner', 'right');
+    expect(loadDiagramDirection('planner')).toBe('right');
+    expect(loadDiagramDirection('lines')).toBe('down');
+    localStorage.setItem('ficsmap:diagramDirection:lines', 'sideways');
+    expect(loadDiagramDirection('lines')).toBe('down');
+    saveDiagramDirection('planner', 'down');
+    expect(localStorage.getItem('ficsmap:diagramDirection:planner')).toBeNull();
   });
 });

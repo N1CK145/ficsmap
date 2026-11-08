@@ -766,6 +766,7 @@
     "diagram": {
       "label": "Produktionskette",
       "hint": "Rohstoffe oben, deine Gegenstände unten, Mengen pro Minute. Wähle einen Schritt, um Rezept, Taktrate oder Reinheit zu ändern; die Pfeiltasten wechseln zwischen den Schritten, Escape schließt den Schritt.",
+      "hintRight": "Rohstoffe links, deine Gegenstände rechts, Mengen pro Minute. Wähle einen Schritt, um Rezept, Taktrate oder Reinheit zu ändern; die Pfeiltasten wechseln zwischen den Schritten, Escape schließt den Schritt.",
       "wanted": "gewünscht: {value}",
       "alt": "Alternativ",
       "alternate": "{recipe} (Alternativrezept)",
@@ -788,8 +789,20 @@
       "makes": "stellt {value} her",
       "needs": "braucht {list}",
       "wantedBadge": "Gewünscht",
-      "fit": "Einpassen",
-      "actualSize": "Originalgröße"
+      "direction": {
+        "label": "Richtung",
+        "down": "Oben nach unten",
+        "right": "Links nach rechts"
+      },
+      "view": {
+        "label": "Ansicht",
+        "hint": "Ziehen verschiebt die Ansicht, Mausrad oder zwei Finger zoomen; Umschalt und die Pfeiltasten verschieben sie, + und − zoomen, 0 zeigt 100 %.",
+        "zoomIn": "Vergrößern",
+        "zoomOut": "Verkleinern",
+        "reset": "{percent} %, zurück auf 100 %",
+        "fit": "Einpassen",
+        "fitHint": "Das ganze Diagramm zeigen"
+      }
     },
     "panel": {
       "recipe": "Rezept",
@@ -806,7 +819,14 @@
       "shardSlots": "{used, number} von {total, number} Plätzen für Energiefragmente belegt",
       "pressurizerPower": "{name}: {value} MW je Rohstoffquelle, nicht in den Summen enthalten",
       "purity": "Reinheit",
-      "even": "{count}× bei {clock} %"
+      "even": "{count}× bei {clock} % Takt wären 100 %"
+    },
+    "use": {
+      "label": "Auslastung",
+      "long": "Gebäude zu {value} % ausgelastet",
+      "full": "Alle Gebäude voll ausgelastet (100 %)",
+      "high": "Fast voll (≥ 90 %)",
+      "throttled": "Teillast (< 90 %)"
     },
     "gameModeNote": "Die Zahlen gelten für den Standard-Spielmodus; Einstellungen des Spielmodus (Rezeptkosten, Stromverbrauch, zufällige Reinheit der Rohstoffvorkommen) werden nicht berücksichtigt.",
     "lastWorking": "Unten steht der letzte gültige Plan; korrigiere den Wert, dann wird er aktualisiert.",
@@ -1143,7 +1163,8 @@
       },
       "diagram": {
         "label": "Produktionsstrang {name}",
-        "hint": "Zulieferung oben, Produkte unten; an jedem Förderband und jeder Pipeline die Menge pro Minute und ihre Kapazität. Wähle eine Gruppe, um ihre Maschinen zu sehen; die Pfeiltasten wechseln zwischen den Gruppen, Escape schließt die Gruppe."
+        "hint": "Zulieferung oben, Produkte unten; an jedem Förderband und jeder Pipeline die Menge pro Minute und ihre Kapazität. Wähle eine Gruppe, um ihre Maschinen zu sehen; die Pfeiltasten wechseln zwischen den Gruppen, Escape schließt die Gruppe.",
+        "hintRight": "Zulieferung links, Produkte rechts; an jedem Förderband und jeder Pipeline die Menge pro Minute und ihre Kapazität. Wähle eine Gruppe, um ihre Maschinen zu sehen; die Pfeiltasten wechseln zwischen den Gruppen, Escape schließt die Gruppe."
       },
       "legend": {
         "load": "Dicker = vollere Förderbänder und Pipelines",

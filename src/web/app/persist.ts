@@ -172,6 +172,21 @@ export function saveMarkersVisible(visible: boolean): void {
   write(MARKERS_KEY, visible ? '1' : '0');
 }
 
+/** Which way a flow diagram runs: the planner's and the production lines' each remember their own (per device). */
+export type DiagramDirectionChoice = 'down' | 'right';
+export type DiagramKind = 'planner' | 'lines';
+const diagramDirectionKey = (kind: DiagramKind) => `ficsmap:diagramDirection:${kind}`;
+
+/** Top to bottom unless left to right was picked. */
+export function loadDiagramDirection(kind: DiagramKind): DiagramDirectionChoice {
+  return read(diagramDirectionKey(kind)) === 'right' ? 'right' : 'down';
+}
+
+export function saveDiagramDirection(kind: DiagramKind, direction: DiagramDirectionChoice): void {
+  if (direction === 'right') write(diagramDirectionKey(kind), 'right');
+  else remove(diagramDirectionKey(kind));
+}
+
 const RESOURCE_NODES_KEY = 'ficsmap:resourceNodes';
 
 /**

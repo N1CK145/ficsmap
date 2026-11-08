@@ -15,7 +15,8 @@ import { Window } from '../../components/Window.js';
 import { useImportDialog } from '../import/ImportDialog.js';
 import { prefersReducedMotion } from '../map/motion.js';
 import { GameIcon } from '../machineWiki/icons.js';
-import type { DiagramEdge, DiagramOptions } from '../planner/diagramLayout.js';
+import { DirectionSwitch, useDiagramDirection } from '../planner/direction.js';
+import type { DiagramDirection, DiagramEdge, DiagramOptions } from '../planner/diagramLayout.js';
 import { FlowDiagram, type EdgeLook, type EdgeState, type FlowMarker } from '../planner/FlowDiagram.js';
 import { Picture, PinnedPicture } from '../planner/pictures.js';
 import type { FactoryLabels, SnapshotAnalysis } from './data.js';
@@ -38,8 +39,6 @@ const PHONE_QUERY = '(max-width: 639px)';
 const FIRST_LINES = 8;
 /** Above this many machines a line's by-product links are folded (a switch shows them). */
 const BYPRODUCTS_FOLD_ABOVE = 40;
-/** "Fit to width" scales no further: the diagram's 12 px labels stay at least 10 px. */
-const MIN_ZOOM = 10 / 12;
 /** The labels carry the rate and the capacity ("112.5/min of 120"), so they get more room than the planner's. */
 const OPTIONS: Partial<DiagramOptions> = { nodeWidth: NODE_WIDTH, labelWidth: 196, portGap: 128 };
 /** A node's padding and border around its content (`py-1.5`, 1 px borders). */
@@ -115,8 +114,7 @@ export function LinesSection({ ctx, shown, data, labels, fmt }: {
   const lines = useMemo(() => (result ? sortLines(result.lines) : undefined), [result]);
   const { line, choose, linked } = useLineChoice(lines);
   const phone = useMediaQuery(PHONE_QUERY);
-  const [fit, setFit] = useState(false);
-  const [wider, setWider] = useState(false);
+  const [direction, setDirection] = useDiagramDirection('lines');
   const names: Names = { labels, fmt, t };
   const hasLinks = (shown.snapshot.links?.length ?? 0) > 0;
   const machines = lines?.reduce((s, l) => s + l.machines.length, 0) ?? 0;
@@ -142,10 +140,7 @@ export function LinesSection({ ctx, shown, data, labels, fmt }: {
   ];
   const actions = line ? (
     <span className="flex flex-wrap items-center justify-end gap-2">
-      {/* On every line, phones too; it does nothing while the diagram fits anyway. */}
-      <Button size="sm" variant="ghost" aria-pressed={fit} disabled={!wider && !fit} onClick={() => setFit(f => !f)}>
-        {fit ? t('planner.diagram.actualSize') : t('planner.diagram.fit')}
-      </Button>
+      <DirectionSwitch value={direction} onChange={setDirection} />
       <SegmentedControl<View> label={t('factory.lines.view')} options={views} value="diagram" onChange={toMap} />
     </span>
   ) : undefined;
@@ -160,7 +155,7 @@ export function LinesSection({ ctx, shown, data, labels, fmt }: {
         <LineList lines={lines} current={line.id} onChoose={choose} names={names} />
         <LineView
           key={`${shown.snapshot.meta.saveTime}:${line.id}`}
-          worldId={ctx.worldId} line={line} analysis={shown.analysis} names={names} fit={fit} onOverflow={setWider} phone={phone} lines={result ?? null}
+          worldId={ctx.worldId} line={line} analysis={shown.analysis} names={names} phone={phone} direction={direction} lines={result ?? null}
           recipeName={(id: string) => data.recipes.recipes.get(id)?.name[fmt.lang]}
         />
       </div>
@@ -265,8 +260,8 @@ const DASH: Record<LineLinkKind, string | undefined> = { flow: undefined, byprod
  * One line: the bottleneck in a sentence, on a phone its groups as a list, the diagram, its legend and, for a selected
  * group, its machines.
  */
-function LineView({ worldId, line: full, analysis, names, fit, onOverflow, phone, recipeName, lines }: {
-  worldId: string; line: ProductionLine; analysis: FactoryAnalysis; names: Names; fit: boolean; onOverflow(wider: boolean): void; phone: boolean;
+function LineView({ worldId, line: full, analysis, names, phone, direction, recipeName, lines }: {
+  worldId: string; line: ProductionLine; analysis: FactoryAnalysis; names: Names; phone: boolean; direction: DiagramDirection;
   recipeName(id: string): string | undefined; lines: ProductionLines | null;
 }) {
   const { t, labels, fmt } = names;
@@ -285,6 +280,7 @@ function LineView({ worldId, line: full, analysis, names, fit, onOverflow, phone
   const [showByproducts, setShowByproducts] = useState(false);
   const byproducts = !big || showByproducts;
   const graph = useMemo(() => lineGraph(line, { byproducts }), [line, byproducts]);
+  const options = useMemo(() => ({ ...OPTIONS, direction }), [direction]);
   const folded = useMemo(() => (byproducts ? 0 : lineGraph(line).links.filter(l => l.kind === 'byproduct').length), [line, byproducts]);
   const groupOf = useMemo(() => new Map(line.groups.map(g => [g.id, g])), [line]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -388,19 +384,16 @@ function LineView({ worldId, line: full, analysis, names, fit, onOverflow, phone
       <FlowDiagram<LineLink>
         nodes={graph.nodes}
         links={graph.links}
-        options={OPTIONS}
+        options={options}
         label={t('factory.lines.diagram.label', { name })}
-        hint={t('factory.lines.diagram.hint')}
+        hint={t(direction === 'right' ? 'factory.lines.diagram.hintRight' : 'factory.lines.diagram.hint')}
         selected={selected}
         onSelect={onSelect}
         onDismiss={close}
         editorId={editorId}
         nodeId={nodeId}
-        fit={fit}
-        minZoom={MIN_ZOOM}
         focus={focus}
         moreLabel={t('factory.lines.moreRight')}
-        onOverflow={onOverflow}
         nodeLabel={id => groupLabel(groupOf.get(id)!, names, bottleneck.group === id ? (issue ? 'issue' : 'limit') : null)}
         nodeChrome={() => CHROME}
         nodeClassName={(id, isSelected) => {
@@ -413,7 +406,7 @@ function LineView({ worldId, line: full, analysis, names, fit, onOverflow, phone
         renderNode={(id, contentRef) => {
           const g = groupOf.get(id)!;
           return g.logistics
-            ? <LogisticsCard group={g} names={names} contentRef={contentRef} selected={selected === id} />
+            ? <LogisticsCard group={g} names={names} contentRef={contentRef} selected={selected === id} across={direction === 'right'} />
             : <GroupCard group={g} names={names} contentRef={contentRef} neck={bottleneck.group === id ? (issue ? 'issue' : 'limit') : null} />;
         }}
         markers={MARKERS}
@@ -491,12 +484,26 @@ function GroupCard({ group: g, names, contentRef, neck }: { group: LineGroup; na
  * A logistics node (splitter, merger, storage, station): a small neutral chip with its picture and name, half the
  * height of a machine at most, on a thin rail through its row (the edges meet the row's top and bottom).
  */
-function LogisticsCard({ group: g, names, contentRef, selected }: { group: LineGroup; names: Names; contentRef(el: HTMLElement | null): void; selected: boolean }) {
+function LogisticsCard({ group: g, names, contentRef, selected, across }: {
+  group: LineGroup; names: Names; contentRef(el: HTMLElement | null): void; selected: boolean;
+  /** Left to right: the rail runs across the column. */
+  across: boolean;
+}) {
   return (
     <>
-      <span aria-hidden="true" className="absolute inset-x-6 top-0 h-px bg-edge" />
-      <span aria-hidden="true" className="absolute inset-x-6 bottom-0 h-px bg-edge" />
-      <span aria-hidden="true" className="absolute inset-y-0 left-1/2 w-px bg-edge" />
+      {across ? (
+        <>
+          <span aria-hidden="true" className="absolute inset-y-1 left-0 w-px bg-edge" />
+          <span aria-hidden="true" className="absolute inset-y-1 right-0 w-px bg-edge" />
+          <span aria-hidden="true" className="absolute inset-x-0 top-1/2 h-px bg-edge" />
+        </>
+      ) : (
+        <>
+          <span aria-hidden="true" className="absolute inset-x-6 top-0 h-px bg-edge" />
+          <span aria-hidden="true" className="absolute inset-x-6 bottom-0 h-px bg-edge" />
+          <span aria-hidden="true" className="absolute inset-y-0 left-1/2 w-px bg-edge" />
+        </>
+      )}
       <span
         ref={contentRef}
         className={`relative flex max-w-full min-w-0 items-center gap-1.5 chamfer border bg-bg px-1.5 py-0.5 text-muted group-hover/node:border-muted group-hover/node:bg-raised ${selected ? 'border-accent text-fg' : 'border-line'}`}

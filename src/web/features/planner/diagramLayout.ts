@@ -14,6 +14,13 @@ import type { Flow } from '../../../shared/planner.js';
  * its tallest node (`heights`, measured by the page, else `nodeHeight`), so the edges of a row start and end
  * on one line. The rate labels sit on a straight piece above the arrowhead; several labels at one side of a
  * node are staggered in height, and the space between two rows grows with them.
+ *
+ * `direction: 'right'` lays the same graph out from left to right: the rows become columns, the order within a
+ * row runs from the top, edges leave a node's right side and enter the next one's left side (by-products pointing
+ * back enter the right side, edges within a column arc out to the left of it), a column is as wide as its widest
+ * node while each node keeps its measured height, and the labels sit on a straight piece left of the arrowhead,
+ * staggered sideways. The layout runs in the flow's own axes (across a row, along the flow) and only the result is
+ * turned.
  */
 
 /** What the layout needs of a plan step; a `PlanStep` fits. */
@@ -47,17 +54,22 @@ export interface DiagramOptions {
   padding: number;
   /** Rounds of ordering and placing, each one up and back down. */
   sweeps: number;
+  /** The flow from top to bottom (rows) or from left to right (the rows become columns). */
+  direction: DiagramDirection;
 }
+
+export type DiagramDirection = 'down' | 'right';
 
 export const DIAGRAM_DEFAULTS: Readonly<DiagramOptions> = {
   nodeWidth: 224, nodeHeight: 72, columnGap: 32, rowGap: 28, laneWidth: 6, laneGap: 12, portGap: 112,
-  labelWidth: 104, labelHeight: 20, padding: 16, sweeps: 4,
+  labelWidth: 104, labelHeight: 20, padding: 16, sweeps: 4, direction: 'down',
 };
 
 /** Room for the arrowhead between a node and the label next to it. */
 const ARROW = 8;
-/** Edge ends keep this far from a node's corners. */
+/** Edge ends keep this far from a node's corners (less on the shorter sides of a node left to right). */
 const INSET = 16;
+const INSET_RIGHT = 8;
 const EPS = 1e-9;
 
 export interface Point { x: number; y: number }
@@ -76,15 +88,16 @@ export interface GraphLink { from: string; to: string }
 export interface DiagramNode {
   /** The node's key (the planner's item, a `GraphNode`'s id). */
   item: string;
-  /** 0 = the top row (extraction). */
+  /** 0 = the top row (extraction); left to right the leftmost column. */
   row: number;
-  /** Position in its row, from the left. */
+  /** Position in its row, from the left (in a column from the top). */
   order: number;
   /** Top left corner. */
   x: number;
   y: number;
+  /** Its own width; left to right the width of its column. */
   width: number;
-  /** The height of its row. */
+  /** The height of its row; left to right its own. */
   height: number;
 }
 
@@ -187,16 +200,23 @@ export function pack(want: readonly number[], sep: readonly number[]): number[] 
 const mean = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
-/** Through the points with vertical tangents: straight where two points share an x, else an S-curve. */
-function curve(points: readonly Point[]): string {
-  let d = `M${r1(points[0]!.x)} ${r1(points[0]!.y)}`;
+/** A point in the flow's axes (`x` across a row, `y` along the flow) as SVG coordinates on the page. */
+type ToPage = (p: Point) => Point;
+const xy = (p: Point) => `${r1(p.x)} ${r1(p.y)}`;
+
+/**
+ * Through the points (flow axes) with tangents along the flow: straight where two points share a place across, else
+ * an S-curve.
+ */
+function curve(points: readonly Point[], page: ToPage): string {
+  let d = `M${xy(page(points[0]!))}`;
   for (let i = 1; i < points.length; i++) {
     const p = points[i - 1]!;
     const q = points[i]!;
-    if (Math.abs(p.x - q.x) < 0.05) d += ` L${r1(q.x)} ${r1(q.y)}`;
+    if (Math.abs(p.x - q.x) < 0.05) d += ` L${xy(page(q))}`;
     else {
-      const my = r1((p.y + q.y) / 2);
-      d += ` C${r1(p.x)} ${my} ${r1(q.x)} ${my} ${r1(q.x)} ${r1(q.y)}`;
+      const my = (p.y + q.y) / 2;
+      d += ` C${xy(page({ x: p.x, y: my }))} ${xy(page({ x: q.x, y: my }))} ${xy(page(q))}`;
     }
   }
   return d;
@@ -212,18 +232,34 @@ export function layoutDiagram(steps: readonly DiagramStep[], options: Partial<Di
 }
 
 /**
- * Any graph laid out from top to bottom like the planner's plan: each node in its given row (the order given is the
- * first order within a row), edges through lanes, ordered and placed as described at the top of this module. Edges
- * may point down, up (into the bottom of the upper node) or stay in a row (an arc over it). Pure and deterministic.
+ * Any graph laid out from top to bottom like the planner's plan (or from left to right, `direction`): each node in
+ * its given row (the order given is the first order within a row), edges through lanes, ordered and placed as
+ * described at the top of this module. Edges may point down, up (into the bottom of the upper node) or stay in a row
+ * (an arc over it). Pure and deterministic.
+ *
+ * Below, `x` runs across a row and `y` along the flow ("top" is the side the flow comes from, "height" the size
+ * along the flow); left to right the result is turned at the end.
  */
 export function layoutGraph<L extends GraphLink>(graph: readonly GraphNode[], links: readonly L[], options: Partial<DiagramOptions> = {}): DiagramLayout<L> {
   const o: DiagramOptions = { ...DIAGRAM_DEFAULTS, ...options };
   if (graph.length === 0) return { nodes: [], edges: [], rows: 0, width: 0, height: 0 };
+  const right = o.direction === 'right';
   const rowOf = new Map(graph.map(n => [n.id, n.row]));
   const rows = Math.max(...rowOf.values()) + 1;
+  // A node's size across its row and along the flow; a label's extent across and along.
+  const widthOf = (n: GraphNode) => n.width ?? o.nodeWidth;
+  const heightOf = (n: GraphNode) => o.heights?.get(n.id) ?? o.nodeHeight;
+  const across = right ? heightOf : widthOf;
+  const along = right ? widthOf : heightOf;
+  const labelAcross = right ? o.labelHeight : o.labelWidth;
+  const labelAlong = right ? o.labelWidth : o.labelHeight;
+  const inset = right ? INSET_RIGHT : INSET;
+  // Left to right the ends on a side only need to clear a label's height.
+  const portGap = right ? Math.min(o.portGap, o.labelHeight + 10) : o.portGap;
+  const page: ToPage = right ? p => ({ x: p.y, y: p.x }) : p => p;
 
   // Slots: one per node, and a lane in every row an edge passes through.
-  const slots: Slot[] = graph.map(n => ({ row: n.row, size: n.width ?? o.nodeWidth, node: n.id }));
+  const slots: Slot[] = graph.map(n => ({ row: n.row, size: across(n), node: n.id }));
   const slotOf = new Map(graph.map((n, i) => [n.id, i]));
   const above: number[][] = slots.map(() => []);
   const below: number[][] = slots.map(() => []);
@@ -329,8 +365,8 @@ export function layoutGraph<L extends GraphLink>(graph: readonly GraphNode[], li
   for (const [key, list] of sides) {
     const slot = Number(key.slice(0, -1));
     list.sort((p, q) => p.other - q.other || p.link - q.link);
-    const room = slots[slot]!.size - 2 * INSET;
-    const gap = list.length > 1 ? Math.min(o.portGap, room / (list.length - 1)) : 0;
+    const room = Math.max(0, slots[slot]!.size - 2 * inset);
+    const gap = list.length > 1 ? Math.min(portGap, room / (list.length - 1)) : 0;
     list.forEach((a, i) => port.set(`${a.link}:${key}`, x[slot]! + (i - (list.length - 1) / 2) * gap));
   }
 
@@ -356,14 +392,14 @@ export function layoutGraph<L extends GraphLink>(graph: readonly GraphNode[], li
     list.sort((a, b) => px(a) - px(b) || a - b);
     let closest = Infinity;
     for (let i = 1; i < list.length; i++) closest = Math.min(closest, px(list[i]!) - px(list[i - 1]!));
-    const n = list.length < 2 ? 1 : Math.min(list.length, Math.ceil((o.labelWidth + 4) / Math.max(closest, 1)));
+    const n = list.length < 2 ? 1 : Math.min(list.length, Math.ceil((labelAcross + 4) / Math.max(closest, 1)));
     list.forEach((k, i) => { level[k] = i % n; });
     levels.set(key, n);
   }
   /** Length of the straight piece before the arrowhead, from the node's side, for a label at level `v`. */
-  const stub = (v: number) => ARROW + 4 + (v + 1) * o.labelHeight;
+  const stub = (v: number) => ARROW + 4 + (v + 1) * labelAlong;
   /** Distance of a label's centre from the node's side. */
-  const labelOffset = (v: number) => ARROW + 2 + o.labelHeight / 2 + v * o.labelHeight;
+  const labelOffset = (v: number) => ARROW + 2 + labelAlong / 2 + v * labelAlong;
   const room = (slot: number, side: Side) => {
     const n = levels.get(`${slot}${side}`) ?? 0;
     return n > 0 ? stub(n - 1) : 0;
@@ -378,7 +414,7 @@ export function layoutGraph<L extends GraphLink>(graph: readonly GraphNode[], li
   const needTop = (r: number) => Math.max(0, ...nodesIn(r).map(s => room(s, 't')));
   const needBottom = (r: number) => Math.max(0, ...nodesIn(r).map(s => room(s, 'b')));
   const height = new Array<number>(rows).fill(0);
-  for (const n of graph) height[n.row] = Math.max(height[n.row]!, o.heights?.get(n.id) ?? o.nodeHeight);
+  for (const n of graph) height[n.row] = Math.max(height[n.row]!, along(n));
   const top: number[] = [];
   for (let r = 0; r < rows; r++) {
     top.push(r === 0
@@ -428,26 +464,35 @@ export function layoutGraph<L extends GraphLink>(graph: readonly GraphNode[], li
     return { link: l, points: pts, arc: undefined, label };
   });
 
-  // Everything into view, with the padding on the top and left too (labels may reach past the outer nodes).
-  const nodeBoxes = byRow.flatMap(row => row.filter(s => slots[s]!.node).map(s => ({ s, x: x[s]! - slots[s]!.size / 2, y: topOf(s) })));
-  const minX = Math.min(...nodeBoxes.map(b => b.x), ...edges.flatMap(e => [...e.points.map(p => p.x), e.label.x - e.label.width / 2]));
-  const minY = Math.min(...nodeBoxes.map(b => b.y), ...edges.flatMap(e => [...e.points.map(p => p.y), e.label.y - o.labelHeight / 2, e.arc ?? Infinity]));
+  // On the page (turned left to right), then everything into view, with the padding on the top and left too (labels
+  // may reach past the outer nodes).
+  const boxes = byRow.flatMap((row, r) => row.filter(s => slots[s]!.node).map((s, order) => {
+    const a = { x: x[s]! - slots[s]!.size / 2, y: topOf(s), width: slots[s]!.size, height: height[r]! };
+    const box = right ? { x: a.y, y: a.x, width: a.height, height: a.width } : a;
+    return { item: slots[s]!.node!, row: r, order, ...box };
+  }));
+  const placed = edges.map(e => ({
+    e, points: e.points.map(page), label: page(e.label), arc: e.arc === undefined ? undefined : page({ x: e.points[0]!.x, y: e.arc }),
+  }));
+  const minX = Math.min(...boxes.map(b => b.x), ...placed.flatMap(p => [...p.points.map(q => q.x), p.label.x - o.labelWidth / 2, p.arc?.x ?? Infinity]));
+  const minY = Math.min(...boxes.map(b => b.y), ...placed.flatMap(p => [...p.points.map(q => q.y), p.label.y - o.labelHeight / 2, p.arc?.y ?? Infinity]));
   const dx = o.padding - minX;
   const dy = o.padding - minY;
-  const move = (p: Point): Point => ({ x: p.x + dx, y: p.y + dy });
+  // Shifted in the flow's axes, so the paths can be drawn there.
+  const shift = page({ x: dx, y: dy });
+  const moveFlow = (p: Point): Point => ({ x: p.x + shift.x, y: p.y + shift.y });
 
-  const nodes: DiagramNode[] = byRow.flatMap((row, r) => row.filter(s => slots[s]!.node).map((s, order) => ({
-    item: slots[s]!.node!, row: r, order, x: x[s]! - slots[s]!.size / 2 + dx, y: topOf(s) + dy, width: slots[s]!.size, height: height[r]!,
-  })));
+  const nodes: DiagramNode[] = boxes.map(b => ({ ...b, x: b.x + dx, y: b.y + dy }));
   const out: DiagramEdge<L>[] = edges.map(e => {
-    const points = e.points.map(move);
-    const label = { ...move(e.label), width: e.label.width };
+    const flow = e.points.map(moveFlow);
+    const points = flow.map(page);
+    const label = { ...page(moveFlow(e.label)), width: e.label.width };
     let path: string;
     if (e.arc !== undefined) {
-      const [s, , end, t] = points as [Point, Point, Point, Point];
-      const cy = r1(e.arc + dy);
-      path = `M${r1(s.x)} ${r1(s.y)} C${r1(s.x)} ${cy} ${r1(end.x)} ${cy} ${r1(end.x)} ${r1(end.y)} L${r1(t.x)} ${r1(t.y)}`;
-    } else path = curve(points);
+      const [s, , end, t] = flow as [Point, Point, Point, Point];
+      const cy = e.arc + shift.y;
+      path = `M${xy(page(s))} C${xy(page({ x: s.x, y: cy }))} ${xy(page({ x: end.x, y: cy }))} ${xy(page(end))} L${xy(page(t))}`;
+    } else path = curve(flow, page);
     return { ...e.link, points, path, label } as DiagramEdge<L>;
   });
 
