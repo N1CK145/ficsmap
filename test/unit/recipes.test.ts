@@ -164,7 +164,7 @@ describe('recipe data from the game docs', () => {
     expect(() => buildRecipeData(parse('en', wrong), parse('de'))).toThrow(/computed rate 60\/min, the description says 120/);
   });
 
-  it('reads stack sizes (fluids in m³) and the belt and lift rates (mSpeed / 2)', () => {
+  it('reads stack sizes (fluids in m³), the belt and lift rates (mSpeed / 2) and the pipeline flow limits (mFlowLimit m³/s × 60)', () => {
     const logistics = (d2: ReturnType<typeof docs>) => {
       (d2 as Groups)[1]!.Classes[0]!.mCachedStackSize = '100';
       (d2 as Groups)[0]!.Classes[1]!.mCachedStackSize = '50000';
@@ -174,6 +174,10 @@ describe('recipe data from the game docs', () => {
           { ClassName: 'Build_ConveyorBeltMk1_C', mDisplayName: 'Conveyor Belt Mk.1', mSpeed: '120.000000' },
         ] },
         { NativeClass: native('FGBuildableConveyorLift'), Classes: [{ ClassName: 'Build_ConveyorLiftMk1_C', mDisplayName: 'Conveyor Lift Mk.1', mSpeed: '120.000000' }] },
+        { NativeClass: native('FGBuildablePipeline'), Classes: [
+          { ClassName: 'Build_PipelineMK2_C', mDisplayName: 'Pipeline Mk.2', mFlowLimit: '10.000000' },
+          { ClassName: 'Build_Pipeline_C', mDisplayName: 'Pipeline Mk.1', mFlowLimit: '5.000000' },
+        ] },
       );
     };
     const d = buildRecipeData(parse('en', logistics), parse('de', logistics));
@@ -183,7 +187,9 @@ describe('recipe data from the game docs', () => {
     expect(d.belts?.map(b => [b.id, b.kind, b.rate])).toEqual([
       ['Build_ConveyorBeltMk1_C', 'belt', 60], ['Build_ConveyorLiftMk1_C', 'lift', 60], ['Build_ConveyorBeltMk2_C', 'belt', 120],
     ]);
+    expect(d.pipes?.map(p => [p.id, p.rate])).toEqual([['Build_Pipeline_C', 300], ['Build_PipelineMK2_C', 600]]);
     expect(buildRecipeData(parse('en'), parse('de')).belts).toBeUndefined();
+    expect(buildRecipeData(parse('en'), parse('de')).pipes).toBeUndefined();
   });
 
   it('fails on data it cannot represent', () => {

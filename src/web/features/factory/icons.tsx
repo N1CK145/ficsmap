@@ -48,3 +48,13 @@ export const LocateIcon = ({ size = 14 }: { size?: number }) => (
 export const FullIcon = ({ size = 12 }: { size?: number }) => (
   <Icon size={size}><path d="M8 2L14.5 13.5h-13zM8 6.5v3.5M8 12v.01" /></Icon>
 );
+
+/** The line's bottleneck: an exclamation mark in an octagon (a stop sign), apart from a merely full belt's triangle. */
+export const NeckIcon = ({ size = 12 }: { size?: number }) => (
+  <Icon size={size}><path d="M5.5 1.5h5l4 4v5l-4 4h-5l-4-4v-5zM8 4.5v4.5M8 11.5v.01" /></Icon>
+);
+
+/** A full belt that carries exactly what is made: an equals sign (no warning). */
+export const ExactIcon = ({ size = 12 }: { size?: number }) => (
+  <Icon size={size}><path d="M3 6h10M3 10h10" /></Icon>
+);

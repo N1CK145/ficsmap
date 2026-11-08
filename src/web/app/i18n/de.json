@@ -1001,7 +1001,8 @@
       "mw": "{value} MW",
       "playTime": "{h} h {m} min",
       "minSec": "{m} min {s} s",
-      "sec": "{s} s"
+      "sec": "{s} s",
+      "points": "{value} Pkt."
     },
     "reason": {
       "paused": "Pausiert",
@@ -1019,7 +1020,7 @@
       "noRecipe": "Kein Rezept eingestellt.",
       "noFuel": "Der Generator hat keinen Treibstoff mehr.",
       "starved": "Mangel: Ein Eingang war leer, es kommen zu wenig Zutaten an.",
-      "blocked": "Stau: Der Ausgang war voll, das Förderband oder Rohr nimmt weniger ab, als sie herstellt.",
+      "blocked": "Stau: Der Ausgang war voll, das Förderband oder die Pipeline nimmt weniger ab, als sie herstellt.",
       "unknown": "Sie lief beim Speichern, aber nicht während der ganzen letzten Messung (5 min): meist ungleichmäßiger Nachschub.",
       "surplus": "Überschuss: Der Extraktor fördert mehr, als abgenommen wird (Ausgang voll). Zählt nicht als ineffizient."
     },
@@ -1049,7 +1050,8 @@
       "tooltip": "{buildings} Gebäude · {machines} Maschinen · Ø Produktivität {productivity}",
       "compare": "Vergleichen mit",
       "compareWith": "Spielstand zum Vergleich",
-      "comparedLegend": "Vergleichsstand"
+      "comparedLegend": "Vergleichsstand",
+      "toChanges": "Änderungen ↓"
     },
     "kpi": {
       "label": "Kennzahlen der Fabrik",
@@ -1070,21 +1072,18 @@
       "title": "Produktionsstränge",
       "subtitle": "{count, plural, one {# Strang} other {# Stränge}} · {machines, plural, one {# Maschine} other {# Maschinen}}",
       "listLabel": "Produktionsstränge",
-      "more": "{list} +{count, number}",
       "view": "Strang zeigen als",
       "viewDiagram": "Diagramm",
       "viewMap": "Karte",
       "groupTitle": "{count, number}× {name}",
       "rateOf": "{actual} von {nominal}",
-      "rateOfCapacity": "{rate} von {capacity}",
       "of": "von {value}",
-      "connection": "Verbindung",
       "makes": "Stellt her",
       "needs": "Braucht",
       "members": "Gebäude dieser Gruppe",
       "groupsLabel": "Gruppen dieses Strangs",
       "close": "{name} schließen",
-      "none": "In diesem Spielstand gibt es keine Produktionsstränge: Keine Maschinen sind über Förderbänder oder Rohre verbunden.",
+      "none": "In diesem Spielstand gibt es keine Produktionsstränge: Keine Maschinen sind über Förderbänder oder Pipelines verbunden.",
       "noLinks": "Verbindungen fehlen in diesem Spielstand. Importiere den Spielstand erneut, um die Produktionsstränge zu sehen.",
       "reimport": "Spielstand erneut importieren",
       "noLinksMember": "{owner} besitzt diese Welt und kann ihn erneut importieren.",
@@ -1108,26 +1107,49 @@
         "paused": "Pausiert"
       },
       "bottleneck": {
-        "badge": "Engpass",
-        "edge": "Engpass: {belt} zwischen {from} und {to}",
-        "edgeFlow": "Engpass: {belt} zwischen {from} und {to} ({flow}, voll)",
-        "group": "Engpass: {group} · {why}",
-        "demand": "es wird weniger abgenommen, als sie herstellt"
+        "badge": "Engpass"
       },
       "diagram": {
         "label": "Produktionsstrang {name}",
-        "hint": "Zulieferung oben, Produkte unten; an jedem Förderband und Rohr die Menge pro Minute und seine Kapazität. Wähle eine Gruppe, um ihre Maschinen zu sehen; die Pfeiltasten wechseln zwischen den Gruppen, Escape schließt die Gruppe."
+        "hint": "Zulieferung oben, Produkte unten; an jedem Förderband und jeder Pipeline die Menge pro Minute und ihre Kapazität. Wähle eine Gruppe, um ihre Maschinen zu sehen; die Pfeiltasten wechseln zwischen den Gruppen, Escape schließt die Gruppe."
       },
       "legend": {
-        "load": "Dicker = vollere Förderbänder und Rohre",
-        "full": "Voll (≥ 95 %)",
+        "load": "Dicker = vollere Förderbänder und Pipelines",
+        "full": "Voll (≥ 95 %), davor staut es sich",
         "byproduct": "Nebenprodukt",
         "loop": "Zurück in den Strang",
         "hidden": "{count, plural, one {# Pumpe, Ventil oder Verteiler} other {# Pumpen, Ventile und Verteiler}} ohne Abzweig ausgeblendet",
-        "estimated": "Mengen über Splitter, Fusionatoren und Zwischenlager sind geschätzt: Der Spielstand sagt nicht, welche Maschine wohin liefert."
+        "estimated": "Mengen über Splitter, Fusionatoren und Zwischenlager sind geschätzt: Der Spielstand sagt nicht, welche Maschine wohin liefert.",
+        "exact": "Voll, reicht genau",
+        "neck": "Engpass",
+        "idle": "{count, plural, one {# leeres Lager oder Station} other {# leere Lager und Stationen}} ausgeblendet",
+        "folded": "{count, plural, one {# Nebenprodukt-Verbindung} other {# Nebenprodukt-Verbindungen}} eingeklappt"
       },
       "logisticsInDiagram": "{count, plural, one {# Logistikgebäude} other {# Logistikgebäude}} (Splitter, Lager, Stationen) im Diagramm darunter.",
-      "machinesOnly": "Nur Maschinen"
+      "machinesOnly": "Nur Maschinen",
+      "capacityEach": "{count, number}× {belt} (je {each})",
+      "belt": "Förderband",
+      "pipe": "Pipeline",
+      "neck": {
+        "capacity": "{belt} voll zwischen {from} und {to} ({flow}) – {fix}",
+        "connection": "Verbindung prüfen: {belt} zwischen {from} und {to} führt kaum etwas ({flow})",
+        "fixTier": "auf {next} aufrüsten",
+        "fixBelt": "ein zweites Förderband legen",
+        "fixPipe": "eine zweite Pipeline legen",
+        "shortOutside": "{group}: Mangel an {item} – {supply} von {need} kommen an, von außerhalb des Strangs (Lager oder Station)",
+        "shortMakers": "{group}: Mangel an {item} – {supply} von {need} kommen an, Zulieferer laufen {pct}",
+        "shortFull": "{group}: Mangel an {item} – {supply} von {need} kommen an, Zulieferer laufen {pct} ({fix})",
+        "fixMiner": "übertakten, {miner} oder weitere Vorkommen",
+        "fixExtractor": "übertakten oder weitere Vorkommen",
+        "fixMakers": "mehr Hersteller bauen oder übertakten",
+        "demand": "{group}: Abnehmer brauchen nicht mehr – mehr Abnehmer oder AWESOME-Schredder",
+        "group": "{group}: {why}"
+      },
+      "exact": "reicht genau",
+      "limit": "Grenze:",
+      "byproducts": "Nebenprodukte",
+      "moreRight": "mehr →",
+      "limitBadge": "Grenze"
     },
     "items": {
       "title": "Ineffiziente Gegenstände",
@@ -1153,20 +1175,27 @@
       "consumerGroup": "{name} {count, number}",
       "reasonCount": "{count, number} {reason}",
       "fine": "{count, number} voll",
-      "transport": "Transport dazwischen begrenzt: Die Hersteller stauen sich, während Abnehmer auf Nachschub warten. Förderbänder, Rohre oder Fahrzeuge dazwischen schaffen zu wenig.",
+      "transport": "Transport dazwischen begrenzt: Die Hersteller stauen sich, während Abnehmer im selben Strang auf genau diesen Gegenstand warten. Förderbänder, Pipelines oder Fahrzeuge dazwischen schaffen zu wenig.",
       "endsHere": {
         "noConsumer": "Stau endet hier: Kein Abnehmer in dieser Fabrik.",
-        "transport": "Stau endet hier: Der Transport zu den Abnehmern schafft zu wenig.",
-        "demand": "Stau endet hier: Die Abnehmer laufen und brauchen nicht mehr."
+        "transport": "Stau endet hier: Die Abnehmer warten darauf, der Transport dazwischen schafft zu wenig.",
+        "demand": "Stau endet hier: Die Abnehmer laufen und brauchen nicht mehr – mehr Abnehmer oder AWESOME-Schredder.",
+        "capacity": "Stau endet hier: Das Förderband oder die Pipeline zu den Abnehmern ist voll – schneller ausbauen.",
+        "connection": "Stau endet hier: Das Band zu den Abnehmern führt kaum etwas, obwohl sie darauf warten – Verbindung prüfen.",
+        "vehicles": "Stau endet hier: Es liegt an Ladestationen, die Fahrzeuge holen zu wenig ab."
       },
       "jamEnds": "Stau endet bei",
       "why": {
         "noConsumer": "kein Abnehmer",
-        "transport": "Transport begrenzt",
-        "demand": "Abnehmer brauchen nicht mehr"
+        "transport": "Transport dazwischen prüfen",
+        "demand": "Abnehmer brauchen nicht mehr – mehr Abnehmer oder AWESOME-Schredder",
+        "capacity": "Förderband oder Pipeline voll – schneller ausbauen",
+        "connection": "Verbindung prüfen – Band führt kaum etwas",
+        "vehicles": "Fahrzeuge holen zu wenig ab"
       },
       "makers": "Hersteller",
-      "outputOf": "Ist {actual} von {nominal}"
+      "outputOf": "Ist {actual} von {nominal}",
+      "moreInGroup": "{count, plural, one {# weiterer zeigen} other {# weitere zeigen}}"
     },
     "machines": {
       "title": "Maschinen",
@@ -1190,7 +1219,8 @@
       "noMatch": "Keine Maschine passt zum Filter.",
       "allFine": "Keine Maschine ist ineffizient.",
       "inefficientCount": "{count, number} ineffizient",
-      "filtered": "Maschinen: {filter}"
+      "filtered": "Maschinen: {filter}",
+      "inefficientOf": "Ineffiziente Maschinen: {filter}"
     },
     "routes": {
       "title": "Stationen und Fahrzeuge",
@@ -1223,18 +1253,24 @@
       "intervalEach": "Intervall je Fahrzeug {time}",
       "fill": "Füllung {value}",
       "fillApprox": "Füllung ≈ {value}",
-      "fillHint": "Gegenstände je Halt im Verhältnis zum Laderaum (Stapel × Stapelgröße der geladenen Gegenstände)",
+      "fillHint": "Gegenstände je Halt im Verhältnis zum Laderaum (Stapel × Stapelgröße der geladenen Gegenstände). Unter 5 % oder unter 1 Gegenstand pro Minute: kaum Durchsatz.",
       "cargo": "Ladung",
       "cargoNone": "leer",
       "problem": {
         "noVehicles": "Kein Fahrzeug hält hier",
-        "nothingMoved": "Fahrzeuge halten, bewegen nichts"
+        "nothingMoved": "Fahrzeuge halten, bewegen nichts",
+        "lowThroughput": "Kaum Durchsatz"
       },
       "problems": "{count, plural, one {# Station mit Problem} other {# Stationen mit Problem}}",
       "emptyLegs": "Leerfahrt bei {stations}",
       "fuelNamed": "{fuel}: {amount, number} im Tank",
       "noFuelNamed": "{fuel}: kein Treibstoff",
-      "carries": "Hat geladen"
+      "carries": "Hat geladen",
+      "consumersShort": "Abnehmer: {count, number} von {total, number} mit Mangel",
+      "consumersFine": "Abnehmer: {count, number} ohne Mangel",
+      "notEnough": "Zu wenig für {station}: {count, plural, one {# Abnehmer wartet} other {# Abnehmer warten}} auf {item}",
+      "repeat": "wie Halt {n}",
+      "stopShort": "Mangel"
     },
     "changes": {
       "title": "Änderungen",
@@ -1257,7 +1293,16 @@
       "to": "auf",
       "logistics": "Logistik",
       "logisticsHint": "Förderbänder, Förderlifte, Förderbandsplitter, Förderband-Fusionatoren, Stützen, Pipeline-Kreuzungen, Strommasten und Hypertubes",
-      "logisticsCount": "{count, plural, one {# Art} other {# Arten}}"
+      "logisticsCount": "{count, plural, one {# Art} other {# Arten}}",
+      "summary": "Zusammenfassung",
+      "row": {
+        "machines": "Maschinen",
+        "logistics": "Logistik",
+        "foundations": "Fundamente",
+        "other": "Sonstiges"
+      },
+      "none": "unverändert",
+      "logisticsFoundations": "Logistik und Fundamente"
     },
     "empty": {
       "title": "Noch keine Fabrikdaten",
@@ -1277,8 +1322,15 @@
         "beltLimits": "{belt} begrenzt auf {rate}",
         "beltBehind": "Vermutlich {belt} dahinter ({rate})",
         "noBelt": "Kein Förderband angeschlossen",
-        "overclockUseless": "Übertakten bringt nichts ({shards, plural, one {# Energiefragment} other {# Energiefragmente}} frei)"
+        "overclockUseless": "Übertakten bringt derzeit nichts ({shards, plural, one {# Energiefragment} other {# Energiefragmente}} frei)",
+        "sharedBeltFull": "Gemeinsames {belt} voll ({rate}): staut sich davor",
+        "beltExact": "{belt} danach voll, reicht genau ({rate})"
       }
+    },
+    "top": {
+      "title": "Größter Engpass",
+      "diagram": "Zum Diagramm",
+      "map": "Auf der Karte"
     }
   },
   "factoryMap": {
@@ -1298,7 +1350,7 @@
     "layers": {
       "floor": "Grundriss",
       "buildings": "Gebäude",
-      "lines": "Förderbänder und Rohre",
+      "lines": "Förderbänder und Pipelines",
       "power": "Stromleitungen",
       "roads": "Wege, Stationen, Fahrzeuge",
       "markers": "Kartenmarkierungen",
@@ -1314,7 +1366,7 @@
       "structure": "Fundamente"
     },
     "showOnMapHint": "Auf der Karte umranden und hinzoomen",
-    "clearHighlight": "Umrandung aufheben ({count, plural, one {# Gebäude} other {# Gebäude}})",
+    "clearHighlight": "Markierung aufheben ({count, plural, one {# Gebäude} other {# Gebäude}})",
     "perMin": "{value} /min",
     "noMeasurement": "Keine Produktivität gemessen",
     "productivityValue": "Produktivität {value}",
@@ -1401,7 +1453,7 @@
       "added": "{count, plural, one {+{n} Gebäude} other {+{n} Gebäude}}",
       "removed": "{count, plural, one {−{n} entfernt} other {−{n} entfernt}}",
       "floor": "Fundamente +{added} −{removed}",
-      "lines": "Förderbänder, Rohre, Wege +{added} −{removed}",
+      "lines": "Förderbänder, Pipelines, Wege +{added} −{removed}",
       "nothingToCompare": "Kein anderer Spielstand zum Vergleichen.",
       "better": "{count, plural, one {{n} besser} other {{n} besser}}",
       "worse": "{count, plural, one {{n} schlechter} other {{n} schlechter}}",

@@ -1,5 +1,5 @@
 import {
-  analyzeFactory, analyzeRoutes, bandOf, beltAt, beltHints, compareItems, consumerGroups, diffFactory, filterMachines, itemCause,
+  analyzeFactory, analyzeRoutes, bandOf, stationProblem, type StationVisit, beltAt, beltHints, compareItems, consumerGroups, diffFactory, filterMachines, itemCause,
   loadStackSize, machineFlow, outputPoint, reasonsOf, type AnalysisData, type ItemFlow,
 } from '../../src/shared/factory/analysis.js';
 import { indexBuildings } from '../../src/shared/buildings.js';
@@ -283,6 +283,25 @@ describe('analyzeRoutes', () => {
     // A once × 120 s, B twice × 60 s, X unknown
     expect(t1.roundTrip).toBe(120);
     expect(r.vehicles[1]).toMatchObject({ stops: [], loadedPerMin: null, roundTrip: null, fuel: null });
+  });
+
+  it('a station visited twice carries its figures at the first stop only', () => {
+    const t1 = r.vehicles[0]!;
+    expect(t1.stops.map(x => x.repeat)).toEqual([undefined, undefined, undefined, 2]);
+  });
+});
+
+describe('stationProblem: one rule for the page and the map', () => {
+  const visit = (v: Partial<StationVisit>): StationVisit => ({
+    vehicle: 'T', empty: false, fill: null, fillApprox: false, itemsPerDock: 10, interval: 60, itemsPerMin: 10, capacityStacks: 25, capacityFluid: null, ...v,
+  });
+  it('no vehicle, nothing moved, hardly anything moved (under 1/min or holds under 5 % full), else none', () => {
+    expect(stationProblem({ visits: [], itemsPerMin: null, fill: null })).toBe('noVehicles');
+    expect(stationProblem({ visits: [visit({ empty: true, itemsPerMin: 0 })], itemsPerMin: 0, fill: 0 })).toBe('nothingMoved');
+    expect(stationProblem({ visits: [visit({ itemsPerMin: 0.5 })], itemsPerMin: 0.5, fill: null })).toBe('lowThroughput');
+    expect(stationProblem({ visits: [visit({})], itemsPerMin: 40, fill: 0.03 })).toBe('lowThroughput');
+    expect(stationProblem({ visits: [visit({})], itemsPerMin: 40, fill: 0.2 })).toBeNull();
+    expect(stationProblem({ visits: [visit({})], itemsPerMin: 40, fill: null })).toBeNull();
   });
 });
 

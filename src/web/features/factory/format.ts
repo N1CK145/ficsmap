@@ -32,6 +32,8 @@ export function useFactoryFormat() {
       pct: (p: number) => t('factory.unit.pct', { value: whole.format(Math.round(p * 100)) }),
       /** Signed percentage points ("+3 %", "−12 %"). */
       pctDelta: (d: number) => sign(Math.round(d * 100), t('factory.unit.pct', { value: whole.format(Math.abs(Math.round(d * 100))) })),
+      /** Signed percentage points of a mean productivity ("+8 Pkt.", "−3 pts"): a change of a percentage. */
+      pointsDelta: (d: number) => sign(Math.round(d * 100), t('factory.unit.points', { value: whole.format(Math.abs(Math.round(d * 100))) })),
       intDelta: (d: number) => sign(d, whole.format(Math.abs(d))),
       rateDelta: (d: number, fluid = false) => sign(Math.round(d * 10), t(fluid ? 'factory.unit.fluid' : 'factory.unit.solid', { value: one.format(Math.abs(clean(d))) })),
       mw: (n: number) => t('factory.unit.mw', { value: whole.format(n) }),

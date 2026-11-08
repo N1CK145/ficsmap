@@ -139,18 +139,19 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('production lines: order, words and load', () => {
-  it('lists lines with a problem first, then the bigger ones', () => {
-    expect(sortLines(LINES.lines).map(l => l.id)).toEqual(['c1', 'q1', 'i4']);
+  it('lists lines with a problem first, then by lost machine-equivalents (as the Fabrik page)', () => {
+    // Screws lose 0.8 machine-equivalents, copper 0.4.
+    expect(sortLines(LINES.lines).map(l => l.id)).toEqual(['q1', 'c1', 'i4']);
     expect(lineHasIssue(IRON)).toBe(false);
     // Running out of takers is the end of a line, not a fault in it.
     expect(lineHasIssue({ ...SCREWS, bottleneck: { kind: 'group', group: 'gQ', why: 'demand' } })).toBe(false);
   });
 
-  it('names a line after its main product and its bottleneck in words', () => {
+  it('names a line and its bottleneck as the Fabrik page does', () => {
     expect(lineName(COPPER, LABELS, 'en')).toBe('Wire');
-    expect(lineName({ ...COPPER, products: [...COPPER.products, { item: 'Desc_Cable_C', perMin: 5 }] }, LABELS, 'en')).toBe('Wire +1');
-    expect(bottleneckText(COPPER, LABELS, 'en', t)).toBe('factoryMap.lines.edgeFull{"link":"Conveyor Belt Mk.1","from":"Smelter","to":"Constructor"}');
-    expect(bottleneckText(SCREWS, LABELS, 'en', t)).toBe('factoryMap.lines.groupIssue{"name":"Constructor","why":"factory.reason.starved"}');
+    expect(lineName({ ...COPPER, products: [...COPPER.products, { item: 'Desc_Cable_C', perMin: 5 }] }, LABELS, 'en')).toBe('Wire, Cable');
+    expect(bottleneckText(COPPER, LABELS, 'en', t)).toMatch(/^factory\.lines\.neck\.capacity\{"belt":"Conveyor Belt Mk\.1","from":"2× Smelter","to":"1× Constructor"/);
+    expect(bottleneckText(SCREWS, LABELS, 'en', t)).toBe('factory.lines.neck.group{"group":"1× Constructor","why":"factory.reason.starved"}');
     expect(bottleneckText(IRON, LABELS, 'en', t)).toBeNull();
   });
 
@@ -288,8 +289,8 @@ describe('production lines: panel list', () => {
     const list = await within(section).findByRole('list', { name: 'Production lines' });
     const rows = within(list).getAllByRole('button');
     expect(rows.map(r => r.textContent)).toEqual([
-      expect.stringMatching(/^Wire.*3 machines.*80 %$/),
       expect.stringMatching(/^Iron Screw.*1 machine.*20 %$/),
+      expect.stringMatching(/^Wire.*3 machines.*80 %$/),
       expect.stringMatching(/^Iron Plate.*4 machines.*100 %$/),
     ]);
     expect(rows[0]).toHaveTextContent('With a bottleneck:');
@@ -297,14 +298,14 @@ describe('production lines: panel list', () => {
     expect(screen.getByText('3 lines, 2 with a bottleneck')).toBeInTheDocument();
 
     await user.hover(rows[1]!);
-    expect(useFactoryMap.getState().hoverLineId).toBe('q1');
+    expect(useFactoryMap.getState().hoverLineId).toBe('c1');
     await user.unhover(rows[1]!);
     expect(useFactoryMap.getState().hoverLineId).toBeNull();
     act(() => rows[2]!.focus());
     expect(useFactoryMap.getState().hoverLineId).toBe('i4');
 
     await user.click(rows[0]!);
-    expect(useFactoryView.getState().lineId).toBe('c1');
+    expect(useFactoryView.getState().lineId).toBe('q1');
     expect(useFactoryMap.getState().fittedLineId).toBeNull();
     expect(useFactoryMap.getState().pendingFocus).toBe(true);
     expect(useFactoryMap.getState().returnFocus === rows[0]).toBe(true);
@@ -352,7 +353,7 @@ describe('production lines: card', () => {
     const card = await screen.findByTestId('factory-line-card');
     const info = screen.getByRole('complementary', { name: 'Wire' });
     expect(info).toHaveTextContent('Production line');
-    expect(card).toHaveTextContent('Bottleneck: Conveyor Belt Mk.1 full between Smelter and Constructor');
+    expect(card).toHaveTextContent('Bottleneck: Conveyor Belt Mk.1 full between 2× Smelter and 1× Constructor');
     expect(card).toHaveTextContent('30.0/min of target 40.0/min');
     // The machines by class, each a button that outlines them on the map.
     const machines = within(card).getByTestId('factory-line-machines');

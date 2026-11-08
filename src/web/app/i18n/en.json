@@ -1001,7 +1001,8 @@
       "mw": "{value} MW",
       "playTime": "{h} h {m} min",
       "minSec": "{m} min {s} s",
-      "sec": "{s} s"
+      "sec": "{s} s",
+      "points": "{value} pts"
     },
     "reason": {
       "paused": "Paused",
@@ -1019,7 +1020,7 @@
       "noRecipe": "No recipe set.",
       "noFuel": "The generator has no fuel left.",
       "starved": "Shortage: an input slot was empty, not enough ingredients arrive.",
-      "blocked": "Backed up: the output was full, the belt or pipe takes less than it makes.",
+      "blocked": "Backed up: the output was full, the belt or pipeline takes less than it makes.",
       "unknown": "It was running when saved, but not for the whole last measurement (5 min): usually an uneven supply.",
       "surplus": "Surplus: the extractor makes more than is taken off (output full). Does not count as inefficient."
     },
@@ -1049,7 +1050,8 @@
       "tooltip": "{buildings} buildings · {machines} machines · Ø productivity {productivity}",
       "compare": "Compare with",
       "compareWith": "Save to compare with",
-      "comparedLegend": "compared save"
+      "comparedLegend": "compared save",
+      "toChanges": "Changes ↓"
     },
     "kpi": {
       "label": "Factory figures",
@@ -1070,21 +1072,18 @@
       "title": "Production lines",
       "subtitle": "{count, plural, one {# line} other {# lines}} · {machines, plural, one {# machine} other {# machines}}",
       "listLabel": "Production lines",
-      "more": "{list} +{count, number}",
       "view": "Show line as",
       "viewDiagram": "Diagram",
       "viewMap": "Map",
       "groupTitle": "{count, number}× {name}",
       "rateOf": "{actual} of {nominal}",
-      "rateOfCapacity": "{rate} of {capacity}",
       "of": "of {value}",
-      "connection": "Connection",
       "makes": "Makes",
       "needs": "Needs",
       "members": "Buildings of this group",
       "groupsLabel": "Groups of this line",
       "close": "Close {name}",
-      "none": "No production lines found in this save: no machines are connected by belts or pipes.",
+      "none": "No production lines found in this save: no machines are connected by belts or pipelines.",
       "noLinks": "Connections are missing in this save. Import the save again to see the production lines.",
       "reimport": "Import save again",
       "noLinksMember": "{owner} owns this world and can import it again.",
@@ -1108,26 +1107,49 @@
         "paused": "Paused"
       },
       "bottleneck": {
-        "badge": "Bottleneck",
-        "edge": "Bottleneck: {belt} between {from} and {to}",
-        "edgeFlow": "Bottleneck: {belt} between {from} and {to} ({flow}, full)",
-        "group": "Bottleneck: {group} · {why}",
-        "demand": "less is taken off than it makes"
+        "badge": "Bottleneck"
       },
       "diagram": {
         "label": "Production line {name}",
-        "hint": "Inputs at the top, products at the bottom; on each belt or pipe the flow per minute and its capacity. Select a group to see its machines; the arrow keys move between the groups, Escape closes the group."
+        "hint": "Inputs at the top, products at the bottom; on each belt or pipeline the flow per minute and its capacity. Select a group to see its machines; the arrow keys move between the groups, Escape closes the group."
       },
       "legend": {
-        "load": "Thicker = fuller belt or pipe",
-        "full": "Full (≥ 95 %)",
+        "load": "Thicker = fuller belt or pipeline",
+        "full": "Full (≥ 95 %), backing up before it",
         "byproduct": "By-product",
         "loop": "Back into the line",
         "hidden": "{count, plural, one {# pump, valve or splitter} other {# pumps, valves and splitters}} without a branch left out",
-        "estimated": "Flows through splitters, mergers and buffers are estimated: the save does not say which machine's items take which way."
+        "estimated": "Flows through splitters, mergers and buffers are estimated: the save does not say which machine's items take which way.",
+        "exact": "Full, just enough",
+        "neck": "Bottleneck",
+        "idle": "{count, plural, one {# empty storage or station} other {# empty storage and stations}} left out",
+        "folded": "{count, plural, one {# by-product link} other {# by-product links}} folded"
       },
       "logisticsInDiagram": "{count, plural, one {# logistics building} other {# logistics buildings}} (splitters, storage, stations) are in the diagram below.",
-      "machinesOnly": "Machines only"
+      "machinesOnly": "Machines only",
+      "capacityEach": "{count, number}× {belt} ({each} each)",
+      "belt": "Conveyor belt",
+      "pipe": "Pipeline",
+      "neck": {
+        "capacity": "{belt} full between {from} and {to} ({flow}) – {fix}",
+        "connection": "Check the connection: {belt} between {from} and {to} carries next to nothing ({flow})",
+        "fixTier": "upgrade to {next}",
+        "fixBelt": "lay a second belt",
+        "fixPipe": "lay a second pipeline",
+        "shortOutside": "{group}: short of {item} – {supply} of {need} arrive, from outside the line (storage or a station)",
+        "shortMakers": "{group}: short of {item} – {supply} of {need} arrive, suppliers run at {pct}",
+        "shortFull": "{group}: short of {item} – {supply} of {need} arrive, suppliers run at {pct} ({fix})",
+        "fixMiner": "overclock, {miner} or more nodes",
+        "fixExtractor": "overclock or more nodes",
+        "fixMakers": "build more makers or overclock",
+        "demand": "{group}: consumers need no more – more consumers or an AWESOME Sink",
+        "group": "{group}: {why}"
+      },
+      "exact": "just enough",
+      "limit": "Limit:",
+      "byproducts": "By-products",
+      "moreRight": "more →",
+      "limitBadge": "Limit"
     },
     "items": {
       "title": "Inefficient items",
@@ -1153,20 +1175,27 @@
       "consumerGroup": "{name} {count, number}",
       "reasonCount": "{count, number} {reason}",
       "fine": "{count, number} full",
-      "transport": "Transport in between is the limit: the makers back up while consumers wait for supply. The belts, pipes or vehicles in between carry too little.",
+      "transport": "Transport in between is the limit: the makers back up while consumers in the same line wait for this very item. The belts, pipelines or vehicles in between carry too little.",
       "endsHere": {
         "noConsumer": "The jam ends here: no consumer in this factory.",
-        "transport": "The jam ends here: the transport to the consumers carries too little.",
-        "demand": "The jam ends here: the consumers run and need no more."
+        "transport": "The jam ends here: the consumers wait for it, the transport in between carries too little.",
+        "demand": "The jam ends here: the consumers run and need no more – more consumers or an AWESOME Sink.",
+        "capacity": "The jam ends here: the belt or pipeline to the consumers is full – upgrade it.",
+        "connection": "The jam ends here: the belt to the consumers carries next to nothing while they wait for it – check the connection.",
+        "vehicles": "The jam ends here: it waits at loading stations, the vehicles take too little away."
       },
       "jamEnds": "The jam ends at",
       "why": {
         "noConsumer": "no consumer",
-        "transport": "transport limited",
-        "demand": "consumers need no more"
+        "transport": "check the transport in between",
+        "demand": "consumers need no more – more consumers or an AWESOME Sink",
+        "capacity": "belt or pipeline full – upgrade it",
+        "connection": "check the connection – the belt carries next to nothing",
+        "vehicles": "vehicles take too little away"
       },
       "makers": "Makers",
-      "outputOf": "Actual {actual} of {nominal}"
+      "outputOf": "Actual {actual} of {nominal}",
+      "moreInGroup": "{count, plural, one {Show # more} other {Show # more}}"
     },
     "machines": {
       "title": "Machines",
@@ -1190,7 +1219,8 @@
       "noMatch": "No machine matches the filter.",
       "allFine": "No machine is inefficient.",
       "inefficientCount": "{count, number} inefficient",
-      "filtered": "Machines: {filter}"
+      "filtered": "Machines: {filter}",
+      "inefficientOf": "Inefficient machines: {filter}"
     },
     "routes": {
       "title": "Stations and vehicles",
@@ -1223,18 +1253,24 @@
       "intervalEach": "Interval per vehicle {time}",
       "fill": "Fill {value}",
       "fillApprox": "Fill ≈ {value}",
-      "fillHint": "Items per stop against the hold (stacks × stack size of the items carried)",
+      "fillHint": "Items per stop against the hold (stacks × stack size of what it carries). Below 5 % or below 1 item per minute: hardly anything moved.",
       "cargo": "Cargo",
       "cargoNone": "empty",
       "problem": {
         "noVehicles": "No vehicle stops here",
-        "nothingMoved": "Vehicles stop but move nothing"
+        "nothingMoved": "Vehicles stop but move nothing",
+        "lowThroughput": "Hardly anything moved"
       },
       "problems": "{count, plural, one {# station with a problem} other {# stations with a problem}}",
       "emptyLegs": "Empty leg at {stations}",
       "fuelNamed": "{fuel}: {amount, number} in the tank",
       "noFuelNamed": "{fuel}: no fuel",
-      "carries": "Carries"
+      "carries": "Carries",
+      "consumersShort": "Consumers: {count, number} of {total, number} short",
+      "consumersFine": "Consumers: {count, number} not short",
+      "notEnough": "Not enough for {station}: {count, plural, one {# consumer waits} other {# consumers wait}} for {item}",
+      "repeat": "as stop {n}",
+      "stopShort": "short"
     },
     "changes": {
       "title": "Changes",
@@ -1257,7 +1293,16 @@
       "to": "to",
       "logistics": "Logistics",
       "logisticsHint": "Belts, lifts, splitters, mergers, supports, pipeline junctions, power poles and hypertubes",
-      "logisticsCount": "{count, plural, one {# type} other {# types}}"
+      "logisticsCount": "{count, plural, one {# type} other {# types}}",
+      "summary": "Summary",
+      "row": {
+        "machines": "Machines",
+        "logistics": "Logistics",
+        "foundations": "Foundations",
+        "other": "Other"
+      },
+      "none": "unchanged",
+      "logisticsFoundations": "Logistics and foundations"
     },
     "empty": {
       "title": "No factory data yet",
@@ -1277,8 +1322,15 @@
         "beltLimits": "{belt} limits it to {rate}",
         "beltBehind": "Probably a {belt} further on ({rate})",
         "noBelt": "No conveyor belt attached",
-        "overclockUseless": "Overclocking does nothing ({shards, plural, one {# Power Shard} other {# Power Shards}} to spare)"
+        "overclockUseless": "Overclocking does nothing now ({shards, plural, one {# Power Shard} other {# Power Shards}} to spare)",
+        "sharedBeltFull": "Shared {belt} full ({rate}): backs up before it",
+        "beltExact": "{belt} after it full, just enough ({rate})"
       }
+    },
+    "top": {
+      "title": "Biggest bottleneck",
+      "diagram": "To the diagram",
+      "map": "On the map"
     }
   },
   "factoryMap": {
@@ -1298,7 +1350,7 @@
     "layers": {
       "floor": "Floor plan",
       "buildings": "Buildings",
-      "lines": "Belts and pipes",
+      "lines": "Belts and pipelines",
       "power": "Power lines",
       "roads": "Roads, stations, vehicles",
       "markers": "Map markers",
@@ -1401,7 +1453,7 @@
       "added": "{count, plural, one {+{n} building} other {+{n} buildings}}",
       "removed": "{count, plural, one {−{n} removed} other {−{n} removed}}",
       "floor": "Foundations +{added} −{removed}",
-      "lines": "Belts, pipes, roads +{added} −{removed}",
+      "lines": "Belts, pipelines, roads +{added} −{removed}",
       "nothingToCompare": "No other save to compare with.",
       "better": "{count, plural, one {{n} better} other {{n} better}}",
       "worse": "{count, plural, one {{n} worse} other {{n} worse}}",

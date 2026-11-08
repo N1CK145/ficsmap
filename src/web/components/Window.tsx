@@ -23,7 +23,7 @@ export interface WindowTitleBarProps {
   level?: 2 | 3;
   /** A picture or icon before the title (decorative). */
   icon?: ReactNode;
-  /** A second line under the title in normal case (a place, a count). */
+  /** A second line under the title in normal case (a place, a count): one line, on phones up to two. */
   subtitle?: ReactNode;
   /** Buttons before the close button. */
   actions?: ReactNode;
@@ -46,7 +46,8 @@ export function WindowTitleBar({ title, titleId, titleRef, level = 2, icon, subt
       {icon !== undefined && <span aria-hidden="true" className="flex shrink-0 items-center">{icon}</span>}
       <div className="min-w-0 flex-1 py-0.5">
         <Heading id={titleId} ref={titleRef} tabIndex={titleRef ? -1 : undefined} className={`font-display text-lg leading-tight font-semibold tracking-wider [overflow-wrap:anywhere] uppercase ${titleRef ? 'focus:outline-none' : ''}`}>{title}</Heading>
-        {subtitle !== undefined && <p className="truncate text-sm text-muted">{subtitle}</p>}
+        {/* One line from 640 px; on phones it wraps to two lines before it is cut, so a count at its end stays readable. */}
+        {subtitle !== undefined && <p className="text-sm text-muted max-sm:line-clamp-2 sm:truncate">{subtitle}</p>}
       </div>
       {actions}
       {onClose && (

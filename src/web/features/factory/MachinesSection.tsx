@@ -75,9 +75,11 @@ export function MachinesSection({ worldId, analysis, labels, fmt, recipes }: {
   // Paused is offered as a state (next to the bands), not twice.
   const reasonsHere = REASONS.filter(r => r !== 'paused' && ((counts.reasons[r] ?? 0) > 0 || reason === r));
   const statesHere = FILTER_STATES.filter(b => (counts.states[b] ?? 0) > 0 || state === b);
+  // The heading names every filter in use: the class, then the state or reason ("Schmelzofen · Mangel").
+  const parts = [cls ? labels.building(cls, lang) : null, state ? t(stateKey(state)) : reason ? t(`factory.reason.${reason}`) : null].filter((x): x is string => x !== null);
   const heading = state || reason
-    ? t('factory.machines.filtered', { filter: state ? t(stateKey(state)) : t(`factory.reason.${reason}`) })
-    : t('factory.machines.inefficient');
+    ? t('factory.machines.filtered', { filter: parts.join(' · ') })
+    : cls ? t('factory.machines.inefficientOf', { filter: parts.join(' · ') }) : t('factory.machines.inefficient');
   const recipeName = (m: MachineFlow) => {
     const out = m.outputs[0];
     const item = out ? labels.item(out.item, lang) : undefined;

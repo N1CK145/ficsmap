@@ -1,35 +1,19 @@
 import { useTranslation } from 'react-i18next';
-import type { BuildingCategory } from '../../../shared/buildings.js';
-import { bandOf, type ClassChange, type FactoryDiff, type MachineChange } from '../../../shared/factory/analysis.js';
+import { bandOf, type FactoryDiff, type MachineChange } from '../../../shared/factory/analysis.js';
 import { Fold } from '../../components/Fold.js';
 import { SectionHeading } from '../../components/SectionHeading.js';
 import { Window } from '../../components/Window.js';
 import { Picture } from '../planner/pictures.js';
 import type { FactoryLabels } from './data.js';
 import type { FactoryFormat } from './format.js';
+import { diffSummary, splitClassChanges, type GeometryCounts } from './changes.js';
 import { BAND_TEXT, ShowOnMap } from './parts.js';
 
 const TOP = 8;
 /** Heading rows the same height, with or without an action at their end. */
 const HEADING = 'min-h-8 max-[899px]:min-h-11';
 
-/** The order of the built and torn down list: machines first, then the other buildings. */
-const CATEGORY_ORDER: BuildingCategory[] = ['production', 'extraction', 'power-gen', 'power-storage', 'storage', 'transport', 'special', 'sign', 'other'];
-/** Belts, lifts, splitters, mergers, supports, pipe junctions, poles, hypertubes, passthroughs: one summary line. */
-const LOGISTICS: ReadonlySet<BuildingCategory> = new Set(['logistics-belt', 'logistics-pipe', 'power-pole', 'hypertube', 'structure']);
-
-/** Built and torn down per class split into the buildings (by category, machines first) and the logistics parts. */
-export function splitClassChanges(classes: readonly ClassChange[], category: (cls: string) => BuildingCategory | undefined): { main: ClassChange[]; logistics: ClassChange[] } {
-  const rank = (cls: string) => {
-    const i = CATEGORY_ORDER.indexOf(category(cls) ?? 'other');
-    return i < 0 ? CATEGORY_ORDER.length : i;
-  };
-  const main: ClassChange[] = [];
-  const logistics: ClassChange[] = [];
-  for (const c of classes) (LOGISTICS.has(category(c.cls) ?? 'other') ? logistics : main).push(c);
-  main.sort((a, b) => rank(a.cls) - rank(b.cls) || (b.added + b.removed) - (a.added + a.removed) || a.cls.localeCompare(b.cls));
-  return { main, logistics };
-}
+export { splitClassChanges } from './changes.js';
 
 /**
  * "Changes" while comparing: buildings built and torn down per class (machines first, the logistics parts folded into
@@ -37,18 +21,35 @@ export function splitClassChanges(classes: readonly ClassChange[], category: (cl
  * and the machines that got worse or better (by at least 5 points of productivity), between the compared and the
  * selected snapshot.
  */
-export function ChangesSection({ worldId, diff, since, labels, fmt }: { worldId: string; diff: FactoryDiff; since: number; labels: FactoryLabels; fmt: FactoryFormat }) {
+export function ChangesSection({ worldId, diff, since, labels, fmt, geometry = null }: {
+  worldId: string; diff: FactoryDiff; since: number; labels: FactoryLabels; fmt: FactoryFormat;
+  /** Floor pieces and belts, pipelines and roads added and removed (`diffGeometry`), for the summary's rows. */
+  geometry?: GeometryCounts | null;
+}) {
   const { t } = useTranslation();
   const lang = fmt.lang;
   const { main: classes, logistics } = splitClassChanges(diff.classes, labels.category);
   const logisticsAdded = logistics.reduce((n, c) => n + c.added, 0);
   const logisticsRemoved = logistics.reduce((n, c) => n + c.removed, 0);
+  const rows = diffSummary(diff, labels.category, geometry);
   return (
+    <div id="factory-changes" className="scroll-mt-3">
     <Window
       title={t('factory.changes.title')}
       subtitle={t('factory.changes.subtitle', { date: fmt.dateTime(since), added: diff.added.length, removed: diff.removed.length })}
       bodyClassName="grid gap-x-6 gap-y-4 p-3 lg:grid-cols-2"
     >
+      {/* The same rows as the map's timeline counter (`diffSummary`). */}
+      <ul aria-label={t('factory.changes.summary')} className="flex flex-wrap gap-x-6 gap-y-1 text-sm lg:col-span-2">
+        {rows.map(r => (
+          <li key={r.key} className="inline-flex items-baseline gap-2" data-row={r.key}>
+            <span className="text-muted">{t(`factory.changes.row.${r.key}`)}</span>
+            {r.added > 0 && <span className="font-display font-semibold text-free tabular-nums">{t('factory.changes.added', { count: r.added })}</span>}
+            {r.removed > 0 && <span className="font-display font-semibold text-conflict tabular-nums">{t('factory.changes.removed', { count: r.removed })}</span>}
+            {r.added + r.removed === 0 && <span className="text-muted">{t('factory.changes.none')}</span>}
+          </li>
+        ))}
+      </ul>
       <section aria-labelledby="factory-built" className="flex min-w-0 flex-col gap-1">
         <SectionHeading as="h3" id="factory-built" className={HEADING} end={diff.added.length > 0 ? <ShowOnMap worldId={worldId} ids={diff.added} label={t('factory.changes.newBuildings')} /> : undefined}>
           {t('factory.changes.built')}
@@ -63,7 +64,7 @@ export function ChangesSection({ worldId, diff, since, labels, fmt }: { worldId:
             )}
             {logistics.length > 0 && (
               <Fold
-                title={t('factory.changes.logistics')}
+                title={t('factory.changes.logisticsFoundations')}
                 summary={(
                   <span title={t('factory.changes.logisticsHint')}>
                     {logisticsAdded > 0 && <span className="font-display font-semibold text-free">{t('factory.changes.added', { count: logisticsAdded })}</span>}
@@ -109,6 +110,7 @@ export function ChangesSection({ worldId, diff, since, labels, fmt }: { worldId:
       <MachineChanges worldId={worldId} id="factory-worse" title={t('factory.changes.worse', { count: diff.worse.length })} list={diff.worse} labels={labels} fmt={fmt} />
       <MachineChanges worldId={worldId} id="factory-better" title={t('factory.changes.better', { count: diff.better.length })} list={diff.better} labels={labels} fmt={fmt} />
     </Window>
+    </div>
   );
 }
 

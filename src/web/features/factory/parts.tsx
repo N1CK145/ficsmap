@@ -41,6 +41,20 @@ export function ReasonBadge({ reason, count }: { reason: Reason; count?: number 
   );
 }
 
+/**
+ * "Engpass" as a chip led by a short hazard strip: the one mark for a line's bottleneck on the Fabrik page (line list,
+ * diagram, group) and the factory map (panel list, line card). `label` replaces the word (a screen reader name stays).
+ */
+export function BottleneckChip({ className = '', label }: { className?: string; label?: string }) {
+  const { t } = useTranslation();
+  return (
+    <span className={badgeClass('accent', `overflow-hidden pl-0 ${className}`)}>
+      <span aria-hidden="true" className="w-2 self-stretch hazard" />
+      {label ?? t('factory.lines.bottleneck.badge')}
+    </span>
+  );
+}
+
 /** Productivity as a thin bar with the percentage beside it; a paused machine says so in grey. */
 export function ProductivityBar({ value, band, fmt, className = '', paused = false }: { value: number; band: Band; fmt: FactoryFormat; className?: string; paused?: boolean }) {
   const { t } = useTranslation();
@@ -55,13 +69,13 @@ export function ProductivityBar({ value, band, fmt, className = '', paused = fal
   );
 }
 
-/** A loss as a bar relative to the largest one shown, with its value. */
-export function LossBar({ share, label }: { share: number; label: string }) {
+/** A loss as a bar relative to the largest one shown, with its value; `muted` (surplus, no real loss) in grey. */
+export function LossBar({ share, label, muted = false }: { share: number; label: string; muted?: boolean }) {
   return (
     <span className="flex items-center justify-end gap-2">
-      <span className="font-display font-semibold text-conflict tabular-nums">{label}</span>
+      <span className={`font-display font-semibold tabular-nums ${muted ? 'text-muted' : 'text-conflict'}`}>{label}</span>
       <span aria-hidden="true" className="relative h-1.5 w-20 shrink-0 overflow-hidden bg-line max-sm:w-14">
-        <span className="absolute inset-y-0 right-0 bg-conflict" style={{ width: `${Math.max(2, Math.round(share * 100))}%` }} />
+        <span className={`absolute inset-y-0 right-0 ${muted ? 'bg-muted' : 'bg-conflict'}`} style={{ width: `${Math.max(2, Math.round(share * 100))}%` }} />
       </span>
     </span>
   );
