@@ -1,0 +1,38 @@
+import type { ReactNode } from 'react';
+import type { Reason } from '../../../shared/factory/analysis.js';
+
+/** 16 px line icons of the factory page, drawn like `components/icons.tsx` (currentColor, decorative). */
+function Icon({ children, size = 16, className = '' }: { children: ReactNode; size?: number; className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true" focusable="false"
+      fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`}>
+      {children}
+    </svg>
+  );
+}
+
+/** The factory section: a factory hall with a chimney and a gauge needle. */
+export const FactoryIcon = ({ size }: { size?: number }) => (
+  <Icon size={size}><path d="M1.5 14V7l4 2.5V7l4 2.5V2.5h3V14zM1.5 14h13" /><path d="M5 12h1.5M9 12h1.5" /></Icon>
+);
+
+/** One glyph per reason, so a reason never depends on its colour alone (the text says it too). */
+export function ReasonIcon({ reason, size = 14 }: { reason: Reason; size?: number }) {
+  switch (reason) {
+    // an empty input: an arrow into an open box
+    case 'starved': return <Icon size={size}><path d="M2 8h6M5.5 5.5L8 8l-2.5 2.5M10 3.5h3.5v9H10" /></Icon>;
+    // the output is full: a filled box with a stop bar
+    case 'blocked': return <Icon size={size}><path d="M2.5 3.5h7v9h-7zM2.5 8h7M12.5 3v10" /></Icon>;
+    case 'noPower': return <Icon size={size}><path d="M9 1.5L3.5 9H8l-1 5.5L12.5 7H8z" /></Icon>;
+    case 'noFuel': return <Icon size={size}><path d="M8 2s4 4.5 4 7.5a4 4 0 01-8 0C4 6.5 8 2 8 2zM3 13L13 3" /></Icon>;
+    case 'paused': return <Icon size={size}><path d="M5.5 3.5v9M10.5 3.5v9" /></Icon>;
+    case 'noRecipe': return <Icon size={size}><path d="M3.5 2.5h9v11h-9zM6 6.5a2 2 0 113 1.7c-.6.4-1 .8-1 1.5M8 11.5v.01" /></Icon>;
+    // ran only part of the time: a wave
+    case 'unknown': return <Icon size={size}><path d="M1.5 9c1.5-3 3-3 4.5 0s3 3 4.5 0 3-3 4 0" /></Icon>;
+  }
+}
+
+/** Shown on the map: a crosshair over a pin. */
+export const LocateIcon = ({ size = 14 }: { size?: number }) => (
+  <Icon size={size}><circle cx="8" cy="8" r="4.5" /><path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" /><circle cx="8" cy="8" r="1" /></Icon>
+);

@@ -89,8 +89,8 @@ describe('world pages', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('are the planner, the vehicle calculator and the machine wiki, with short English paths', () => {
-    expect(collect(FEATURES, 'pages').map(p => [p.id, p.subPath])).toEqual([['vehicles', undefined], ['planner', undefined], ['wiki', ':entry?']]);
+  it('are the planner, the vehicle calculator, the machine wiki and the factory, with short English paths', () => {
+    expect(collect(FEATURES, 'pages').map(p => [p.id, p.subPath])).toEqual([['vehicles', undefined], ['planner', undefined], ['wiki', ':entry?'], ['factory', undefined]]);
     // None of them is a dialog in the header any more.
     expect(collect(FEATURES, 'headerItems').map(h => h.id)).not.toEqual(expect.arrayContaining([expect.stringMatching(/dialog/)]));
   });

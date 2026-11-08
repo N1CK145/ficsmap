@@ -215,7 +215,7 @@ describe('WorldLayout', () => {
     // The tab strip follows the bar: the map first and current, then the pages, each with the word of its heading.
     const tabs = screen.getByRole('navigation', { name: 'Sections' });
     expect(header.nextElementSibling).toContainElement(tabs);
-    expect(within(tabs).getAllByRole('link').map(l => l.textContent)).toEqual(['Map', 'Planner', 'Vehicles', 'Machines']);
+    expect(within(tabs).getAllByRole('link').map(l => l.textContent)).toEqual(['Map', 'Factory', 'Planner', 'Vehicles', 'Machines']);
     expect(within(tabs).getByRole('link', { name: 'Map' })).toHaveAttribute('aria-current', 'page');
     // Import is about the map: it is in the bar on the map only.
     expect(within(header).getByRole('button', { name: 'Import' })).toBeInTheDocument();

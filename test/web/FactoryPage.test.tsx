@@ -1,0 +1,239 @@
+import { QueryClient } from '@tanstack/react-query';
+import { fireEvent, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type { MeDto, WorldDto } from '../../src/shared/api.js';
+import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
+import type { FactorySnapshot, SnapshotBuilding } from '../../src/shared/factory/snapshot.js';
+import type { RecipeData } from '../../src/shared/recipes.js';
+import type { WorldCtx } from '../../src/web/app/feature.js';
+import { initI18n } from '../../src/web/app/i18n/index.js';
+import { factoryFeature } from '../../src/web/features/factory/index.js';
+import { axisPositions, labelIndices } from '../../src/web/features/factory/Timeline.js';
+import { defaultCompareId, resolveTimeline, stepId, useFactoryPage } from '../../src/web/features/factory/timeline.js';
+import { useFactoryView } from '../../src/web/features/factory/view.js';
+import { useImportDialog } from '../../src/web/features/import/ImportDialog.js';
+import { makeSummary } from './factoryFixtures.js';
+import { stubFetch } from './fetchStub.js';
+import { renderWorldPages } from './worldPages.js';
+
+const W = '6f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
+const ME: MeDto = { id: 1, displayName: 'Nick', avatarUrl: null, email: null, datasetVersion: 'test' };
+const WORLD: WorldDto = {
+  id: W, name: 'Alpha', isOwner: true, rev: 1, datasetVersion: 'test', owner: { id: 1, displayName: 'Nick' }, members: [], lastImport: null,
+};
+const DS: Dataset = {
+  version: 'test', build: 1, bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mapId: 'm', podRequirementsKnown: true,
+  biomes: [{ id: 'g', name: { en: 'Grass Fields', de: 'Grasfelder' } }], items: [['Pod_1', 'hard_drive', 0, 0, 0, 0, 1]], aliases: {},
+};
+const RECIPES: RecipeData = {
+  format: 1, source: 'test', clock: { min: 0.01, perShard: 0.5 },
+  items: [
+    { id: 'Desc_IronIngot_C', name: { en: 'Iron Ingot', de: 'Eisenbarren' }, form: 'solid' },
+    { id: 'Desc_IronPlate_C', name: { en: 'Iron Plate', de: 'Eisenplatte' }, form: 'solid' },
+  ],
+  recipes: [
+    { id: 'Recipe_IngotIron_C', name: { en: 'Iron Ingot', de: 'Eisenbarren' }, alternate: false, machine: 'Build_SmelterMk1_C', duration: 2,
+      ingredients: [], products: [{ item: 'Desc_IronIngot_C', amount: 1 }] },
+    { id: 'Recipe_IronPlate_C', name: { en: 'Iron Plate', de: 'Eisenplatte' }, alternate: false, machine: 'Build_ConstructorMk1_C', duration: 6,
+      ingredients: [], products: [{ item: 'Desc_IronPlate_C', amount: 2 }] },
+  ],
+  machines: [
+    { id: 'Build_SmelterMk1_C', name: { en: 'Smelter', de: 'Schmelzofen' }, power: 4, powerExponent: 1.3 },
+    { id: 'Build_ConstructorMk1_C', name: { en: 'Constructor', de: 'Konstruktor' }, power: 4, powerExponent: 1.3 },
+  ],
+  extractors: [],
+};
+
+const b = (id: string, cls: string, prod: SnapshotBuilding['prod']): SnapshotBuilding => ({ id, cls, x: 0, y: 0, z: 0, yaw: 0, prod });
+const snap = (saveTime: number, buildings: SnapshotBuilding[], extra: Partial<FactorySnapshot> = {}): FactorySnapshot => ({
+  v: 1, meta: { sessionName: 'Alpha', saveTime, build: 1 }, buildings, lightweight: [], splines: [], powerLines: [], pathNetworks: [],
+  stations: [], vehicles: [], markers: [], crates: [], ...extra,
+});
+const OLD = snap(1_000, [
+  b('smelter', 'Build_SmelterMk1_C', { clock: 1, recipe: 'Recipe_IngotIron_C', productivity: 1 }),
+  b('plate', 'Build_ConstructorMk1_C', { clock: 1, recipe: 'Recipe_IronPlate_C', productivity: 1 }),
+]);
+const NEW = snap(2_000, [
+  b('smelter', 'Build_SmelterMk1_C', { clock: 1, recipe: 'Recipe_IngotIron_C', productivity: 0.25, issues: ['blocked'] }),
+  b('plate', 'Build_ConstructorMk1_C', { clock: 1, recipe: 'Recipe_IronPlate_C', productivity: 0, issues: ['starved'] }),
+  b('plate2', 'Build_ConstructorMk1_C', { clock: 1, recipe: 'Recipe_IronPlate_C', productivity: 1 }),
+], {
+  stations: [{ id: 'st1', cls: 'Build_TruckStation_C', x: 0, y: 0, z: 0, yaw: 0, loading: true, traffic: [{ vehicle: 'tr1', avgSecBetweenDocks: 120, avgItemsPerDock: 200, capacityStacks: 25 }] }],
+  vehicles: [{ id: 'tr1', cls: 'BP_Tractor_C', x: 0, y: 0, z: 0, yaw: 0, autopilot: true, route: ['st1'] }],
+});
+
+function setup({ list = [makeSummary(2, 2_000, 'Alpha'), makeSummary(1, 1_000, 'Alpha')], world = WORLD } = {}) {
+  stubFetch({
+    [`GET /api/worlds/${W}/snapshots`]: { body: list },
+    [`GET /api/worlds/${W}/snapshots/1`]: { body: OLD },
+    [`GET /api/worlds/${W}/snapshots/2`]: { body: NEW },
+    'GET /data/test/recipes.json': { body: RECIPES },
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const ctx: WorldCtx = { worldId: W, world, me: ME, index: indexDataset(DS), queryClient: client, navigate: () => {}, toast: { show: () => {} } };
+  return renderWorldPages({ features: [factoryFeature], ctx, url: `/w/${W}/factory` });
+}
+
+const user = () => userEvent.setup();
+const page = () => screen.findByRole('main', { name: 'Factory' });
+
+describe('factory page', () => {
+  beforeEach(() => {
+    initI18n(['en']);
+    useFactoryView.getState().reset();
+    useFactoryPage.setState({ worldId: null });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('is a section after the map, and shows the newest save with its figures', async () => {
+    setup();
+    const main = await page();
+    const timeline = await within(main).findByRole('region', { name: 'Timeline' });
+    const points = within(timeline).getAllByRole('radio');
+    expect(points).toHaveLength(2);
+    expect(points[1]).toHaveAttribute('aria-checked', 'true');
+    const kpis = await within(main).findByLabelText('Factory figures');
+    expect(within(kpis).getByText('Machines').nextElementSibling).toHaveTextContent(/^3$/);
+    expect(within(kpis).getByText('Standing').nextElementSibling).toHaveTextContent(/^1 33 %$/);
+    // weighted by clock speed: (0.25 + 0 + 1) / 3
+    expect(within(kpis).getByText('Ø Productivity').nextElementSibling).toHaveTextContent('42 %');
+  });
+
+  it('lists the items by lost output and unfolds an item into its machines; "On the map" highlights them and goes to the map', async () => {
+    const { router } = setup();
+    const main = await page();
+    const items = await within(main).findByRole('region', { name: 'Inefficient items' });
+    const rows = within(items).getAllByRole('row').slice(1);
+    // Iron Ingot: 30/min nominal, 7.5 actual, 22.5 lost; Iron Plate: 40 nominal, 20 actual, 20 lost.
+    expect(rows[0]).toHaveTextContent('Iron Ingot');
+    expect(rows[0]).toHaveTextContent('30.0/min');
+    expect(rows[0]).toHaveTextContent('7.5/min');
+    expect(rows[0]).toHaveTextContent('22.5/min');
+    expect(rows[0]).toHaveTextContent('Output full');
+    expect(rows[1]).toHaveTextContent('Iron Plate');
+    expect(rows[1]).toHaveTextContent('Input missing');
+
+    const toggle = within(rows[0]!).getByRole('button', { name: /Iron Ingot/ });
+    await user().click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const machines = document.getElementById(toggle.getAttribute('aria-controls')!)!;
+    expect(machines).toHaveTextContent('Smelter');
+    expect(machines).toHaveTextContent('25 %');
+    await user().click(within(machines).getByRole('button', { name: 'Show Smelter on the map' }));
+    expect(useFactoryView.getState().highlight).toEqual(['smelter']);
+    expect(useFactoryView.getState().highlightSeq).toBe(1);
+    expect(router.state.location.pathname).toBe(`/w/${W}`);
+  });
+
+  it('steps through the timeline with the arrow keys and the older/newer buttons', async () => {
+    setup();
+    const main = await page();
+    const group = await within(main).findByRole('radiogroup', { name: 'Saves' });
+    fireEvent.keyDown(group, { key: 'ArrowLeft' });
+    expect(useFactoryView.getState().selectedId).toBe(1);
+    // The old save: everything ran fully.
+    expect(await within(main).findByText('Every machine makes what it should. Nothing is lost.')).toBeInTheDocument();
+    expect(within(main).getByRole('button', { name: 'Older save' })).toBeDisabled();
+    await user().click(within(main).getByRole('button', { name: 'Newer save' }));
+    // The newest is "null" (follows new saves).
+    expect(useFactoryView.getState().selectedId).toBeNull();
+  });
+
+  it('compares with the save before: figures with their change, and what was built and got worse', async () => {
+    setup();
+    const main = await page();
+    await within(main).findByRole('region', { name: 'Inefficient items' });
+    await user().click(within(main).getByRole('checkbox', { name: 'Compare with' }));
+    expect(useFactoryView.getState().compareId).toBe(1);
+    const changes = await within(main).findByRole('region', { name: 'Changes' });
+    expect(changes).toHaveTextContent('1 built, 0 torn down');
+    expect(within(changes).getByRole('heading', { name: 'Worse (2)' })).toBeInTheDocument();
+    expect(within(main).getByLabelText('Factory figures')).toHaveTextContent('+1 since');
+    await user().click(within(main).getByRole('checkbox', { name: 'Compare with' }));
+    expect(useFactoryView.getState().compareId).toBeNull();
+    expect(within(main).queryByRole('region', { name: 'Changes' })).toBeNull();
+  });
+
+  it('filters the inefficient machines by reason and class', async () => {
+    setup();
+    const main = await page();
+    const machines = await within(main).findByRole('region', { name: 'Machines' });
+    const list = () => within(machines).getByRole('region', { name: /Inefficient machines/ });
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(2);
+    await user().click(within(within(machines).getByRole('group', { name: 'Filter' })).getByRole('button', { name: /Input missing/ }));
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(1);
+    expect(list()).toHaveTextContent('Constructor');
+    await user().click(within(machines).getByRole('button', { name: 'Clear filter' }));
+    await user().click(within(machines).getByRole('button', { name: /^Smelter/ }));
+    expect(useFactoryPage.getState().cls).toBe('Build_SmelterMk1_C');
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(1);
+    expect(list()).toHaveTextContent('Smelter');
+  });
+
+  it('shows stations with their throughput and vehicles with their route', async () => {
+    setup();
+    const main = await page();
+    const routes = await within(main).findByRole('region', { name: 'Routes' });
+    const row = within(routes).getAllByRole('row')[1]!;
+    expect(row).toHaveTextContent('Truck Station 1');
+    expect(row).toHaveTextContent('near Grass Fields');
+    expect(row).toHaveTextContent('Loading');
+    expect(row).toHaveTextContent('100.0/min'); // 200 per dock every 120 s
+    expect(row).toHaveTextContent('2 min 0 s');
+    expect(within(routes).getByRole('list', { name: 'Stops of Tractor 1' })).toHaveTextContent('Truck Station 1');
+  });
+
+  it('without snapshots explains how to get them and opens the import dialog (owner)', async () => {
+    setup({ list: [] });
+    const main = await page();
+    expect(await within(main).findByRole('region', { name: 'No factory data yet' })).toBeInTheDocument();
+    await user().click(within(main).getByRole('button', { name: 'Add older saves' }));
+    expect(useImportDialog.getState()).toMatchObject({ open: true, mode: 'older' });
+    useImportDialog.getState().hide();
+  });
+
+  it('a member is told the owner imports', async () => {
+    setup({ list: [], world: { ...WORLD, isOwner: false, owner: { id: 2, displayName: 'Ada' } } });
+    const main = await page();
+    expect(await within(main).findByText(/Ada owns this world/)).toBeInTheDocument();
+    expect(within(main).queryByRole('button', { name: 'Import save' })).toBeNull();
+  });
+
+  it('speaks German with the game\'s terms', async () => {
+    initI18n(['de']);
+    setup();
+    const main = await screen.findByRole('main', { name: 'Fabrik' });
+    const items = await within(main).findByRole('region', { name: 'Ineffiziente Gegenstände' });
+    expect(within(items).getByRole('columnheader', { name: 'Gegenstand' })).toBeInTheDocument();
+    expect(items).toHaveTextContent('Eisenbarren');
+    expect(items).toHaveTextContent('Ausgang voll');
+    expect(within(main).getByRole('checkbox', { name: 'Vergleichen mit' })).toBeInTheDocument();
+  });
+});
+
+describe('timeline helpers', () => {
+  const list = [makeSummary(3, 3_000), makeSummary(1, 1_000), makeSummary(2, 2_000)];
+
+  it('resolves the selection: newest by default, a chosen one, the compared one never the selected', () => {
+    const sel = resolveTimeline(list, null, null);
+    expect(sel.ordered.map(s => s.id)).toEqual([1, 2, 3]);
+    expect(sel.selected?.id).toBe(3);
+    expect(stepId(sel, -1)).toBe(2);
+    expect(stepId(sel, 1)).toBeNull();
+    expect(defaultCompareId(sel)).toBe(2);
+    expect(resolveTimeline(list, 1, 1).compared).toBeNull();
+    expect(resolveTimeline(list, 1, 3).compared?.id).toBe(3);
+    expect(defaultCompareId(resolveTimeline(list, 1, null))).toBe(2);
+    expect(resolveTimeline(list, 99, null).selected?.id).toBe(3); // a deleted snapshot: back to the newest
+    expect(resolveTimeline(undefined, null, null)).toMatchObject({ ordered: [], selected: null, index: -1 });
+  });
+
+  it('places points by time, pushed apart where saves are close, and labels points that do not collide', () => {
+    expect(axisPositions([5])).toEqual([50]);
+    expect(axisPositions([0, 50, 100])).toEqual([0, 50, 100]);
+    const close = axisPositions([0, 1, 2, 100]);
+    expect(close[1]! - close[0]!).toBeGreaterThanOrEqual(3.9);
+    expect(close[3]).toBeCloseTo(100);
+    expect(labelIndices([0, 3, 50, 100], 1, -1)).toEqual([1, 2, 3]);
+  });
+});
