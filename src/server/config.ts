@@ -9,7 +9,6 @@ export interface Config {
   discordClientSecret: string;
   ownerDiscordIds: Set<string>;
   sessionSecret: string;
-  inviteJwtSecret: string;
   trustProxy: string | false;
   dbPath: string;
   datasetDir: string;
@@ -26,7 +25,6 @@ const schema = z.object({
   DISCORD_CLIENT_SECRET: z.string().min(1),
   OWNER_DISCORD_IDS: z.string().default(''),
   SESSION_SECRET: z.string().min(32),
-  INVITE_JWT_SECRET: z.string().min(32),
   TRUST_PROXY: z.string().optional(),
   DB_PATH: z.string().min(1).default('./data-local/app.db'),
   DATASET_DIR: z.string().min(1).default('./data'),
@@ -87,7 +85,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     discordClientSecret: e.DISCORD_CLIENT_SECRET,
     ownerDiscordIds: new Set(e.OWNER_DISCORD_IDS.split(',').map(s => s.trim()).filter(Boolean)),
     sessionSecret: e.SESSION_SECRET,
-    inviteJwtSecret: e.INVITE_JWT_SECRET,
     trustProxy: e.TRUST_PROXY ? e.TRUST_PROXY : false,
     dbPath: e.DB_PATH,
     datasetDir: e.DATASET_DIR,

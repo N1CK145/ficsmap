@@ -1,6 +1,5 @@
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { createInviteService } from '../../src/server/domain/invites.js';
 import { buildApp, type AppDeps } from '../../src/server/app.js';
 import { openDb, type Db } from '../../src/server/db/db.js';
 import type { Config } from '../../src/server/config.js';
@@ -23,7 +22,6 @@ export const testConfig: Config = {
   discordClientSecret: 'client-secret',
   ownerDiscordIds: new Set(['owner-1']),
   sessionSecret: 's'.repeat(32),
-  inviteJwtSecret: 'i'.repeat(32),
   trustProxy: false,
   dbPath: ':memory:',
   datasetDir: './data',
@@ -61,10 +59,6 @@ export async function makeTestApp(over: Partial<AppDeps> = {}): Promise<{
     discord: fakeDiscord,
     ...over,
   };
-  // Same service buildApp would create, built here so tests can sign tokens with it.
-  deps.invites ??= createInviteService({
-    secret: deps.config.inviteJwtSecret, issuer: deps.config.publicUrl, now: deps.now ?? Date.now,
-  });
   const app = await buildApp(deps);
   return {
     app,

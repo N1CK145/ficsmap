@@ -24,7 +24,6 @@ import { registerEventRoutes } from './http/events.js';
 import { registerInviteRoutes } from './http/invites.js';
 import { registerSpa } from './http/spa.js';
 import { appVersion } from './version/appVersion.js';
-import { createInviteService, type InviteService } from './domain/invites.js';
 import { redactUrl } from './redact.js';
 import { SseHub } from './sse/hub.js';
 import { createParsePool, type SaveParser } from './parse/pool.js';
@@ -36,7 +35,6 @@ export interface AppDeps {
   discord: DiscordClient;
   now?: () => number;
   hub?: SseHub;
-  invites?: InviteService;
   /** Parses saves uploaded by the save watcher; default a worker pool on the dataset (tests pass a fake). */
   saveParser?: SaveParser;
 }
@@ -66,16 +64,10 @@ export async function buildApp(input: AppDeps): Promise<FastifyInstance> {
   const deps: AppDeps = {
     ...input,
     hub: input.hub ?? new SseHub(),
-    invites: input.invites ?? createInviteService({
-      secret: input.config.inviteJwtSecret,
-      issuer: input.config.publicUrl,
-      now: input.now ?? Date.now,
-    }),
   };
   const { config, db } = deps;
   const app = Fastify({
     trustProxy: config.trustProxy,
-    routerOptions: { maxParamLength: 2048 }, // invite tokens (Base64url of the JWT) in the path are ~350 chars; the default (100) would 404 them
     logger: config.logLevel === 'silent' ? false : {
       level: config.logLevel,
       serializers: {

@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import type { Config } from './config.js';
 import type { Db } from './db/db.js';
 import { purgeSessions } from './auth/session.js';
-import { purgeInviteUses } from './domain/invites.js';
+import { purgeInvites } from './domain/invites.js';
 import { thinAllSnapshots } from './domain/snapshots.js';
 import type { SseHub } from './sse/hub.js';
 
@@ -26,14 +26,14 @@ export function backupDb(db: Db, dir: string, now: Date, keep = 14): string {
 }
 
 /**
- * Purges expired sessions and used invites, and thins every world's factory snapshots (the retention rule; open
+ * Purges expired sessions and invites, and thins every world's factory snapshots (the retention rule; open
  * timelines are told through the `snapshots` event). Returns how many of each went.
  */
 export function runHourly(
   db: Db, now: number, hub?: Pick<SseHub, 'broadcast'>,
 ): { sessions: number; invites: number; snapshots: number } {
   const sessions = purgeSessions(db, now);
-  const invites = purgeInviteUses(db, now);
+  const invites = purgeInvites(db, now);
   let snapshots = 0;
   for (const { worldId, rev, deleted } of thinAllSnapshots(db)) {
     snapshots += deleted;

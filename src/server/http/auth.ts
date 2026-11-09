@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { AppDeps } from '../app.js';
 import type { DiscordProfile } from '../auth/discord.js';
 import { createSession, deleteSession, SESSION_TTL_MS } from '../auth/session.js';
-import { acceptInvite } from '../domain/invites.js';
+import { acceptInvite, consumeInvite, findInvite } from '../domain/invites.js';
 import { findOrCreateUser } from '../domain/users.js';
 
 export interface OauthTx {
@@ -19,7 +19,7 @@ const TX_MAX_AGE_S = 600;
 const authLimit = { rateLimit: { max: 10, timeWindow: '1 minute' } };
 
 const PRINTABLE_ASCII = /^[\x21-\x7e]+$/;
-const MAX_INVITE_LENGTH = 2048;
+const MAX_INVITE_LENGTH = 64; // invite tokens are 43 characters
 const MAX_RETURN_TO_LENGTH = 2048;
 
 /** Only same-origin absolute paths; anything a browser could reinterpret (control chars, `\`, `//`) becomes `/`. */
@@ -44,53 +44,41 @@ export type LoginResolution =
   | { kind: 'invite_only' }
   | { kind: 'invite_invalid' };
 
-/** Thrown inside the login transaction to undo a just-created account whose invite turned out unusable. */
-class Rollback extends Error {}
-
 /**
- * Account-resolution step of the callback. With an invite, the user lookup/creation and the invite
- * acceptance share one transaction (spec §8); the JWT is verified before it (async).
+ * Account-resolution step of the callback. With an invite, looking it up, finding or creating the user and using the
+ * invite share one transaction (spec §8), so an account is only created together with a link that is still open.
  */
 export async function resolveLogin(deps: AppDeps, profile: DiscordProfile, tx: OauthTx): Promise<LoginResolution> {
+  const { db, config } = deps;
   const now = (deps.now ?? Date.now)();
-  const base = { ownerIds: deps.config.ownerDiscordIds, now };
-  if (!tx.inviteToken) {
-    const outcome = findOrCreateUser(deps.db, profile, { ...base, allowCreate: false });
+  const base = { ownerIds: config.ownerDiscordIds, now };
+  const token = tx.inviteToken;
+  if (!token) {
+    const outcome = findOrCreateUser(db, profile, { ...base, allowCreate: false });
     return outcome.kind === 'ok' ? { kind: 'ok', userId: outcome.userId, redirectTo: tx.returnTo } : outcome;
   }
 
-  const claims = await deps.invites!.verify(tx.inviteToken);
-  const invitePage = `/invite/${encodeURIComponent(tx.inviteToken)}`;
-  let result: LoginResolution | undefined;
+  const invitePage = `/invite/${encodeURIComponent(token)}`;
   let joinedWorld: string | undefined;
-  try {
-    deps.db.transaction(() => {
-      const outcome = findOrCreateUser(deps.db, profile, { ...base, allowCreate: claims !== null });
-      if (outcome.kind !== 'ok') {
-        result = { kind: 'invite_invalid' };
-        return;
-      }
-      if (!claims) {
-        result = { kind: 'ok', userId: outcome.userId, redirectTo: invitePage };
-        return;
-      }
-      const accepted = acceptInvite(deps.db, outcome.userId, claims, now);
-      if (accepted.kind === 'invalid') {
-        // Only an account that exists solely because of this invite is undone; allowlisted owners stay.
-        if (outcome.created && !deps.config.ownerDiscordIds.has(profile.id)) throw new Rollback();
-        result = { kind: 'ok', userId: outcome.userId, redirectTo: invitePage };
-        return;
-      }
-      if (accepted.kind === 'joined') joinedWorld = accepted.worldId;
-      const flag = accepted.kind === 'joined' ? 'joined' : 'already';
-      result = { kind: 'ok', userId: outcome.userId, redirectTo: `/w/${accepted.worldId}?${flag}=1` };
-    })();
-  } catch (err) {
-    if (err instanceof Rollback) return { kind: 'invite_invalid' };
-    throw err;
-  }
+  const result = db.transaction((): LoginResolution => {
+    const invite = findInvite(db, token, now, config.ownerDiscordIds);
+    const outcome = findOrCreateUser(db, profile, { ...base, allowCreate: invite !== null });
+    if (outcome.kind !== 'ok') return { kind: 'invite_invalid' };
+    // An existing account with a stale link ends on its "no longer valid" page.
+    if (!invite) return { kind: 'ok', userId: outcome.userId, redirectTo: invitePage };
+    if (invite.worldId === null) {
+      // A general invite is used up only by the account it created; allowlisted owners leave it for someone else.
+      if (outcome.created && !config.ownerDiscordIds.has(profile.id)) consumeInvite(db, invite);
+      return { kind: 'ok', userId: outcome.userId, redirectTo: '/' };
+    }
+    const accepted = acceptInvite(db, outcome.userId, invite, now);
+    if (accepted.kind === 'invalid') return { kind: 'ok', userId: outcome.userId, redirectTo: invitePage };
+    if (accepted.kind === 'joined') joinedWorld = accepted.worldId;
+    const flag = accepted.kind === 'joined' ? 'joined' : 'already';
+    return { kind: 'ok', userId: outcome.userId, redirectTo: `/w/${accepted.worldId}?${flag}=1` };
+  })();
   if (joinedWorld) deps.hub?.broadcast(joinedWorld, { type: 'members' });
-  return result!;
+  return result;
 }
 
 const same = (a: string, b: string): boolean => {
