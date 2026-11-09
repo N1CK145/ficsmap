@@ -102,6 +102,20 @@ ALTER TABLE world_members ADD COLUMN role TEXT NOT NULL DEFAULT 'member' CHECK(r
   `
 ALTER TABLE users ADD COLUMN prefs TEXT NOT NULL DEFAULT '{}';
 `,
+  // 8: invite links as random one-time tokens (src/server/domain/invites.ts) instead of JWTs. `invites` holds only the
+  // SHA-256 of each open token; using a link deletes its row, revoking a world's links deletes theirs. `world_id` null
+  // is a general invite of a server owner (creates an account, joins no world). Replaces `invite_uses` and the
+  // world's `invite_epoch`; JWT links handed out before stop working.
+  `
+DROP TABLE invite_uses;
+ALTER TABLE worlds DROP COLUMN invite_epoch;
+CREATE TABLE invites(token_hash BLOB PRIMARY KEY,
+      world_id TEXT REFERENCES worlds ON DELETE CASCADE,
+      created_by INT NOT NULL REFERENCES users ON DELETE CASCADE,
+      created_at INT NOT NULL, expires_at INT NOT NULL) WITHOUT ROWID;
+CREATE INDEX invites_world ON invites(world_id);
+CREATE INDEX invites_expires ON invites(expires_at);
+`,
 ];
 
 export function migrate(db: Db): void {

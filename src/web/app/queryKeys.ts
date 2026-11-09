@@ -4,6 +4,7 @@ export const queryKeys = {
   worlds: () => ['worlds'] as const,
   world: (worldId: string) => ['world', worldId] as const,
   inviteLink: (worldId: string) => ['invite-link', worldId] as const,
+  generalInviteLink: () => ['general-invite-link'] as const,
   uploadTokens: (worldId: string) => ['upload-tokens', worldId] as const,
   marks: (worldId: string) => ['marks', worldId] as const,
   routes: (worldId: string) => ['routes', worldId] as const,

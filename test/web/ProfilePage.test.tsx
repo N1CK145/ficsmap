@@ -152,4 +152,22 @@ describe('prefs store', () => {
     vi.resetModules();
     expect((await import('../../src/web/app/prefs.js')).getWheelSpeed()).toBe(1);
   });
+
+  it('shows the general invite only to server owners', async () => {
+    stub();
+    renderAt('/profile');
+    await screen.findByRole('region', { name: 'Controls' });
+    expect(screen.queryByRole('region', { name: 'Invite to ficsmap' })).not.toBeInTheDocument();
+  });
+
+  it('a server owner gets a general invite link', async () => {
+    stubFetch({
+      'GET /api/me': { body: { ...ME, serverOwner: true } },
+      'GET /api/invite-link': { body: { url: 'https://ficsmap.test/invite/abc', expiresAt: Date.UTC(2026, 10, 16) } },
+    });
+    renderAt('/profile');
+    const region = await screen.findByRole('region', { name: 'Invite to ficsmap' });
+    expect(await within(region).findByDisplayValue('https://ficsmap.test/invite/abc')).toBeInTheDocument();
+    expect(within(region).getByText(/works once/)).toBeInTheDocument();
+  });
 });

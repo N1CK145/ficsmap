@@ -53,6 +53,14 @@ export function findOrCreateUser(db: Db, p: DiscordProfile, opts: FindOrCreateOp
   })();
 }
 
+/** True when one of the user's Discord accounts is listed in OWNER_DISCORD_IDS (a server owner, not a world owner). */
+export function isServerOwner(db: Db, ownerIds: Set<string>, userId: number): boolean {
+  if (ownerIds.size === 0) return false;
+  const rows = db.prepare('SELECT subject FROM identities WHERE provider = ? AND user_id = ?')
+    .all(PROVIDER, userId) as { subject: string }[];
+  return rows.some(r => ownerIds.has(r.subject));
+}
+
 /** The user's stored preferences; invalid or unknown stored keys are left out. */
 export function getPrefs(db: Db, userId: number): UserPrefs {
   const row = db.prepare('SELECT prefs FROM users WHERE id = ?').get(userId) as { prefs: string } | undefined;

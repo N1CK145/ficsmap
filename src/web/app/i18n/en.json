@@ -56,7 +56,12 @@
     "saving": "Saving…",
     "saved": "Saved",
     "saveFailed": "Not saved. The setting applies on this device for now.",
-    "languageHint": "Remembered on this device."
+    "languageHint": "Remembered on this device.",
+    "invite": {
+      "title": "Invite to ficsmap",
+      "linkLabel": "General invite link",
+      "hint": "Lets one person create an account without joining a world. Only server owners see this."
+    }
   },
   "worlds": {
     "title": "Your worlds",

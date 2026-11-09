@@ -34,6 +34,8 @@ export interface MeDto {
   datasetVersion: string;
   /** The user's preferences (src/shared/prefs.ts); always sent by the server. A missing key has its default. */
   prefs?: UserPrefs;
+  /** True for a server owner (OWNER_DISCORD_IDS), who may create general invites (`GET /api/invite-link`). */
+  serverOwner?: boolean;
 }
 
 export interface MemberDto {

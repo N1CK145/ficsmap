@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- General invite links: a server owner (`OWNER_DISCORD_IDS`) finds a link on the profile page ("Zu ficsmap einladen") that lets one person create an account without joining a world. Like a world invite it works once and is valid for 7 days; a fresh link replaces it after each copy. It stops working when its creator is taken off `OWNER_DISCORD_IDS`. API: `GET /api/invite-link` (server owners only, 403 otherwise); `GET /api/me` says `serverOwner`.
 - Diagrams (production lines, planner): a full screen key in the zoom plate shows the diagram together with its open panel on the whole screen (the browser's full screen, or an overlay where that is not available); Escape or the key leaves it.
 - Planner and production line diagrams move like a map: drag to pan (on a node too, past a few pixels; a plain click still opens it), mouse wheel, trackpad pinch or two fingers zoom around the pointer (25 % to 200 %, further out only to fit a huge diagram), a double click on the canvas zooms in. The wheel follows the profile's mouse wheel speed and only zooms once the mouse moved over the diagram, pressed in it or the focus is in it, so scrolling the page past it keeps scrolling. Zoom keys in the top right corner ("−", the zoom in % that resets to 100 %, "+", "Einpassen" for the whole diagram), 44 px on phones. Keyboard: Shift and the arrow keys pan, + and − zoom, 0 shows 100 %; a node the arrow keys move to is panned into view. The view opens as before (whole nodes of the top row, the line's bottleneck) and starts over for another plan or line. The diagram box is at most 70 % of the screen high.
 - Planner and production line diagrams can run from left to right instead of top to bottom ("↓ Oben nach unten | → Links nach rechts" in the title bar, remembered on the device for each of the two; on narrow phones always top to bottom). The arrow keys follow: left and right between stages, up and down within one.
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Invite links carry a random one-time token instead of a JWT. The database keeps only its hash and deletes it when the link is used or revoked; the links are much shorter. Database migration 8 replaces `invite_uses` and the worlds' invite epoch with `invites`. Links handed out before the update stop working. `INVITE_JWT_SECRET` is no longer needed and can be removed from the environment.
 - Map: the biomes are no longer drawn on the map (no names, outlines or dimming outside a chosen biome); the biome panel in the sidebar stays, and choosing a biome there still zooms the map to it.
 - Planner: the production steps diagram takes the rest of the screen below it, and at least 1.5 times its former height (the diagram at 100 %, at most 70 % of the screen).
 - Factory map: a click on a machine of another production line chooses that line and opens the machine's window at once (before, a second click was needed).

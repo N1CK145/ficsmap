@@ -124,9 +124,9 @@ Results show their label and a `detail` line where it helps (a type's count, a c
 
 ## Backend
 
-**Stack.** Fastify 5, better-sqlite3, zod, jose, @fastify/cookie, @fastify/static, @fastify/rate-limit.
+**Stack.** Fastify 5, better-sqlite3, zod, @fastify/cookie, @fastify/static, @fastify/rate-limit.
 
-**Database.** One SQLite file (`DB_PATH`, `/data/app.db` in the container), WAL mode, foreign keys on. Tables: `users`, `identities`, `sessions`, `worlds`, `world_members`, `invite_uses`, `marks`, `routes`, `resource_node_overrides`, `resource_node_extractors`, `factory_snapshots`, `upload_tokens`. `users.prefs` (migration 7) holds the user's preferences as a JSON object (see "User preferences"). Migrations are an append-only list in `src/server/db/migrations.ts`; entry *i* sets `PRAGMA user_version` to *i*+1. Never edit a released migration; append a new one.
+**Database.** One SQLite file (`DB_PATH`, `/data/app.db` in the container), WAL mode, foreign keys on. Tables: `users`, `identities`, `sessions`, `worlds`, `world_members`, `invites`, `marks`, `routes`, `resource_node_overrides`, `resource_node_extractors`, `factory_snapshots`, `upload_tokens`. `users.prefs` (migration 7) holds the user's preferences as a JSON object (see "User preferences"). Migrations are an append-only list in `src/server/db/migrations.ts`; entry *i* sets `PRAGMA user_version` to *i*+1. Never edit a released migration; append a new one.
 
 **Marks.** A row in `marks` means "collected" for one actor in one world, with `mismatch` (conflict flag), `updated_by` and `updated_at`. Each world has a `rev` counter that is bumped on every change and sent with SSE events.
 
@@ -138,7 +138,9 @@ Results show their label and a `detail` line where it helps (a type's count, a c
 
 **User preferences.** Settings of the user rather than of a world live on the account, so they follow the user to every device: `users.prefs`, a JSON object whose keys and checks are in `src/shared/prefs.ts` (`UserPrefs`; a missing key has its default). Today there is one key, `wheelSpeed` (0.25–3 in steps of 0.05, default 1). `GET /api/me` returns them as `prefs`; `PATCH /api/me/prefs` takes a partial object (zod, unknown keys and bad values are 400 `invalid_body`), merges it into what is stored and returns the whole result. Invalid stored values are dropped when read. The language is not one of them: it stays a setting of the device (`localStorage`), because the sign-in page needs it before anyone is signed in.
 
-**Invites.** HS256 JWTs signed with `INVITE_JWT_SECRET` (issuer `PUBLIC_URL`, audience `ficsmap:invite`, subject = world id, random `jti`, 7-day expiry, `ep` = the world's invite epoch). The compact JWT is Base64url-encoded once more for the link `/invite/<token>`; only the canonical encoding is accepted. Opening a link never consumes it. The token is consumed in the transaction that adds the member, by inserting its `jti` into `invite_uses`, so it works once. Revoking bumps the world's epoch, which invalidates all open links.
+**Invites.** A link `/invite/<token>` carries a random one-time token (32 bytes, Base64url, 43 characters). `invites` stores only its SHA-256 with the world, the creator and a 7-day expiry (migration 8; JWTs and `INVITE_JWT_SECRET` are gone). Opening a link never uses it. It is used up by deleting its row, in the same transaction that looks it up, creates the account if needed and adds the member, so it works once. Revoking deletes the world's open links; deleting the world deletes them too.
+
+**General invites.** A server owner (`OWNER_DISCORD_IDS`; `isServerOwner` checks the user's Discord identity, `GET /api/me` reports it as `serverOwner`) gets a link from `GET /api/invite-link` (403 for everyone else): a row in `invites` without a world. It creates an account and joins no world, works once, and only while its creator is still a server owner. An existing account signing in with one, or opening it while signed in, does not use it up.
 
 **CSRF.** Every POST, PUT, PATCH and DELETE must carry an `Origin` equal to the origin of `PUBLIC_URL` and a JSON content type (an empty DELETE is allowed). This runs in an `onRequest` hook for every request, so it also covers unknown paths. Together with SameSite=Lax cookies this blocks cross-site writes. The one exception is the save watcher's upload (`POST /api/worlds/:id/saves`, matched on the route pattern in `BEARER_ROUTES`): it takes a bearer token and never reads the cookie, and a cross-site page cannot set `Authorization`.
 
@@ -172,7 +174,7 @@ Results show their label and a `detail` line where it helps (a type's count, a c
 
 **SSE.** `GET /api/worlds/:id/events` keeps a `text/event-stream` open with a heartbeat. The hub keeps a `Map<worldId, Set<client>>` in memory and broadcasts events (`mark`, `marks-bulk`, `import`, `world`, `members`, `removed`, `deleted`, `routes`, `snapshots`). There is no replay: on (re)connect the client refetches and ignores events whose `rev` is not newer than what it loaded.
 
-**Housekeeping.** Hourly purge of expired sessions and old `invite_uses`. One `VACUUM INTO` backup per UTC day to `backups/app-YYYYMMDD.db` next to the database; 14 are kept.
+**Housekeeping.** Hourly purge of expired sessions and invites. One `VACUUM INTO` backup per UTC day to `backups/app-YYYYMMDD.db` next to the database; 14 are kept.
 
 ## Frontend
 

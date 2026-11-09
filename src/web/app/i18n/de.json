@@ -56,7 +56,12 @@
     "saving": "Wird gespeichert…",
     "saved": "Gespeichert",
     "saveFailed": "Nicht gespeichert. Die Einstellung gilt vorerst nur auf diesem Gerät.",
-    "languageHint": "Wird auf diesem Gerät gespeichert."
+    "languageHint": "Wird auf diesem Gerät gespeichert.",
+    "invite": {
+      "title": "Zu ficsmap einladen",
+      "linkLabel": "Allgemeiner Einladungslink",
+      "hint": "Damit kann eine Person ein Konto anlegen, ohne einer Welt beizutreten. Nur Server-Owner sehen das."
+    }
   },
   "worlds": {
     "title": "Deine Welten",

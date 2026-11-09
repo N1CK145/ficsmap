@@ -4,7 +4,7 @@ import type { MeDto } from '../../shared/api.js';
 import { isWheelSpeed, roundWheelSpeed, WHEEL_SPEED, type UserPrefs } from '../../shared/prefs.js';
 import type { AppDeps } from '../app.js';
 import { requireUser } from '../auth/guards.js';
-import { getPrefs, updatePrefs } from '../domain/users.js';
+import { getPrefs, isServerOwner, updatePrefs } from '../domain/users.js';
 
 /** A partial update of the preferences; unknown keys are rejected. */
 const PrefsPatch = z.object({
@@ -24,6 +24,7 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
       email: u.email,
       datasetVersion: deps.config.datasetVersion,
       prefs: getPrefs(db, u.id),
+      serverOwner: isServerOwner(db, deps.config.ownerDiscordIds, u.id),
     };
   });
 

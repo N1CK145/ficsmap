@@ -12,11 +12,13 @@ import { LanguageSwitch } from '../../components/LanguageSwitch.js';
 import { SectionMarker } from '../../components/SectionHeading.js';
 import { Window } from '../../components/Window.js';
 import { AccountMenu } from './AccountMenu.js';
+import { GeneralInvite } from './GeneralInvite.js';
 import { useMe } from './queries.js';
 
 /**
  * `/profile`: the signed-in user's own settings, outside any world (reached from the account menu). The mouse wheel
- * speed is stored on the account (app/prefs.ts); the language stays a setting of this device.
+ * speed is stored on the account (app/prefs.ts); the language stays a setting of this device. Server owners also get
+ * a general invite link here.
  */
 export function ProfilePage() {
   const { t } = useTranslation();
@@ -52,6 +54,11 @@ export function ProfilePage() {
               <p className="text-sm text-muted">{t('profile.languageHint')}</p>
               <LanguageSwitch />
             </Window>
+            {me.data.serverOwner && (
+              <Window title={t('profile.invite.title')} bodyClassName="p-4">
+                <GeneralInvite />
+              </Window>
+            )}
           </>
         )}
       </main>
