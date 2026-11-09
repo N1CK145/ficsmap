@@ -57,10 +57,11 @@ describe('biome layer', () => {
     useUiStore.getState().enterWorld('w', { biomeScope: 0 });
     const fit = vi.spyOn(L.Map.prototype, 'fitBounds');
     const first = renderLayer();
-    await waitFor(() => expect(first.container.querySelector('.ficsmap-biome-label')).not.toBeNull());
+    // The map draws no biome: no labels, outlines or mask.
+    expect(first.container.querySelector('.ficsmap-biome-label, .leaflet-overlay-pane path')).toBeNull();
     expect(fit).not.toHaveBeenCalled();
     act(() => useUiStore.getState().setBiomeScope(0));
-    expect(fit).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(fit).toHaveBeenCalledTimes(1));
     expect(fit.mock.contexts[0]).toBe(map);
     expect(useUiStore.getState().biomeFitRequest).toBeNull();
     first.unmount();
@@ -76,7 +77,7 @@ describe('biome layer', () => {
   it('keeps a scope the dataset has', async () => {
     useUiStore.setState({ biomeScope: 0 });
     const { container } = renderLayer();
-    await waitFor(() => expect(container.querySelector('.ficsmap-biome-label')).not.toBeNull());
+    expect(container.querySelector('.ficsmap-biome-label, .leaflet-overlay-pane path')).toBeNull();
     expect(useUiStore.getState().biomeScope).toBe(0);
   });
 });

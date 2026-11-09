@@ -170,3 +170,19 @@
     transform: scaleX(1);
   }
 }
+
+/* Diagram full screen without the Fullscreen API (FlowDiagram): the marked block covers the page. */
+[data-fullscreen] {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: auto;
+  padding: 0.5rem;
+  background: var(--color-bg);
+}
+/* With the Fullscreen API the block is the full-screen element; give it the page background and scroll. */
+[data-fullscreen-root]:fullscreen {
+  overflow: auto;
+  padding: 0.5rem;
+  background: var(--color-bg);
+}

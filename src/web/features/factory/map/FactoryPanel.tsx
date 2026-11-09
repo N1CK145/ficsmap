@@ -19,6 +19,8 @@ import { bandLook, MAP_KINDS, type MapKind } from './style.js';
 import { EmptyFactory } from './Timeline.js';
 import { LinesSection } from './LinesSection.js';
 import { FACTORY_LAYERS, useFactoryMap, type ColorMode } from './useFactoryMap.js';
+import { HeightSlider } from './HeightSlider.js';
+import { useHeight } from './useHeight.js';
 
 /** A row of the panel's lists: 32 px, 44 px (a touch target) below 900 px. */
 const ROW = 'flex h-8 w-full items-center gap-2 chamfer px-2 text-left text-sm select-none focus-ring hover:bg-raised max-[899px]:h-11';
@@ -98,6 +100,35 @@ function SaveLine({ saveTime, buildings, machines }: { saveTime: number; buildin
   );
 }
 
+/**
+ * The height range ("Höhe"): the slider over the save's heights, how many buildings lie in the range, and "Darunter
+ * blass zeigen" (what lies below as faint outlines; only when the range starts above the lowest height).
+ */
+function HeightSection({ worldId, scene, settled }: { worldId: string; scene: Scene; settled: boolean }) {
+  const { t, i18n } = useTranslation();
+  // The count follows the map (a little behind while the slider is dragged); the slider itself never waits.
+  const { profile, range, shown } = useHeight(worldId, scene, { deferred: true, settled });
+  const below = useFactoryMap(s => s.heightBelow);
+  if (!profile) return null;
+  const num = new Intl.NumberFormat(i18n.language);
+  const session = scene.snapshot.meta.sessionName;
+  const canBelow = range !== null && range.lo > profile.min;
+  return (
+    <div className="flex flex-col" data-testid="factory-height">
+      <HeightSlider profile={profile} value={range} onChange={r => useFactoryMap.getState().setHeight(worldId, r, session)} />
+      {range && shown && (
+        <p className="px-2 text-xs text-muted tabular-nums" data-testid="height-count">
+          {t('factoryMap.height.count', { shown: num.format(shown.buildings.length), total: num.format(scene.buildings.length) })}
+        </p>
+      )}
+      <label className={`${ROW} ${canBelow ? 'cursor-pointer' : 'text-muted'}`}>
+        <input type="checkbox" checked={below} disabled={!canBelow} onChange={() => useFactoryMap.getState().setHeightBelow(!below)} className="size-4" />
+        <span className="min-w-0 flex-1">{t('factoryMap.height.below')}</span>
+      </label>
+    </div>
+  );
+}
+
 function PanelDetails({ worldId, version, owner }: { worldId: string; version: string; owner: boolean }) {
   const { t, i18n } = useTranslation();
   const lang = langOf(i18n.language);
@@ -117,6 +148,8 @@ function PanelDetails({ worldId, version, owner }: { worldId: string; version: s
 
   return (
     <>
+      {scene && <HeightSection worldId={worldId} scene={scene} settled={!data.loading} />}
+
       <SegmentedControl<ColorMode>
         label={t('factoryMap.colorMode')}
         value={colorMode}

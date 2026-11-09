@@ -1,3 +1,4 @@
+import type { Band } from './factory/analysis.js';
 import { perMinute, type ClockData, type GameExtractor, type GameRecipe, type RecipeIndex } from './recipes.js';
 
 /**
@@ -218,6 +219,25 @@ export function evenClock(step: Pick<PlanStep, 'machines' | 'machinesCeil' | 'cl
   if (step.machinesCeil < 1 || Math.abs(step.machines - step.machinesCeil) < 1e-6) return undefined;
   const clock = Math.ceil(((step.clock * step.machines) / step.machinesCeil) * 1e4 - 1e-6) / 1e4;
   return clock >= limits.min - 1e-9 ? clock : undefined;
+}
+
+/**
+ * How fully a step's buildings are used: the exact count over the built (rounded-up) count at its clock speed, 1 when
+ * the count is whole (within the rounding of `ceilMachines`), e.g. 52.5 of 53 → 0.991. Undefined for a step without
+ * buildings (supplied from outside, covered by by-products).
+ */
+export function stepUtilisation(step: Pick<PlanStep, 'machines' | 'machinesCeil'>): number | undefined {
+  if (step.machinesCeil < 1 || step.machines < 1e-9) return undefined;
+  return Math.abs(step.machines - step.machinesCeil) < 1e-6 ? 1 : step.machines / step.machinesCeil;
+}
+
+/**
+ * The factory's productivity bands for a step's use, with a stricter top: `full` only at exactly 100 %, `high` from
+ * 90 %, below that `throttled` (part load).
+ */
+export function utilisationBand(use: number): Extract<Band, 'full' | 'high' | 'throttled'> {
+  if (use >= 1 - 1e-9) return 'full';
+  return use >= 0.9 ? 'high' : 'throttled';
 }
 
 /** A stable string for a choice (select values, comparisons). */

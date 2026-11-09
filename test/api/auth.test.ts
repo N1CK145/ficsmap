@@ -129,7 +129,7 @@ describe('auth', () => {
     const res = await app.inject({ url: '/api/me', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
-      id: 1, displayName: 'user-owner-1', avatarUrl: null, email: 'owner-1@example.test', datasetVersion: 'test',
+      id: 1, displayName: 'user-owner-1', avatarUrl: null, email: 'owner-1@example.test', datasetVersion: 'test', prefs: {}, serverOwner: true,
     });
   });
   it('an expired session is treated as absent', async () => {

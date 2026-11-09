@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { descriptorClass } from '../../../shared/machines.js';
 import type { PlanStep } from '../../../shared/planner.js';
 import { badgeClass } from '../../components/Badge.js';
+import { BAND_TEXT } from '../factory/parts.js';
 import { GameIcon, IconsContext } from '../machineWiki/icons.js';
-import type { StepText } from './stepText.js';
+import type { StepText, StepUse } from './stepText.js';
 
 /** The Power Shard, by descriptor class (dataset part `icons`). */
 export const SHARD_CLASS = 'Desc_CrystalShard_C';
@@ -85,5 +86,30 @@ export function StepBadges({ text }: { text: StepText }) {
         </Fragment>
       ))}
     </>
+  );
+}
+
+/**
+ * A step's building use as a strip, in the factory's band colours and never by colour alone: full (100 %) solid green,
+ * nearly full (≥ 90 %) dashed yellow, part load dotted orange; the "100 %" next to it says the value.
+ */
+export const USE_STRIP: Record<StepUse['band'], string> = {
+  full: 'bg-free',
+  high: 'bg-[repeating-linear-gradient(to_bottom,var(--color-power)_0_6px,transparent_6px_9px)]',
+  throttled: 'bg-[repeating-linear-gradient(to_bottom,var(--color-accent)_0_3px,transparent_3px_6px)]',
+};
+
+/** The use strip along a node's left edge (the node is its containing block). */
+export function UseStrip({ use }: { use: StepUse }) {
+  return <span aria-hidden="true" data-use={use.band} className={`pointer-events-none absolute inset-y-0 left-0 w-1 ${USE_STRIP[use.band]}`} />;
+}
+
+/** "▍ 99.1 %": a short strip and the value in the band's colour (its title the sentence). */
+export function UseMark({ use, className = '' }: { use: StepUse; className?: string }) {
+  return (
+    <span data-use={use.band} title={use.long} className={`inline-flex items-center gap-1 font-display font-semibold whitespace-nowrap tabular-nums ${BAND_TEXT[use.band]} ${className}`}>
+      <span aria-hidden="true" className={`inline-block h-3.5 w-1 shrink-0 ${USE_STRIP[use.band]}`} />
+      {use.text}
+    </span>
   );
 }

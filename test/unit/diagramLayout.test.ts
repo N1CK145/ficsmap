@@ -223,6 +223,108 @@ describe('planner diagram layout', () => {
   });
 });
 
+describe('planner diagram layout from left to right', () => {
+  const RIGHT = { direction: 'right' } as const;
+  type Rect = { x: number; y: number; width: number; height: number };
+  const overlap = (a: Rect, b: Rect) => a.x < b.x + b.width - 1e-6 && b.x < a.x + a.width - 1e-6 && a.y < b.y + b.height - 1e-6 && b.y < a.y + a.height - 1e-6;
+  const labelRect = (e: DiagramLayout['edges'][number]): Rect => {
+    const b = labelBox(e);
+    return { x: b.left, y: b.top, width: b.right - b.left, height: b.bottom - b.top };
+  };
+  const big = () => planSteps({
+    targets: [{ item: 'plate', rate: 60 }, { item: 'rubber', rate: 30 }, { item: 'glow', rate: 1 }, { item: 'fuel', rate: 4 }],
+    choices: {
+      plate: { kind: 'recipe', recipe: 'R_PlateAlt' }, rubber: { kind: 'recipe', recipe: 'R_RecRubber' }, plastic: { kind: 'recipe', recipe: 'R_RecPlastic' },
+      fuel: { kind: 'recipe', recipe: 'R_ResFuel' },
+    },
+  });
+
+  it('turns the rows into columns: extraction on the left, the wanted items on the right', () => {
+    const steps = planSteps({ targets: [{ item: 'plate', rate: 30 }], choices: { plate: { kind: 'recipe', recipe: 'R_PlateAlt' } } });
+    const l = layoutDiagram(steps, RIGHT);
+    expect(l.rows).toBe(3);
+    expect(node(l, 'ore').x).toBeLessThan(node(l, 'ingot').x);
+    expect(node(l, 'ingot').x).toBeLessThan(node(l, 'plate').x);
+    expect(node(l, 'water').x).toBe(node(l, 'ore').x);
+    // A column's order runs from the top.
+    for (let r = 0; r < l.rows; r++) {
+      const ns = l.nodes.filter(n => n.row === r);
+      ns.forEach((n, i) => { if (i > 0) expect(n.y).toBeGreaterThanOrEqual(ns[i - 1]!.y + ns[i - 1]!.height + DIAGRAM_DEFAULTS.columnGap - 1e-6); });
+    }
+  });
+
+  it('makes a column as wide as its widest node; each node keeps its own height', () => {
+    const steps = [step('T', 0, [['A', 1], ['B', 1]]), step('A', 1), step('B', 1)];
+    const l = layoutDiagram(steps, { ...RIGHT, heights: new Map([['A', 100], ['T', 60]]) });
+    const [a, b, t] = [node(l, 'A'), node(l, 'B'), node(l, 'T')];
+    expect([a.height, b.height, t.height]).toEqual([100, DIAGRAM_DEFAULTS.nodeHeight, 60]);
+    expect([a.width, t.width]).toEqual([DIAGRAM_DEFAULTS.nodeWidth, DIAGRAM_DEFAULTS.nodeWidth]);
+    // The edges leave the right side of the inputs and enter the left side of T, within its height.
+    for (const e of l.edges) {
+      const from = node(l, e.from);
+      expect(e.points[0]!.x).toBe(from.x + from.width);
+      expect(e.points[0]!.y).toBeGreaterThan(from.y);
+      expect(e.points[0]!.y).toBeLessThan(from.y + from.height);
+      expect(e.points.at(-1)!.x).toBe(t.x);
+      expect(e.points.at(-1)!.y).toBeGreaterThan(t.y);
+      expect(e.points.at(-1)!.y).toBeLessThan(t.y + t.height);
+      // The label on the straight piece left of the arrowhead, between the columns.
+      expect(e.label.y).toBe(e.points.at(-1)!.y);
+      expect(labelBox(e).right).toBeLessThanOrEqual(t.x);
+      expect(labelBox(e).left).toBeGreaterThanOrEqual(from.x + from.width);
+    }
+    expect(l.width).toBe(Math.ceil(t.x + t.width + DIAGRAM_DEFAULTS.padding));
+  });
+
+  it('points a by-product for an earlier step into its right side, and draws a loop left of its column', () => {
+    const fed = layoutDiagram(planSteps({
+      targets: [{ item: 'plastic', rate: 60 }, { item: 'fuel', rate: 4 }], choices: { fuel: { kind: 'recipe', recipe: 'R_ResFuel' } },
+    }), RIGHT);
+    const [plastic, residue] = [node(fed, 'plastic'), node(fed, 'residue')];
+    expect(residue.x).toBeLessThan(plastic.x);
+    const e = edge(fed, 'plastic', 'residue');
+    expect(e.points[0]!.x).toBe(plastic.x);
+    expect(e.points.at(-1)!.x).toBe(residue.x + residue.width);
+    expect(labelBox(e).left).toBeGreaterThan(residue.x + residue.width);
+
+    const loop = layoutDiagram(planSteps({
+      targets: [{ item: 'rubber', rate: 60 }],
+      choices: { rubber: { kind: 'recipe', recipe: 'R_RecRubber' }, plastic: { kind: 'recipe', recipe: 'R_RecPlastic' } },
+    }), RIGHT);
+    const rubber = node(loop, 'rubber');
+    const arc = edge(loop, 'plastic', 'rubber');
+    expect(arc.points.at(-1)!.x).toBe(rubber.x);
+    expect(Math.max(...arc.points.map(p => p.x))).toBe(rubber.x);
+    expect(arc.label.x).toBeLessThan(rubber.x);
+    expect(arc.path).toMatch(/^M.* C.* L/);
+  });
+
+  it('keeps nodes and labels apart and everything inside the drawing', () => {
+    const l = layoutDiagram(big(), RIGHT);
+    expect(l.nodes.length).toBeGreaterThan(6);
+    for (const [i, a] of l.nodes.entries()) for (const b of l.nodes.slice(i + 1)) expect(overlap(a, b)).toBe(false);
+    for (const e of l.edges) {
+      for (const n of l.nodes) expect(overlap(labelRect(e), n), `${e.from}>${e.to} label on ${n.item}`).toBe(false);
+      for (const p of e.points) expect(p.x <= l.width && p.y <= l.height && p.x >= 0 && p.y >= 0).toBe(true);
+      const b = labelBox(e);
+      expect(b.left >= 0 && b.top >= 0 && b.right <= l.width && b.bottom <= l.height).toBe(true);
+    }
+    // Labels at the same side of a node do not cover each other.
+    const ends = new Map<string, DiagramLayout['edges']>();
+    for (const e of l.edges) ends.set(`${e.to}`, [...(ends.get(e.to) ?? []), e]);
+    for (const list of ends.values()) for (const [i, a] of list.entries()) for (const b of list.slice(i + 1)) expect(overlap(labelRect(a), labelRect(b))).toBe(false);
+  });
+
+  it('is deterministic, and the same graph as top to bottom', () => {
+    const steps = big();
+    const l = layoutDiagram(steps, RIGHT);
+    expect(layoutDiagram(steps, RIGHT)).toEqual(l);
+    const down = layoutDiagram(steps);
+    expect(l.nodes.map(n => [n.item, n.row, n.order]).sort()).toEqual(down.nodes.map(n => [n.item, n.row, n.order]).sort());
+    expect(l.edges.map(e => `${e.from}>${e.to}`)).toEqual(down.edges.map(e => `${e.from}>${e.to}`));
+  });
+});
+
 describe('initialScroll', () => {
   /** A node of the given row from x, 200 wide. */
   const at = (item: string, row: number, x: number): DiagramNode => ({ item, row, order: 0, x, y: 0, width: 200, height: 80 });

@@ -1,4 +1,5 @@
 import { addMember, makeTestApp, rawCookie } from './helpers.js';
+import { createInvite, findInvite, revokeInvites } from '../../src/server/domain/invites.js';
 import { createWorld } from '../../src/server/domain/worlds.js';
 import { SseHub } from '../../src/server/sse/hub.js';
 
@@ -10,7 +11,7 @@ async function setup(over: Parameters<typeof makeTestApp>[0] = {}, worldName = '
   const ctx = await makeTestApp(over);
   const ownerId = ctx.createUser('owner-1');
   const world = createWorld(ctx.deps.db, ownerId, worldName, 'test', 0);
-  const token = async () => (await ctx.deps.invites!.sign(world.id, 0)).token;
+  const token = async () => createInvite(ctx.deps.db, { worldId: world.id, createdBy: ownerId, now: (ctx.deps.now ?? Date.now)() }).token;
   return { ...ctx, world, token };
 }
 
@@ -27,7 +28,7 @@ describe('GET /invite/:token', () => {
   it('renders the landing page without a session and writes nothing (twice)', async () => {
     const { app, deps, token } = await setup();
     const t = await token();
-    const before = [n(deps.db, 'invite_uses'), n(deps.db, 'users'), n(deps.db, 'world_members'), n(deps.db, 'sessions')];
+    const before = [n(deps.db, 'invites'), n(deps.db, 'users'), n(deps.db, 'world_members'), n(deps.db, 'sessions')];
     for (let i = 0; i < 2; i++) {
       const res = await app.inject(`/invite/${t}`);
       expect(res.statusCode).toBe(200);
@@ -41,7 +42,7 @@ describe('GET /invite/:token', () => {
       expect(res.body).toContain('Invite valid until');
       expect(res.body).toContain(`/auth/login?invite=${t}&amp;returnTo=/`);
     }
-    expect([n(deps.db, 'invite_uses'), n(deps.db, 'users'), n(deps.db, 'world_members'), n(deps.db, 'sessions')]).toEqual(before);
+    expect([n(deps.db, 'invites'), n(deps.db, 'users'), n(deps.db, 'world_members'), n(deps.db, 'sessions')]).toEqual(before);
   });
   it('shows round(done/total*100) as progress', async () => {
     const { app, deps, world, token } = await setup();
@@ -89,7 +90,7 @@ describe('GET /invite/:token', () => {
     expect(res.statusCode).toBe(302);
     expect(res.headers.location).toBe(`/w/${world.id}?joined=1`);
     expect(res.headers['cache-control']).toBe('no-store');
-    expect(n(deps.db, 'invite_uses')).toBe(1);
+    expect(n(deps.db, 'invites')).toBe(0);
   });
   it('broadcasts members after a join', async () => {
     const hub = new SseHub();
@@ -107,7 +108,7 @@ describe('GET /invite/:token', () => {
     const oc = await login('owner-1');
     const r1 = await app.inject({ url: `/invite/${t}`, headers: { cookie: oc } });
     expect(r1.headers.location).toBe(`/w/${world.id}?already=1`);
-    expect(n(deps.db, 'invite_uses')).toBe(0);
+    expect(n(deps.db, 'invites')).toBe(1);
   });
   it('a different user reusing the token sees "no longer valid"', async () => {
     const { app, token, login, createUser } = await setup();
@@ -133,7 +134,7 @@ describe('GET /invite/:token', () => {
 });
 
 describe('invite API', () => {
-  it('owner gets url + expiresAt, no-store, no DB write', async () => {
+  it('owner gets url + expiresAt, no-store; only the link is stored', async () => {
     const { app, deps, world, login } = await setup();
     const cookie = await login('owner-1');
     const rev = (deps.db.prepare('SELECT rev FROM worlds WHERE id = ?').get(world.id) as { rev: number }).rev;
@@ -143,10 +144,10 @@ describe('invite API', () => {
     const body = res.json() as { url: string; expiresAt: number };
     expect(body.url.startsWith('https://ficsmap.test/invite/')).toBe(true);
     expect(typeof body.expiresAt).toBe('number');
-    const claims = await deps.invites!.verify(body.url.split('/invite/')[1]!);
-    expect(claims?.worldId).toBe(world.id);
+    const invite = findInvite(deps.db, body.url.split('/invite/')[1]!, Date.now(), deps.config.ownerDiscordIds);
+    expect(invite?.worldId).toBe(world.id);
     expect((deps.db.prepare('SELECT rev FROM worlds WHERE id = ?').get(world.id) as { rev: number }).rev).toBe(rev);
-    expect(n(deps.db, 'invite_uses')).toBe(0);
+    expect(n(deps.db, 'invites')).toBe(1);
   });
   it('member gets 403, anonymous 401, non-member 404', async () => {
     const { app, deps, world, createUser, login } = await setup();
@@ -233,7 +234,7 @@ describe('login with invite', () => {
         createUser('first');
         await loginWithInvite(app, t, 'first');
       } else {
-        deps.db.prepare('UPDATE worlds SET invite_epoch = invite_epoch + 1 WHERE id = ?').run(world.id);
+        revokeInvites(deps.db, world.id);
       }
       const res = await loginWithInvite(app, t, 'owner-2');
       expect([mode, res.headers.location]).toEqual([mode, `/invite/${t}`]);
@@ -260,7 +261,7 @@ describe('login with invite', () => {
     // Back to the invite landing page (sign-in button again), not the bare login page that forgot the invite.
     expect(cancelled.headers.location).toBe(`/invite/${t}`);
     expect(cancelled.cookies.find(c => c.name === 'oauth_tx')?.value).toBe('');
-    expect([n(deps.db, 'invite_uses'), n(deps.db, 'users'), n(deps.db, 'sessions')]).toEqual([0, 1, 0]);
+    expect([n(deps.db, 'invites'), n(deps.db, 'users'), n(deps.db, 'sessions')]).toEqual([1, 1, 0]);
     const res = await loginWithInvite(app, t, 'newbie');
     expect(res.headers.location).toMatch(/^\/w\/[0-9a-f-]{36}\?joined=1$/);
   });
@@ -271,8 +272,8 @@ describe('login with invite', () => {
     const failed = await loginWithInvite(app, t, 'newbie');
     expect(failed.headers.location).toBe(`/invite/${t}`);
     expect(failed.cookies.find(c => c.name === 'sid')).toBeUndefined();
-    expect([n(deps.db, 'invite_uses'), n(deps.db, 'users'), n(deps.db, 'sessions')]).toEqual([0, 1, 0]);
-    expect(await deps.invites!.verify(t)).not.toBeNull();
+    expect([n(deps.db, 'invites'), n(deps.db, 'users'), n(deps.db, 'sessions')]).toEqual([1, 1, 0]);
+    expect(findInvite(deps.db, t, Date.now(), deps.config.ownerDiscordIds)).not.toBeNull();
   });
   it('a cancelled callback with a tampered oauth_tx stays on the login page', async () => {
     const { app, token } = await setup();
@@ -290,7 +291,7 @@ describe('login with invite', () => {
     expect(res.headers.location).toBe(`/w/${world.id}?joined=1`);
     expect(res.cookies.find(c => c.name === 'sid')).toBeTruthy();
     expect(deps.db.prepare("SELECT COUNT(*) AS n FROM identities WHERE subject = 'newbie'").get()).toEqual({ n: 1 });
-    expect(n(deps.db, 'invite_uses')).toBe(1);
+    expect(n(deps.db, 'invites')).toBe(0);
     expect(deps.db.prepare("SELECT joined_via FROM world_members m JOIN identities i ON i.user_id = m.user_id WHERE i.subject = 'newbie'").get())
       .toEqual({ joined_via: 'invite' });
   });
@@ -303,7 +304,7 @@ describe('login with invite', () => {
     expect(res.headers.location).toBe('/login?error=invite_invalid');
     expect(res.cookies.find(c => c.name === 'sid')).toBeUndefined();
     expect([n(deps.db, 'users'), n(deps.db, 'identities'), n(deps.db, 'sessions')]).toEqual([users, idents, sessions]);
-    expect(n(deps.db, 'invite_uses')).toBe(1);
+    expect(n(deps.db, 'invites')).toBe(0);
   });
   it('an invalid token (garbage) with a new user is invite_invalid', async () => {
     const { app, deps } = await setup();
@@ -334,5 +335,82 @@ describe('login with invite', () => {
     const { app, world, token } = await setup();
     const res = await loginWithInvite(app, await token(), 'owner-1');
     expect(res.headers.location).toBe(`/w/${world.id}?already=1`);
+  });
+});
+
+describe('general invites', () => {
+  async function signupSetup(over: Parameters<typeof makeTestApp>[0] = {}) {
+    const ctx = await makeTestApp(over);
+    const ownerCookie = await ctx.login('owner-1');
+    const link = async () => {
+      const res = await ctx.app.inject({ url: '/api/invite-link', headers: { cookie: ownerCookie } });
+      return (res.json() as { url: string }).url.split('/invite/')[1]!;
+    };
+    return { ...ctx, ownerCookie, link };
+  }
+
+  it('only server owners get a link (no-store); others 403, anonymous 401', async () => {
+    const { app, deps, ownerCookie, createUser, login } = await signupSetup();
+    const res = await app.inject({ url: '/api/invite-link', headers: { cookie: ownerCookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-store');
+    const body = res.json() as { url: string; expiresAt: number };
+    expect(body.url.startsWith('https://ficsmap.test/invite/')).toBe(true);
+    expect(findInvite(deps.db, body.url.split('/invite/')[1]!, Date.now(), deps.config.ownerDiscordIds)).toMatchObject({ worldId: null });
+    expect(n(deps.db, 'invites')).toBe(1);
+    createUser('guest');
+    expect((await app.inject({ url: '/api/invite-link', headers: { cookie: await login('guest') } })).statusCode).toBe(403);
+    expect((await app.inject('/api/invite-link')).statusCode).toBe(401);
+  });
+  it('/api/me tells whether the user is a server owner', async () => {
+    const { app, ownerCookie, createUser, login } = await signupSetup();
+    expect((await app.inject({ url: '/api/me', headers: { cookie: ownerCookie } })).json()).toMatchObject({ serverOwner: true });
+    createUser('guest');
+    expect((await app.inject({ url: '/api/me', headers: { cookie: await login('guest') } })).json()).toMatchObject({ serverOwner: false });
+  });
+  it('the landing page names the inviter and no world', async () => {
+    const { app, link } = await signupSetup();
+    const t = await link();
+    const res = await app.inject(`/invite/${t}`);
+    expect(res.body).toContain('user-owner-1 invited you to ficsmap');
+    expect(res.body).toContain('Sign in with Discord to create your account');
+    expect(res.body).toContain(`/auth/login?invite=${t}&amp;returnTo=/`);
+    const de = await app.inject({ url: `/invite/${t}`, headers: { 'accept-language': 'de' } });
+    expect(de.body).toContain('user-owner-1 hat dich zu ficsmap eingeladen');
+  });
+  it('creates the account without a world, and works only once', async () => {
+    const { app, deps, link } = await signupSetup();
+    const t = await link();
+    const r = await loginWithInvite(app, t, 'newbie');
+    expect(r.headers.location).toBe('/');
+    expect(r.cookies.find(c => c.name === 'sid')).toBeDefined();
+    expect(deps.db.prepare("SELECT 1 FROM identities WHERE subject = 'newbie'").get()).toBeDefined();
+    expect(n(deps.db, 'world_members')).toBe(0);
+    expect(n(deps.db, 'invites')).toBe(0);
+    const again = await loginWithInvite(app, t, 'second');
+    expect(again.headers.location).toBe('/login?error=invite_invalid');
+    expect(deps.db.prepare("SELECT 1 FROM identities WHERE subject = 'second'").get()).toBeUndefined();
+    const page = await app.inject(`/invite/${t}`);
+    expect(page.body).toContain("This invite link isn't valid");
+  });
+  it('an existing user signs in without using the link up', async () => {
+    const { app, deps, link, createUser } = await signupSetup();
+    createUser('known');
+    const t = await link();
+    expect((await loginWithInvite(app, t, 'known')).headers.location).toBe('/');
+    expect(n(deps.db, 'invites')).toBe(1);
+    // A signed-in user opening the link is sent home; the link stays unused.
+    const sid = (await loginWithInvite(app, t, 'known')).cookies.find(c => c.name === 'sid')!.value;
+    const open = await app.inject({ url: `/invite/${t}`, headers: { cookie: `sid=${sid}` } });
+    expect(open.headers.location).toBe('/');
+    expect(n(deps.db, 'invites')).toBe(1);
+  });
+  it('stops working once the inviter is no longer a server owner', async () => {
+    const { deps, link } = await signupSetup();
+    const t = await link();
+    const demoted = await makeTestApp({ db: deps.db, config: { ...deps.config, ownerDiscordIds: new Set() } });
+    expect((await demoted.app.inject(`/invite/${t}`)).body).toContain("This invite link isn't valid");
+    expect((await loginWithInvite(demoted.app, t, 'newbie')).headers.location).toBe('/login?error=invite_invalid');
+    expect(deps.db.prepare("SELECT 1 FROM identities WHERE subject = 'newbie'").get()).toBeUndefined();
   });
 });

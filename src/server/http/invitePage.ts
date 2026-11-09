@@ -3,6 +3,8 @@ import type { Locale } from '../../shared/i18n.js';
 interface Strings {
   invalidTitle: string;
   invitedYou: (owner: string, world: string) => string;
+  invitedYouToApp: (owner: string) => string;
+  signUp: string;
   collected: (pct: number) => string;
   signIn: string;
   validUntil: (date: string) => string;
@@ -14,6 +16,8 @@ const STRINGS: Record<Locale, Strings> = {
   en: {
     invalidTitle: "This invite link isn't valid",
     invitedYou: (owner, world) => `${owner} invited you to ${world}`,
+    invitedYouToApp: owner => `${owner} invited you to ficsmap`,
+    signUp: 'Sign in with Discord to create your account',
     collected: pct => `Collected so far: ${pct} %`,
     signIn: 'Sign in with Discord to join',
     validUntil: date => `Invite valid until ${date}`,
@@ -23,6 +27,8 @@ const STRINGS: Record<Locale, Strings> = {
   de: {
     invalidTitle: 'Dieser Einladungslink ist ungültig',
     invitedYou: (owner, world) => `${owner} hat dich zu ${world} eingeladen`,
+    invitedYouToApp: owner => `${owner} hat dich zu ficsmap eingeladen`,
+    signUp: 'Mit Discord anmelden und Konto anlegen',
     collected: pct => `Bisher gesammelt: ${pct} %`,
     signIn: 'Mit Discord anmelden und beitreten',
     validUntil: date => `Einladung gültig bis ${date}`,
@@ -34,7 +40,9 @@ const STRINGS: Record<Locale, Strings> = {
 export type InvitePage =
   | { kind: 'invalid' }
   | { kind: 'no_longer_valid' }
-  | { kind: 'landing'; owner: string; world: string; percent: number; expiresAt: number; token: string };
+  | { kind: 'landing'; owner: string; world: string; percent: number; expiresAt: number; token: string }
+  /** A general invite of a server owner: creates an account, joins no world. */
+  | { kind: 'signup'; owner: string; expiresAt: number; token: string };
 
 /** Escapes text and double-quoted attribute values (the page never uses single-quoted attributes). */
 export function escapeHtml(v: string): string {
@@ -62,9 +70,12 @@ export function renderInvitePage(page: InvitePage, locale: Locale): string {
   } else {
     const date = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(page.expiresAt));
     const href = `/auth/login?invite=${encodeURIComponent(page.token)}&returnTo=/`;
-    body = `<h1>${escapeHtml(t.invitedYou(page.owner, page.world))}</h1>
-<p>${escapeHtml(t.collected(page.percent))}</p>
-<a class="btn" href="${escapeHtml(href)}">${escapeHtml(t.signIn)}</a>
+    const head = page.kind === 'landing'
+      ? `<h1>${escapeHtml(t.invitedYou(page.owner, page.world))}</h1>
+<p>${escapeHtml(t.collected(page.percent))}</p>`
+      : `<h1>${escapeHtml(t.invitedYouToApp(page.owner))}</h1>`;
+    body = `${head}
+<a class="btn" href="${escapeHtml(href)}">${escapeHtml(page.kind === 'landing' ? t.signIn : t.signUp)}</a>
 <p class="muted">${escapeHtml(t.validUntil(date))}</p>`;
   }
   return `<!doctype html>

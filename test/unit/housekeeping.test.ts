@@ -35,20 +35,20 @@ describe('backupDb', () => {
 });
 
 describe('runHourly', () => {
-  it('purges expired sessions and invite uses, keeps valid ones', () => {
+  it('purges expired sessions and invites, keeps valid ones', () => {
     const db = openDb(':memory:');
     db.prepare("INSERT INTO users(id, display_name, created_at, last_login_at) VALUES (1,'a',0,0)").run();
     db.prepare("INSERT INTO worlds(id, name, owner_id, dataset_version, created_at) VALUES (?, 'w', 1, 'v', 0)")
       .run('00000000-0000-4000-8000-000000000000');
     createSession(db, 1, 0); // expires long before `now`
     createSession(db, 1, 10_000_000_000_000);
-    const ins = db.prepare("INSERT INTO invite_uses(jti, world_id, user_id, used_at, expires_at) VALUES (?, ?, 1, 0, ?)");
-    ins.run('old', '00000000-0000-4000-8000-000000000000', 1000);
-    ins.run('new', '00000000-0000-4000-8000-000000000000', 10_000_000_000_000);
+    const ins = db.prepare("INSERT INTO invites(token_hash, world_id, created_by, created_at, expires_at) VALUES (?, ?, 1, 0, ?)");
+    ins.run(Buffer.from('old'), '00000000-0000-4000-8000-000000000000', 1000);
+    ins.run(Buffer.from('new'), '00000000-0000-4000-8000-000000000000', 10_000_000_000_000);
     const res = runHourly(db, 5_000_000_000_000);
     expect(res).toEqual({ sessions: 1, invites: 1, snapshots: 0 });
     expect((db.prepare('SELECT count(*) AS n FROM sessions').get() as { n: number }).n).toBe(1);
-    expect((db.prepare('SELECT count(*) AS n FROM invite_uses').get() as { n: number }).n).toBe(1);
+    expect((db.prepare('SELECT count(*) AS n FROM invites').get() as { n: number }).n).toBe(1);
   });
 });
 

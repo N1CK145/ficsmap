@@ -184,9 +184,19 @@ export function drawMarkerPin(ctx: CanvasRenderingContext2D, x: number, y: numbe
   ctx.restore();
 }
 
-/** A crate: a small box with a cross. */
-export function drawCrate(ctx: CanvasRenderingContext2D, x: number, y: number, p: FactoryPalette): void {
+/** A crate: a small box with a cross; selected (or pointed at) with a ring around it, as the map marks a selection. */
+export function drawCrate(ctx: CanvasRenderingContext2D, x: number, y: number, p: FactoryPalette, mark?: 'selected' | 'hover'): void {
   ctx.save();
+  if (mark) {
+    ctx.beginPath();
+    ctx.arc(x, y, 10, 0, Math.PI * 2);
+    ctx.strokeStyle = p.bg;
+    ctx.lineWidth = mark === 'selected' ? 5 : 4;
+    ctx.stroke();
+    ctx.strokeStyle = p.fg;
+    ctx.lineWidth = mark === 'selected' ? 2.5 : 1.5;
+    ctx.stroke();
+  }
   ctx.fillStyle = p.panel;
   ctx.strokeStyle = p.fg;
   ctx.lineWidth = 1.5;

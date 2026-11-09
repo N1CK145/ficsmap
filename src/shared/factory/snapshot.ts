@@ -46,7 +46,12 @@ export interface FactorySnapshot {
   /** The players' own map markers and stamps. */
   markers: SnapshotMarker[];
   /** Death crates and other crates left in the world. */
-  crates: { x: number; y: number; z: number; kind: string }[];
+  crates: SnapshotCrate[];
+  /**
+   * What lies in the Dimensional Depot (`FGCentralStorageSubsystem`): item class and amount, items with an amount of 0
+   * left out, in the save's order. Missing in snapshots extracted before inventories were read.
+   */
+  depot?: [item: string, amount: number][];
   /**
    * The explored area (fog of war) as a base64 PNG, one channel (grey = how explored, 0 = never seen), in the map's
    * square at the save's resolution (512 × 512 in 1.2). Rows run along y (first row = the map's north edge, minY),
@@ -67,6 +72,11 @@ export interface SnapshotMeta {
   gamePhase?: string;
   /** Number of purchased schematics (milestones, MAM, shop). */
   schematics?: number;
+  /**
+   * The snapshot carries inventories (`SnapshotBuilding.inv`/`in`/`out`/`fuel`, station, vehicle and crate `inv`,
+   * `depot`): a machine without `in` then has an empty input. Missing in snapshots extracted before they were read.
+   */
+  inventories?: boolean;
 }
 
 export interface SnapshotBuilding {
@@ -85,6 +95,44 @@ export interface SnapshotBuilding {
   height?: number;
   /** Extractors: the resource node it stands on (node id as in `resource-nodes.json`), when known. */
   node?: string;
+  /**
+   * Storage (containers, storage boxes, Dimensional Depot uploaders, fluid buffers): what lies in it. Always present
+   * for storage once `meta.inventories` is set, also when empty (`items` empty), so the slots are known. A fluid
+   * buffer has one slot holding its fluid in litres (the fluid of its pipe network; empty when the save names none).
+   */
+  inv?: SnapshotInventory;
+  /** Machines: the input, output and fuel inventories (a generator's fuel and supplemental slot); left out when empty. */
+  in?: SnapshotInventory;
+  out?: SnapshotInventory;
+  fuel?: SnapshotInventory;
+}
+
+/**
+ * A run of slots in an inventory: the item class, the count in each slot (fluids in litres, as inventories store
+ * them) and how many slots in a row hold exactly that (left out when 1). `["Desc_SteelPlate_C", 200, 48]` is 48
+ * full slots of steel plates.
+ */
+export type SnapshotStack = [item: string, count: number, times?: number];
+
+/**
+ * An inventory as the save has it: its number of slots and the filled ones in slot order, consecutive equal slots as
+ * one run (`SnapshotStack`). Empty slots are left out (the filled ones are packed), so `slots` minus the filled ones
+ * are the free slots.
+ */
+export interface SnapshotInventory {
+  slots: number;
+  items: SnapshotStack[];
+}
+
+/** A crate left in the world (a death crate holds what the player carried). */
+export interface SnapshotCrate {
+  /** Instance id (missing in older snapshots). */
+  id?: string;
+  x: number; y: number; z: number;
+  /** `CT_DeathCrate`, ... without the enum prefix. */
+  kind: string;
+  /** What lies in it (missing in older snapshots). */
+  inv?: SnapshotInventory;
 }
 
 export interface SnapshotProduction {
@@ -132,6 +180,8 @@ export interface SnapshotStation {
   traffic: { vehicle: string; avgSecBetweenDocks?: number; avgItemsPerDock?: number; capacityStacks?: number; capacityFluid?: number }[];
   /** What lay in the station's own inventory when saved, per item (missing in older snapshots and when empty). */
   cargo?: SnapshotCargo[];
+  /** The same inventory slot by slot (missing in older snapshots; empty `items` when empty). */
+  inv?: SnapshotInventory;
 }
 
 /** Items of one class in an inventory: the count (fluids in litres, as inventories store them). Most first. */
@@ -155,6 +205,8 @@ export interface SnapshotVehicle {
   cargo?: SnapshotCargo[];
   /** Slots of its storage (missing in older snapshots). */
   slots?: number;
+  /** Its storage slot by slot (missing in older snapshots; empty `items` when empty). */
+  inv?: SnapshotInventory;
 }
 
 export interface SnapshotMarker {

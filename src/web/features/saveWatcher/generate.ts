@@ -174,8 +174,22 @@ function dockerVolume(saveDir: string): string {
 }
 
 /** How to run the downloaded file: one entry per step, `id` names the step's label in the UI. */
-export function runSteps(platform: WatchPlatform, c: WatchConfig): { id: 'run' | 'compose' | 'dockerRun' | 'autostart'; code: string }[] {
-  if (platform === 'bash') return [{ id: 'run', code: 'chmod +x ficsmap-watch.sh && ./ficsmap-watch.sh' }];
+/**
+ * Steam launch options that run the watcher while the game runs: it starts with the game, logs to
+ * ~/ficsmap/watch.log and stops a minute after the game exits. `env -i` gives the watcher a clean environment, so
+ * Steam's library paths (its old libcurl, 32-bit overlay preloads) never reach curl.
+ */
+export const STEAM_LAUNCH_OPTIONS =
+  `bash -c 'env -i HOME="$HOME" PATH=/usr/local/bin:/usr/bin:/bin "$HOME/ficsmap/ficsmap-watch.sh" >>"$HOME/ficsmap/watch.log" 2>&1 & w=$!; "$@"; s=$?; sleep 60; kill $w; exit $s' _ %command%`;
+
+export function runSteps(platform: WatchPlatform, c: WatchConfig): { id: 'run' | 'steamInstall' | 'steam' | 'compose' | 'dockerRun' | 'autostart'; code: string }[] {
+  if (platform === 'bash') {
+    return [
+      { id: 'run', code: 'chmod +x ficsmap-watch.sh && ./ficsmap-watch.sh' },
+      { id: 'steamInstall', code: 'mkdir -p ~/ficsmap && mv ficsmap-watch.sh ~/ficsmap/ && chmod +x ~/ficsmap/ficsmap-watch.sh' },
+      { id: 'steam', code: STEAM_LAUNCH_OPTIONS },
+    ];
+  }
   if (platform === 'powershell') {
     return [
       { id: 'run', code: 'powershell -ExecutionPolicy Bypass -File ficsmap-watch.ps1' },

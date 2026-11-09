@@ -4,6 +4,7 @@ import { queryKeys } from '../../app/queryKeys.js';
 import { pageTool } from '../../app/tools.js';
 import { FACTORY_PAGE, FactoryPage } from './FactoryPage.js';
 import { FactoryIcon } from './icons.js';
+import { storageSearch } from './search.js';
 
 export { deleteSnapshot, factoryOf, fetchSnapshot, uploadSnapshot, useSnapshot, useSnapshotList } from './api.js';
 export { factoryLabels, prettyClass, useBuildings, useFactoryData, useFactoryDiff, useSnapshotAnalysis } from './data.js';
@@ -19,13 +20,15 @@ export const factoryTool = pageTool({ id: 'factory', order: 35, labelKey: 'facto
 
 /**
  * The factory: snapshots of the factory per save (stored on the server) and the page "Factory" (`/w/:id/factory`) with
- * the timeline, the efficiency of machines and items and the vehicle routes. The data layer is `api.ts`, the shared
+ * the timeline, the efficiency of machines and items, the vehicle routes and what lies in storage (also in the header
+ * search). The data layer is `api.ts`, the shared
  * view state (selected snapshot, comparison, highlight) `view.ts`, the analysis `src/shared/factory/analysis.ts`.
  */
 export const factoryFeature: FeatureModule = {
   id: 'factory',
   tools: [factoryTool],
   pages: [{ id: FACTORY_PAGE, titleKey: 'factory.title', Component: FactoryPage }],
+  searchProviders: [storageSearch],
   sseHandlers: {
     snapshots: (_e, ctx) => { void ctx.queryClient.invalidateQueries({ queryKey: queryKeys.snapshots(ctx.worldId) }); },
   },

@@ -48,6 +48,7 @@ function progress(until: number | undefined, duration: number, now: number): num
  * covers the map container and is redrawn (coalesced to one frame) on move, zoom, resize and when
  * `redraw()` is called after data changes. During a zoom animation it is scaled like the tiles.
  * Clicks are not handled here; the map view asks `pick()` which marker is under a point.
+ * Switched off (`setVisible(false)`, the "Collectibles" layer switch) it draws nothing and `pick()` finds nothing.
  */
 export class MarkerLayer extends L.Layer {
   private canvas: HTMLCanvasElement | null = null;
@@ -55,6 +56,7 @@ export class MarkerLayer extends L.Layer {
   private animatingZoom = false;
   private palette: MarkerPalette | null = null;
   private unsubscribeImages: (() => void) | null = null;
+  private visible = true;
 
   /** `datasetVersion`: where the types' game icons are loaded from; without it markers are shapes. */
   constructor(private readonly getMarkers: () => readonly DrawMarker[], private readonly datasetVersion?: string) {
@@ -103,10 +105,19 @@ export class MarkerLayer extends L.Layer {
     return this;
   }
 
+  /** Shows or hides all markers. Hidden, the canvas is cleared and stays empty, and `pick()` finds nothing. */
+  setVisible(visible: boolean): this {
+    if (visible === this.visible) return this;
+    this.visible = visible;
+    // Drawn at once rather than in the next frame, so a hidden layer never shows one more frame of markers.
+    this.draw();
+    return this;
+  }
+
   /** The drawn marker nearest to a container point within `radiusPx`. */
   pick(x: number, y: number, radiusPx: number): string | null {
     const map = this._map as L.Map | undefined;
-    if (!map) return null;
+    if (!map || !this.visible) return null;
     const points: { id: string; px: number; py: number }[] = [];
     for (const m of this.getMarkers()) {
       if (!m.visual.draw) continue;
@@ -153,6 +164,7 @@ export class MarkerLayer extends L.Layer {
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, size.x, size.y);
+    if (!this.visible) return;
     this.palette ??= readPalette();
     const palette = this.palette;
     if (!palette) return;

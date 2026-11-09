@@ -43,6 +43,26 @@
     "signedInAs": "Angemeldet als {email} über Discord",
     "signOut": "Abmelden"
   },
+  "profile": {
+    "title": "Profil-Einstellungen",
+    "back": "Zurück",
+    "loadFailed": "Dein Profil konnte nicht geladen werden.",
+    "controls": "Steuerung",
+    "wheelSpeed": "Mausrad-Geschwindigkeit",
+    "wheelSpeedValue": "{speed, number, ::.0#}×",
+    "wheelSpeedHint": "Wie stark ein Dreh am Mausrad auf der Karte und in den Diagrammen zoomt.",
+    "wheelSpeedReset": "Standard",
+    "wheelSpeedResetLabel": "Mausrad-Geschwindigkeit auf den Standard ({speed, number, ::.0#}×) zurücksetzen",
+    "saving": "Wird gespeichert…",
+    "saved": "Gespeichert",
+    "saveFailed": "Nicht gespeichert. Die Einstellung gilt vorerst nur auf diesem Gerät.",
+    "languageHint": "Wird auf diesem Gerät gespeichert.",
+    "invite": {
+      "title": "Zu ficsmap einladen",
+      "linkLabel": "Allgemeiner Einladungslink",
+      "hint": "Damit kann eine Person ein Konto anlegen, ohne einer Welt beizutreten. Nur Server-Owner sehen das."
+    }
+  },
   "worlds": {
     "title": "Deine Welten",
     "new": "+ Neue Welt",
@@ -273,6 +293,10 @@
   },
   "map": {
     "attribution": "Karte © Coffee Stain Studios",
+    "collectibles": {
+      "control": "Sammelobjekte",
+      "hint": "Sammelobjekte zeigen: Elektroschnecken, Somersloops, Mercer-Sphären und Festplatten"
+    },
     "zoomIn": "Vergrößern",
     "zoomOut": "Verkleinern"
   },
@@ -747,6 +771,7 @@
     "diagram": {
       "label": "Produktionskette",
       "hint": "Rohstoffe oben, deine Gegenstände unten, Mengen pro Minute. Wähle einen Schritt, um Rezept, Taktrate oder Reinheit zu ändern; die Pfeiltasten wechseln zwischen den Schritten, Escape schließt den Schritt.",
+      "hintRight": "Rohstoffe links, deine Gegenstände rechts, Mengen pro Minute. Wähle einen Schritt, um Rezept, Taktrate oder Reinheit zu ändern; die Pfeiltasten wechseln zwischen den Schritten, Escape schließt den Schritt.",
       "wanted": "gewünscht: {value}",
       "alt": "Alternativ",
       "alternate": "{recipe} (Alternativrezept)",
@@ -769,8 +794,22 @@
       "makes": "stellt {value} her",
       "needs": "braucht {list}",
       "wantedBadge": "Gewünscht",
-      "fit": "Einpassen",
-      "actualSize": "Originalgröße"
+      "direction": {
+        "label": "Richtung",
+        "down": "Oben nach unten",
+        "right": "Links nach rechts"
+      },
+      "view": {
+        "label": "Ansicht",
+        "hint": "Ziehen verschiebt die Ansicht, Mausrad oder zwei Finger zoomen; Umschalt und die Pfeiltasten verschieben sie, + und − zoomen, 0 zeigt 100 %.",
+        "zoomIn": "Vergrößern",
+        "zoomOut": "Verkleinern",
+        "reset": "{percent} %, zurück auf 100 %",
+        "fit": "Einpassen",
+        "fitHint": "Das ganze Diagramm zeigen",
+        "fullscreen": "Vollbild",
+        "exitFullscreen": "Vollbild beenden"
+      }
     },
     "panel": {
       "recipe": "Rezept",
@@ -787,7 +826,14 @@
       "shardSlots": "{used, number} von {total, number} Plätzen für Energiefragmente belegt",
       "pressurizerPower": "{name}: {value} MW je Rohstoffquelle, nicht in den Summen enthalten",
       "purity": "Reinheit",
-      "even": "{count}× bei {clock} %"
+      "even": "{count}× bei {clock} % Takt wären 100 %"
+    },
+    "use": {
+      "label": "Auslastung",
+      "long": "Gebäude zu {value} % ausgelastet",
+      "full": "Alle Gebäude voll ausgelastet (100 %)",
+      "high": "Fast voll (≥ 90 %)",
+      "throttled": "Teillast (< 90 %)"
     },
     "gameModeNote": "Die Zahlen gelten für den Standard-Spielmodus; Einstellungen des Spielmodus (Rezeptkosten, Stromverbrauch, zufällige Reinheit der Rohstoffvorkommen) werden nicht berücksichtigt.",
     "lastWorking": "Unten steht der letzte gültige Plan; korrigiere den Wert, dann wird er aktualisiert.",
@@ -1124,7 +1170,8 @@
       },
       "diagram": {
         "label": "Produktionsstrang {name}",
-        "hint": "Zulieferung oben, Produkte unten; an jedem Förderband und jeder Pipeline die Menge pro Minute und ihre Kapazität. Wähle eine Gruppe, um ihre Maschinen zu sehen; die Pfeiltasten wechseln zwischen den Gruppen, Escape schließt die Gruppe."
+        "hint": "Zulieferung oben, Produkte unten; an jedem Förderband und jeder Pipeline die Menge pro Minute und ihre Kapazität. Wähle eine Gruppe, um ihre Maschinen zu sehen; die Pfeiltasten wechseln zwischen den Gruppen, Escape schließt die Gruppe.",
+        "hintRight": "Zulieferung links, Produkte rechts; an jedem Förderband und jeder Pipeline die Menge pro Minute und ihre Kapazität. Wähle eine Gruppe, um ihre Maschinen zu sehen; die Pfeiltasten wechseln zwischen den Gruppen, Escape schließt die Gruppe."
       },
       "legend": {
         "load": "Dicker = vollere Förderbänder und Pipelines",
@@ -1136,7 +1183,9 @@
         "exact": "Voll, reicht genau",
         "neck": "Engpass",
         "idle": "{count, plural, one {# leeres Lager oder Station} other {# leere Lager und Stationen}} ausgeblendet",
-        "folded": "{count, plural, one {# Nebenprodukt-Verbindung} other {# Nebenprodukt-Verbindungen}} eingeklappt"
+        "folded": "{count, plural, one {# Nebenprodukt-Verbindung} other {# Nebenprodukt-Verbindungen}} eingeklappt",
+        "ends": "Ausgang und Eingang: was den Strang verlässt und was hineinkommt",
+        "unlinked": "Nicht angeschlossen: hergestellt, aber kein Förderband und keine Pipeline bringt es weg"
       },
       "logisticsInDiagram": "{count, plural, one {# Logistikgebäude} other {# Logistikgebäude}} (Splitter, Lager, Stationen) im Diagramm darunter.",
       "machinesOnly": "Nur Maschinen",
@@ -1162,7 +1211,32 @@
       "limit": "Grenze:",
       "byproducts": "Nebenprodukte",
       "moreRight": "mehr →",
-      "limitBadge": "Grenze"
+      "limitBadge": "Grenze",
+      "output": "Ausgang",
+      "input": "Eingang",
+      "unlinked": "nicht angeschlossen",
+      "unlinkedHint": "kein Förderband und keine Pipeline bringt es von den herstellenden Maschinen weg.",
+      "unlinkedMakers": "Maschinen ohne Förderband oder Pipeline dafür",
+      "outputName": "Ausgang: {item}, {rate}, nach {place}",
+      "outputNameUnlinked": "Ausgang: {item}, {rate}, nicht angeschlossen",
+      "inputName": "Eingang: {item}, {rate}, aus {place}",
+      "endOut": "Ausgang: {name}, erhält {items}",
+      "endIn": "Eingang: {name}, liefert {items}",
+      "outputTitle": "Ausgang: {item}",
+      "inputTitle": "Eingang: {item}",
+      "terminalOut": "Verlässt hier den Strang",
+      "terminalIn": "Kommt hier in den Strang",
+      "receivers": "Gebäude, die es aufnehmen",
+      "suppliers": "Gebäude, die es liefern",
+      "receives": "Erhält",
+      "gives": "Liefert",
+      "receivesNothing": "erhält nichts",
+      "givesNothing": "liefert nichts",
+      "summary": {
+        "makes": "Erzeugt:",
+        "to": "Ziel:",
+        "gets": "Bezieht:"
+      }
     },
     "items": {
       "title": "Ineffiziente Gegenstände",
@@ -1344,6 +1418,73 @@
       "title": "Größter Engpass",
       "diagram": "Zum Diagramm",
       "map": "Auf der Karte"
+    },
+    "machineWindow": {
+      "close": "{name} schließen",
+      "open": "Maschinenfenster von {name} öffnen",
+      "status": "Status",
+      "productivity": "Produktivität",
+      "state": {
+        "running": "Läuft",
+        "partLoad": "Teillast",
+        "stopped": "Steht",
+        "paused": "Pausiert"
+      },
+      "because": "Grund",
+      "noMeasurement": "Keine Produktivität im Spielstand gemessen",
+      "alternate": "Alternativ",
+      "of": "von {value}",
+      "missing": "fehlt",
+      "power": "Strom",
+      "fuels": "Treibstoff (einer davon)",
+      "supplement": "dazu {item} {rate}",
+      "somersloops": "Somersloops",
+      "sloopSlots": "{used, number} von {total, number} Plätzen für Somersloops belegt",
+      "boost": "Produktion ×{value}",
+      "powerUse": "Stromverbrauch im Betrieb",
+      "atClock": "bei {clock} Taktrate",
+      "powerMade": "Stromerzeugung",
+      "hints": "Hinweise",
+      "belt": "Am Ausgang: {belt} ({rate})",
+      "loaded": "Geladen: {amount}",
+      "noFuelLoaded": "Kein Treibstoff geladen"
+    },
+    "inventory": {
+      "contents": "Inhalt",
+      "slots": "Plätze",
+      "fill": "{used, number} von {slots, plural, one {# Platz} other {# Plätzen}}",
+      "fluidFill": "{amount} von {capacity} m³",
+      "empty": "Leer",
+      "byItem": "Nach Gegenstand",
+      "stacks": "{count, plural, one {# Stapel} other {# Stapel}}",
+      "inSlot": "{amount} im Platz",
+      "unknown": "Dieser Spielstand wurde importiert, bevor Inhalte gelesen wurden. Importiere ihn erneut, um zu sehen, was hier liegt.",
+      "crate": {
+        "death": "Todeskiste",
+        "other": "Kiste"
+      }
+    },
+    "storage": {
+      "title": "Lager",
+      "subtitle": "{buildings, plural, one {# Lager} other {# Lager}} · {used, number} von {slots, number} Plätzen belegt",
+      "search": "Gelagerten Gegenstand suchen",
+      "searchPlaceholder": "z. B. Kupferbarren",
+      "showing": "{shown, number} von {total, number} Gegenständen",
+      "item": "Gegenstand",
+      "total": "Gelagert",
+      "stacks": "Plätze",
+      "holders": "Lager",
+      "holdersCount": "in {count, plural, one {# Lager} other {# Lagern}}",
+      "noMatch": "Kein gelagerter Gegenstand passt zu „{query}“.",
+      "none": "Im Lager liegt nichts.",
+      "noStorage": "In diesem Spielstand gibt es kein Lager.",
+      "unknown": "Dieser Spielstand wurde importiert, bevor Inhalte gelesen wurden. Importiere ihn erneut, um das Lager zu sehen.",
+      "storages": "Container und Speicher",
+      "depot": "Dimensionales Depot",
+      "depotSubtitle": "{count, plural, one {# Gegenstand} other {# Gegenstände}}, von überall abrufbar",
+      "depotEmpty": "Im Dimensionalen Depot liegt nichts.",
+      "searchKind": "Im Lager",
+      "searchDetail": "{amount} in {count, plural, one {# Lager} other {# Lagern}}"
     }
   },
   "factoryMap": {
@@ -1483,7 +1624,10 @@
     },
     "highlight": {
       "count": "{count, plural, one {{n} Gebäude markiert} other {{n} Gebäude markiert}}",
-      "clear": "Markierung aufheben"
+      "clear": "Markierung aufheben",
+      "outside": "{count, plural, one {{n} markiertes Gebäude liegt} other {{n} markierte Gebäude liegen}} außerhalb des Höhenbereichs",
+      "showOutside": "Anzeigen",
+      "showOutsideHint": "Den Höhenbereich so erweitern, dass alle markierten Gebäude zu sehen sind"
     },
     "lines": {
       "title": "Produktionsstränge",
@@ -1517,7 +1661,24 @@
       "less": "Weniger zeigen",
       "onMap": "Auf der Karte"
     },
-    "cargoMore": "{count, plural, one {+# weiterer} other {+# weitere}}"
+    "cargoMore": "{count, plural, one {+# weiterer} other {+# weitere}}",
+    "height": {
+      "title": "Höhe",
+      "all": "alle Höhen",
+      "range": "{lo}–{hi} m",
+      "rangeWords": "{lo} bis {hi} m",
+      "one": "{value} m",
+      "upTo": "bis {value} m",
+      "atLeast": "ab {value} m",
+      "reset": "Alle",
+      "lower": "Untere Grenze der Höhe",
+      "upper": "Obere Grenze der Höhe",
+      "from": "von {value} m",
+      "to": "bis {value} m",
+      "keys": "Pfeiltasten: 1 m, Bild auf und Bild ab: zur nächsten Etage, Pos1 und Ende: ganz nach unten und oben.",
+      "below": "Darunter blass zeigen",
+      "count": "{shown} von {total} Gebäuden in diesem Bereich"
+    }
   },
   "saveWatcher": {
     "title": "Automatischer Upload",
@@ -1597,7 +1758,9 @@
       "title": "Starten",
       "bash": {
         "run": "Im Ordner der Datei ausführen",
-        "note": "Läuft, bis du es mit Strg+C beendest; mit --once lädt es einmal hoch und endet (etwa für cron). Mit dem Paket inotify-tools bemerkt es neue Spielstände sofort."
+        "steamInstall": "Oder nur mitlaufen lassen, solange Satisfactory läuft (Steam unter Linux, auch Steam Deck): 1. Datei nach ~/ficsmap legen",
+        "steam": "2. In Steam: Rechtsklick auf Satisfactory → Eigenschaften → Allgemein → Startoptionen, diese Zeile eintragen",
+        "note": "Läuft, bis du es mit Strg+C beendest; mit --once lädt es einmal hoch und endet (etwa für cron). Mit dem Paket inotify-tools bemerkt es neue Spielstände sofort. Über die Steam-Startoptionen startet es mit dem Spiel und endet eine Minute nach dem Beenden; was es tut, steht in ~/ficsmap/watch.log (mitlesen: tail -f ~/ficsmap/watch.log)."
       },
       "powershell": {
         "run": "In PowerShell im Ordner der Datei ausführen",

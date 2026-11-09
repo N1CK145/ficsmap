@@ -4,7 +4,10 @@ import { useUiStore } from '../../src/web/app/store.js';
 const ui = () => useUiStore.getState();
 
 describe('ui store', () => {
-  beforeEach(() => { useUiStore.setState(useUiStore.getInitialState(), true); });
+  beforeEach(() => {
+    localStorage.clear();
+    useUiStore.setState(useUiStore.getInitialState(), true);
+  });
 
   it('starts in inspect mode with all types, dimmed collected items and the sidebar open', () => {
     expect(ui().interactionMode).toBe('inspect');
@@ -58,6 +61,37 @@ describe('ui store', () => {
     expect(ui().sidebarOpen).toBe(true);
   });
 
+  it('switches the collectibles layer and remembers it on the device', () => {
+    expect(ui().markersVisible).toBe(true);
+    ui().toggleMarkers();
+    expect(ui().markersVisible).toBe(false);
+    expect(localStorage.getItem('ficsmap:collectibles')).toBe('0');
+    ui().showMarkers();
+    expect(ui().markersVisible).toBe(true);
+    expect(localStorage.getItem('ficsmap:collectibles')).toBe('1');
+  });
+
+  it('shows the collectibles layer for what is about a marker: a selection, focusItem, the route mode', () => {
+    const off = () => { ui().toggleMarkers(); expect(ui().markersVisible).toBe(false); };
+    off();
+    ui().select(null);
+    ui().setMode('vehicle-route');
+    ui().setMode('inspect');
+    expect(ui().markersVisible).toBe(false);
+    ui().select('BP_WAT1_C_1');
+    expect(ui().markersVisible).toBe(true);
+    off();
+    ui().focusItem('BP_WAT1_C_1');
+    expect(ui().markersVisible).toBe(true);
+    off();
+    ui().setMode('route');
+    expect(ui().markersVisible).toBe(true);
+    // Leaving the route mode leaves the layer as it is.
+    off();
+    ui().setMode('route');
+    expect(ui()).toMatchObject({ interactionMode: 'inspect', markersVisible: false });
+  });
+
   it('enterWorld resets per-world state and applies the persisted view', () => {
     ui().setMode('route');
     ui().select('BP_WAT1_C_1');
@@ -66,11 +100,12 @@ describe('ui store', () => {
     ui().setVisibility('show');
     ui().showOnlyType('somersloop');
     ui().setSidebarOpen(false);
+    ui().toggleMarkers();
 
     ui().enterWorld('world-a', { typeFilter: ['hard_drive', 'mercer_sphere'], visibility: 'hide', biomeScope: 2, zoom: 3 });
     expect(ui()).toMatchObject({
       worldId: 'world-a', interactionMode: 'inspect', selectedActor: null, onlyConflicts: false, visibility: 'hide', biomeScope: 2, biomeFitRequest: null,
-      sidebarOpen: false,
+      sidebarOpen: false, markersVisible: false,
     });
     expect([...ui().typeFilter].sort()).toEqual(['hard_drive', 'mercer_sphere']);
 

@@ -11,7 +11,6 @@ export interface WorldRow {
   owner_id: number;
   dataset_version: string;
   rev: number;
-  invite_epoch: number;
   created_at: number;
   last_import_at: number | null;
   last_import_meta: string | null;

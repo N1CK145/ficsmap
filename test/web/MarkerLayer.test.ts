@@ -42,3 +42,50 @@ describe('MarkerLayer.pick', () => {
     expect(layer.pick(0, 256, 16)).toBe('left');
   });
 });
+
+describe('MarkerLayer.setVisible', () => {
+  let map: L.Map;
+  let drawn: number;
+  beforeEach(() => {
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(512);
+    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(512);
+    // A 2D context that counts the paths drawn (clearing does not count), and the colour tokens the palette needs.
+    drawn = 0;
+    const ctx = new Proxy({}, {
+      get: (_t, key) => (key === 'beginPath' ? () => { drawn++; } : () => {}),
+      set: () => true,
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as CanvasRenderingContext2D);
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue({ getPropertyValue: () => '#123456' } as unknown as CSSStyleDeclaration);
+    const el = document.createElement('div');
+    document.body.append(el);
+    map = L.map(el, { crs: L.CRS.Simple, center: [-128, 128], zoom: 1 });
+  });
+  afterEach(() => {
+    map.remove();
+    vi.restoreAllMocks();
+  });
+
+  it('draws and picks nothing while switched off, and everything again once on', () => {
+    const layer = new MarkerLayer(() => [marker('centre', -128, 128)]).addTo(map);
+    expect(drawn).toBeGreaterThan(0);
+    expect(layer.pick(256, 256, 16)).toBe('centre');
+
+    drawn = 0;
+    layer.setVisible(false);
+    map.setZoom(2);
+    (layer as unknown as { draw(): void }).draw();
+    expect(drawn).toBe(0);
+    expect(layer.pick(256, 256, 16)).toBeNull();
+
+    layer.setVisible(true);
+    expect(drawn).toBeGreaterThan(0);
+    expect(layer.pick(256, 256, 16)).toBe('centre');
+  });
+
+  it('draws nothing when added while switched off', () => {
+    const layer = new MarkerLayer(() => [marker('centre', -128, 128)]).setVisible(false).addTo(map);
+    expect(drawn).toBe(0);
+    expect(layer.pick(256, 256, 16)).toBeNull();
+  });
+});

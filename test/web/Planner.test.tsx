@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset } from '../../src/shared/dataset.js';
@@ -452,7 +452,7 @@ describe('production planner', () => {
     expect(within(ore).getByLabelText('Hergestellt mit')).toHaveDisplayValue('Miner Mk.1');
     expect(within(within(ore).getByLabelText('Reinheit')).getAllByRole('option').map(o => o.textContent)).toEqual(['Unrein', 'Normal', 'Rein']);
     expect(within(ore).getByText('Extraktionsrate')).toBeInTheDocument();
-    expect(within(ore).getByText('genau 1,5 · 2× bei 75 %')).toBeInTheDocument();
+    expect(within(ore).getByText('genau 1,5 · 2× bei 75 % Takt wären 100 %')).toBeInTheDocument();
   });
 
   it('shows a resource well\'s pressurizer in German', async () => {
@@ -516,8 +516,8 @@ describe('production planner diagram', () => {
     // Raw resource at the top, the wanted item at the bottom.
     expect(top(ore)).toBeLessThan(top(ingot));
     expect(top(ingot)).toBeLessThan(top(plate));
-    expect(plate).toHaveAccessibleName('plate (wanted: 60/min); 3× Constructor; makes 60/min; R_Plate; needs 90/min ingot');
-    expect(plate).toHaveTextContent(/^3× Constructorplate60\/minWanted$/);
+    expect(plate).toHaveAccessibleName('plate (wanted: 60/min); 3× Constructor; Buildings used to 100 %; makes 60/min; R_Plate; needs 90/min ingot');
+    expect(plate).toHaveTextContent(/^3× Constructorplate60\/min100 %Wanted$/);
     expect(within(plate).getByText('Wanted')).toHaveAttribute('title', 'wanted: 60/min');
     expect(within(ingot).queryByText('Wanted')).not.toBeInTheDocument();
     // The building's picture from the dataset, the product pinned to its corner; without one an empty tile of the same size.
@@ -538,10 +538,12 @@ describe('production planner diagram', () => {
     // Rate labels with the item's picture.
     expect(within(diagram()).getAllByText('90/min', { selector: 'span[aria-hidden]' })).toHaveLength(2);
     expect(diagram().querySelector('[data-label-to="plate"] img')).toHaveAttribute('src', ICON('ingot', 64));
-    // The keyboard help is the diagram's description, not a line on screen; no legend for plain material lines.
+    // The keyboard help is the diagram's description, not a line on screen; no legend for plain material lines, only for
+    // the building use while a step is not fully used (the miners at 75 %).
     expect(diagram()).toHaveAccessibleDescription(/^Raw resources at the top, your items at the bottom/);
     expect(screen.getByText(/^Raw resources at the top/)).toHaveClass('sr-only');
-    expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
+    expect(within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem').map(li => li.textContent))
+      .toEqual(['Material per minute', 'All buildings fully used (100 %)', 'Part load (< 90 %)']);
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Totals' })).toBeInTheDocument();
   });
@@ -670,7 +672,7 @@ describe('production planner diagram', () => {
     expect(within(editor).getByRole('heading', { level: 3, name: '2× Miner Mk.1' }).nextElementSibling).toHaveTextContent(/^ore · 90\/min$/);
     expect(within(editor).getByLabelText('Made by')).toHaveDisplayValue('Miner Mk.1');
     // 1.5 miners at 100 % make as much as 2 at 75 %.
-    expect(within(editor).getByText('exact 1.5 · 2× at 75 %')).toBeInTheDocument();
+    expect(within(editor).getByText('exact 1.5 · 2× at 75 % clock would be 100 %')).toBeInTheDocument();
     const production = within(editor).getByRole('region', { name: 'Production' });
     expect(within(production).getByText('Resource node')).toBeInTheDocument();
     expect(within(production).getByText('Extraction rate')).toBeInTheDocument();
@@ -678,7 +680,7 @@ describe('production planner diagram', () => {
     await userEvent.selectOptions(within(production).getByLabelText('Purity'), 'pure');
     expect(usePlanner.getState().steps).toEqual({ ore: { purity: 'pure' } });
     expect(within(editor).getByRole('heading', { level: 3, name: '1× Miner Mk.1' })).toBeInTheDocument();
-    expect(within(editor).getByText('exact 0.75 · 1× at 75 %')).toBeInTheDocument();
+    expect(within(editor).getByText('exact 0.75 · 1× at 75 % clock would be 100 %')).toBeInTheDocument();
     expect(within(node('ore')).getByText('Pure')).toBeInTheDocument();
     expect(within(editor).getByText(/5 MW per building/)).toBeInTheDocument();
 
@@ -691,6 +693,57 @@ describe('production planner diagram', () => {
     expect(within(well).getByText('Pressurizer: 150 MW per resource well, not included in the totals')).toBeInTheDocument();
     expect(within(well).getByText(/clock speed is set at the Pressurizer/)).toBeInTheDocument();
     expect(within(well).queryByText(/^exact/)).toBeNull();
+  });
+
+  it('draws the plan from left to right when asked, and remembers that on the device', async () => {
+    setup();
+    await openAndPick('plate');
+    const left = (el: HTMLElement) => parseFloat(el.style.left);
+    expect(screen.getByRole('radio', { name: 'Top to bottom' })).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(screen.getByRole('radio', { name: 'Left to right' }));
+    expect(left(node('ore'))).toBeLessThan(left(node('ingot')));
+    expect(left(node('ingot'))).toBeLessThan(left(node('plate')));
+    expect(top(node('ore'))).toBe(top(node('plate')));
+    expect(diagram()).toHaveAccessibleDescription(/^Raw resources on the left, your items on the right/);
+    expect(localStorage.getItem('ficsmap:diagramDirection:planner')).toBe('right');
+    // The right arrow now goes to the next stage.
+    act(() => node('ore').focus());
+    await userEvent.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(node('ingot'));
+    cleanup();
+    setup();
+    await userEvent.click(screen.getByRole('link', { name: 'Planner' }));
+    expect(await screen.findByRole('radio', { name: 'Left to right' })).toHaveAttribute('aria-checked', 'true');
+    // Only with the diagram.
+    await userEvent.click(screen.getByRole('radio', { name: 'List' }));
+    expect(screen.queryByRole('radiogroup', { name: 'Direction' })).not.toBeInTheDocument();
+  });
+
+  it('colours each step by how fully its buildings are used, in the diagram, the list and the panel', async () => {
+    setup();
+    await openAndPick('plate');
+    // 3 constructors exactly: full, green, a solid strip; 1.5 miners on 2: part load, orange, dotted.
+    const plate = node('plate');
+    const full = plate.querySelector('span[data-use]:not([aria-hidden])')!;
+    expect(full).toHaveTextContent('100 %');
+    expect(full).toHaveClass('text-free');
+    expect(plate.querySelector('[aria-hidden][data-use="full"]')).toHaveClass('bg-free');
+    const ore = node('ore');
+    expect(ore).toHaveAccessibleName(/; Buildings used to 75 %;/);
+    const part = ore.querySelector('span[data-use]:not([aria-hidden])')!;
+    expect(part).toHaveTextContent('75 %');
+    expect(part).toHaveAttribute('data-use', 'throttled');
+    expect(part).toHaveClass('text-accent');
+    expect(part).toHaveAttribute('title', 'Buildings used to 75 %');
+    // The panel: the use and the clock speed that would make it 100 %.
+    await userEvent.click(ore);
+    const editor = screen.getByRole('region', { name: 'Edit ore' });
+    expect(within(editor).getByText('Building use')).toHaveTextContent('Building use75 %');
+    expect(within(editor).getByText('exact 1.5 · 2× at 75 % clock would be 100 %')).toBeInTheDocument();
+    // The list says it too.
+    await userEvent.click(screen.getByRole('radio', { name: 'List' }));
+    expect([...stepOf('ore').querySelectorAll('span[data-use="throttled"]:not([aria-hidden])')].map(e => e.textContent)).toContain('75 %');
+    expect(stepOf('plate').querySelector('span[data-use="full"]')).toHaveTextContent('100 %');
   });
 
   it('switches between diagram and list, remembers the view, and keeps the selected step open', async () => {
@@ -736,7 +789,7 @@ describe('production planner diagram', () => {
     usePlanner.setState({ steps: { ingot: { clock: '200' } } });
     setup();
     await openAndPick('plate');
-    expect(within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Material per minute', '◆Power Shard']);
+    expect(within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Material per minute', 'All buildings fully used (100 %)', 'Part load (< 90 %)', '◆Power Shard']);
   });
 
   it('scrolls a selected step\'s window into view only where it is not docked beside the steps', async () => {
@@ -778,7 +831,7 @@ describe('production planner diagram', () => {
     expect(within(residue).getByText('30 m³/min')).toBeInTheDocument();
     expect(residue.querySelector('[data-picture="residue"]')).not.toBeNull();
     const legend = screen.getByRole('list', { name: 'Legend' });
-    expect(within(legend).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Material per minute', 'By-product']);
+    expect(within(legend).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Material per minute', 'By-product', 'All buildings fully used (100 %)', 'Part load (< 90 %)']);
     await userEvent.click(residue);
     const editor = screen.getByRole('region', { name: 'Edit residue' });
     expect(within(editor).queryByRole('region', { name: 'Production' })).not.toBeInTheDocument();
@@ -826,10 +879,11 @@ describe('production planner diagram', () => {
     expect(screen.getByRole('radio', { name: 'Diagramm' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('radio', { name: 'Liste' })).toBeInTheDocument();
     const plate = node('plate-de', 'Produktionskette');
-    expect(plate).toHaveAccessibleName('plate-de (gewünscht: 60/min); 3× Konstruktor; stellt 60/min her; R_Plate; braucht 90/min ingot-de');
+    expect(plate).toHaveAccessibleName('plate-de (gewünscht: 60/min); 3× Konstruktor; Gebäude zu 100 % ausgelastet; stellt 60/min her; R_Plate; braucht 90/min ingot-de');
     expect(within(plate).getByText('Gewünscht')).toBeInTheDocument();
     expect(diagram('Produktionskette')).toHaveAccessibleDescription(/^Rohstoffe oben, deine Gegenstände unten/);
-    expect(screen.queryByRole('list', { name: 'Legende' })).toBeNull();
+    expect(within(screen.getByRole('list', { name: 'Legende' })).getAllByRole('listitem').map(li => li.textContent))
+      .toEqual(['Material pro Minute', 'Alle Gebäude voll ausgelastet (100 %)', 'Teillast (< 90 %)']);
     await userEvent.click(plate);
     const editor = screen.getByRole('region', { name: 'plate-de bearbeiten' });
     expect(within(editor).getByRole('heading', { level: 3, name: '3× Konstruktor' })).toBeInTheDocument();

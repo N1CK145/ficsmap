@@ -22,7 +22,7 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 
 - **Interactive map** with the game's own icons for Blue, Yellow and Purple Power Slugs, Somersloops, Mercer Spheres and drop pods (hard drives).
 - **Discord login.** No passwords to manage.
-- **Worlds.** Track a world alone or share it with co-op friends. Invite links work once and are valid for 7 days. The owner can revoke all open links and make members admins, who may then import saves, invite, manage upload keys, rename the world and remove members (only the owner can delete the world or change roles).
+- **Worlds.** Track a world alone or share it with co-op friends. Invite links work once and are valid for 7 days. Server owners can also hand out general invite links (profile page) that create an account without joining a world. The owner can revoke all open links and make members admins, who may then import saves, invite, manage upload keys, rename the world and remove members (only the owner can delete the world or change roles).
 - **Live sync.** When a member ticks something off, everyone else sees it at once (Server-Sent Events).
 - **Save import.** Read a save file to mark everything you have already collected. The save is parsed in your browser.
 - **Automatic upload.** A small script (Windows PowerShell, Linux bash or Docker) watches your save folder and uploads every new save to your world, so checks, resource nodes and the factory timeline stay current without opening ficsmap. The owner or an admin configures and downloads it under world settings → "Automatic upload". See [Automatic upload](#automatic-upload).
@@ -45,7 +45,7 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 ## How it works and privacy
 
 - You sign in with Discord. ficsmap reads your Discord ID, name and avatar. The Discord access token is used once and never stored.
-- Accounts are invite-only. A new account is created only for a Discord ID listed in `OWNER_DISCORD_IDS` or for someone who opens a valid invite link.
+- Accounts are invite-only. A new account is created only for a Discord ID listed in `OWNER_DISCORD_IDS` or for someone who opens a valid invite link (a world invite, or a general invite of a server owner).
 - **With the normal import your save file never leaves your browser.** It is parsed locally in a Web Worker. Only the list of collected item names (for example `BP_Crystal_mk29`) is sent to the server, together with the file name and the session name, save time and game build from the save header, and for resource nodes: the resource or purity the save sets per node (randomised worlds), the node randomisation settings, and which extractor stands on which node (building type, node name, clock speed, number of Power Shards).
 - The **automatic upload** is the exception you opt into: its script sends the whole save file to your ficsmap server, which parses it there (the same extraction as in the browser) and keeps only what an import keeps. The save itself is not stored.
 - Ticks, routes and members are stored in a SQLite database on the server you run.
@@ -59,6 +59,8 @@ The owner or an admin of a world can let a script upload new saves automatically
 3. Run it as shown under the button:
    - **Windows:** `powershell -ExecutionPolicy Bypass -File ficsmap-watch.ps1`; the page also shows how to start it at every sign-in with the Task Scheduler. Log: `%LOCALAPPDATA%\ficsmap`.
    - **Linux:** `chmod +x ficsmap-watch.sh && ./ficsmap-watch.sh` (needs bash, curl and sha256sum; with `inotify-tools` it notices new saves at once). `--once` uploads once and exits, for cron.
+     To run it only while the game runs, put this into Satisfactory's Steam launch options (Properties → General); it starts the watcher with the game, logs to `~/ficsmap/watch.log` and stops it a minute after the game exits:
+     `bash -c 'env -i HOME="$HOME" PATH=/usr/local/bin:/usr/bin:/bin "$HOME/ficsmap/ficsmap-watch.sh" >>"$HOME/ficsmap/watch.log" 2>&1 & w=$!; "$@"; s=$?; sleep 60; kill $w; exit $s' _ %command%`
    - **Docker:** unzip `ficsmap-watch.zip`, then `docker compose up -d --build` in the folder. The image is built locally from the included Dockerfile; the save folder is mounted read-only.
 
 A save newer than the world's last import is imported (checks, resource nodes) and added to the factory timeline; an older one is only added to the timeline; one the world already has is skipped. Saves of another session are refused unless the key accepts any session. On the first start the script uploads only the newest save that is already there; older ones can be added with "Add older saves".
@@ -121,8 +123,8 @@ Copy [`.env.example`](.env.example) to `.env`, fill it in and run `chmod 600 .en
 |---|---|
 | `PUBLIC_URL` | The URL users open, for example `https://ficsmap.example.com`. Used for the Discord redirect, invite links and the origin check. |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | From your Discord application. |
-| `OWNER_DISCORD_IDS` | Comma-separated Discord user IDs that may sign in without an invite. Owners can also confirm a rollback in the browser. |
-| `SESSION_SECRET`, `INVITE_JWT_SECRET` | Two different random secrets, at least 32 characters each. Generate with `openssl rand -base64 48`. |
+| `OWNER_DISCORD_IDS` | Comma-separated Discord user IDs that may sign in without an invite. Owners can create general invite links (profile page) and confirm a rollback in the browser. |
+| `SESSION_SECRET` | A random secret, at least 32 characters. Generate with `openssl rand -base64 48`. (`INVITE_JWT_SECRET` is no longer used and can be removed.) |
 | `TRUST_PROXY` | IP address of your reverse proxy, whose `X-Forwarded-*` headers are trusted. Empty without a proxy. |
 | `COOKIE_SECURE` | `true` for HTTPS. Set to `false` only for plain-HTTP testing. |
 | `LOG_LEVEL` | `fatal`, `error`, `warn`, `info`, `debug` or `trace`. |

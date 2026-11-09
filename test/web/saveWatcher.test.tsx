@@ -132,6 +132,11 @@ describe('save watcher script generator', () => {
 
   it('shows how to run it, with the save folder quoted for the shell', () => {
     expect(runSteps('bash', cfg())[0]!.code).toBe('chmod +x ficsmap-watch.sh && ./ficsmap-watch.sh');
+    expect(runSteps('bash', cfg()).map(s => s.id)).toEqual(['run', 'steamInstall', 'steam']);
+    const steam = runSteps('bash', cfg())[2]!.code;
+    expect(steam).toContain('env -i HOME="$HOME"');
+    expect(steam).toContain('"$HOME/ficsmap/ficsmap-watch.sh"');
+    expect(steam.endsWith('_ %command%')).toBe(true);
     expect(runSteps('powershell', cfg()).map(s => s.id)).toEqual(['run', 'autostart']);
     expect(runSteps('powershell', cfg())[1]!.code).toContain('-ExecutionTimeLimit ([TimeSpan]::Zero)');
     const docker = runSteps('docker', cfg({ saveDir: "~/it's here" }));

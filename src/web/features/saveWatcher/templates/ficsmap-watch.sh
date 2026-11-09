@@ -11,6 +11,10 @@
 # Usage: ./ficsmap-watch.sh          watch the folder until stopped (Ctrl+C)
 #        ./ficsmap-watch.sh --once   upload what is new and exit (for cron or a test)
 set -euo pipefail
+# Started from a game launcher (e.g. Steam launch options), the script inherits the launcher's library paths:
+# Steam's LD_LIBRARY_PATH makes curl load Steam's old libcurl ("undefined symbol: curl_mime_filename") and its
+# LD_PRELOAD adds 32-bit overlay libraries to every tool. The watcher needs neither, so it drops them.
+unset LD_LIBRARY_PATH LD_PRELOAD
 
 # --- Settings (written by ficsmap; FICSMAP_SAVE_DIR, FICSMAP_STATE_DIR, FICSMAP_POLL_SECONDS and
 # FICSMAP_UPLOAD_INTERVAL_MINUTES override them) ---
