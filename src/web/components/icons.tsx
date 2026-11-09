@@ -46,6 +46,8 @@ export const HeightIcon = (p: IconProps) => (
     <circle cx="8.2" cy="8.2" r="0.6" fill="currentColor" />
   </Icon>
 );
+/** A sparkle with a small one beside it: the collectibles layer (slugs, Somersloops, Mercer spheres, hard drives). */
+export const CollectiblesIcon = (p: IconProps) => <Icon {...p}><path d="M7 3.5Q7.6 8.4 12.5 9 7.6 9.6 7 14.5 6.4 9.6 1.5 9 6.4 8.4 7 3.5zM12.5 1.5v4M10.5 3.5h4" /></Icon>;
 /** A folded map: the map tab. */
 export const MapIcon = (p: IconProps) => <Icon {...p}><path d="M1.5 3.75L5.5 2.25l5 2 4-1.5v10l-4 1.5-5-2-4 1.5zM5.5 2.25v10M10.5 4.25v10" /></Icon>;
 /** An ore lump on a node: the resource node layer. */
@@ -59,6 +61,10 @@ export const TruckIcon = (p: IconProps) => <Icon {...p}><path d="M1.5 4h8v7h-8zM
 export const PinIcon = (p: IconProps) => <Icon {...p}><path d="M8 14s4.5-4.2 4.5-7.5a4.5 4.5 0 00-9 0C3.5 9.8 8 14 8 14z" /><circle cx="8" cy="6.5" r="1.5" /></Icon>;
 export const CheckIcon = (p: IconProps) => <Icon {...p}><path d="M3 8.5l3 3 7-7" /></Icon>;
 export const PlusIcon = (p: IconProps) => <Icon {...p}><path d="M8 3v10M3 8h10" /></Icon>;
+/** Four corners of a frame: fit the content to its box. */
+export const FullscreenIcon = (p: IconProps) => <Icon {...p}><path d="M2.5 5.5v-3h3M10.5 2.5h3v3M13.5 10.5v3h-3M5.5 13.5h-3v-3M5.5 5.5l-2-2M10.5 5.5l2-2M10.5 10.5l2 2M5.5 10.5l-2 2" /></Icon>;
+export const ExitFullscreenIcon = (p: IconProps) => <Icon {...p}><path d="M5.5 2.5v3h-3M10.5 2.5v3h3M10.5 13.5v-3h3M5.5 13.5v-3h-3" /></Icon>;
+export const FitIcon = (p: IconProps) => <Icon {...p}><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" /></Icon>;
 export const SearchIcon = (p: IconProps) => <Icon {...p}><circle cx="6.75" cy="6.75" r="4.5" /><path d="M10.25 10.25L14 14" /></Icon>;
 
 /** The ficsmap mark (the favicon's map pin with a nut), in the accent on a dark plate. */

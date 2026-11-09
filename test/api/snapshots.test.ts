@@ -13,9 +13,15 @@ const gz = { ...json, 'content-encoding': 'gzip' };
 function snapshot(saveTime = 1_000, sessionName = 'Letz Fetz'): FactorySnapshot {
   return {
     v: 1,
-    meta: { sessionName, saveTime, build: 400_000 },
+    meta: { sessionName, saveTime, build: 400_000, inventories: true },
     buildings: [
-      { id: 'Build_ConstructorMk1_C_1', cls: 'Build_ConstructorMk1_C', x: 1, y: 2, z: 3, yaw: 90, prod: { clock: 1, productivity: 1 } },
+      // inventories (added to format 1 later) must survive the schema
+      { id: 'Build_ConstructorMk1_C_1', cls: 'Build_ConstructorMk1_C', x: 1, y: 2, z: 3, yaw: 90, prod: { clock: 1, productivity: 1 },
+        in: { slots: 1, items: [['Desc_IronIngot_C', 47]] }, out: { slots: 1, items: [['Desc_IronPlate_C', 200]] } },
+      { id: 'Build_StorageContainerMk2_C_9', cls: 'Build_StorageContainerMk2_C', x: 0, y: 0, z: 0, yaw: 0,
+        inv: { slots: 48, items: [['Desc_SteelPlate_C', 200, 47], ['Desc_Wire_C', 74]] } },
+      { id: 'Build_GeneratorCoal_C_10', cls: 'Build_GeneratorCoal_C', x: 0, y: 0, z: 0, yaw: 0, prod: { clock: 1 },
+        fuel: { slots: 2, items: [['Desc_Coal_C', 50], ['Desc_Water_C', 50000]] } },
       { id: 'Build_SmelterMk1_C_2', cls: 'Build_SmelterMk1_C', x: 4, y: 5, z: 6, yaw: 0, prod: { clock: 1.5, productivity: 0.5, powerShards: 1 } },
       { id: 'Build_SmelterMk1_C_3', cls: 'Build_SmelterMk1_C', x: 7, y: 8, z: 9, yaw: 0, prod: { clock: 1, productivity: 0, issues: ['starved'] } },
       { id: 'Build_MinerMk1_C_4', cls: 'Build_MinerMk1_C', x: 0, y: 0, z: 0, yaw: 0, prod: { clock: 1 } },
@@ -26,10 +32,17 @@ function snapshot(saveTime = 1_000, sessionName = 'Letz Fetz'): FactorySnapshot 
     powerLines: [0, 0, 0, 1, 1, 1],
     pathNetworks: [],
     // cargo (added to format 1 later) must survive the schema
-    stations: [{ id: 'Build_TruckStation_C_7', cls: 'Build_TruckStation_C', x: 0, y: 0, z: 0, yaw: 0, loading: true, traffic: [], cargo: [{ item: 'Desc_Cement_C', count: 35 }] }],
-    vehicles: [{ id: 'BP_Tractor_C_8', cls: 'BP_Tractor_C', x: 0, y: 0, z: 0, yaw: 0, autopilot: true, route: [], cargo: [{ item: 'Desc_SteelPipe_C', count: 108 }], slots: 25 }],
+    stations: [{
+      id: 'Build_TruckStation_C_7', cls: 'Build_TruckStation_C', x: 0, y: 0, z: 0, yaw: 0, loading: true, traffic: [], cargo: [{ item: 'Desc_Cement_C', count: 35 }],
+      inv: { slots: 48, items: [['Desc_Cement_C', 35]] },
+    }],
+    vehicles: [{
+      id: 'BP_Tractor_C_8', cls: 'BP_Tractor_C', x: 0, y: 0, z: 0, yaw: 0, autopilot: true, route: [], cargo: [{ item: 'Desc_SteelPipe_C', count: 108 }], slots: 25,
+      inv: { slots: 25, items: [['Desc_SteelPipe_C', 108]] },
+    }],
     markers: [{ name: 'Base', x: 1, y: 2, z: 3, kind: 'MapMarker', iconId: 1, color: '#ff8800', scale: 1 }],
-    crates: [],
+    crates: [{ id: 'BP_Crate_C_11', x: 1, y: 2, z: 3, kind: 'CT_DeathCrate', inv: { slots: 2, items: [['Desc_Nut_C', 50], ['Desc_Cable_C', 200]] } }],
+    depot: [['Desc_Wire_C', 1000], ['Desc_SAM_C', 1]],
     // links and circuits (added to format 1 later) must survive the schema
     links: [
       { from: 'Build_MinerMk1_C_4', to: 'Build_SmelterMk1_C_2', fromPort: 'Output0', toPort: 'Input0', kind: 'belt', via: ['Build_ConveyorBeltMk1_C_6'], slowest: 'Build_ConveyorBeltMk1_C', items: { Desc_OreIron_C: 4 } },
@@ -72,7 +85,7 @@ describe('factory snapshots api', () => {
     const summary = res.json();
     expect(summary).toMatchObject({
       saveTime: 1_000, sessionName: 'Letz Fetz', importedAt: 5_000, importedBy: 'user-owner-1',
-      buildings: 5, machines: 4, idle: 1,
+      buildings: 7, machines: 5, idle: 1,
     });
     expect(summary.avgProductivity).toBeCloseTo(0.5);
     expect(summary.bytes).toBeGreaterThan(0);
@@ -157,6 +170,12 @@ describe('factory snapshots api', () => {
     const bad = snapshot();
     bad.markers[0]!.color = 'red';
     expect((await upload(owner, bad)).json().error).toBe('invalid_body');
+    // an inventory run needs an item, a whole count and at least one slot
+    const badInv = snapshot();
+    badInv.buildings[1]!.inv = { slots: 48, items: [['Desc_SteelPlate_C', 200, 0]] };
+    expect((await upload(owner, badInv)).statusCode).toBe(400);
+    const badDepot = { ...snapshot(), depot: [['', 3]] };
+    expect((await upload(owner, badDepot)).statusCode).toBe(400);
   });
 
   it('refuses a snapshot of a newer format version with its own message', async () => {

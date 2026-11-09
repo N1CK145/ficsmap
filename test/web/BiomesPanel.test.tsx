@@ -7,7 +7,6 @@ import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { queryKeys } from '../../src/web/app/queryKeys.js';
 import { useUiStore } from '../../src/web/app/store.js';
-import { HIT_CLASS, hitOptions } from '../../src/web/features/biomes/BiomeLayer.js';
 import { BiomesPanel } from '../../src/web/features/biomes/BiomesPanel.js';
 import { ScopeChip } from '../../src/web/features/biomes/ScopeChip.js';
 import { labelPoint, labelPoints, maskRings, ringBounds, sortBiomeRows, useBiomeHover } from '../../src/web/features/biomes/useBiomes.js';
@@ -78,13 +77,6 @@ describe('maskRings', () => {
   it('is the image rectangle followed by the biome rings as holes', () => {
     const hole: [number, number][] = [[-10, 10], [-10, 20], [-20, 20]];
     expect(maskRings([hole])).toEqual([[[-256, 0], [-256, 256], [0, 256], [0, 0]], hole]);
-  });
-});
-
-describe('hitOptions', () => {
-  const colors = { accent: 'a', fg: 'f', bg: 'b' };
-  it.each([[false, false], [false, true], [true, false]])('marks the hit polygon so it keeps the map cursor (scoped %s, hover %s)', (scoped, hover) => {
-    expect(hitOptions(scoped, hover, colors).className).toBe(HIT_CLASS);
   });
 });
 

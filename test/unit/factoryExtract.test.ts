@@ -94,7 +94,7 @@ describe('meta', () => {
       obj('-Shared', 'BP_SchematicManager_C', 1, { properties: { mPurchasedSchematics: { values: [cref('/a.S1_C').value, cref('/a.S2_C').value] } } }),
     ]));
     expect(s.v).toBe(1);
-    expect(s.meta).toEqual({ sessionName: 'Test', saveTime: 1794095962284, build: 517554, playTimeSec: 1234, gamePhase: 'GP_Project_Assembly_Phase_2', schematics: 2 });
+    expect(s.meta).toEqual({ sessionName: 'Test', saveTime: 1794095962284, build: 517554, inventories: true, playTimeSec: 1234, gamePhase: 'GP_Project_Assembly_Phase_2', schematics: 2 });
     const ms = Date.UTC(2026, 10, 8);
     expect(extractFactory(save([], { saveDateTime: String((BigInt(ms) + 62135596800000n) * 10000n) })).meta.saveTime).toBe(ms);
   });
@@ -312,7 +312,7 @@ describe('stations, vehicles, routes, path networks', () => {
     expect(s.stations).toEqual([
       { id: 'Build_TruckStation_C_1', cls: 'Build_TruckStation_C', x: 5, y: 6, z: 7, yaw: 160, nodeGuid: guidHex(G1), loading: false,
         traffic: [{ vehicle: 'BP_Tractor_C_1', avgSecBetweenDocks: 92.9, avgItemsPerDock: 150.5, capacityStacks: 25 }],
-        cargo: [{ item: 'Desc_Cement_C', count: 35 }] },
+        cargo: [{ item: 'Desc_Cement_C', count: 35 }], inv: { slots: 2, items: [['Desc_Cement_C', 35]] } },
       { id: 'Build_TruckStation_C_2', cls: 'Build_TruckStation_C', name: 'Base', x: 0, y: 0, z: 0, yaw: 0, nodeGuid: guidHex(G2), loading: true, traffic: [] },
     ]);
     expect(s.buildings.map(b => b.id)).toEqual(['Build_TruckStation_C_1', 'Build_TruckStation_C_2']);
@@ -324,6 +324,8 @@ describe('stations, vehicles, routes, path networks', () => {
       fuel: { item: 'Desc_TurboFuel_C', amount: 99 }, route: ['Build_TruckStation_C_1', 'Build_TruckStation_C_2'],
       // its storage summed per item, most first, and its size in slots
       cargo: [{ item: 'Desc_SteelPipe_C', count: 200 }, { item: 'Desc_SteelPlate_C', count: 78 }], slots: 4,
+      // slot by slot, the empty one left out
+      inv: { slots: 4, items: [['Desc_SteelPipe_C', 108], ['Desc_SteelPlate_C', 78], ['Desc_SteelPipe_C', 92]] },
     }]);
     expect(JSON.stringify(s)).not.toContain('PlayerState');
   });
@@ -370,7 +372,7 @@ describe('map manager: markers, fog; crates', () => {
   });
 
   it('crates', () => {
-    expect(s.crates).toEqual([{ x: 1, y: 3, z: -3, kind: 'CT_DeathCrate' }]);
+    expect(s.crates).toEqual([{ id: 'BP_Crate_C_1', x: 1, y: 3, z: -3, kind: 'CT_DeathCrate' }]);
   });
 
   it('fog as a greyscale PNG of byte 2 of each pixel', () => {
@@ -384,6 +386,86 @@ describe('map manager: markers, fog; crates', () => {
     for (let x = 0; x < W; x++) row.push((rows[1 + x]! + (f0 === 1 && x > 0 ? row[x - 1]! : 0)) & 0xff);
     expect(row).toEqual([255, 255, 255, 0, 0, 0, 0, 0]);
     expect(extractFactory(save([obj('-', 'FGMapManager', 1, { typePath: '/Script/FactoryGame.FGMapManager', properties: { mFogOfWarRawData: { values: raw } } })]), { skipFog: true }).fog).toBeUndefined();
+  });
+});
+
+describe('inventories', () => {
+  const box = (cls: string, n: number, name: string, stacks: [string, number][], extra: Record<string, unknown> = {}) => {
+    const b = obj('Buildable/Factory', cls, n, { properties: { mStorageInventory: ref(`${P}${cls}_${n}.${name}`), ...extra } as FactoryObject['properties'] });
+    return [b, inventory(b.instanceName, name, stacks)];
+  };
+  const tank = obj('Buildable/Factory', 'Build_PipeStorageTank_C', 1, {
+    properties: { mFluidBox: { value: { value: 402.6607 } } } as FactoryObject['properties'],
+    components: [{ pathName: `${P}Build_PipeStorageTank_C_1.ConnectionAny0` }, { pathName: `${P}Build_PipeStorageTank_C_1.InventoryPotential` }],
+  });
+  const port = { typePath: '/Script/FactoryGame.FGPipeConnectionComponent', instanceName: `${P}Build_PipeStorageTank_C_1.ConnectionAny0`, type: 'SaveComponent', properties: { mPipeNetworkID: f(12) } };
+  const net = (id: number, fluid?: string): FactoryObject => ({
+    typePath: '/Script/FactoryGame.FGPipeNetwork', instanceName: `${P}FGPipeNetwork_${id}`, type: 'SaveEntity',
+    properties: { mPipeNetworkID: f(id), ...(fluid ? { mFluidDescriptor: cref(`/Game/X/${fluid}.${fluid}`) } : {}) },
+  });
+  const dryTank = obj('Buildable/Factory', 'Build_IndustrialTank_C', 2, { properties: { mFluidBox: { value: { value: 0 } } } as FactoryObject['properties'] });
+  const gen = obj('Buildable/Factory', 'Build_GeneratorCoal_C', 3, { properties: { mFuelInventory: ref(`${P}Build_GeneratorCoal_C_3.FuelInventory`), mIsProducing: TRUE } });
+  const genFuel = inventory(gen.instanceName, 'FuelInventory', [['Desc_CompactedCoal_C', 100], ['Desc_Water_C', 50000]], ['', 'Desc_Water_C'], [0, 50000]);
+  const crate = obj('-', 'BP_Crate_C', 4, { typePath: '/Game/FactoryGame/-Shared/Crate/BP_Crate.BP_Crate_C', properties: { mCrateType: { value: { value: 'EFGCrateType::CT_DeathCrate' } } } });
+  const depot = obj('-', 'FGCentralStorageSubsystem', 1, { typePath: '/Script/FactoryGame.FGCentralStorageSubsystem', transform: undefined, properties: {
+    mStoredItems: { values: [['Desc_Wire_C', 1000], ['Desc_CircuitBoard_C', 0], ['Desc_SAM_C', 1]].map(([i, a]) => ({ type: 'ItemAmount', properties: { ItemClass: cref(`/Game/X/${i}.${i}`), Amount: f(a as number) } })) },
+  } });
+  const s = extractFactory(save([
+    ...box('Build_StorageContainerMk2_C', 1, 'StorageInventory', [['Desc_SteelPlate_C', 200], ['Desc_SteelPlate_C', 200], ['Desc_SteelPlate_C', 200], ['Desc_Wire_C', 74], ['', 0], ['Desc_SteelPlate_C', 3], ['', 0]]),
+    ...box('Build_StorageContainerMk1_C', 2, 'StorageInventory', [['', 0], ['', 0]]),
+    ...box('Build_CentralStorage_C', 3, 'StorageInventory', [['Desc_ModularFrame_C', 50]]),
+    ...box('Build_ConveyorAttachmentSplitter_C', 4, 'StorageInventory', [['Desc_IronPlate_C', 1]]),
+    tank, port, net(12, 'Desc_Water_C'), net(13), dryTank,
+    // 7: input 47 ingots, output 12 plates; spare slots without an allowed item are left out
+    ...machine({ n: 7, recipe: 'Recipe_IronPlate_C', produce: 300, producing: true, input: [['Desc_IronIngot_C', 47]], output: [['Desc_IronPlate_C', 12], ['', 0]] }),
+    // 8: empty input and output: no inventories at all
+    ...machine({ n: 8, recipe: 'Recipe_IronPlate_C', produce: 0, input: [['', 0]], output: [['', 0], ['', 0]] }),
+    // 9: a refinery's fluid slots in litres
+    ...machine({ n: 9, cls: 'Build_OilRefinery_C', recipe: 'Recipe_Plastic_C', produce: 300, producing: true,
+      input: [['Desc_LiquidOil_C', 50000], ['', 0]], inputAllowed: ['Desc_LiquidOil_C', 'any'],
+      output: [['Desc_Plastic_C', 20], ['Desc_HeavyOilResidue_C', 12000], ['', 0]], outputAllowed: ['Desc_Plastic_C', 'Desc_HeavyOilResidue_C', 'any'], outputSizes: [0, 50000, 0] }),
+    gen, genFuel, crate, inventory(crate.instanceName, 'inventory', [['Desc_Nut_C', 50], ['Desc_Cable_C', 200], ['Desc_Cable_C', 69]]), depot,
+  ]));
+  const b = (id: string) => byId(s.buildings, id);
+
+  it('storage containers slot by slot: equal slots as one run, empty slots left out, the slot count kept', () => {
+    expect(b('Build_StorageContainerMk2_C_1').inv).toEqual({
+      slots: 7, items: [['Desc_SteelPlate_C', 200, 3], ['Desc_Wire_C', 74], ['Desc_SteelPlate_C', 3]],
+    });
+    // empty storage keeps its slots, so the grid and "0 of 2" can show
+    expect(b('Build_StorageContainerMk1_C_2').inv).toEqual({ slots: 2, items: [] });
+    expect(b('Build_CentralStorage_C_3').inv).toEqual({ slots: 1, items: [['Desc_ModularFrame_C', 50]] });
+    // a splitter's buffer is no storage
+    expect(b('Build_ConveyorAttachmentSplitter_C_4').inv).toBeUndefined();
+  });
+
+  it('fluid buffers: the fluid of their pipe network in litres, one slot', () => {
+    expect(b('Build_PipeStorageTank_C_1').inv).toEqual({ slots: 1, items: [['Desc_Water_C', 402661]] });
+    expect(b('Build_IndustrialTank_C_2').inv).toEqual({ slots: 1, items: [] });
+  });
+
+  it('machines: input and output (fluids in litres), empty ones left out', () => {
+    expect(b('Build_ConstructorMk1_C_7')).toMatchObject({ in: { slots: 1, items: [['Desc_IronIngot_C', 47]] }, out: { slots: 1, items: [['Desc_IronPlate_C', 12]] } });
+    const empty = b('Build_ConstructorMk1_C_8');
+    expect(empty.in).toBeUndefined();
+    expect(empty.out).toBeUndefined();
+    expect(b('Build_OilRefinery_C_9')).toMatchObject({
+      in: { slots: 1, items: [['Desc_LiquidOil_C', 50000]] },
+      out: { slots: 2, items: [['Desc_Plastic_C', 20], ['Desc_HeavyOilResidue_C', 12000]] },
+    });
+  });
+
+  it('generators: the fuel and the supplemental slot', () => {
+    expect(b('Build_GeneratorCoal_C_3').fuel).toEqual({ slots: 2, items: [['Desc_CompactedCoal_C', 100], ['Desc_Water_C', 50000]] });
+    expect(b('Build_GeneratorCoal_C_3').inv).toBeUndefined();
+  });
+
+  it('crates with id and contents; the Dimensional Depot without empty items', () => {
+    expect(s.crates).toEqual([{
+      id: 'BP_Crate_C_4', x: 0, y: 0, z: 0, kind: 'CT_DeathCrate',
+      inv: { slots: 3, items: [['Desc_Nut_C', 50], ['Desc_Cable_C', 200], ['Desc_Cable_C', 69]] },
+    }]);
+    expect(s.depot).toEqual([['Desc_Wire_C', 1000], ['Desc_SAM_C', 1]]);
   });
 });
 

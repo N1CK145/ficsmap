@@ -1,5 +1,5 @@
 import {
-  lastWorld, loadLocale, loadResourceNodeView, saveResourceNodeView, loadPodChecklistCollapsed, loadPodTicks, loadView, saveLocale, savePodChecklistCollapsed, savePodTicks, saveView,
+  lastWorld, loadDiagramDirection, loadLocale, loadMarkersVisible, saveMarkersVisible, loadResourceNodeView, saveResourceNodeView, loadPodChecklistCollapsed, loadPodTicks, loadView, saveLocale, savePodChecklistCollapsed, savePodTicks, saveDiagramDirection, saveView,
   setLastWorld, type PersistedView,
 } from '../../src/web/app/persist.js';
 
@@ -70,11 +70,22 @@ describe('persist', () => {
     expect(loadPodChecklistCollapsed()).toBe(false);
   });
 
+  it('remembers whether the collectibles layer is shown, shown by default', () => {
+    expect(loadMarkersVisible()).toBe(true);
+    saveMarkersVisible(false);
+    expect(localStorage.getItem('ficsmap:collectibles')).toBe('0');
+    expect(loadMarkersVisible()).toBe(false);
+    saveMarkersVisible(true);
+    expect(loadMarkersVisible()).toBe(true);
+  });
+
   it('never throws when storage is unavailable', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
     expect(() => saveView('w1', view)).not.toThrow();
     expect(() => setLastWorld('w1')).not.toThrow();
+    expect(() => saveMarkersVisible(false)).not.toThrow();
+    expect(loadMarkersVisible()).toBe(true);
     expect(() => savePodTicks('w1', 'r1', new Set(['Rotor']))).not.toThrow();
     expect(loadPodTicks('w1', 'r1')).toEqual(new Set());
     expect(loadView('w1')).toBeNull();
@@ -89,5 +100,15 @@ describe('persist', () => {
     expect(loadResourceNodeView()).toEqual({ visible: false, hiddenResources: ['A'], purities: ['impure', 'pure'], occupancy: 'all' });
     localStorage.setItem('ficsmap:resourceNodes', '{not json');
     expect(loadResourceNodeView().purities).toHaveLength(3);
+  });
+  it('remembers each diagram\'s direction on its own, top to bottom by default', () => {
+    expect(loadDiagramDirection('planner')).toBe('down');
+    saveDiagramDirection('planner', 'right');
+    expect(loadDiagramDirection('planner')).toBe('right');
+    expect(loadDiagramDirection('lines')).toBe('down');
+    localStorage.setItem('ficsmap:diagramDirection:lines', 'sideways');
+    expect(loadDiagramDirection('lines')).toBe('down');
+    saveDiagramDirection('planner', 'down');
+    expect(localStorage.getItem('ficsmap:diagramDirection:planner')).toBeNull();
   });
 });

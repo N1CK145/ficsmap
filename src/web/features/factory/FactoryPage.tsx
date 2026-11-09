@@ -23,7 +23,9 @@ import { bottleneckText, lineHasIssue, lineName, sortLines } from './lineInfo.js
 import { LinesSection } from './LinesSection.js';
 import { BottleneckChip, LocateContext, NONE } from './parts.js';
 import { MachinesSection } from './MachinesSection.js';
+import { PageMachinePopup } from './PageMachinePopup.js';
 import { RoutesSection } from './RoutesSection.js';
+import { StorageSection } from './StorageSection.js';
 import { Timeline } from './Timeline.js';
 import { useFactoryPage, useFactoryWorld, useTimeline } from './timeline.js';
 import { useProductionLines } from './useLines.js';
@@ -43,7 +45,7 @@ function useLastReady<T>(value: T | null | undefined): T | null | undefined {
  * The factory page ("Fabrik", `/w/:id/factory`): the timeline of the world's saves on top, then the answer first: the
  * figures (machines, mean productivity, stopped, part load, power capacity, with the change against the compared save),
  * the production lines with the chosen one's diagram (`?line=<id>` opens one), the changes while comparing, the inefficient items (shortages first), the machines by class with the inefficient
- * ones, and the stations and vehicles. The snapshot choice and "Show on map" live in the shared factory view (`view.ts`), so
+ * ones, the stations and vehicles, and what lies in storage and the Dimensional Depot. The snapshot choice and "Show on map" live in the shared factory view (`view.ts`), so
  * the factory map follows the page and the other way round.
  */
 export function FactoryPage({ ctx }: { ctx: WorldCtx }) {
@@ -101,8 +103,9 @@ function Body({ ctx, shown, before, diff, since, fmt, data }: {
     return { floorAdded: g.floorAdded.length, floorRemoved: g.floorRemoved.length, linesAdded: g.linesAdded.size, linesRemoved: g.linesRemoved.length };
   }, [before, shown]);
   const lines = useProductionLines(shown, data.analysis) ?? null;
+  // A machine in the lists opens as the game's machine window (`PageMachinePopup`).
   return (
-    <>
+    <PageMachinePopup data={data.analysis} labels={labels} fmt={fmt} snapshot={shown.snapshot}>
       <Kpis totals={shown.analysis.totals} diff={diff} since={since} fmt={fmt} />
       {lines && <TopBottleneck worldId={ctx.worldId} lines={lines} labels={labels} fmt={fmt} />}
       {data.analysis && <LinesSection ctx={ctx} shown={shown} data={data.analysis} labels={labels} fmt={fmt} />}
@@ -110,7 +113,8 @@ function Body({ ctx, shown, before, diff, since, fmt, data }: {
       <ItemsSection worldId={ctx.worldId} analysis={shown.analysis} lines={lines} labels={labels} fmt={fmt} />
       <MachinesSection worldId={ctx.worldId} analysis={shown.analysis} labels={labels} fmt={fmt} recipes={data.analysis?.recipes ?? null} />
       <RoutesSection worldId={ctx.worldId} routes={shown.routes} labels={labels} fmt={fmt} index={ctx.index} lines={lines} analysis={shown.analysis} data={data.analysis} />
-    </>
+      <StorageSection worldId={ctx.worldId} snapshot={shown.snapshot} labels={labels} fmt={fmt} />
+    </PageMachinePopup>
   );
 }
 

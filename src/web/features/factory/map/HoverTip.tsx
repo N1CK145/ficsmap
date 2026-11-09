@@ -7,6 +7,8 @@ import { ReasonIcon } from '../icons.js';
 import { STATE_TEXT, stateKey } from '../parts.js';
 import { productivityOf } from './style.js';
 import type { FactorySelection } from './useFactoryMap.js';
+import { FLUID_BUFFER_M3, LITRES_PER_M3, usedSlots } from '../../../../shared/factory/inventory.js';
+import { crateKey } from '../StorageWindow.js';
 
 const OFFSET = 14;
 /** The tip's widest (`max-w-60`), CSS px. */
@@ -56,6 +58,12 @@ export function HoverTip({ scene, hit, lang, line, cluster }: {
     at = v;
     title = vehicleName(scene, hit.id, lang);
     body = <div className="text-muted">{t(v.v.autopilot ? 'factoryMap.vehicle.autopilotOn' : 'factoryMap.vehicle.autopilotOff')}</div>;
+  } else if (hit.kind === 'crate') {
+    const c = scene.crateById.get(hit.id);
+    if (!c) return null;
+    at = c;
+    title = t(crateKey(c.kind));
+    if (c.c.inv) body = <div className="text-muted tabular-nums">{t('factory.inventory.fill', { used: usedSlots(c.c.inv), slots: c.c.inv.slots })}</div>;
   } else {
     const sb = scene.byId.get(hit.id);
     if (!sb) return null;
@@ -68,6 +76,16 @@ export function HoverTip({ scene, hit, lang, line, cluster }: {
           {t(st.s.loading === false ? 'factoryMap.station.unloading' : 'factoryMap.station.loading')}
           {' · '}
           {t('factoryMap.perMin', { value: num.format(st.flow.itemsPerMin ?? 0) })}
+        </div>
+      );
+    } else if (sb.b.inv && !sb.b.prod) {
+      const cap = FLUID_BUFFER_M3[sb.b.cls];
+      const m3 = sb.b.inv.items.reduce((n, [, c, times = 1]) => n + c * times, 0) / LITRES_PER_M3;
+      body = (
+        <div className="text-muted tabular-nums">
+          {cap !== undefined
+            ? t('factory.inventory.fluidFill', { amount: num.format(Math.min(cap, m3)), capacity: num.format(cap) })
+            : t('factory.inventory.fill', { used: usedSlots(sb.b.inv), slots: sb.b.inv.slots })}
         </div>
       );
     } else if (sb.b.prod && sb.band) {

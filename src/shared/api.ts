@@ -1,4 +1,5 @@
 import type { NodeExtractor, NodeSettings, ResourceNodeOverride, SaveResourceNodes } from './resourceNodes.js';
+import type { UserPrefs } from './prefs.js';
 import type { MemberRole, WorldRole } from './roles.js';
 
 export type { MemberRole, WorldRole } from './roles.js';
@@ -31,6 +32,10 @@ export interface MeDto {
   /** The user's own verified e-mail; never exposed to other users. */
   email: string | null;
   datasetVersion: string;
+  /** The user's preferences (src/shared/prefs.ts); always sent by the server. A missing key has its default. */
+  prefs?: UserPrefs;
+  /** True for a server owner (OWNER_DISCORD_IDS), who may create general invites (`GET /api/invite-link`). */
+  serverOwner?: boolean;
 }
 
 export interface MemberDto {

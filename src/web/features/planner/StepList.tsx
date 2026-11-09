@@ -4,7 +4,7 @@ import type { RecipeIndex } from '../../../shared/recipes.js';
 import { GameIcon } from '../machineWiki/icons.js';
 import { powerText } from './controls.js';
 import { formatRate, itemName, type Lang } from './format.js';
-import { StepBadges, stepPicture } from './pictures.js';
+import { StepBadges, stepPicture, UseMark } from './pictures.js';
 import { stepText } from './stepText.js';
 
 export interface StepListProps {
@@ -90,11 +90,13 @@ export function StepList({ steps, index, lang, selected, onSelect, editorId, nod
               <td className="px-2 py-2 text-right">
                 <span className="block font-display text-base leading-6 font-semibold whitespace-nowrap tabular-nums">{text.amount}</span>
                 <span className="block text-xs whitespace-nowrap text-muted sm:hidden" title={text.exact}>{text.made}</span>
+                {text.use && <UseMark use={text.use} className="text-xs sm:hidden" />}
               </td>
               <td className="hidden px-2 py-2 sm:table-cell">
                 <span className={`flex items-center gap-1.5 leading-6 ${built ? '' : 'text-muted'}`} title={text.exact}>
                   {built && <GameIcon cls={picture.cls} px={20} />}
                   <span className="whitespace-nowrap">{text.made}</span>
+                  {text.use && <UseMark use={text.use} className="text-sm" />}
                 </span>
               </td>
               <td className="hidden py-2 pr-3 pl-2 text-right leading-6 whitespace-nowrap text-muted tabular-nums md:table-cell">

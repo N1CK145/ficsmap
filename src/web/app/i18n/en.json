@@ -43,6 +43,26 @@
     "signedInAs": "Signed in as {email} via Discord",
     "signOut": "Sign out"
   },
+  "profile": {
+    "title": "Profile settings",
+    "back": "Back",
+    "loadFailed": "Your profile could not be loaded.",
+    "controls": "Controls",
+    "wheelSpeed": "Mouse wheel speed",
+    "wheelSpeedValue": "{speed, number, ::.0#}×",
+    "wheelSpeedHint": "How far one turn of the mouse wheel zooms on the map and in the diagrams.",
+    "wheelSpeedReset": "Default",
+    "wheelSpeedResetLabel": "Reset the mouse wheel speed to the default ({speed, number, ::.0#}×)",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "saveFailed": "Not saved. The setting applies on this device for now.",
+    "languageHint": "Remembered on this device.",
+    "invite": {
+      "title": "Invite to ficsmap",
+      "linkLabel": "General invite link",
+      "hint": "Lets one person create an account without joining a world. Only server owners see this."
+    }
+  },
   "worlds": {
     "title": "Your worlds",
     "new": "+ New world",
@@ -273,6 +293,10 @@
   },
   "map": {
     "attribution": "Map © Coffee Stain Studios",
+    "collectibles": {
+      "control": "Collectibles",
+      "hint": "Show the collectibles: power slugs, Somersloops, Mercer spheres and hard drives"
+    },
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out"
   },
@@ -747,6 +771,7 @@
     "diagram": {
       "label": "Production chain",
       "hint": "Raw resources at the top, your items at the bottom, rates per minute. Select a step to change its recipe, clock speed or purity; the arrow keys move between the steps, Escape closes the step.",
+      "hintRight": "Raw resources on the left, your items on the right, rates per minute. Select a step to change its recipe, clock speed or purity; the arrow keys move between the steps, Escape closes the step.",
       "wanted": "wanted: {value}",
       "alt": "Alternate",
       "alternate": "{recipe} (alternate recipe)",
@@ -769,8 +794,22 @@
       "makes": "makes {value}",
       "needs": "needs {list}",
       "wantedBadge": "Wanted",
-      "fit": "Fit to width",
-      "actualSize": "Actual size"
+      "direction": {
+        "label": "Direction",
+        "down": "Top to bottom",
+        "right": "Left to right"
+      },
+      "view": {
+        "label": "View",
+        "hint": "Drag to move the view, the mouse wheel or two fingers zoom; Shift and the arrow keys move it, + and − zoom, 0 shows 100 %.",
+        "zoomIn": "Zoom in",
+        "zoomOut": "Zoom out",
+        "reset": "{percent} %, back to 100 %",
+        "fit": "Fit",
+        "fitHint": "Show the whole diagram",
+        "fullscreen": "Full screen",
+        "exitFullscreen": "Exit full screen"
+      }
     },
     "panel": {
       "recipe": "Recipe",
@@ -787,7 +826,14 @@
       "shardSlots": "{used, number} of {total, number} Power Shard slots used",
       "pressurizerPower": "{name}: {value} MW per resource well, not included in the totals",
       "purity": "Purity",
-      "even": "{count}× at {clock} %"
+      "even": "{count}× at {clock} % clock would be 100 %"
+    },
+    "use": {
+      "label": "Building use",
+      "long": "Buildings used to {value} %",
+      "full": "All buildings fully used (100 %)",
+      "high": "Nearly full (≥ 90 %)",
+      "throttled": "Part load (< 90 %)"
     },
     "gameModeNote": "The numbers are for the default game mode; game mode settings (recipe costs, power use, randomised node purity) are not taken into account.",
     "lastWorking": "Below is the last plan that worked; correct the value and it updates.",
@@ -1124,7 +1170,8 @@
       },
       "diagram": {
         "label": "Production line {name}",
-        "hint": "Inputs at the top, products at the bottom; on each belt or pipeline the flow per minute and its capacity. Select a group to see its machines; the arrow keys move between the groups, Escape closes the group."
+        "hint": "Inputs at the top, products at the bottom; on each belt or pipeline the flow per minute and its capacity. Select a group to see its machines; the arrow keys move between the groups, Escape closes the group.",
+        "hintRight": "Inputs on the left, products on the right; on each belt or pipeline the flow per minute and its capacity. Select a group to see its machines; the arrow keys move between the groups, Escape closes the group."
       },
       "legend": {
         "load": "Thicker = fuller belt or pipeline",
@@ -1136,7 +1183,9 @@
         "exact": "Full, just enough",
         "neck": "Bottleneck",
         "idle": "{count, plural, one {# empty storage or station} other {# empty storage and stations}} left out",
-        "folded": "{count, plural, one {# by-product link} other {# by-product links}} folded"
+        "folded": "{count, plural, one {# by-product link} other {# by-product links}} folded",
+        "ends": "Output and input: what leaves the line and what comes in",
+        "unlinked": "Not connected: made, but no belt or pipeline carries it away"
       },
       "logisticsInDiagram": "{count, plural, one {# logistics building} other {# logistics buildings}} (splitters, storage, stations) are in the diagram below.",
       "machinesOnly": "Machines only",
@@ -1162,7 +1211,32 @@
       "limit": "Limit:",
       "byproducts": "By-products",
       "moreRight": "more →",
-      "limitBadge": "Limit"
+      "limitBadge": "Limit",
+      "output": "Output",
+      "input": "Input",
+      "unlinked": "not connected",
+      "unlinkedHint": "no belt or pipeline carries it away from the machines making it.",
+      "unlinkedMakers": "Machines without a belt or pipeline for it",
+      "outputName": "Output: {item}, {rate}, to {place}",
+      "outputNameUnlinked": "Output: {item}, {rate}, not connected",
+      "inputName": "Input: {item}, {rate}, from {place}",
+      "endOut": "Output: {name}, receives {items}",
+      "endIn": "Input: {name}, gives {items}",
+      "outputTitle": "Output: {item}",
+      "inputTitle": "Input: {item}",
+      "terminalOut": "Leaves the line here",
+      "terminalIn": "Comes into the line here",
+      "receivers": "Buildings taking it",
+      "suppliers": "Buildings giving it",
+      "receives": "Receives",
+      "gives": "Gives",
+      "receivesNothing": "receives nothing",
+      "givesNothing": "gives nothing",
+      "summary": {
+        "makes": "Makes:",
+        "to": "To:",
+        "gets": "Gets:"
+      }
     },
     "items": {
       "title": "Inefficient items",
@@ -1344,6 +1418,73 @@
       "title": "Biggest bottleneck",
       "diagram": "To the diagram",
       "map": "On the map"
+    },
+    "machineWindow": {
+      "close": "Close {name}",
+      "open": "Open the machine window of {name}",
+      "status": "Status",
+      "productivity": "Productivity",
+      "state": {
+        "running": "Running",
+        "partLoad": "Part load",
+        "stopped": "Stopped",
+        "paused": "Paused"
+      },
+      "because": "Reason",
+      "noMeasurement": "No productivity measured in the save",
+      "alternate": "Alternate",
+      "of": "of {value}",
+      "missing": "missing",
+      "power": "Power",
+      "fuels": "Fuel (one of these)",
+      "supplement": "plus {item} {rate}",
+      "somersloops": "Somersloops",
+      "sloopSlots": "{used, number} of {total, number} Somersloop slots used",
+      "boost": "Output ×{value}",
+      "powerUse": "Power consumption while running",
+      "atClock": "at {clock} clock speed",
+      "powerMade": "Power production",
+      "hints": "Hints",
+      "belt": "At its output: {belt} ({rate})",
+      "loaded": "Loaded: {amount}",
+      "noFuelLoaded": "No fuel loaded"
+    },
+    "inventory": {
+      "contents": "Contents",
+      "slots": "Slots",
+      "fill": "{used, number} of {slots, plural, one {# slot} other {# slots}}",
+      "fluidFill": "{amount} of {capacity} m³",
+      "empty": "Empty",
+      "byItem": "By item",
+      "stacks": "{count, plural, one {# stack} other {# stacks}}",
+      "inSlot": "{amount} in the slot",
+      "unknown": "This save was imported before contents were read. Import it again to see what lies here.",
+      "crate": {
+        "death": "Death crate",
+        "other": "Crate"
+      }
+    },
+    "storage": {
+      "title": "Storage",
+      "subtitle": "{buildings, plural, one {# storage} other {# storages}} · {used, number} of {slots, number} slots used",
+      "search": "Find a stored item",
+      "searchPlaceholder": "e.g. Copper Ingot",
+      "showing": "{shown, number} of {total, number} items",
+      "item": "Item",
+      "total": "Stored",
+      "stacks": "Slots",
+      "holders": "Storages",
+      "holdersCount": "in {count, plural, one {# storage} other {# storages}}",
+      "noMatch": "No stored item matches “{query}”.",
+      "none": "Nothing lies in storage.",
+      "noStorage": "This save has no storage.",
+      "unknown": "This save was imported before contents were read. Import it again to see what lies in storage.",
+      "storages": "Containers and buffers",
+      "depot": "Dimensional Depot",
+      "depotSubtitle": "{count, plural, one {# item} other {# items}}, reachable from anywhere",
+      "depotEmpty": "Nothing lies in the Dimensional Depot.",
+      "searchKind": "In storage",
+      "searchDetail": "{amount} in {count, plural, one {# storage} other {# storages}}"
     }
   },
   "factoryMap": {
@@ -1483,7 +1624,10 @@
     },
     "highlight": {
       "count": "{count, plural, one {{n} building marked} other {{n} buildings marked}}",
-      "clear": "Clear the marking"
+      "clear": "Clear the marking",
+      "outside": "{count, plural, one {{n} marked building lies} other {{n} marked buildings lie}} outside the height range",
+      "showOutside": "Show",
+      "showOutsideHint": "Widen the height range so all marked buildings show"
     },
     "lines": {
       "title": "Production lines",
@@ -1517,7 +1661,24 @@
       "less": "Show less",
       "onMap": "On the map"
     },
-    "cargoMore": "{count, plural, one {+# more} other {+# more}}"
+    "cargoMore": "{count, plural, one {+# more} other {+# more}}",
+    "height": {
+      "title": "Height",
+      "all": "all heights",
+      "range": "{lo}–{hi} m",
+      "rangeWords": "{lo} to {hi} m",
+      "one": "{value} m",
+      "upTo": "up to {value} m",
+      "atLeast": "{value} m and up",
+      "reset": "All",
+      "lower": "Lower height limit",
+      "upper": "Upper height limit",
+      "from": "from {value} m",
+      "to": "to {value} m",
+      "keys": "Arrow keys: 1 m, Page Up and Page Down: to the next floor, Home and End: all the way down and up.",
+      "below": "Show what lies below faintly",
+      "count": "{shown} of {total} buildings in this range"
+    }
   },
   "saveWatcher": {
     "title": "Automatic upload",

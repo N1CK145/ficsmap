@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
@@ -184,13 +184,54 @@ describe('factory page', () => {
     await user().click(within(filters()).getByRole('button', { name: /Paused\s*1/ }));
     expect(within(list()).getAllByRole('listitem')).toHaveLength(1);
     await user().click(within(machines).getByRole('button', { name: 'Clear filter' }));
-    await user().click(within(machines).getByRole('button', { name: /^Smelter/ }));
+    // The class filter (a toggle), not the machine's row, which opens its window.
+    await user().click(within(machines).getByRole('button', { name: /^Smelter/, pressed: false }));
     expect(useFactoryPage.getState().cls).toBe('Build_SmelterMk1_C');
     expect(within(list()).getAllByRole('listitem')).toHaveLength(1);
     expect(list()).toHaveTextContent('Smelter');
     // The chips count within the class.
     expect(within(filters()).getByRole('button', { name: /Backed up\s*1/ })).toBeInTheDocument();
     expect(within(filters()).queryByRole('button', { name: /Shortage/ })).toBeNull();
+  });
+
+  it('opens a machine of the lists as the game\'s machine window in a popup; outside, Esc and × close it', async () => {
+    setup();
+    const u = user();
+    const main = await page();
+    const machines = await within(main).findByRole('region', { name: 'Machines' });
+    const row = (name: RegExp) => within(machines).getAllByTestId('machine-open').find(b => name.test(b.textContent ?? ''))!;
+    await u.click(row(/^Constructor/));
+    const dialog = await screen.findByRole('dialog', { name: 'Constructor' });
+    expect(row(/^Constructor/)).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(within(dialog).getByRole('region', { name: 'Status' })).toHaveTextContent('0 %StoppedReasonShortage');
+    expect(within(dialog).getByRole('region', { name: 'Recipe' })).toHaveTextContent('Iron Plate');
+    const production = within(dialog).getByRole('region', { name: 'Production' });
+    expect([...production.querySelectorAll('[data-slot]')].map(li => li.textContent)).toEqual(['Iron Ingot0.0/minof 30.0/min', 'Iron Plate0.0/minof 20.0/min']);
+    // Opened with the mouse: the focus stays on the row.
+    expect(row(/^Constructor/)).toHaveFocus();
+
+    // Inside: stays. Another machine: moves there.
+    await u.click(production);
+    expect(screen.getByRole('dialog', { name: 'Constructor' })).toBeInTheDocument();
+    await u.click(row(/^Smelter/));
+    expect(await screen.findByRole('dialog', { name: 'Smelter' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Constructor' })).toBeNull();
+    // Outside closes it.
+    await u.click(within(main).getByRole('region', { name: 'Timeline' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    // From the keyboard the focus moves into it; Esc closes it and gives the focus back.
+    row(/^Smelter/).focus();
+    await u.keyboard('{Enter}');
+    const smelter = await screen.findByRole('dialog', { name: 'Smelter' });
+    await waitFor(() => expect(within(smelter).getByRole('heading', { name: 'Smelter' })).toHaveFocus());
+    await u.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(row(/^Smelter/)).toHaveFocus();
+
+    await u.click(row(/^Smelter/));
+    await u.click(within(await screen.findByRole('dialog', { name: 'Smelter' })).getByRole('button', { name: 'Close Smelter' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('shows stations (problems first) with their throughput and vehicles with their cargo and route', async () => {

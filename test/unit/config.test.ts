@@ -8,13 +8,12 @@ const base = {
   DISCORD_CLIENT_ID: 'a',
   DISCORD_CLIENT_SECRET: 'b',
   SESSION_SECRET: 's'.repeat(32),
-  INVITE_JWT_SECRET: 'i'.repeat(32),
   DATASET_VERSION: 'v1',
 };
 
 describe('loadConfig', () => {
-  it('rejects a short INVITE_JWT_SECRET', () => {
-    expect(() => loadConfig({ ...base, INVITE_JWT_SECRET: 'x'.repeat(10) })).toThrow();
+  it('rejects a short SESSION_SECRET', () => {
+    expect(() => loadConfig({ ...base, SESSION_SECRET: 'x'.repeat(10) })).toThrow();
   });
   it('parses OWNER_DISCORD_IDS into a Set', () => {
     const c = loadConfig({ ...base, OWNER_DISCORD_IDS: '1, 2' });
