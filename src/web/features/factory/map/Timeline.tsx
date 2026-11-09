@@ -1,8 +1,9 @@
-import { useId, useMemo, useRef, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { canAdmin } from '../../../../shared/roles.js';
 import type { WorldCtx } from '../../../app/feature.js';
 import { useIsMobile } from '../../../app/useMediaQuery.js';
+import { useFormatDate } from '../../../app/dates.js';
 import { Button } from '../../../components/Button.js';
 import { fieldClass } from '../../../components/Field.js';
 import { IconButton } from '../../../components/IconButton.js';
@@ -14,7 +15,7 @@ import { axisPositions, labelIndices } from '../Timeline.js';
 import { diffSummary } from '../changes.js';
 import { diffCounts } from './diff.js';
 import { useMapData, type MapData } from './mapData.js';
-import { useFactoryMap } from './useFactoryMap.js';
+import { PLAY_SPEEDS, PLAY_STEP_MS, useFactoryMap, type PlaySpeed } from './useFactoryMap.js';
 
 const Chevron = ({ dir }: { dir: 'left' | 'right' }) => (
   <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -22,13 +23,26 @@ const Chevron = ({ dir }: { dir: 'left' | 'right' }) => (
   </svg>
 );
 
+/** While the slider is dragged, the save under it is shown once the pointer rests this long (ms), not every one passed. */
+const DRAG_SHOW_MS = 120;
+
+/** The save nearest to a point of the time axis (`pct` 0..100), by the axis positions (`axisPositions`). */
+export function nearestIndex(positions: readonly number[], pct: number): number {
+  let best = 0;
+  for (let i = 1; i < positions.length; i++) if (Math.abs(positions[i]! - pct) < Math.abs(positions[best]! - pct)) best = i;
+  return best;
+}
+
 /**
  * The factory map's timeline at the bottom of the map while the factory layers are on, in the Fabrik page's design:
- * older and newer buttons, the shown save's date, and a diamond per save on a time axis (filled: shown, hollow:
- * compared). "Changes" compares with the save before (or a chosen one): new buildings are outlined green, removed ones
+ * older and newer buttons, the shown save's date, and a slider over the time axis with a diamond per save (hollow:
+ * compared). The slider's handle can be dragged (it snaps to the nearest save) or the track clicked; a play button
+ * steps through the saves from the shown one to the newest (from the oldest when the newest is shown), each staying
+ * at least `PLAY_STEP_MS` divided by the chosen speed and until it is drawn. "Changes" compares with the save before (or a chosen one): new buildings are outlined green, removed ones
  * are red ghosts and productivity changes get a triangle, everything else turns grey; a counter says how many and
  * "Go to the changes" steps the map through the areas of changes, densest first ("Area 1 of 4 ›"). Arrow keys step
- * through the saves. On phones one row (older, date, newer, changes as an icon toggle), hidden while the info window
+ * through the saves. On phones the slider has no dates under it and the first row is older, date, newer, changes as
+ * an icon toggle; the timeline hides while the info window
  * (a building's, or a line's card) is open. Without snapshots it explains how to get some.
  */
 export function FactoryTimeline({ ctx }: { ctx: WorldCtx }) {
@@ -72,10 +86,18 @@ export function EmptyFactory({ owner, framed = true }: { owner: boolean; framed?
   );
 }
 
-/** A save's date and time; on phones without the year. */
-function when(ms: number, lang: string, short = false): string {
-  return new Date(ms).toLocaleString(lang, { day: '2-digit', month: '2-digit', ...(short ? {} : { year: 'numeric' }), hour: '2-digit', minute: '2-digit' });
+/** A save's date and time (on phones without the year), in the chosen date format. */
+function useWhen(): (ms: number, short?: boolean) => string {
+  const formatDate = useFormatDate();
+  return (ms, short = false) => formatDate(ms, { day: '2-digit', month: '2-digit', ...(short ? {} : { year: 'numeric' }), hour: '2-digit', minute: '2-digit' });
 }
+
+const PlayIcon = () => (
+  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 2.5v11L13 8z" /></svg>
+);
+const PauseIcon = () => (
+  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" /></svg>
+);
 
 /** "Changes" as an icon: plus and minus. */
 const ChangesIcon = () => (
@@ -86,33 +108,114 @@ const ChangesIcon = () => (
 
 export function TimelineBar({ data }: { data: MapData }) {
   const { t, i18n } = useTranslation();
+  const formatDate = useFormatDate();
+  const when = useWhen();
   const mobile = useIsMobile();
   const { ordered: list, index } = data.sel;
   const compareId = data.sel.compared?.id ?? null;
   const compareMode = useFactoryMap(s => s.compareMode);
   const changes = useFactoryView(s => s.compareId) !== null;
   const compareSelectId = useId();
-  const points = useRef<(HTMLButtonElement | null)[]>([]);
+  const speedSelectId = useId();
   const positions = useMemo(() => axisPositions(list.map(s => s.saveTime)), [list]);
-  const shown = list[index];
   const newest = list.length - 1;
-  const go = (i: number, focus = false) => {
-    const s = list[Math.max(0, Math.min(newest, i))];
+  /** Shows the i-th save (clamped). */
+  const show = useCallback((i: number) => {
+    const s = list[Math.max(0, Math.min(list.length - 1, i))];
     if (!s) return;
-    // The newest save is "the newest": a later import moves the map on to it.
-    useFactoryView.getState().select(s.id === list[newest]!.id ? null : s.id);
-    if (focus) points.current[Math.max(0, Math.min(newest, i))]?.focus();
+    // The newest save is "the newest": a later import moves the map on to it. Timeline input: the Fabrikplan panel
+    // follows once the timeline rests (`SETTLE_MS`).
+    useFactoryView.getState().select(s.id === list[list.length - 1]!.id ? null : s.id, { input: true });
+  }, [list]);
+
+  // Dragging the slider: the handle (and the date) follow the pointer at once, the map once the pointer rests.
+  const axis = useRef<HTMLDivElement>(null);
+  const thumb = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ pointer: number; at: number } | null>(null);
+  const [dragAt, setDragAt] = useState<number | null>(null);
+  const at = dragAt ?? index;
+  const shown = list[at];
+  useEffect(() => {
+    if (dragAt === null || dragAt === index) return;
+    const timer = setTimeout(() => show(dragAt), DRAG_SHOW_MS);
+    return () => clearTimeout(timer);
+  }, [dragAt, index, show]);
+
+  // Playing: on to the next save once the shown one is drawn and has been on the map long enough; stops at the newest.
+  const [playing, setPlaying] = useState(false);
+  const speed = useFactoryMap(s => s.playSpeed);
+  // Pressed slider and playing hold the panel still; letting go starts its rest.
+  useEffect(() => {
+    useFactoryView.getState().hold('play', playing);
+    return () => useFactoryView.getState().hold('play', false);
+  }, [playing]);
+  const dragging = dragAt !== null;
+  useEffect(() => {
+    useFactoryView.getState().hold('drag', dragging);
+    return () => useFactoryView.getState().hold('drag', false);
+  }, [dragging]);
+  useEffect(() => {
+    if (!playing || dragAt !== null) return;
+    if (index >= newest) { setPlaying(false); return; }
+    if (data.loading) return;
+    const timer = setTimeout(() => show(index + 1), PLAY_STEP_MS / speed);
+    return () => clearTimeout(timer);
+  }, [playing, dragAt, index, newest, data.loading, speed, show]);
+  const togglePlay = () => {
+    if (playing) { setPlaying(false); return; }
+    if (index >= newest) show(0);
+    setPlaying(true);
   };
+  /** A step by hand (buttons, keys, the slider) stops playing. */
+  const go = (i: number) => {
+    setPlaying(false);
+    show(i);
+  };
+
+  const indexAt = (clientX: number): number | null => {
+    const r = axis.current?.getBoundingClientRect();
+    if (!r || r.width <= 0 || list.length === 0) return null;
+    return nearestIndex(positions, ((clientX - r.left) / r.width) * 100);
+  };
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const i = indexAt(e.clientX);
+    if (i === null) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    drag.current = { pointer: e.pointerId, at: i };
+    setPlaying(false);
+    setDragAt(i);
+    thumb.current?.focus({ preventScroll: true });
+  };
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d || d.pointer !== e.pointerId) return;
+    const i = indexAt(e.clientX);
+    if (i === null || i === d.at) return;
+    d.at = i;
+    setDragAt(i);
+  };
+  const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d || d.pointer !== e.pointerId) return;
+    drag.current = null;
+    setDragAt(null);
+    show(d.at);
+  };
+
   const onKeyDown = (e: KeyboardEvent) => {
     const el = e.target as HTMLElement;
     if (el.tagName === 'INPUT' || el.tagName === 'SELECT') return;
-    const onPoint = el.getAttribute('role') === 'radio';
-    const to = e.key === 'ArrowLeft' || (onPoint && e.key === 'ArrowDown') ? index - 1
-      : e.key === 'ArrowRight' || (onPoint && e.key === 'ArrowUp') ? index + 1
-        : onPoint && e.key === 'Home' ? 0 : onPoint && e.key === 'End' ? newest : null;
+    const onSlider = el.getAttribute('role') === 'slider';
+    const page = Math.max(1, Math.round(list.length / 10));
+    const to = e.key === 'ArrowLeft' || (onSlider && e.key === 'ArrowDown') ? index - 1
+      : e.key === 'ArrowRight' || (onSlider && e.key === 'ArrowUp') ? index + 1
+        : onSlider && e.key === 'PageDown' ? index - page : onSlider && e.key === 'PageUp' ? index + page
+          : onSlider && e.key === 'Home' ? 0 : onSlider && e.key === 'End' ? newest : null;
     if (to === null) return;
     e.preventDefault();
-    go(to, onPoint);
+    go(to);
   };
   const toggleChanges = () => {
     const v = useFactoryView.getState();
@@ -154,9 +257,9 @@ export function TimelineBar({ data }: { data: MapData }) {
         </IconButton>
         <div className="flex min-w-0 items-baseline gap-2 whitespace-nowrap max-[899px]:flex-1 max-[899px]:justify-center">
           <span aria-live="polite" aria-atomic="true" className="font-display text-base font-semibold tracking-wide tabular-nums" data-testid="timeline-date">
-            {shown ? when(shown.saveTime, i18n.language, mobile) : ''}
+            {shown ? when(shown.saveTime, mobile) : ''}
           </span>
-          <span className="text-xs text-muted tabular-nums max-[899px]:hidden">{t('factoryMap.timeline.position', { index: index + 1, count: list.length })}</span>
+          <span className="text-xs text-muted tabular-nums max-[899px]:hidden">{t('factoryMap.timeline.position', { index: at + 1, count: list.length })}</span>
           {/* Always there, so screen readers hear the change of its text. */}
           <span role="status" className="text-xs text-muted max-[899px]:sr-only">{data.loading ? t('factoryMap.timeline.loading') : ''}</span>
         </div>
@@ -191,57 +294,92 @@ export function TimelineBar({ data }: { data: MapData }) {
                 onChange={e => onCompare(e.target.value)}
               >
                 <option value="previous">{t('factoryMap.timeline.comparePrevious')}</option>
-                {list.filter(s => s.id !== shown?.id).map(s => <option key={s.id} value={s.id}>{when(s.saveTime, i18n.language)}</option>)}
+                {list.filter(s => s.id !== shown?.id).map(s => <option key={s.id} value={s.id}>{when(s.saveTime)}</option>)}
               </select>
             </>
           )}
         </div>
       </div>
-      {list.length > 1 && !mobile && (
-        // The Fabrik page's time axis: a diamond per save, filled for the shown one, hollow for the compared one.
-        <div className="relative mt-1 h-11 px-3" data-testid="timeline-track">
-          <div aria-hidden="true" className="absolute inset-x-3 top-4 h-px bg-edge" />
-          <div role="radiogroup" aria-label={t('factoryMap.timeline.slider')} className="relative h-full">
-            {list.map((s, i) => {
-              const isSel = i === index;
-              const isCmp = i === comparedIndex;
-              return (
-                <button
-                  key={s.id}
-                  ref={el => { points.current[i] = el; }}
-                  type="button"
-                  role="radio"
-                  aria-checked={isSel}
-                  aria-label={when(s.saveTime, i18n.language) + (isCmp ? ` (${t('factoryMap.timeline.comparedMark')})` : '')}
-                  tabIndex={isSel ? 0 : -1}
-                  onClick={() => go(i)}
-                  className="group absolute top-4 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center focus-ring"
-                  style={{ left: `${positions[i]}%` }}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`block rotate-45 transition-transform group-hover:scale-125 motion-reduce:transition-none ${
-                      isSel ? 'size-3.5 bg-accent ring-2 ring-accent/40' : isCmp ? 'size-3 border-2 border-accent bg-bg' : 'size-2 bg-muted'}`}
-                  />
-                </button>
-              );
-            })}
-            {labelIndices(positions, index, comparedIndex).map(i => (
-              <span
-                key={i}
+      {list.length > 1 && (
+        // The Fabrik page's time axis as a slider: a diamond per save (hollow for the compared one), the handle on the
+        // shown one, the part up to it filled. Play and speed sit at its ends.
+        <div className={`mt-1 flex gap-2 max-[899px]:gap-1 ${mobile ? 'items-center' : 'items-start'}`}>
+          <IconButton
+            size="sm"
+            variant={playing ? 'primary' : 'secondary'}
+            aria-label={t(playing ? 'factoryMap.timeline.pause' : 'factoryMap.timeline.play')}
+            title={t(playing ? 'factoryMap.timeline.pause' : 'factoryMap.timeline.play')}
+            onClick={togglePlay}
+            data-testid="timeline-play"
+          >
+            {playing ? <PauseIcon /> : <PlayIcon />}
+          </IconButton>
+          <div
+            className="relative h-11 min-w-0 flex-1 cursor-pointer touch-none px-3 select-none"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            data-testid="timeline-track"
+          >
+            <div ref={axis} className="relative h-full">
+              <div aria-hidden="true" className={`absolute inset-x-0 h-px bg-edge ${mobile ? 'top-1/2' : 'top-4'}`} />
+              <div
                 aria-hidden="true"
-                className={`absolute top-7 -translate-x-1/2 text-xs whitespace-nowrap tabular-nums ${i === index ? 'font-semibold text-fg' : 'text-muted'}`}
-                style={{ left: `clamp(1.25rem, ${positions[i]}%, calc(100% - 1.25rem))` }}
+                className={`absolute left-0 h-0.5 -translate-y-1/4 bg-accent/60 ${mobile ? 'top-1/2' : 'top-4'} ${dragAt === null ? 'motion-safe:transition-[width] motion-safe:duration-150' : ''}`}
+                style={{ width: `${positions[at]}%` }}
+              />
+              {list.map((s, i) => (
+                <span
+                  key={s.id}
+                  aria-hidden="true"
+                  className={`absolute block -translate-x-1/2 -translate-y-1/2 rotate-45 ${mobile ? 'top-1/2' : 'top-4'} ${
+                    i === comparedIndex ? 'size-3 border-2 border-accent bg-bg' : i <= at ? 'size-2 bg-accent/70' : 'size-2 bg-muted'}`}
+                  style={{ left: `${positions[i]}%` }}
+                />
+              ))}
+              <div
+                ref={thumb}
+                role="slider"
+                tabIndex={0}
+                aria-label={t('factoryMap.timeline.slider')}
+                aria-valuemin={1}
+                aria-valuemax={list.length}
+                aria-valuenow={at + 1}
+                aria-valuetext={shown ? when(shown.saveTime) : undefined}
+                className={`group absolute flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center focus-ring max-[899px]:size-11 ${
+                  mobile ? 'top-1/2' : 'top-4'} ${dragAt === null ? 'cursor-grab motion-safe:transition-[left] motion-safe:duration-150' : 'cursor-grabbing'}`}
+                style={{ left: `${positions[at]}%` }}
               >
-                {new Date(list[i]!.saveTime).toLocaleDateString(i18n.language, { day: '2-digit', month: '2-digit' })}
-              </span>
-            ))}
+                <span aria-hidden="true" className="block size-4 rotate-45 bg-accent ring-2 ring-accent/40 shadow-md transition-transform group-hover:scale-110 motion-reduce:transition-none" />
+              </div>
+              {!mobile && labelIndices(positions, at, comparedIndex).map(i => (
+                <span
+                  key={i}
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute top-7 -translate-x-1/2 text-xs whitespace-nowrap tabular-nums ${i === at ? 'font-semibold text-fg' : 'text-muted'}`}
+                  style={{ left: `clamp(1.25rem, ${positions[i]}%, calc(100% - 1.25rem))` }}
+                >
+                  {formatDate(list[i]!.saveTime, { day: '2-digit', month: '2-digit' })}
+                </span>
+              ))}
+            </div>
           </div>
+          <label htmlFor={speedSelectId} className="sr-only">{t('factoryMap.timeline.speed')}</label>
+          <select
+            id={speedSelectId}
+            title={t('factoryMap.timeline.speed')}
+            className={fieldClass({ size: 'sm' }, 'w-auto')}
+            value={speed}
+            onChange={e => useFactoryMap.getState().setPlaySpeed(Number(e.target.value) as PlaySpeed)}
+          >
+            {PLAY_SPEEDS.map(v => <option key={v} value={v}>{num.format(v)}×</option>)}
+          </select>
         </div>
       )}
       {changes && (
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-1.5 text-xs max-[899px]:text-sm" data-testid="timeline-counts" aria-live="polite">
-          {compared && <span className="text-muted">{t('factoryMap.timeline.comparedWith', { date: when(compared.saveTime, i18n.language, mobile) })}</span>}
+          {compared && <span className="text-muted">{t('factoryMap.timeline.comparedWith', { date: when(compared.saveTime, mobile) })}</span>}
           {counts && (
             <>
               {rows?.map(r => (

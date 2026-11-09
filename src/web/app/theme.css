@@ -186,3 +186,17 @@
   padding: 0.5rem;
   background: var(--color-bg);
 }
+
+/*
+ * The maintenance banner (app/MaintenanceBanner.tsx) is fixed at the top and sets --app-banner-h to its height while
+ * it shows: the page starts below it and full-height pages give up that much. Unlayered, so it wins over the utilities.
+ */
+body {
+  padding-top: var(--app-banner-h, 0px);
+}
+.h-dvh {
+  height: calc(100dvh - var(--app-banner-h, 0px));
+}
+.min-h-dvh {
+  min-height: calc(100dvh - var(--app-banner-h, 0px));
+}

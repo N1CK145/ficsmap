@@ -5,15 +5,15 @@ import { MAX_SNAPSHOT_GZIP_BYTES } from '../../shared/factory/storage.js';
 import { makeWorldGuards } from '../auth/guards.js';
 import { HttpError } from '../errors.js';
 import {
-  decodeStored, decodeUpload, deleteSnapshot, encodeSnapshot, listSnapshots, parseSnapshot, snapshotData, storeSnapshot,
+  decodeStored, decodeUpload, deleteSnapshot, encodeSnapshot, listSnapshots, parseSnapshot, snapshotData, snapshotDelta, storeSnapshot,
 } from '../domain/snapshots.js';
 
 const SNAPSHOT_ID = /^[1-9][0-9]{0,15}$/;
 /** Stored snapshots never change (a re-import gets a new id), so a member's browser keeps them. */
 const IMMUTABLE = 'private, max-age=31536000, immutable';
 
-function snapshotId(params: unknown): number {
-  const sid = (params as { sid?: string }).sid ?? '';
+function snapshotId(params: unknown, name = 'sid'): number {
+  const sid = (params as Record<string, string | undefined>)[name] ?? '';
   if (!SNAPSHOT_ID.test(sid)) throw new HttpError(404, 'not_found', 'Not found');
   return Number(sid);
 }
@@ -25,6 +25,8 @@ function snapshotId(params: unknown): number {
  *   Answers 201 with its `SnapshotSummary`.
  * - `GET /api/worlds/:id/snapshots` (members): the summaries, newest save first.
  * - `GET /api/worlds/:id/snapshots/:sid` (members): the snapshot, served as stored (gzip) and cached as immutable.
+ * - `GET /api/worlds/:id/snapshots/:sid/delta/:base` (members): the snapshot as the difference to another snapshot of
+ *   the world (`src/shared/factory/delta.ts`), so a browser holding `base` downloads about a tenth; immutable too.
  * - `DELETE /api/worlds/:id/snapshots/:sid` (owner or admin).
  * Changes broadcast `snapshots`.
  */
@@ -66,6 +68,14 @@ export function registerSnapshotRoutes(app: FastifyInstance, deps: AppDeps): voi
 
     scope.get('/api/worlds/:id/snapshots/:sid', { preHandler: requireMember }, async (req, reply) => {
       const data = snapshotData(db, req.world!.id, snapshotId(req.params));
+      if (!data) throw new HttpError(404, 'not_found', 'Not found');
+      reply.header('cache-control', IMMUTABLE).header('vary', 'accept-encoding').type('application/json; charset=utf-8');
+      if (/\bgzip\b/i.test(req.headers['accept-encoding'] ?? '')) return reply.header('content-encoding', 'gzip').send(data);
+      return reply.send(await decodeStored(data));
+    });
+
+    scope.get('/api/worlds/:id/snapshots/:sid/delta/:base', { preHandler: requireMember }, async (req, reply) => {
+      const data = await snapshotDelta(db, req.world!.id, snapshotId(req.params), snapshotId(req.params, 'base'));
       if (!data) throw new HttpError(404, 'not_found', 'Not found');
       reply.header('cache-control', IMMUTABLE).header('vary', 'accept-encoding').type('application/json; charset=utf-8');
       if (/\bgzip\b/i.test(req.headers['accept-encoding'] ?? '')) return reply.header('content-encoding', 'gzip').send(data);

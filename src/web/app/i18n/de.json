@@ -57,6 +57,14 @@
     "saved": "Gespeichert",
     "saveFailed": "Nicht gespeichert. Die Einstellung gilt vorerst nur auf diesem Gerät.",
     "languageHint": "Wird auf diesem Gerät gespeichert.",
+    "dateFormat": {
+      "title": "Datum und Uhrzeit",
+      "label": "Format",
+      "auto": "Wie die Sprache",
+      "eu": "Europäisch",
+      "us": "Amerikanisch",
+      "hint": "Gilt für alle Daten und Uhrzeiten, unabhängig von der Sprache. Wird in deinem Konto gespeichert."
+    },
     "invite": {
       "title": "Zu ficsmap einladen",
       "linkLabel": "Allgemeiner Einladungslink",
@@ -1603,6 +1611,9 @@
       "compareWith": "Vergleichen mit",
       "comparePrevious": "Dem Spielstand davor",
       "slider": "Spielstände",
+      "play": "Abspielen",
+      "pause": "Anhalten",
+      "speed": "Abspielgeschwindigkeit",
       "comparedWith": "Verglichen mit {date}:",
       "nothingToCompare": "Kein anderer Spielstand zum Vergleichen.",
       "better": "{count, plural, one {{n} besser} other {{n} besser}}",
@@ -1780,6 +1791,24 @@
       "flatpak": "Linux, Steam als Flatpak",
       "steamDeck": "Steam Deck",
       "linuxServer": "Linux, dedizierter Server"
+    }
+  },
+  "maintenance": {
+    "title": "Wartungsmodus",
+    "situation": "Die Daten stammen von ficsmap v{data}, dieser Server läuft mit v{version}. Bis ein Owner das klärt, lädt und speichert ficsmap nichts.",
+    "situationUnknown": "Dieser Server läuft mit einer älteren Version als seine Daten. Bis ein Owner das klärt, lädt und speichert ficsmap nichts.",
+    "details": "Details",
+    "jokes": {
+      "0": "FICSIT verschwendet nichts. Auch keine Daten. Deshalb fassen wir sie gerade lieber gar nicht an.",
+      "1": "ADA meldet: Ihre Datenbank kommt aus der Zukunft. Das wurde Ihrer Mitarbeiterakte hinzugefügt.",
+      "2": "Ein Lizard Doggo hat sich auf die Datenbank gelegt und bewacht sie. Bitte nicht wecken, bis ein Owner entscheidet.",
+      "3": "Bitte bleiben Sie ruhig und produktiv. Vor allem produktiv. Na gut: heute nur ruhig.",
+      "4": "Projekt Assembly macht eine kurze Pause. Der Weltraumlift wartet geduldig, das Management weniger.",
+      "5": "Ein Somersloop hat die Versionen verdoppelt. Jetzt gibt es zwei, und keine passt zur anderen.",
+      "6": "Dieser Server lebt in der Vergangenheit. FICSIT empfiehlt: Kaffee aus dem FICSIT-Becher und etwas Geduld.",
+      "7": "Alle Förderbänder stehen still. Die Hogs schwören, dass sie diesmal nichts damit zu tun haben.",
+      "8": "Sicherheitshinweis: Bitte keine Nobelisks auf den Server werfen. Ein Owner kümmert sich darum.",
+      "9": "Effizienz: 0 %. Das ist Absicht. Im Wartungsmodus wird nichts gespeichert, also auch nichts verschwendet."
     }
   }
 }

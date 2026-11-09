@@ -3,6 +3,7 @@ import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
+import type { ApiError, VersionDto } from '../../shared/api.js';
 import type { DiscordClient } from '../auth/discord.js';
 import type { Config } from '../config.js';
 import { releaseUrl } from './appVersion.js';
@@ -124,7 +125,11 @@ export async function buildMaintenanceApp(deps: MaintenanceDeps): Promise<Fastif
   const html = (reply: FastifyReply, code: number, body: string) => reply.code(code).type('text/html; charset=utf-8').send(body);
 
   app.get('/healthz', async (_req, reply) => reply.code(503).send({ ok: false, maintenance: true }));
-  app.get('/api/version', async () => ({ version: state.current, maintenance: true }));
+  app.get('/api/version', async (): Promise<VersionDto> => ({ version: state.current, maintenance: true, dataVersion: state.stored }));
+  // The app's API calls get an error they understand (the app shows its maintenance banner), not the HTML page.
+  app.all('/api/*', async (_req, reply) => reply.code(503).send({
+    error: 'maintenance', message: `Maintenance mode: the data was last used by v${state.stored}, this is v${state.current}`,
+  } satisfies ApiError));
 
   app.get('/maintenance/login', async (_req, reply) => {
     const tx = { state: randomBytes(24).toString('base64url'), verifier: randomBytes(32).toString('base64url') };

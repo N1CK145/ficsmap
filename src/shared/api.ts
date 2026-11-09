@@ -18,11 +18,20 @@ export type ApiErrorCode =
   | 'session_mismatch'
   /** The server cannot take the request now (the save parse queue is full); try again later. */
   | 'busy'
+  /** The server runs in maintenance mode (an older version on newer data): nothing is read or written. */
+  | 'maintenance'
   | 'internal';
 
 export interface ApiError {
   error: ApiErrorCode;
   message: string;
+}
+
+/** `GET /api/version`. In maintenance mode also `maintenance: true` and the version the data was last used by. */
+export interface VersionDto {
+  version: string;
+  maintenance?: boolean;
+  dataVersion?: string;
 }
 
 export interface MeDto {
