@@ -1,5 +1,6 @@
 import { BANDS, type Band, type Reason } from '../../../../shared/factory/analysis.js';
 import { REASON_PATHS } from '../icons.js';
+import type { SplitterSide } from '../../../../shared/factory/splitter.js';
 import type { LineKind, MapKind } from './style.js';
 import { BAND_TOKEN, KIND_TOKEN, LINE_TOKEN, MAP_KINDS } from './style.js';
 
@@ -12,6 +13,8 @@ export interface FactoryPalette {
   bands: Record<Band, string>;
   lines: Record<LineKind, string>;
   floorEdge: string;
+  /** A splitter's outputs per side. */
+  outputs: Record<SplitterSide, string>;
 }
 
 export function readFactoryPalette(): FactoryPalette | null {
@@ -24,9 +27,10 @@ export function readFactoryPalette(): FactoryPalette | null {
     bands: Object.fromEntries(BANDS.map(b => [b, token(BAND_TOKEN[b])])) as Record<Band, string>,
     lines: Object.fromEntries((Object.keys(LINE_TOKEN) as LineKind[]).map(k => [k, token(LINE_TOKEN[k])])) as Record<LineKind, string>,
     floorEdge: token('fac-floor-edge'),
+    outputs: { left: token('out-left'), center: token('out-center'), right: token('out-right'), top: token('out-top') },
   };
   const all = [p.bg, p.panel, p.edge, p.fg, p.muted, p.accent, p.conflict, p.free, p.power, p.vehicle, p.onAccent, p.floorEdge,
-    ...Object.values(p.kinds), ...Object.values(p.bands), ...Object.values(p.lines)];
+    ...Object.values(p.kinds), ...Object.values(p.bands), ...Object.values(p.lines), ...Object.values(p.outputs)];
   // The stylesheet may not be applied yet; try again on the next draw instead of caching blanks.
   return all.every(c => c !== '') ? p : null;
 }

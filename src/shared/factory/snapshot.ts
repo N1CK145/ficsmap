@@ -10,7 +10,8 @@
  * - Classes are the buildable's class name without path (`Build_ConstructorMk1_C`); names, sizes, categories and
  *   pictures come from the dataset (`buildings.json`), never from the save.
  * - Flat number arrays keep large lists small in JSON.
- * - The snapshot holds no player names and no player positions (the user's choice); `builtBy` handles are left out.
+ * - Players: their in-game names and where their characters stand (`players`, asked for by the user on 2026-11-10;
+ *   earlier snapshots had none), and the game's statistics per player (`stats`). `builtBy` handles are left out.
  *
  * Versioned: a breaking change bumps `v`; readers ignore snapshots with a newer `v` than they know.
  */
@@ -59,6 +60,55 @@ export interface FactorySnapshot {
    * has none.
    */
   fog?: string;
+  /** The players the save knows (missing in snapshots extracted before players were read). */
+  players?: SnapshotPlayer[];
+  /**
+   * Creature spawners (`BP_CreatureSpawner_C`, actor name as in the dataset's `creatures.json`) whose creatures were
+   * killed at least once: times killed over all its spawn points, and how many of them are dead right now (they come
+   * back later), and the game day of the last kill (missing in snapshots before it was read). Spawners without a kill
+   * are left out. Missing in older snapshots.
+   */
+  spawners?: [name: string, kills: number, dead: number, lastDay?: number][];
+  /** The game's own statistics (`FGStatisticsSubsystem`); missing in older snapshots and saves without them. */
+  stats?: SnapshotStats;
+}
+
+export interface SnapshotPlayer {
+  /** The player state's actor name (`BP_PlayerState_C_…`), what `stats` refers to; it changes between saves, the name does not. */
+  id: string;
+  /** In-game name: the character's cached name, else the game state's player info cache. */
+  name?: string;
+  /** Where the character is (it stays in the world while the player is offline); missing without a character. */
+  pos?: [x: number, y: number, z: number];
+}
+
+/**
+ * `FGStatisticsSubsystem` as the save has it (SaveGame properties in the game's `FGStatisticsSubsystem.h`). Counts per
+ * class: items (`Desc_…`), creatures (`Char_…`), buildables (`Build_…`, also vehicles and equipment). `player` is a
+ * `SnapshotPlayer.id`.
+ */
+export interface SnapshotStats {
+  /** Nuts, berries, medkits and other consumables eaten or used (the world's total). */
+  consumed: [item: string, count: number][];
+  /** Creatures killed (the world's total). */
+  killed: [creature: string, count: number][];
+  /** Items produced (`mItemsProduced`; empty in 1.2 saves). */
+  produced: [item: string, count: number][];
+  /** Items crafted by hand, per player. */
+  crafted: [player: string, item: string, count: number][];
+  /** Items picked up in the world (placed items, not dropped ones), per player. */
+  pickedUp: [player: string, item: string, count: number][];
+  /** Per class: built in total, dismantled in total, in the world now, most ever at once; built and dismantled per player. */
+  built: SnapshotBuiltStat[];
+}
+
+export interface SnapshotBuiltStat {
+  cls: string;
+  total: number;
+  dismantled: number;
+  current: number;
+  max: number;
+  by: [player: string, built: number, dismantled: number][];
 }
 
 export interface SnapshotMeta {
@@ -93,6 +143,13 @@ export interface SnapshotBuilding {
   texts?: string[];
   /** Conveyor lifts and similar: the height in game units. */
   height?: number;
+  /**
+   * Smart and programmable splitters (also the lift ones): their sort rules as the game stores them, item class and
+   * output index (`splitterOutput` names the output). Filter items like `Desc_Wildcard_C` (any), `Desc_None_C`,
+   * `Desc_Overflow_C` and `Desc_AnyUndefined_C` are kept as they are. Always present for those splitters (also empty),
+   * so a missing list means an older snapshot.
+   */
+  sort?: [item: string, output: number][];
   /** Extractors: the resource node it stands on (node id as in `resource-nodes.json`), when known. */
   node?: string;
   /**
@@ -234,6 +291,11 @@ export interface SnapshotSummary {
   /** Machines with productivity below 1 % (standing still). */
   idle: number;
   bytes: number;
+  /**
+   * Ids of the death crates in the save (`CT_DeathCrate`); missing for snapshots stored before they were recorded.
+   * The world's deaths are the distinct ids over its saves (`countDeaths`).
+   */
+  deathCrates?: string[];
 }
 
 /** One belt or pipe connection from an upstream node's output to a downstream node's input. */

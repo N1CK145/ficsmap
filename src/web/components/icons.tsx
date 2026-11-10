@@ -52,6 +52,12 @@ export const CollectiblesIcon = (p: IconProps) => <Icon {...p}><path d="M7 3.5Q7
 export const MapIcon = (p: IconProps) => <Icon {...p}><path d="M1.5 3.75L5.5 2.25l5 2 4-1.5v10l-4 1.5-5-2-4 1.5zM5.5 2.25v10M10.5 4.25v10" /></Icon>;
 /** An ore lump on a node: the resource node layer. */
 export const OreIcon = (p: IconProps) => <Icon {...p}><path d="M3 10.5l1.5-5 4-2.5 4 2.5 1 5-4.5 3zM4.5 5.5l4 2.5 4.5-2.5M8.5 8v5.5" /></Icon>;
+/** A paw print: the creature layer. */
+export const PawIcon = (p: IconProps) => <Icon {...p}><circle cx="8" cy="10.5" r="2.8" /><circle cx="3.5" cy="6.5" r="1.3" /><circle cx="6.3" cy="3.5" r="1.3" /><circle cx="9.7" cy="3.5" r="1.3" /><circle cx="12.5" cy="6.5" r="1.3" /></Icon>;
+/** A person: the players on the map. */
+export const PlayerIcon = (p: IconProps) => <Icon {...p}><circle cx="8" cy="4.5" r="2.5" /><path d="M3 14.5c0-3 2.2-5 5-5s5 2 5 5" /></Icon>;
+/** Bars of a chart: the statistics page. */
+export const StatsIcon = (p: IconProps) => <Icon {...p}><path d="M2 14.5h12M3.5 14.5V9h2.5v5.5M7 14.5V4h2.5v10.5M10.5 14.5V7H13v7.5" /></Icon>;
 /** A gear on a machine body: the machine wiki. */
 export const MachineIcon = (p: IconProps) => <Icon {...p}><path d="M2 13.5V6l3.5 2V6l3.5 2V3.5h5v10z" /><path d="M5 11h1.5M9 11h1.5" /></Icon>;
 /** Three boxes joined by lines: the production planner (for the planner's tool). */

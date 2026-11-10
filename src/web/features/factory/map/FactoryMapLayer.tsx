@@ -27,6 +27,7 @@ import { filterDiff } from './height.js';
 import { useHeight } from './useHeight.js';
 import { HoverTip } from './HoverTip.js';
 import { langOf, stationNumber, vehicleName } from './names.js';
+import { isSortingSplitter, splitterOutputs } from './splitterView.js';
 
 const HOVER_CLASS = 'ficsmap-marker-hover';
 /** Hit distance around a belt or pipe of a production line, CSS px. */
@@ -288,6 +289,11 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
   }, [map, selection?.kind, selection?.id, lineId, lineAnchor, !!scene]);
 
   const route = useMemo(() => (scene && selection?.kind === 'vehicle' ? vehicleRoute(scene, selection.id) : null), [scene, selection]);
+  // A selected smart or programmable splitter: where each of its outputs leads.
+  const outputs = useMemo(() => {
+    const sb = scene && selection?.kind === 'building' ? scene.byId.get(selection.id) : undefined;
+    return scene && sb && isSortingSplitter(sb) ? splitterOutputs(scene, sb) : null;
+  }, [scene, selection]);
   const number = useMemo(() => new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0 }), [i18n.language]);
 
   const frame = useMemo((): FactoryFrame => ({
@@ -298,6 +304,7 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     selected: selection?.id ?? null,
     hover: hover?.id ?? null,
     route,
+    outputs,
     line: frameLine,
     picture: (sb, px) => pictureOf(icons, sb.entry?.icon, px),
     itemPicture: (item, px) => pictureOf(icons, item, px),
@@ -306,7 +313,7 @@ function ActiveFactory({ ctx }: { ctx: WorldCtx }) {
     vehicleLabel: v => (scene ? vehicleName(scene, v.v.id, lang) : v.v.cls),
     fontPx: coarse ? 14 : 13,
     loading: data.loading,
-  }), [scene, shown, height.below, layers, colorMode, shownDiff, highlight, pulse, selection, hover, route, frameLine, icons, lang, t, number, coarse, data.loading]);
+  }), [scene, shown, height.below, layers, colorMode, shownDiff, highlight, pulse, selection, hover, route, outputs, frameLine, icons, lang, t, number, coarse, data.loading]);
 
   const frameRef = useRef(frame);
   /** The scene the pointer picks from: what is drawn (within the height range). */

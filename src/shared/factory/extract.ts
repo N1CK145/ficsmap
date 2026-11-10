@@ -2,6 +2,7 @@ import { readBool, saveTimeFromTicks, shortName } from '../extract.js';
 import { extractorLink, isResourceNodeType } from '../resourceNodes.js';
 import { flatPolyline, roundUnit, sampleSpline, simplify, toWorld, yawOf, type SplinePoint, type Transform, type Vec3 } from './geometry.js';
 import { readConnections } from './connections.js';
+import { readPlayers, readSpawner, readStats } from './stats.js';
 import { FLUID_BUFFER_M3, LITRES_PER_M3, MAX_DEPOT_ITEMS, MAX_SLOTS, packStacks } from './inventory.js';
 import { encodeGreyPng, toBase64 } from './png.js';
 import {
@@ -101,6 +102,7 @@ function playerText(p: Prop | undefined): string | undefined {
 const MAX_NAME = 256;
 const MAX_TEXTS = 32;
 const MAX_TEXT = 1024;
+const MAX_SORT_RULES = 128;
 
 /** FGuid as the parser gives it (four uint32) → 32 hex digits, upper case (UE `EGuidFormats::Digits`). */
 export function guidHex(v: unknown): string | undefined {
@@ -399,6 +401,20 @@ function signTexts(p: Props): string[] | undefined {
   return texts.length > 0 ? texts.slice(0, MAX_TEXTS).map(t => t.slice(0, MAX_TEXT)) : undefined;
 }
 
+/** A smart or programmable splitter's `mSortRules` (`FSplitterSortRule`: `ItemClass`, `OutputIndex`). */
+function sortRules(p: Props): [string, number][] | undefined {
+  const arr = p.mSortRules?.values;
+  if (!Array.isArray(arr)) return undefined;
+  const out: [string, number][] = [];
+  for (const e of arr.slice(0, MAX_SORT_RULES)) {
+    const r = structProps(e);
+    const item = className(ref(r?.ItemClass));
+    const index = num(r?.OutputIndex);
+    if (item && index !== undefined && Number.isInteger(index) && index >= 0 && index < 8) out.push([item, index]);
+  }
+  return out;
+}
+
 function heightOf(p: Props): number | undefined {
   const top = structProps(p[LIFT_TOP]);
   const z = vec(top?.Translation?.value)?.z ?? num(p.mHeight);
@@ -477,6 +493,8 @@ export function extractFactory(save: FactorySaveLike, opts: ExtractFactoryOption
   const pathSegments: FactoryObject[] = [];
   const identifiers: FactoryObject[] = [];
   const trains: FactoryObject[] = [];
+  const playerStates: FactoryObject[] = [];
+  let gameState: FactoryObject | undefined;
 
   for (const o of objects) {
     const tp = o.typePath ?? '';
@@ -509,6 +527,14 @@ export function extractFactory(save: FactorySaveLike, opts: ExtractFactoryOption
       case 'FGCentralStorageSubsystem':
         snap.depot = readDepot(o);
         continue;
+      case 'FGStatisticsSubsystem': snap.stats = readStats(o); continue;
+      case 'BP_CreatureSpawner_C': {
+        const s = readSpawner(o);
+        if (s) (snap.spawners ??= []).push(s);
+        continue;
+      }
+      case 'BP_PlayerState_C': playerStates.push(o); continue;
+      case 'BP_GameState_C': gameState = o; continue;
       case 'FGDockingStationIdentifier': case 'FGTrainStationIdentifier': case 'FGWheeledVehicleIdentifier':
         identifiers.push(o);
         continue;
@@ -546,6 +572,8 @@ export function extractFactory(save: FactorySaveLike, opts: ExtractFactoryOption
     if (texts) b.texts = texts;
     const height = heightOf(p);
     if (height !== undefined) b.height = height;
+    const sort = sortRules(p);
+    if (sort) b.sort = sort;
     const link = extractorLink(p);
     const target = link ? byName.get(link) : undefined;
     if (link && target && isResourceNodeType(target.typePath)) b.node = shortName(link);
@@ -558,6 +586,8 @@ export function extractFactory(save: FactorySaveLike, opts: ExtractFactoryOption
   const { links, circuits } = readConnections(objects, new Set(snap.buildings.map(b => b.id)));
   snap.links = links;
   snap.circuits = circuits;
+  snap.players = readPlayers(playerStates, byName, gameState);
+  snap.spawners ??= [];
   return snap;
 }
 

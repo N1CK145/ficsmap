@@ -18,7 +18,31 @@ export const MAX_SNAPSHOTS_PER_WORLD = 2000;
 export const IDLE_PRODUCTIVITY = 0.01;
 
 /** The figures of a snapshot's timeline entry that come from the snapshot itself. */
-export type SnapshotFigures = Pick<SnapshotSummary, 'buildings' | 'machines' | 'avgProductivity' | 'idle'>;
+export type SnapshotFigures = Pick<SnapshotSummary, 'buildings' | 'machines' | 'avgProductivity' | 'idle' | 'deathCrates'>;
+
+/** Crate type of a crate a player left when dying (`EFGCrateType::CT_DeathCrate`, game header `FGCrate.h`). */
+export const DEATH_CRATE = 'CT_DeathCrate';
+
+/** The ids of the save's death crates, sorted. */
+export function deathCrateIds(s: Pick<FactorySnapshot, 'crates'>): string[] {
+  return s.crates.filter(c => c.kind === DEATH_CRATE && c.id).map(c => c.id!).sort();
+}
+
+/**
+ * Deaths up to and including the save at `until` (unix ms): the distinct death crates over the world's snapshots
+ * that recorded them. A lower bound: the game keeps no death count, and a crate emptied between two saves is never seen.
+ * `known` is false when a snapshot up to then has no record (stored before crates were recorded).
+ */
+export function countDeaths(list: readonly Pick<SnapshotSummary, 'saveTime' | 'deathCrates'>[], until: number): { deaths: number; known: boolean } {
+  const ids = new Set<string>();
+  let known = true;
+  for (const s of list) {
+    if (s.saveTime > until) continue;
+    if (!s.deathCrates) { known = false; continue; }
+    for (const id of s.deathCrates) ids.add(id);
+  }
+  return { deaths: ids.size, known };
+}
 
 /**
  * Buildings (with an actor of their own, not the lightweight parts), machines (buildings with a production

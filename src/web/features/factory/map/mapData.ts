@@ -156,7 +156,14 @@ export function isStorageSelection(data: Pick<MapData, 'scene'>, sel: FactorySel
   return !!data.scene.byId.get(sel.id)?.b.inv && !data.scene.stationById.has(sel.id);
 }
 
-/** The selection opens in a popup next to it (a machine's window or a storage's), not in the info window. */
+/** Whether the selection opens as the splitter popup (`SplitterWindow`): a smart or programmable splitter. */
+export function isSplitterSelection(data: Pick<MapData, 'scene'>, sel: FactorySelection | null): boolean {
+  if (!data.scene || sel?.kind !== 'building') return false;
+  const sb = data.scene.byId.get(sel.id);
+  return !!sb && /^Build_ConveyorAttachmentSplitter(Smart|Programmable)/.test(sb.b.cls);
+}
+
+/** The selection opens in a popup next to it (a machine's, a storage's or a splitter's window), not in the info window. */
 export function opensPopup(data: Pick<MapData, 'scene' | 'analysis'>, sel: FactorySelection | null): boolean {
-  return isMachine(data, sel) || isStorageSelection(data, sel);
+  return isMachine(data, sel) || isStorageSelection(data, sel) || isSplitterSelection(data, sel);
 }

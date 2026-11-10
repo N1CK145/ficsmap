@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { Db } from '../db/db.js';
 import { FACTORY_SNAPSHOT_VERSION, type FactorySnapshot, type SnapshotSummary } from '../../shared/factory/snapshot.js';
 import {
-  MAX_SNAPSHOT_JSON_BYTES, MAX_SNAPSHOTS_PER_WORLD, snapshotFigures, type SnapshotFigures,
+  deathCrateIds, MAX_SNAPSHOT_JSON_BYTES, MAX_SNAPSHOTS_PER_WORLD, snapshotFigures, type SnapshotFigures,
 } from '../../shared/factory/storage.js';
 import { snapshotsToThin } from '../../shared/factory/retention.js';
 import { MAX_DEPOT_ITEMS, MAX_RUNS, MAX_SLOTS } from '../../shared/factory/inventory.js';
@@ -56,6 +56,7 @@ const Building = z.object({
   prod: Production.optional(),
   texts: z.array(Str(1024)).max(32).optional(),
   height: Num.optional(),
+  sort: z.array(z.tuple([Cls, z.number().int().min(0).max(7)])).max(128).optional(),
   node: Id.optional(),
   inv: Inventory.optional(),
   in: Inventory.optional(),
@@ -124,6 +125,21 @@ const Marker = z.object({
   scale: Num,
 });
 
+/** The game's statistics (`SnapshotStats`): counts per class, per player where the game keeps them. */
+const ClassCounts = z.array(z.tuple([Cls, Count])).max(5_000);
+const PlayerCounts = z.array(z.tuple([Id, Cls, Count])).max(20_000);
+const Stats = z.object({
+  consumed: ClassCounts,
+  killed: ClassCounts,
+  produced: ClassCounts,
+  crafted: PlayerCounts,
+  pickedUp: PlayerCounts,
+  built: z.array(z.object({
+    cls: Cls, total: Count, dismantled: Count, current: Count, max: Count,
+    by: z.array(z.tuple([Id, Count, Count])).max(1_000),
+  })).max(5_000),
+});
+
 /** A factory snapshot as `POST /api/worlds/:id/snapshots` accepts it (after the version check). */
 export const SnapshotSchema = z.object({
   v: z.literal(FACTORY_SNAPSHOT_VERSION),
@@ -149,6 +165,9 @@ export const SnapshotSchema = z.object({
   crates: z.array(z.object({ id: Id.optional(), x: Num, y: Num, z: Num, kind: Str(128), inv: Inventory.optional() })).max(10_000),
   depot: z.array(z.tuple([Cls, Count])).max(MAX_DEPOT_ITEMS).optional(),
   fog: z.string().max(8 * 2 ** 20).regex(/^[A-Za-z0-9+/]*={0,2}$/).optional(),
+  players: z.array(z.object({ id: Id, name: Str(128).optional(), pos: z.tuple([Num, Num, Num]).optional() })).max(1_000).optional(),
+  spawners: z.array(z.union([z.tuple([Id, Count, Count]), z.tuple([Id, Count, Count, Count])])).max(20_000).optional(),
+  stats: Stats.optional(),
 });
 
 // Compile-time check that what the schema lets through is a FactorySnapshot.
@@ -218,6 +237,7 @@ function toSummary(r: SnapshotRow): SnapshotSummary {
     avgProductivity: f.avgProductivity,
     idle: f.idle,
     bytes: r.bytes,
+    ...(f.deathCrates ? { deathCrates: f.deathCrates } : {}),
   };
 }
 
@@ -273,7 +293,7 @@ export function storeSnapshot(
   db: Db, worldId: string, s: FactorySnapshot, gz: Buffer, userId: number, now: number,
 ): { summary: SnapshotSummary; replaced: boolean; rev: number; thinned: number[] } {
   const saveTime = Math.trunc(s.meta.saveTime);
-  const figures = snapshotFigures(s);
+  const figures: SnapshotFigures = { ...snapshotFigures(s), deathCrates: deathCrateIds(s) };
   return db.transaction(() => {
     const removed = db.prepare('DELETE FROM factory_snapshots WHERE world_id = ? AND session_name = ? AND save_time = ?')
       .run(worldId, s.meta.sessionName, saveTime).changes;

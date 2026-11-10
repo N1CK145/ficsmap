@@ -42,7 +42,7 @@ export function labelIndices(positions: readonly number[], selected: number, com
  * End move through the saves), older/newer buttons, the selected save's date and play time, and "Compare with" (the
  * save before by default, any other from the list).
  */
-export function Timeline({ sel, fmt, loading }: { sel: TimelineSelection; fmt: FactoryFormat; loading: boolean }) {
+export function Timeline({ sel, fmt, loading, compare = true }: { sel: TimelineSelection; fmt: FactoryFormat; loading: boolean; compare?: boolean }) {
   const { t } = useTranslation();
   const select = useFactoryView(s => s.select);
   const compareWith = useFactoryView(s => s.compareWith);
@@ -158,7 +158,8 @@ export function Timeline({ sel, fmt, loading }: { sel: TimelineSelection; fmt: F
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+      {/* A page that shows no comparison (Statistik) leaves "Compare with" out. */}
+      {compare && <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
         <label className="inline-flex min-h-8 items-center gap-2 max-[899px]:min-h-11">
           <input
             type="checkbox"
@@ -195,7 +196,7 @@ export function Timeline({ sel, fmt, loading }: { sel: TimelineSelection; fmt: F
             </a>
           </>
         )}
-      </div>
+      </div>}
     </Window>
   );
 }
