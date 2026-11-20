@@ -5,6 +5,7 @@ import { ApiClientError } from './app/api.js';
 import { FeaturesProvider } from './app/FeaturesContext.js';
 import { ToastProvider } from './components/Toast.js';
 import { FEATURES } from './features/index.js';
+import { MaintenanceBanner } from './app/MaintenanceBanner.js';
 import { createAppRouter } from './router.js';
 
 function createQueryClient(): QueryClient {
@@ -25,6 +26,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <FeaturesProvider features={FEATURES}>
         <ToastProvider>
+          <MaintenanceBanner />
           <RouterProvider router={router} />
         </ToastProvider>
       </FeaturesProvider>

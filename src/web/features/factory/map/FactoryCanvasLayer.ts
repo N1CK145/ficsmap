@@ -8,6 +8,7 @@ import {
 import { buildingLook, CLOSE_FROM, detailAt, GLYPH_MIN_PX, LINES_FROM, PRODUCT_PIN_ZOOM, pxPerMapUnit, scaledLineWidth } from './lod.js';
 import { greyPicture } from './pictures.js';
 import { chevronsAlong, type EdgeLoad, type LineEdgeGeom, type LineGeom } from './lineView.js';
+import type { SplitterSide } from '../../../../shared/factory/splitter.js';
 import type { Scene, SceneBuilding, SceneStation, SceneVehicle } from './scene.js';
 import { bandLook, lineAlpha, lineWidthPx, PAUSED_LOOK, type BandLook, type BandPattern, type LineKind } from './style.js';
 import type { ColorMode, FactoryLayer } from './useFactoryMap.js';
@@ -39,6 +40,14 @@ export interface FrameLine {
   focus: string | null;
 }
 
+/** The selected splitter's outputs: per side its belt to the next building and the items its rules send there. */
+export interface FrameOutput {
+  side: SplitterSide;
+  paths: Float32Array[];
+  target: SceneBuilding | undefined;
+  items: string[];
+}
+
 /** What one frame draws; the React layer keeps it current. */
 export interface FactoryFrame {
   /** What is drawn: the snapshot's scene, or with a height range only what lies in it (`filterScene`). */
@@ -57,6 +66,8 @@ export interface FactoryFrame {
   route: FrameRoute | null;
   /** The production line lit up over a dimmed factory, or null. */
   line: FrameLine | null;
+  /** A selected smart or programmable splitter's outputs, or null. */
+  outputs?: FrameOutput[] | null;
   /** The building's picture at about `px` CSS px, or null (none, or not loaded yet). */
   picture(sb: SceneBuilding, px: number): HTMLImageElement | null;
   /** An item's picture (a machine's product) at about `px` CSS px, or null. */
@@ -617,6 +628,7 @@ export class FactoryCanvasLayer extends L.Layer {
         if (pulsing) this.outline(ctx, sb, s, o, p.fg, 2, d.dots, (1 - k) * 0.9, false, false, 4 + 22 * k);
       }
     }
+    if (f.outputs) this.drawOutputs(ctx, f.outputs, f, p, s, o, sx, sy, d.dots);
     if (f.hover && f.hover !== f.selected) {
       const sb = scene.byId.get(f.hover);
       if (sb) this.outline(ctx, sb, s, o, p.fg, 1.5, d.dots, 0.75);
@@ -1169,6 +1181,58 @@ export class FactoryCanvasLayer extends L.Layer {
   }
 
   /** The selected vehicle's route in the text colour on a dark casing; legs into stops that move nothing in red. */
+  /**
+   * A splitter's outputs: each belt to the next building bold in its side's colour on a dark casing, that building
+   * outlined in the same colour, and at it the pictures of the items its rules send there (filters have none).
+   */
+  private drawOutputs(
+    ctx: CanvasRenderingContext2D, outputs: FrameOutput[], f: FactoryFrame, p: FactoryPalette, s: number, o: L.Point,
+    sx: (v: number) => number, sy: (v: number) => number, dots: boolean,
+  ): void {
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const trace = (paths: Float32Array[]) => {
+      ctx.beginPath();
+      for (const pts of paths) {
+        if (pts.length < 4) continue;
+        ctx.moveTo(sx(pts[0]!), sy(pts[1]!));
+        for (let i = 2; i + 1 < pts.length; i += 2) ctx.lineTo(sx(pts[i]!), sy(pts[i + 1]!));
+      }
+    };
+    for (const out of outputs) {
+      trace(out.paths);
+      ctx.globalAlpha = 0.8;
+      ctx.strokeStyle = p.bg;
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = p.outputs[out.side];
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+    ctx.restore();
+    for (const out of outputs) {
+      if (!out.target) continue;
+      this.outline(ctx, out.target, s, o, p.outputs[out.side], 2.5, dots, 1, true);
+      const icons = out.items.map(i => f.itemPicture(i, 24)).filter((img): img is HTMLImageElement => img !== null).slice(0, 4);
+      if (icons.length === 0) continue;
+      const px = 22, gap = 2;
+      const w = icons.length * (px + gap) + gap;
+      const x = sx(out.target.cx) - w / 2, y = sy(out.target.cy) - px / 2 - gap;
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, px + 2 * gap, 4);
+      ctx.fillStyle = p.bg;
+      ctx.strokeStyle = p.outputs[out.side];
+      ctx.lineWidth = 2;
+      ctx.fill();
+      ctx.stroke();
+      icons.forEach((img, i) => ctx.drawImage(img, x + gap + i * (px + gap), y + gap, px, px));
+      ctx.restore();
+    }
+  }
+
   private drawRoute(ctx: CanvasRenderingContext2D, route: FrameRoute, p: FactoryPalette, sx: (v: number) => number, sy: (v: number) => number, fontPx: number): void {
     ctx.save();
     ctx.lineCap = 'round';

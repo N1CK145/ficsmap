@@ -4,9 +4,10 @@ import { z } from 'zod';
 import type { Db } from '../db/db.js';
 import { FACTORY_SNAPSHOT_VERSION, type FactorySnapshot, type SnapshotSummary } from '../../shared/factory/snapshot.js';
 import {
-  MAX_SNAPSHOT_JSON_BYTES, MAX_SNAPSHOTS_PER_WORLD, snapshotFigures, type SnapshotFigures,
+  deathCrates, MAX_SNAPSHOT_JSON_BYTES, MAX_SNAPSHOTS_PER_WORLD, snapshotFigures, type SnapshotFigures,
 } from '../../shared/factory/storage.js';
 import { snapshotsToThin } from '../../shared/factory/retention.js';
+import { diffSnapshots } from '../../shared/factory/delta.js';
 import { MAX_DEPOT_ITEMS, MAX_RUNS, MAX_SLOTS } from '../../shared/factory/inventory.js';
 import { HttpError } from '../errors.js';
 import { bumpRev, lastImportOf } from './worlds.js';
@@ -56,6 +57,7 @@ const Building = z.object({
   prod: Production.optional(),
   texts: z.array(Str(1024)).max(32).optional(),
   height: Num.optional(),
+  sort: z.array(z.tuple([Cls, z.number().int().min(0).max(7)])).max(128).optional(),
   node: Id.optional(),
   inv: Inventory.optional(),
   in: Inventory.optional(),
@@ -124,6 +126,21 @@ const Marker = z.object({
   scale: Num,
 });
 
+/** The game's statistics (`SnapshotStats`): counts per class, per player where the game keeps them. */
+const ClassCounts = z.array(z.tuple([Cls, Count])).max(5_000);
+const PlayerCounts = z.array(z.tuple([Id, Cls, Count])).max(20_000);
+const Stats = z.object({
+  consumed: ClassCounts,
+  killed: ClassCounts,
+  produced: ClassCounts,
+  crafted: PlayerCounts,
+  pickedUp: PlayerCounts,
+  built: z.array(z.object({
+    cls: Cls, total: Count, dismantled: Count, current: Count, max: Count,
+    by: z.array(z.tuple([Id, Count, Count])).max(1_000),
+  })).max(5_000),
+});
+
 /** A factory snapshot as `POST /api/worlds/:id/snapshots` accepts it (after the version check). */
 export const SnapshotSchema = z.object({
   v: z.literal(FACTORY_SNAPSHOT_VERSION),
@@ -149,6 +166,9 @@ export const SnapshotSchema = z.object({
   crates: z.array(z.object({ id: Id.optional(), x: Num, y: Num, z: Num, kind: Str(128), inv: Inventory.optional() })).max(10_000),
   depot: z.array(z.tuple([Cls, Count])).max(MAX_DEPOT_ITEMS).optional(),
   fog: z.string().max(8 * 2 ** 20).regex(/^[A-Za-z0-9+/]*={0,2}$/).optional(),
+  players: z.array(z.object({ id: Id, name: Str(128).optional(), pos: z.tuple([Num, Num, Num]).optional() })).max(1_000).optional(),
+  spawners: z.array(z.union([z.tuple([Id, Count, Count]), z.tuple([Id, Count, Count, Count])])).max(20_000).optional(),
+  stats: Stats.optional(),
 });
 
 // Compile-time check that what the schema lets through is a FactorySnapshot.
@@ -218,6 +238,8 @@ function toSummary(r: SnapshotRow): SnapshotSummary {
     avgProductivity: f.avgProductivity,
     idle: f.idle,
     bytes: r.bytes,
+    // Snapshots stored while the summary kept only the ids (never released) count as without the record.
+    ...(Array.isArray(f.deathCrates) && f.deathCrates.every(Array.isArray) ? { deathCrates: f.deathCrates } : {}),
   };
 }
 
@@ -273,7 +295,7 @@ export function storeSnapshot(
   db: Db, worldId: string, s: FactorySnapshot, gz: Buffer, userId: number, now: number,
 ): { summary: SnapshotSummary; replaced: boolean; rev: number; thinned: number[] } {
   const saveTime = Math.trunc(s.meta.saveTime);
-  const figures = snapshotFigures(s);
+  const figures: SnapshotFigures = { ...snapshotFigures(s), deathCrates: deathCrates(s) };
   return db.transaction(() => {
     const removed = db.prepare('DELETE FROM factory_snapshots WHERE world_id = ? AND session_name = ? AND save_time = ?')
       .run(worldId, s.meta.sessionName, saveTime).changes;
@@ -312,4 +334,46 @@ export function deleteSnapshot(db: Db, worldId: string, id: number): { rev: numb
     if (changes === 0) throw new HttpError(404, 'not_found', 'Not found');
     return { rev: bumpRev(db, worldId) };
   })();
+}
+
+// --- Deltas --------------------------------------------------------------------------------------
+
+/** Parsed snapshots kept for deltas (by id; ids are never reused): stepping the timeline asks for b→c after a→b. */
+const PARSED_KEEP = 6;
+/** Computed deltas kept (gzip, by "base>id"): every member stepping the same timeline asks for the same ones. */
+const DELTAS_KEEP = 32;
+const parsed = new Map<number, Record<string, unknown>>();
+const deltas = new Map<string, Buffer>();
+
+/** Least recently used caches: a hit moves to the end, the oldest goes when full. */
+function remember<K, V>(m: Map<K, V>, k: K, v: V, max: number): V {
+  m.delete(k);
+  m.set(k, v);
+  while (m.size > max) m.delete(m.keys().next().value as K);
+  return v;
+}
+
+async function parsedSnapshot(db: Db, worldId: string, id: number): Promise<Record<string, unknown> | undefined> {
+  const hit = parsed.get(id);
+  // Ids are never reused, but the world is checked per request (a hit is only served when the row is this world's).
+  if (hit) return remember(parsed, id, hit, PARSED_KEEP);
+  const data = snapshotData(db, worldId, id);
+  if (!data) return undefined;
+  return remember(parsed, id, JSON.parse((await gunzipAsync(data)).toString('utf8')) as Record<string, unknown>, PARSED_KEEP);
+}
+
+/**
+ * The snapshot `id` as the difference to the snapshot `baseId` of the same world (`src/shared/factory/delta.ts`),
+ * gzip-compressed JSON; undefined when either is not this world's. Computing one takes about 10 ms for a
+ * 3,800-building save; the last few parsed snapshots and deltas are kept in memory.
+ */
+export async function snapshotDelta(db: Db, worldId: string, id: number, baseId: number): Promise<Buffer | undefined> {
+  const exists = db.prepare('SELECT count(*) AS n FROM factory_snapshots WHERE world_id = ? AND id IN (?, ?)').get(worldId, id, baseId) as { n: number };
+  if (exists.n !== (id === baseId ? 1 : 2)) return undefined;
+  const key = `${baseId}>${id}`;
+  const hit = deltas.get(key);
+  if (hit) return remember(deltas, key, hit, DELTAS_KEEP);
+  const [base, target] = [await parsedSnapshot(db, worldId, baseId), await parsedSnapshot(db, worldId, id)];
+  if (!base || !target) return undefined;
+  return remember(deltas, key, await gzipAsync(JSON.stringify(diffSnapshots(base, target, baseId, id))), DELTAS_KEEP);
 }

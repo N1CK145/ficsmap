@@ -4,6 +4,7 @@ import type { DatasetIndex } from '../../../shared/dataset.js';
 import type { StationFlow } from '../../../shared/factory/analysis.js';
 import type { Names } from '../../../shared/recipes.js';
 import type { FactoryLabels } from './data.js';
+import { dateTimeFormat, useDateFormatPref } from '../../app/dates.js';
 
 export type Lang = keyof Names;
 
@@ -14,12 +15,13 @@ export type Lang = keyof Names;
 export function useFactoryFormat() {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
+  const dateFormat = useDateFormatPref();
   return useMemo(() => {
     const one = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
     const whole = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
-    const date = new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const dateTime = new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const dateShort = new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit' });
+    const date = dateTimeFormat(locale, dateFormat, { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const dateTime = dateTimeFormat(locale, dateFormat, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const dateShort = dateTimeFormat(locale, dateFormat, { day: '2-digit', month: '2-digit' });
     const clean = (n: number) => (Math.abs(n) < 0.05 ? 0 : n);
     const sign = (n: number, s: string) => (n > 0 ? `+${s}` : n < 0 ? `−${s.replace(/^[-−]/, '')}` : s);
     return {
@@ -48,7 +50,7 @@ export function useFactoryFormat() {
         return s >= 60 ? t('factory.unit.minSec', { m: Math.floor(s / 60), s: s % 60 }) : t('factory.unit.sec', { s });
       },
     };
-  }, [t, locale]);
+  }, [t, locale, dateFormat]);
 }
 
 export type FactoryFormat = ReturnType<typeof useFactoryFormat>;

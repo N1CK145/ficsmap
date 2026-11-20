@@ -1,8 +1,10 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import type { MachineState, Reason } from '../../../shared/factory/analysis.js';
 import type { SnapshotSummary } from '../../../shared/factory/snapshot.js';
-import { useSnapshotList } from './api.js';
+import { evictSnapshots, SNAPSHOT_KEEP_MS, useSnapshotList } from './api.js';
+import { queryKeys } from '../../app/queryKeys.js';
 import { useFactoryView } from './view.js';
 
 export interface TimelineSelection {
@@ -39,11 +41,14 @@ export function defaultCompareId(sel: TimelineSelection): number | null {
   return sel.ordered[sel.index - 1]?.id ?? sel.ordered[sel.index + 1]?.id ?? null;
 }
 
-/** The world's timeline: its snapshot list resolved against the shared view. `list` is undefined while it loads. */
-export function useTimeline(worldId: string): TimelineSelection & { list: SnapshotSummary[] | undefined; failed: boolean } {
+/**
+ * The world's timeline: its snapshot list resolved against the shared view (`settled`: against the choice the
+ * Fabrikplan panel shows, which waits for the timeline to rest). `list` is undefined while it loads.
+ */
+export function useTimeline(worldId: string, settled = false): TimelineSelection & { list: SnapshotSummary[] | undefined; failed: boolean } {
   const q = useSnapshotList(worldId);
-  const selectedId = useFactoryView(s => s.selectedId);
-  const compareId = useFactoryView(s => s.compareId);
+  const selectedId = useFactoryView(s => (settled ? s.settled.selectedId : s.selectedId));
+  const compareId = useFactoryView(s => (settled ? s.settled.compareId : s.compareId));
   return { ...resolveTimeline(q.data, selectedId, compareId), list: q.data, failed: q.isError };
 }
 
@@ -98,7 +103,8 @@ export const useFactoryPage = create<FactoryPageState>()((set, get) => ({
 
 /**
  * Binds the factory state to a world: entering another world resets the shared view (`view.ts`) and the page state,
- * so a snapshot id of one world is never looked up in another.
+ * so a snapshot id of one world is never looked up in another. Keeps the world's snapshot cache in bounds
+ * (`useSnapshotRetention`).
  */
 export function useFactoryWorld(worldId: string): void {
   useEffect(() => {
@@ -106,4 +112,39 @@ export function useFactoryWorld(worldId: string): void {
     if (page.worldId !== null && page.worldId !== worldId) useFactoryView.getState().reset();
     page.enterWorld(worldId);
   }, [worldId]);
+  useSnapshotRetention(worldId);
+}
+
+/**
+ * Downloaded snapshots stay cached while the timeline is in use: `SNAPSHOT_KEEP_MS` after its last use (any change of
+ * the shown or compared save, letting go of the slider, stopping) the ones nothing shows are dropped, except the
+ * shown save's neighbours (loaded for the next step). Never while the slider is held or the timeline plays. Leaving
+ * the world drops them after the same time.
+ */
+export function useSnapshotRetention(worldId: string): void {
+  const qc = useQueryClient();
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const evict = () => {
+      const v = useFactoryView.getState();
+      const sel = resolveTimeline(qc.getQueryData<SnapshotSummary[]>(queryKeys.snapshots(worldId)), v.selectedId, v.compareId);
+      const keep = new Set<number>();
+      for (const s of [sel.ordered[sel.index - 1], sel.selected, sel.ordered[sel.index + 1], sel.compared]) if (s) keep.add(s.id);
+      evictSnapshots(qc, worldId, keep);
+    };
+    const arm = () => {
+      clearTimeout(timer);
+      if (useFactoryView.getState().holds.length === 0) timer = setTimeout(evict, SNAPSHOT_KEEP_MS);
+    };
+    const unsubscribe = useFactoryView.subscribe((s, prev) => {
+      if (s.selectedId !== prev.selectedId || s.compareId !== prev.compareId || s.holds !== prev.holds) arm();
+    });
+    arm();
+    return () => {
+      unsubscribe();
+      clearTimeout(timer);
+      // Gone from this world: drop what nothing shows once the time is up (what still shows is never dropped).
+      setTimeout(() => evictSnapshots(qc, worldId, new Set()), SNAPSHOT_KEEP_MS);
+    };
+  }, [qc, worldId]);
 }

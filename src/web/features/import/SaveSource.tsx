@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { dateTimeFormat, getDateFormat } from '../../app/dates.js';
 import { MOBILE_QUERY } from '../../app/useMediaQuery.js';
 import { Button } from '../../components/Button.js';
 import { useToast } from '../../components/Toast.js';
@@ -8,9 +9,10 @@ import {
 } from './pickSave.js';
 import type { SaveParser } from './useSaveParser.js';
 
+/** A save's date and time in the language and the chosen date format (`app/dates.ts`). */
 export function formatSaveDate(at: number, locale: string): string {
   if (!Number.isFinite(at)) return '—';
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
+  return dateTimeFormat(locale, getDateFormat(), { dateStyle: 'medium', timeStyle: 'short' }).format(at);
 }
 
 function isMobile(): boolean {

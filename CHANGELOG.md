@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-11-21
+
+### Added
+
+- Factory map: smart and programmable splitters open a popup with their sort rules per output ("Links", "Mitte", "Rechts", "Oben"; "Beliebig", "Überlauf", "Keine", items by name) and draw their output belts to the next building. Saves imported before show a hint to import them again.
+- Map: a creature layer ("Kreaturen") with the spawn points of animals and enemies from the dataset (new dataset part `creatures`, `creatures.json`) and the kills of the save the timeline shows: how often each spawn point was killed, which are dead right now, which are back and which were never killed, filterable by those and by family (Keiler, Spucker, Stecher, Krabbenbrüter, Wildtiere). Creatures carry the game's own names; from zoom 5 their picture. Families are found in the header search.
+- Map: a player layer ("Spieler") with where each player's character stands in the shown save, and a panel listing them; players are found in the header search.
+- Statistics page ("Statistik", `/w/:id/stats`): the game's own statistics of the shown save for the whole world or one player: play time, creatures killed (also counted on spawn points), built and dismantled buildings, hand crafted, picked up, consumed and produced items, and a players table. Deaths are counted from the death crates over all saves and shown as a lower bound ("≥ N"), since looted crates are missing. Counts the game no longer assigns to a player (it now and then gives a player a new id) are shown as "Nicht zuzuordnen".
+- Map: a death crate layer ("Todeskisten") with every death crate of the world's saves up to the shown one. A crate still lying there lists what is in it; one that is gone is faded and says in which save it was last seen. "Auf der Karte" on the statistics page switches it on and fits the map to the crates.
+- Factory map timeline: a slider over the saves (drag it, click the track, or Home/End, Page Up/Down and the arrow keys on its handle; also on phones) and a play key that steps through the saves up to the newest at 0.5×, 1×, 2× or 4× (one save a second at 1×, waiting for each to load; the speed is remembered on the device). While the timeline is dragged or played, and for 2 s after, the Fabrikplan panel keeps showing the save it showed (dimmed); pointing at it or focusing it catches up at once.
+- Factory map timeline: the next 4 saves in the direction of travel load in the background while playing or stepping; loaded saves stay until the timeline has not been touched for 15 s (the save shown, its neighbours and the compared save stay longer).
+- Factory snapshots load as the difference to a neighbouring save the browser already has (`GET /api/worlds/:id/snapshots/:sid/delta/:base`, about 13 % of a whole save) and share everything unchanged in memory (44 saves of Letz Fetz: 19 MB instead of 119 MB). Any failure falls back to the whole save.
+- Profile settings: date and time format ("Datum und Uhrzeit": like the language, European "31.12.2026, 23:59" or American), saved on the account and used for every date the app shows; with English and European, dates with month names are British ("9 Nov 2026, 23:05").
+- Maintenance mode: a banner at the top of every page says that the server is in maintenance (data version and server version), links to the details and tells one of ten FICSIT jokes at random. It checks every 10 s and disappears, reloading the data, once maintenance is over. API calls during maintenance get `503 {"error":"maintenance"}` instead of the maintenance page; `GET /api/version` adds `dataVersion`.
+
+### Changed
+
+- Snapshots now keep the player names and positions, the game's statistics, the creature kills and the death crates with their positions; the privacy note on import says so. Saves imported before have none of it until they are imported again.
+- The map's switches show only their icons below 1800 px wide.
+
 ## [0.2.3] - 2026-11-09
 
 ### Added

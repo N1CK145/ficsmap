@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../app/api.js';
+import { useFormatDate } from '../../app/dates.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { Button } from '../../components/Button.js';
 import { ReadonlyCopyField } from '../../components/ReadonlyCopyField.js';
@@ -11,6 +12,7 @@ import { ReadonlyCopyField } from '../../components/ReadonlyCopyField.js';
  */
 export function GeneralInvite() {
   const { t, i18n } = useTranslation();
+  const formatDate = useFormatDate();
   const link = useQuery({
     queryKey: queryKeys.generalInviteLink(),
     queryFn: () => api<{ url: string; expiresAt: number }>('GET', '/api/invite-link'),
@@ -19,7 +21,7 @@ export function GeneralInvite() {
 
   // While a link is on its way, and when the refresh failed, the field is empty: the copied link is never offered again.
   const current = link.isFetching || link.isError ? undefined : link.data;
-  const expires = current && new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium' }).format(current.expiresAt);
+  const expires = current && formatDate(current.expiresAt, { dateStyle: 'medium' });
 
   return (
     <div className="flex flex-col gap-3">

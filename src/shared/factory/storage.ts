@@ -1,4 +1,4 @@
-import type { FactorySnapshot, SnapshotSummary } from './snapshot.js';
+import type { FactorySnapshot, SnapshotSummary, SummaryDeathCrate } from './snapshot.js';
 
 /**
  * How factory snapshots are stored and moved (server: `src/server/domain/snapshots.ts`, client:
@@ -18,7 +18,53 @@ export const MAX_SNAPSHOTS_PER_WORLD = 2000;
 export const IDLE_PRODUCTIVITY = 0.01;
 
 /** The figures of a snapshot's timeline entry that come from the snapshot itself. */
-export type SnapshotFigures = Pick<SnapshotSummary, 'buildings' | 'machines' | 'avgProductivity' | 'idle'>;
+export type SnapshotFigures = Pick<SnapshotSummary, 'buildings' | 'machines' | 'avgProductivity' | 'idle' | 'deathCrates'>;
+
+/** Crate type of a crate a player left when dying (`EFGCrateType::CT_DeathCrate`, game header `FGCrate.h`). */
+export const DEATH_CRATE = 'CT_DeathCrate';
+
+/** The save's death crates with their positions, by id. */
+export function deathCrates(s: Pick<FactorySnapshot, 'crates'>): SummaryDeathCrate[] {
+  return s.crates.filter(c => c.kind === DEATH_CRATE && c.id)
+    .map((c): SummaryDeathCrate => [c.id!, c.x, c.y, c.z])
+    .sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+/** One death crate over the world's saves: where it lay, and the first and last save (unix ms) it was in. */
+export interface DeathCrateSeen { id: string; x: number; y: number; z: number; firstSeen: number; lastSeen: number }
+
+/**
+ * Every death crate in the world's saves up to and including the one at `until` (unix ms), each once, oldest first.
+ * A crate whose `lastSeen` is before `until` is gone in that save (looted, or the game removed it).
+ */
+export function deathCrateHistory(list: readonly Pick<SnapshotSummary, 'saveTime' | 'deathCrates'>[], until: number): DeathCrateSeen[] {
+  const seen = new Map<string, DeathCrateSeen>();
+  for (const s of [...list].sort((a, b) => a.saveTime - b.saveTime)) {
+    if (s.saveTime > until) continue;
+    for (const [id, x, y, z] of s.deathCrates ?? []) {
+      const c = seen.get(id);
+      if (c) { c.lastSeen = s.saveTime; continue; }
+      seen.set(id, { id, x, y, z, firstSeen: s.saveTime, lastSeen: s.saveTime });
+    }
+  }
+  return [...seen.values()];
+}
+
+/**
+ * Deaths up to and including the save at `until` (unix ms): the distinct death crates over the world's snapshots
+ * that recorded them. A lower bound: the game keeps no death count, and a crate emptied between two saves is never seen.
+ * `known` is false when a snapshot up to then has no record (stored before crates were recorded).
+ */
+export function countDeaths(list: readonly Pick<SnapshotSummary, 'saveTime' | 'deathCrates'>[], until: number): { deaths: number; known: boolean } {
+  const ids = new Set<string>();
+  let known = true;
+  for (const s of list) {
+    if (s.saveTime > until) continue;
+    if (!s.deathCrates) { known = false; continue; }
+    for (const [id] of s.deathCrates) ids.add(id);
+  }
+  return { deaths: ids.size, known };
+}
 
 /**
  * Buildings (with an actor of their own, not the lightweight parts), machines (buildings with a production

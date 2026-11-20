@@ -131,11 +131,12 @@ function SwitchButton({ tool, ctx }: { tool: Tool; ctx: WorldCtx }) {
       size="sm"
       aria-pressed={state.pressed}
       aria-keyshortcuts={tool.shortcut}
-      title={tool.hintKey ? t(tool.hintKey) : undefined}
+      title={tool.hintKey ? `${t(tool.labelKey)}: ${t(tool.hintKey)}` : t(tool.labelKey)}
       onClick={state.run}
     >
       {tool.icon !== undefined && <span aria-hidden="true">{tool.icon}</span>}
-      {t(tool.labelKey)}
+      {/* Icons only below 1800 px, where the map's switches would not fit beside the sections; the name stays for screen readers and in the tooltip. */}
+      <span className={tool.icon !== undefined ? 'max-[1799px]:sr-only' : undefined}>{t(tool.labelKey)}</span>
     </Button>
   );
 }

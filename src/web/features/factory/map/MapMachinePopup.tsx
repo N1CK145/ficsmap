@@ -11,7 +11,10 @@ import { MachinePopup, type Box } from '../MachinePopup.js';
 import { MachineWindow } from '../MachineWindow.js';
 import { crateKey, StorageWindow } from '../StorageWindow.js';
 import { FLUID_BUFFER_M3 } from '../../../../shared/factory/inventory.js';
-import { isMachine, isStorageSelection, useMapData } from './mapData.js';
+import { SplitterWindow } from '../SplitterWindow.js';
+import { isMachine, isSplitterSelection, isStorageSelection, useMapData } from './mapData.js';
+import { stationName } from './names.js';
+import { splitterOutputs } from './splitterView.js';
 import { useFactoryMap, type FactorySelection } from './useFactoryMap.js';
 
 /** Map events after which the clicked building may sit elsewhere on the screen. */
@@ -55,6 +58,7 @@ function Popup({ ctx, sel }: { ctx: WorldCtx; sel: FactorySelection }) {
   const flow = sel.kind === 'building' ? data.current?.analysis.byId.get(id) : undefined;
   const machine = isMachine(data, sel);
   const storage = isStorageSelection(data, sel);
+  const splitter = isSplitterSelection(data, sel);
 
   const subscribe = useCallback((update: () => void) => {
     map.on(MOVES, update);
@@ -70,7 +74,7 @@ function Popup({ ctx, sel }: { ctx: WorldCtx; sel: FactorySelection }) {
 
   const at = sb ?? crate;
   if (!at || !data.labels) return null;
-  if (machine ? !flow || !data.analysis : !storage) return null;
+  if (machine ? !flow || !data.analysis : !storage && !splitter) return null;
   const labels = data.labels;
   const name = sb ? labels.building(sb.b.cls, fmt.lang) : t(crateKey(crate!.kind));
   const close = () => useFactoryMap.getState().select(null);
@@ -131,6 +135,15 @@ function Popup({ ctx, sel }: { ctx: WorldCtx; sel: FactorySelection }) {
           <MachineWindow
             m={flow} data={data.analysis} labels={labels} fmt={fmt} hints={mergeHints(flow, data.lines)}
             onClose={close} titleRef={titleRef} top={top} building={sb?.b} inventories={scene?.snapshot.meta.inventories === true}
+          />
+        ) : splitter && sb && scene ? (
+          <SplitterWindow
+            name={name} picture={labels.buildingPicture(sb.b.cls)} labels={labels} fmt={fmt} onClose={close} titleRef={titleRef} top={top}
+            outputs={sb.b.sort === undefined ? null : splitterOutputs(scene, sb).map(o => ({
+              side: o.side,
+              items: o.items,
+              target: o.target && (scene.stationById.has(o.target.b.id) ? stationName(scene, o.target.b.id, fmt.lang) : labels.building(o.target.b.cls, fmt.lang)),
+            }))}
           />
         ) : (
           <StorageWindow

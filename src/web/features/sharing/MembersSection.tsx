@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MemberDto, MemberRole } from '../../../shared/api.js';
 import { api } from '../../app/api.js';
+import { useDateTimeFormat } from '../../app/dates.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { useUiStore } from '../../app/store.js';
@@ -28,7 +29,7 @@ export function MembersSection({ ctx }: { ctx: WorldCtx }) {
   const { t, i18n } = useTranslation();
   const { worldId, world, me, queryClient, toast, navigate } = ctx;
   const [pending, setPending] = useState<Pending | null>(null);
-  const date = new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium' });
+  const date = useDateTimeFormat({ dateStyle: 'medium' });
   const membersPath = `/api/worlds/${encodeURIComponent(worldId)}/members`;
 
   const drop = useMutation({

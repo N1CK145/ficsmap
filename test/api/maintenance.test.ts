@@ -34,6 +34,16 @@ describe('maintenance mode', () => {
     expect((await app.inject('/healthz')).statusCode).toBe(503);
   });
 
+  it('answers the app\'s API calls with a JSON error and says both versions on /api/version', async () => {
+    const { app } = await setup();
+    expect((await app.inject('/api/version')).json()).toEqual({ version: '0.1.0', maintenance: true, dataVersion: '0.2.0' });
+    for (const [method, url] of [['GET', '/api/me'], ['POST', '/api/worlds'], ['GET', '/api/worlds/x/snapshots/1']] as const) {
+      const res = await app.inject({ method, url });
+      expect(res.statusCode).toBe(503);
+      expect(res.json()).toMatchObject({ error: 'maintenance' });
+    }
+  });
+
   it('speaks German to a German browser', async () => {
     const { app } = await setup();
     const res = await app.inject({ url: '/', headers: { 'accept-language': 'de-DE,de;q=0.9' } });

@@ -1,7 +1,8 @@
-import { useEffect, useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
-import { nearestWheelSpeedStop, WHEEL_SPEED, WHEEL_SPEED_STOPS } from '../../../shared/prefs.js';
+import { DATE_FORMATS, nearestWheelSpeedStop, WHEEL_SPEED, WHEEL_SPEED_STOPS } from '../../../shared/prefs.js';
+import { dateTimeFormat, useDateFormatPref } from '../../app/dates.js';
 import { savePrefs, useSetPrefs, usePrefsSaveStatus, usePrefsStore, useWheelSpeed } from '../../app/prefs.js';
 import { Button } from '../../components/Button.js';
 import { FIELD_LABEL } from '../../components/Field.js';
@@ -17,8 +18,8 @@ import { useMe } from './queries.js';
 
 /**
  * `/profile`: the signed-in user's own settings, outside any world (reached from the account menu). The mouse wheel
- * speed is stored on the account (app/prefs.ts); the language stays a setting of this device. Server owners also get
- * a general invite link here.
+ * speed and the date format are stored on the account (app/prefs.ts); the language stays a setting of this device.
+ * Server owners also get a general invite link here.
  */
 export function ProfilePage() {
   const { t } = useTranslation();
@@ -27,6 +28,8 @@ export function ProfilePage() {
   const location = useLocation();
   // Opened from the account menu: back to where the user came from; opened directly: to the world list.
   const back = () => (location.key === 'default' ? navigate('/?list=1') : navigate(-1));
+  // The save state shows under the setting changed last (one status for all would be announced twice).
+  const [changed, setChanged] = useState<'wheel' | 'date'>('wheel');
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -48,11 +51,14 @@ export function ProfilePage() {
         {me.data && (
           <>
             <Window title={t('profile.controls')} bodyClassName="p-4">
-              <WheelSpeedSetting />
+              <WheelSpeedSetting onChange={() => setChanged('wheel')} status={changed === 'wheel'} />
             </Window>
             <Window title={t('language.label')} bodyClassName="flex flex-wrap items-center justify-between gap-3 p-4">
               <p className="text-sm text-muted">{t('profile.languageHint')}</p>
               <LanguageSwitch />
+            </Window>
+            <Window title={t('profile.dateFormat.title')} bodyClassName="p-4">
+              <DateFormatSetting onChange={() => setChanged('date')} status={changed === 'date'} />
             </Window>
             {me.data.serverOwner && (
               <Window title={t('profile.invite.title')} bodyClassName="p-4">
@@ -67,11 +73,19 @@ export function ProfilePage() {
   );
 }
 
+interface SettingProps {
+  /** Called on every change (the page shows the save state under the setting changed last). */
+  onChange(): void;
+  /** This setting shows the save state. */
+  status: boolean;
+}
+
 /** The wheel speed as a slider with its value, [Default] and the save state. Changes apply at once. */
-function WheelSpeedSetting() {
+function WheelSpeedSetting({ onChange, status }: SettingProps) {
   const { t } = useTranslation();
   const speed = useWheelSpeed();
-  const setPrefs = useSetPrefs();
+  const savePref = useSetPrefs();
+  const setPrefs: typeof savePref = patch => { onChange(); savePref(patch); };
   const inputId = useId();
   const hintId = `${inputId}-hint`;
   const value = t('profile.wheelSpeedValue', { speed });
@@ -107,13 +121,52 @@ function WheelSpeedSetting() {
         </Button>
       </div>
       <p id={hintId} className="text-xs text-muted max-[899px]:text-sm">{t('profile.wheelSpeedHint')}</p>
-      <SaveStatus />
+      <SaveStatus active={status} />
     </div>
   );
 }
 
-/** "Saving…", "Saved", or a failed save with [Retry]; announced politely. */
-function SaveStatus() {
+/** A moment every format shows clearly (day 31 cannot be a month, 23:59 shows the 24-hour clock). */
+const DATE_EXAMPLE = new Date(2026, 11, 31, 23, 59).getTime();
+
+/**
+ * The date format: a radio group (like the language, European, American), each with how a save's date looks in it.
+ * Changes apply at once everywhere and are saved to the account.
+ */
+function DateFormatSetting({ onChange, status }: SettingProps) {
+  const { t, i18n } = useTranslation();
+  const value = useDateFormatPref();
+  const setPrefs = useSetPrefs();
+  const hintId = useId();
+  const example = (f: (typeof DATE_FORMATS)[number]) =>
+    dateTimeFormat(i18n.language, f, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(DATE_EXAMPLE);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <fieldset aria-describedby={hintId} className="flex flex-col gap-1">
+        <legend className={`${FIELD_LABEL} mb-1`}>{t('profile.dateFormat.label')}</legend>
+        {DATE_FORMATS.map(f => (
+          <label key={f} className="flex min-h-10 cursor-pointer items-center gap-3 chamfer px-2 hover:bg-raised max-[899px]:min-h-11">
+            <input
+              type="radio"
+              name="date-format"
+              value={f}
+              checked={value === f}
+              onChange={() => { onChange(); setPrefs({ dateFormat: f }); }}
+              className="size-4 accent-accent"
+            />
+            <span className="min-w-0 flex-1">{t(`profile.dateFormat.${f}`)}</span>{' '}
+            <span className="text-sm text-muted tabular-nums">{example(f)}</span>
+          </label>
+        ))}
+      </fieldset>
+      <p id={hintId} className="text-xs text-muted max-[899px]:text-sm">{t('profile.dateFormat.hint')}</p>
+      <SaveStatus active={status} />
+    </div>
+  );
+}
+
+/** "Saving…", "Saved", or a failed save with [Retry]; announced politely. Empty (but there) while not `active`. */
+function SaveStatus({ active }: { active: boolean }) {
   const { t } = useTranslation();
   const status = usePrefsSaveStatus();
   // A "Saved" from an earlier visit is old news.
@@ -123,9 +176,9 @@ function SaveStatus() {
 
   return (
     <div role="status" className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-      {status === 'pending' && <span className="text-muted">{t('profile.saving')}</span>}
-      {status === 'saved' && <span className="flex items-center gap-1.5 text-free"><CheckIcon />{t('profile.saved')}</span>}
-      {status === 'failed' && (
+      {active && status === 'pending' && <span className="text-muted">{t('profile.saving')}</span>}
+      {active && status === 'saved' && <span className="flex items-center gap-1.5 text-free"><CheckIcon />{t('profile.saved')}</span>}
+      {active && status === 'failed' && (
         <>
           <span className="text-conflict">{t('profile.saveFailed')}</span>
           <Button size="sm" variant="ghost" onClick={() => void savePrefs()}>{t('common.retry')}</Button>
