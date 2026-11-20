@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../app/api.js';
+import { useFormatDate } from '../../app/dates.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { queryKeys } from '../../app/queryKeys.js';
 import { Button } from '../../components/Button.js';
@@ -15,6 +16,7 @@ import { SettingsBlock } from './SettingsPage.js';
  */
 export function InviteSection({ ctx }: { ctx: WorldCtx }) {
   const { t, i18n } = useTranslation();
+  const formatDate = useFormatDate();
   const { worldId, toast } = ctx;
   const [confirming, setConfirming] = useState(false);
   // Keys the field so a revoke also resets its "Copied" label.
@@ -43,7 +45,7 @@ export function InviteSection({ ctx }: { ctx: WorldCtx }) {
 
   // While a link is on its way, and when the refresh failed, the field is empty: the copied link is never offered again.
   const current = link.isFetching || link.isError ? undefined : link.data;
-  const expires = current && new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium' }).format(current.expiresAt);
+  const expires = current && formatDate(current.expiresAt, { dateStyle: 'medium' });
 
   return (
     <SettingsBlock title={t('settings.invite.title')}>

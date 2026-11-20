@@ -6,8 +6,7 @@ import { buildLines, type ProductionLines } from '../../../../shared/factory/lin
 import type { FactorySnapshot } from '../../../../shared/factory/snapshot.js';
 import type { RecipeIndex } from '../../../../shared/recipes.js';
 import type { WorldBounds } from '../../../../shared/types.js';
-import { queryKeys } from '../../../app/queryKeys.js';
-import { fetchSnapshot, useSnapshot } from '../api.js';
+import { snapshotQuery, useSnapshot } from '../api.js';
 import { useBuildings, useFactoryData, useFactoryDiff, useSnapshotAnalysis, type FactoryLabels, type SnapshotAnalysis } from '../data.js';
 import { useTimeline, type TimelineSelection } from '../timeline.js';
 import { useFactoryView } from '../view.js';
@@ -19,26 +18,52 @@ import { useFactoryMap, type FactorySelection } from './useFactoryMap.js';
  * Keeps the comparison on "the save before" while that is the mode: whenever the shown snapshot changes with changes
  * marked, the compared one follows (none for the oldest).
  */
-export function useFollowPrevious(sel: TimelineSelection): void {
+export function useFollowPrevious(sel: TimelineSelection, enabled = true): void {
   const compareMode = useFactoryMap(s => s.compareMode);
   const compareSet = useFactoryView(s => s.compareId) !== null;
   useEffect(() => {
-    if (!compareSet || compareMode !== 'previous' || sel.index < 0) return;
+    if (!enabled || !compareSet || compareMode !== 'previous' || sel.index < 0) return;
     const prev = sel.ordered[sel.index - 1]?.id ?? null;
     if (useFactoryView.getState().compareId !== prev) useFactoryView.getState().compareWith(prev);
-  }, [compareSet, compareMode, sel.index, sel.ordered]);
+  }, [enabled, compareSet, compareMode, sel.index, sel.ordered]);
 }
 
-/** Loads the neighbours of the shown snapshot in the background, so stepping the timeline is instant. */
-export function usePrefetchNeighbours(worldId: string, sel: TimelineSelection, enabled: boolean): void {
+/** How many saves are loaded ahead in the direction the timeline moves. */
+export const PREFETCH_AHEAD = 4;
+
+/**
+ * Which saves to load ahead of the shown one (`index`), nearest first: the next `PREFETCH_AHEAD` in the direction
+ * `dir` (1 newer, -1 older) and the one on the other side.
+ */
+export function prefetchIndices(index: number, length: number, dir: 1 | -1): number[] {
+  const out: number[] = [];
+  if (index < 0) return out;
+  for (let k = 1; k <= PREFETCH_AHEAD; k++) {
+    const i = index + dir * k;
+    if (i >= 0 && i < length) out.push(i);
+  }
+  const back = index - dir;
+  if (back >= 0 && back < length) out.splice(Math.min(1, out.length), 0, back);
+  return out;
+}
+
+/**
+ * Loads saves ahead of the shown one in the background (`prefetchIndices`), so playing and stepping the timeline is
+ * instant: towards newer saves while playing or after a step forward, towards older ones after a step back.
+ */
+export function usePrefetchAhead(worldId: string, sel: TimelineSelection, enabled: boolean): void {
   const qc = useQueryClient();
+  const playing = useFactoryView(s => s.holds.includes('play'));
+  const last = useRef<{ index: number; dir: 1 | -1 }>({ index: sel.index, dir: 1 });
   useEffect(() => {
     if (!enabled || sel.index < 0) return;
-    for (const s of [sel.ordered[sel.index - 1], sel.ordered[sel.index + 1]]) {
-      if (!s) continue;
-      void qc.prefetchQuery({ queryKey: queryKeys.snapshot(worldId, s.id), queryFn: () => fetchSnapshot(worldId, s.id), staleTime: Infinity });
+    const move = sel.index - last.current.index;
+    const dir: 1 | -1 = playing || move > 0 ? 1 : move < 0 ? -1 : last.current.dir;
+    last.current = { index: sel.index, dir };
+    for (const i of prefetchIndices(sel.index, sel.ordered.length, dir)) {
+      void qc.prefetchQuery(snapshotQuery(worldId, sel.ordered[i]!.id));
     }
-  }, [qc, worldId, sel.index, sel.ordered, enabled]);
+  }, [qc, worldId, sel.index, sel.ordered, enabled, playing]);
 }
 
 export interface MapData {
@@ -94,11 +119,13 @@ export function linesOf(value: SnapshotAnalysis, data: AnalysisData): Production
 /**
  * Everything the factory map draws: the shown snapshot as a scene (with the page's analysis for the reasons), and,
  * while changes are marked, the diff against the compared one. Snapshots and dataset parts load only while `enabled`.
+ * `settled`: for the Fabrikplan panel, the choice that waits for the timeline to rest (`FactoryViewState.settled`);
+ * it only reads, the map's own copy keeps the comparison and loads the neighbours.
  */
-export function useMapData(worldId: string, version: string, bounds: WorldBounds | undefined, enabled: boolean): MapData {
-  const sel = useTimeline(worldId);
-  useFollowPrevious(sel);
-  usePrefetchNeighbours(worldId, sel, enabled);
+export function useMapData(worldId: string, version: string, bounds: WorldBounds | undefined, enabled: boolean, settled = false): MapData {
+  const sel = useTimeline(worldId, settled);
+  useFollowPrevious(sel, !settled);
+  usePrefetchAhead(worldId, sel, enabled && !settled);
   const buildings = useBuildings(version, enabled);
   const data = useFactoryData(version, worldId);
   const shownId = enabled ? sel.selected?.id ?? null : null;

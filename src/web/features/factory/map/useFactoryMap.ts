@@ -19,6 +19,12 @@ export type ColorMode = (typeof COLOR_MODES)[number];
 /** How "Änderungen" picks the snapshot compared against: always the one before the shown one, or a chosen one. */
 export type CompareMode = 'previous' | 'chosen';
 
+/** How fast the timeline plays: a factor of `PLAY_STEP_MS` per save (2: twice as fast). */
+export const PLAY_SPEEDS = [0.5, 1, 2, 4] as const;
+export type PlaySpeed = (typeof PLAY_SPEEDS)[number];
+/** How long a save stays on the map while the timeline plays at 1× (at least: the next one waits until it is drawn). */
+export const PLAY_STEP_MS = 1000;
+
 export interface FactoryMapView {
   visible: boolean;
   layers: Record<FactoryLayer, boolean>;
@@ -26,6 +32,8 @@ export interface FactoryMapView {
   compareMode: CompareMode;
   /** With a height range: draw what lies below it as faint outlines ("Darunter blass zeigen"). */
   heightBelow: boolean;
+  /** The timeline's playback speed. */
+  playSpeed: PlaySpeed;
 }
 
 /** A world's height range as remembered: the range in whole metres and the save session it was chosen for. */
@@ -86,6 +94,7 @@ interface FactoryMapState extends FactoryMapView {
   toggleLayer(l: FactoryLayer): void;
   setColorMode(m: ColorMode): void;
   setCompareMode(m: CompareMode): void;
+  setPlaySpeed(speed: PlaySpeed): void;
   /** Sets a world's height range (null: all heights) for the shown save's session. */
   setHeight(worldId: string, range: HeightRange | null, session?: string): void;
   setHeightBelow(on: boolean): void;
@@ -122,6 +131,7 @@ export const DEFAULT_VIEW: FactoryMapView = {
   colorMode: 'productivity',
   compareMode: 'previous',
   heightBelow: false,
+  playSpeed: 1,
 };
 
 /** The remembered view, keeping only valid fields. */
@@ -152,6 +162,7 @@ export function loadFactoryMapView(): FactoryMapView {
   if (d.v === VERSION && COLOR_MODES.includes(d.colorMode as ColorMode)) view.colorMode = d.colorMode as ColorMode;
   if (d.compareMode === 'previous' || d.compareMode === 'chosen') view.compareMode = d.compareMode;
   if (typeof d.heightBelow === 'boolean') view.heightBelow = d.heightBelow;
+  if (PLAY_SPEEDS.includes(d.playSpeed as PlaySpeed)) view.playSpeed = d.playSpeed as PlaySpeed;
   return view;
 }
 
@@ -159,6 +170,7 @@ function save(v: FactoryMapView): void {
   try {
     localStorage.setItem(KEY, JSON.stringify({
       v: VERSION, visible: v.visible, layers: v.layers, colorMode: v.colorMode, compareMode: v.compareMode, heightBelow: v.heightBelow,
+      playSpeed: v.playSpeed,
     }));
   } catch {
     // Not remembering is fine.
@@ -233,6 +245,7 @@ export const useFactoryMap = create<FactoryMapState>()((set, get) => {
     toggleLayer: l => update({ layers: { ...get().layers, [l]: !get().layers[l] } }),
     setColorMode: colorMode => update({ colorMode }),
     setCompareMode: compareMode => update({ compareMode }),
+    setPlaySpeed: playSpeed => update({ playSpeed }),
     setHeight: (worldId, range, session = '') => {
       const was = get().heights[worldId];
       if (!range && !was) return;

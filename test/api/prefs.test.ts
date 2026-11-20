@@ -21,6 +21,17 @@ describe('user preferences', () => {
     expect((await app.inject({ url: '/api/me', headers: { cookie: other } })).json().prefs).toEqual({ wheelSpeed: 1.5 });
   });
 
+  it('saves the date format next to the wheel speed; only known formats', async () => {
+    const { app, login } = await makeTestApp();
+    const cookie = await login('owner-1');
+    await app.inject({ method: 'PATCH', url: '/api/me/prefs', payload: { wheelSpeed: 1.5 }, headers: { ...json, cookie } });
+    const res = await app.inject({ method: 'PATCH', url: '/api/me/prefs', payload: { dateFormat: 'eu' }, headers: { ...json, cookie } });
+    expect(res.json()).toEqual({ wheelSpeed: 1.5, dateFormat: 'eu' });
+    const bad = await app.inject({ method: 'PATCH', url: '/api/me/prefs', payload: { dateFormat: 'iso' }, headers: { ...json, cookie } });
+    expect(bad.statusCode).toBe(400);
+    expect((await app.inject({ url: '/api/me', headers: { cookie } })).json().prefs).toEqual({ wheelSpeed: 1.5, dateFormat: 'eu' });
+  });
+
   it('an empty patch keeps what is stored', async () => {
     const { app, login } = await makeTestApp();
     const cookie = await login('owner-1');

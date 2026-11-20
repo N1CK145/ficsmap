@@ -1,3 +1,4 @@
+import { useFormatDate } from '../../app/dates.js';
 import { useMutation } from '@tanstack/react-query';
 import { useId, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -59,7 +60,8 @@ function CodeBlock({ label, code }: { label: string; code: string }) {
 
 function TokenRow({ token, onRevoke }: { token: UploadTokenDto; onRevoke(): void }) {
   const { t, i18n } = useTranslation();
-  const fmt = (ms: number) => new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(ms);
+  const formatDate = useFormatDate();
+  const fmt = (ms: number) => formatDate(ms, { dateStyle: 'medium', timeStyle: 'short' });
   return (
     <li aria-label={token.label} className="flex items-center gap-3 border-b border-line py-2 last:border-b-0">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">

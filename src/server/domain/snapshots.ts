@@ -7,6 +7,7 @@ import {
   MAX_SNAPSHOT_JSON_BYTES, MAX_SNAPSHOTS_PER_WORLD, snapshotFigures, type SnapshotFigures,
 } from '../../shared/factory/storage.js';
 import { snapshotsToThin } from '../../shared/factory/retention.js';
+import { diffSnapshots } from '../../shared/factory/delta.js';
 import { MAX_DEPOT_ITEMS, MAX_RUNS, MAX_SLOTS } from '../../shared/factory/inventory.js';
 import { HttpError } from '../errors.js';
 import { bumpRev, lastImportOf } from './worlds.js';
@@ -312,4 +313,46 @@ export function deleteSnapshot(db: Db, worldId: string, id: number): { rev: numb
     if (changes === 0) throw new HttpError(404, 'not_found', 'Not found');
     return { rev: bumpRev(db, worldId) };
   })();
+}
+
+// --- Deltas --------------------------------------------------------------------------------------
+
+/** Parsed snapshots kept for deltas (by id; ids are never reused): stepping the timeline asks for b→c after a→b. */
+const PARSED_KEEP = 6;
+/** Computed deltas kept (gzip, by "base>id"): every member stepping the same timeline asks for the same ones. */
+const DELTAS_KEEP = 32;
+const parsed = new Map<number, Record<string, unknown>>();
+const deltas = new Map<string, Buffer>();
+
+/** Least recently used caches: a hit moves to the end, the oldest goes when full. */
+function remember<K, V>(m: Map<K, V>, k: K, v: V, max: number): V {
+  m.delete(k);
+  m.set(k, v);
+  while (m.size > max) m.delete(m.keys().next().value as K);
+  return v;
+}
+
+async function parsedSnapshot(db: Db, worldId: string, id: number): Promise<Record<string, unknown> | undefined> {
+  const hit = parsed.get(id);
+  // Ids are never reused, but the world is checked per request (a hit is only served when the row is this world's).
+  if (hit) return remember(parsed, id, hit, PARSED_KEEP);
+  const data = snapshotData(db, worldId, id);
+  if (!data) return undefined;
+  return remember(parsed, id, JSON.parse((await gunzipAsync(data)).toString('utf8')) as Record<string, unknown>, PARSED_KEEP);
+}
+
+/**
+ * The snapshot `id` as the difference to the snapshot `baseId` of the same world (`src/shared/factory/delta.ts`),
+ * gzip-compressed JSON; undefined when either is not this world's. Computing one takes about 10 ms for a
+ * 3,800-building save; the last few parsed snapshots and deltas are kept in memory.
+ */
+export async function snapshotDelta(db: Db, worldId: string, id: number, baseId: number): Promise<Buffer | undefined> {
+  const exists = db.prepare('SELECT count(*) AS n FROM factory_snapshots WHERE world_id = ? AND id IN (?, ?)').get(worldId, id, baseId) as { n: number };
+  if (exists.n !== (id === baseId ? 1 : 2)) return undefined;
+  const key = `${baseId}>${id}`;
+  const hit = deltas.get(key);
+  if (hit) return remember(deltas, key, hit, DELTAS_KEEP);
+  const [base, target] = [await parsedSnapshot(db, worldId, baseId), await parsedSnapshot(db, worldId, id)];
+  if (!base || !target) return undefined;
+  return remember(deltas, key, await gzipAsync(JSON.stringify(diffSnapshots(base, target, baseId, id))), DELTAS_KEEP);
 }

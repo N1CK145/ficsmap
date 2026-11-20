@@ -1,5 +1,6 @@
 import { useId, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useFormatDate } from '../../../app/dates.js';
 import { Button } from '../../../components/Button.js';
 import { Fold } from '../../../components/Fold.js';
 import { SegmentedControl } from '../../../components/SegmentedControl.js';
@@ -69,10 +70,20 @@ export function FactoryPanel({ worldId }: { worldId: string }) {
   const owner = world ? canAdmin(world.role) : false;
   const visible = useFactoryMap(s => s.visible);
   const toggle = useFactoryMap(s => s.toggle);
-  // The list is small and always loaded (for the empty state); snapshots only while the layers are on.
-  const sel = useTimeline(worldId);
+  // The list is small and always loaded (for the empty state); snapshots only while the layers are on. The panel shows
+  // the settled choice: it sits still while the timeline is in use and catches up once it rests, or at once when the
+  // user turns to it (pointer or focus into the panel).
+  const sel = useTimeline(worldId, true);
+  const lagging = useFactoryView(s => s.settled.selectedId !== s.selectedId || s.settled.compareId !== s.compareId);
+  const catchUp = () => useFactoryView.getState().settle();
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      className={`flex flex-col gap-3 transition-opacity motion-reduce:transition-none ${lagging ? 'opacity-60' : ''}`}
+      aria-busy={lagging || undefined}
+      data-lagging={lagging || undefined}
+      onPointerEnter={catchUp}
+      onFocus={catchUp}
+    >
       <button type="button" aria-pressed={visible} onClick={toggle} className={`${ROW} justify-between border border-line`}>
         <span>{t('factoryMap.show')}</span>
         <span className={visible ? 'text-accent' : 'text-muted'}>{t(visible ? 'factoryMap.on' : 'factoryMap.off')}</span>
@@ -88,11 +99,12 @@ export function FactoryPanel({ worldId }: { worldId: string }) {
 
 function SaveLine({ saveTime, buildings, machines }: { saveTime: number; buildings: number; machines: number }) {
   const { t, i18n } = useTranslation();
+  const formatDate = useFormatDate();
   const num = new Intl.NumberFormat(i18n.language);
   return (
     <p className="text-xs text-muted" data-testid="factory-panel-save">
       {t('factoryMap.panel.save', {
-        date: new Date(saveTime).toLocaleString(i18n.language, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        date: formatDate(saveTime, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
         buildings: num.format(buildings),
         machines: num.format(machines),
       })}
@@ -137,7 +149,7 @@ function PanelDetails({ worldId, version, owner }: { worldId: string; version: s
   const colorMode = useFactoryMap(s => s.colorMode);
   const { toggleLayer, setColorMode } = useFactoryMap.getState();
   const highlightCount = useFactoryView(s => s.highlight.length);
-  const data = useMapData(worldId, version, bounds, true);
+  const data = useMapData(worldId, version, bounds, true, true);
   const scene = data.scene;
   const legend = useMemo(() => (scene ? legendOf(scene) : null), [scene]);
   // The page's counts, so map and page always agree (the ids for "show on the map" come from the scene).

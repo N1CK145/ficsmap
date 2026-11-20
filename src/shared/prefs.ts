@@ -8,6 +8,19 @@ export interface UserPrefs {
    * 0.5 = half as far). Used by the map and the flow diagrams.
    */
   wheelSpeed?: number;
+  /**
+   * How dates and times are shown, independent of the language (someone playing in English may want European dates):
+   * `auto` follows the language, `eu` day before month with 24 hours ("09.11.2026, 23:05"), `us` month before day with
+   * 12 hours ("11/09/2026, 11:05 PM"). Left out: `auto`.
+   */
+  dateFormat?: DateFormat;
+}
+
+export const DATE_FORMATS = ['auto', 'eu', 'us'] as const;
+export type DateFormat = (typeof DATE_FORMATS)[number];
+
+export function isDateFormat(v: unknown): v is DateFormat {
+  return (DATE_FORMATS as readonly unknown[]).includes(v);
 }
 
 export const WHEEL_SPEED = { min: 0.25, max: 3, step: 0.05, default: 1 } as const;
@@ -41,5 +54,8 @@ export function roundWheelSpeed(v: number): number {
 export function cleanPrefs(raw: unknown): UserPrefs {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const r = raw as Record<string, unknown>;
-  return isWheelSpeed(r.wheelSpeed) ? { wheelSpeed: roundWheelSpeed(r.wheelSpeed) } : {};
+  const out: UserPrefs = {};
+  if (isWheelSpeed(r.wheelSpeed)) out.wheelSpeed = roundWheelSpeed(r.wheelSpeed);
+  if (isDateFormat(r.dateFormat)) out.dateFormat = r.dateFormat;
+  return out;
 }

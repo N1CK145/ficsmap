@@ -21,6 +21,8 @@ export default defineConfig({
       '/invite': target,
       '/data': target,
       '/healthz': target,
+      // The maintenance page and its owner sign-in (the banner's "Details" in maintenance mode).
+      '/maintenance': target,
     },
   },
   worker: { format: 'es' },

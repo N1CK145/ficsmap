@@ -85,6 +85,24 @@ describe('ProfilePage', () => {
     expect(JSON.parse(localStorage.getItem('ficsmap:prefs')!)).toEqual({ wheelSpeed: 2 });
   });
 
+  it('sets the date format: an example per format, applied at once, saved to the account', async () => {
+    const { calls } = stub();
+    renderAt('/profile');
+    const block = await screen.findByRole('region', { name: 'Date and time' });
+    const eu = within(block).getByRole('radio', { name: /European/ });
+    expect(within(block).getByRole('radio', { name: /Like the language/ })).toBeChecked();
+    expect(eu).toHaveAccessibleName('European 31.12.2026, 23:59');
+    expect(within(block).getByRole('radio', { name: /American/ })).toHaveAccessibleName('American 12/31/2026, 11:59 PM');
+    await userEvent.click(eu);
+    expect(eu).toBeChecked();
+    expect(usePrefsStore.getState().local.dateFormat).toBe('eu');
+    // The save state shows under this setting, not under the wheel speed.
+    expect(within(block).getByRole('status')).toHaveTextContent('Saving…');
+    expect(saveStatus()).toHaveTextContent('');
+    await waitFor(() => expect(within(block).getByRole('status')).toHaveTextContent('Saved'), SAVE_WAIT);
+    expect(patches(calls)).toEqual([{ dateFormat: 'eu' }]);
+  });
+
   it('[Default] goes back to 1.0× and is off at the default', async () => {
     const { calls } = stub();
     renderAt('/profile');

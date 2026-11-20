@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
@@ -14,7 +14,7 @@ import { escapeClosesInfo, stationLabel } from '../../src/web/features/factory/m
 import type { SceneStation } from '../../src/web/features/factory/map/scene.js';
 import { FactoryPanel } from '../../src/web/features/factory/map/FactoryPanel.js';
 import { HighlightChip } from '../../src/web/features/factory/map/HighlightChip.js';
-import { FactoryTimeline } from '../../src/web/features/factory/map/Timeline.js';
+import { FactoryTimeline, nearestIndex } from '../../src/web/features/factory/map/Timeline.js';
 import { DEFAULT_VIEW, loadFactoryMapView, useFactoryMap } from '../../src/web/features/factory/map/useFactoryMap.js';
 import { usePanelsCollapsed } from '../../src/web/features/worlds/SidebarPanelView.js';
 import { useImportDialog } from '../../src/web/features/import/ImportDialog.js';
@@ -74,7 +74,7 @@ beforeEach(() => {
   useFactoryView.getState().reset();
   useFactoryMap.setState({ ...DEFAULT_VIEW, layers: { ...DEFAULT_VIEW.layers }, selection: null, pendingFocus: false, returnFocus: null, fittedSeq: 0, fitChangesSeq: 0 });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('factory map: remembered view', () => {
   it('starts with the layers off, the productivity colours, and the floor plan, buildings, lines, roads, markers and crates on', () => {
@@ -182,7 +182,7 @@ describe('factory map: timeline', () => {
     expect(screen.queryByTestId('factory-timeline')).toBeNull();
   });
 
-  it('steps through the saves with the buttons, the diamonds and the arrow keys; the newest stays "newest"', async () => {
+  it('steps through the saves with the buttons, the slider and the arrow keys; the newest stays "newest"', async () => {
     useFactoryMap.setState({ visible: true });
     const { ctx, wrap } = setup();
     const user = userEvent.setup();
@@ -199,20 +199,97 @@ describe('factory map: timeline', () => {
     expect(useFactoryView.getState().selectedId).toBe(1);
     await user.keyboard('{ArrowRight}{ArrowRight}');
     expect(useFactoryView.getState().selectedId).toBeNull();
-    const track = within(bar).getByRole('radiogroup', { name: 'Saves' });
-    const points = within(track).getAllByRole('radio');
-    expect(points).toHaveLength(3);
-    expect(points[2]).toHaveAttribute('aria-checked', 'true');
-    await user.click(points[0]!);
+    const slider = within(bar).getByRole('slider', { name: 'Saves' });
+    expect(slider).toHaveAttribute('aria-valuenow', '3');
+    expect(slider).toHaveAttribute('aria-valuemax', '3');
+    // Keys on the slider: Home, End, the arrows (also up and down); the focus stays on it.
+    slider.focus();
+    await user.keyboard('{Home}');
     expect(useFactoryView.getState().selectedId).toBe(1);
-    // Arrow keys on a diamond move the selection and the focus.
-    points[0]!.focus();
-    await user.keyboard('{ArrowRight}');
+    expect(slider).toHaveAttribute('aria-valuenow', '1');
+    await user.keyboard('{ArrowUp}');
     expect(useFactoryView.getState().selectedId).toBe(2);
-    expect(within(track).getAllByRole('radio')[1]).toHaveFocus();
+    expect(slider).toHaveFocus();
+    await user.keyboard('{End}');
+    expect(useFactoryView.getState().selectedId).toBeNull();
     // The date is announced; the loading note is always there.
     expect(within(bar).getByTestId('timeline-date')).toHaveAttribute('aria-live', 'polite');
     expect(within(bar).getByRole('status')).toBeInTheDocument();
+  });
+
+  it('snaps the slider to the nearest save', () => {
+    expect(nearestIndex([0, 59, 100], 0)).toBe(0);
+    expect(nearestIndex([0, 59, 100], 40)).toBe(1);
+    expect(nearestIndex([0, 59, 100], 85)).toBe(2);
+    expect(nearestIndex([50], 3)).toBe(0);
+  });
+
+  it('follows a drag along the track: the handle at once, the map once the pointer rests or lets go', async () => {
+    useFactoryMap.setState({ visible: true });
+    const { ctx, wrap } = setup();
+    wrap(<FactoryTimeline ctx={ctx} />);
+    const bar = await screen.findByRole('region', { name: 'Timeline' });
+    const track = within(bar).getByTestId('timeline-track');
+    const slider = within(bar).getByRole('slider', { name: 'Saves' });
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 300, top: 0, bottom: 44, width: 300, height: 44, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerDown(track, { pointerId: 1, button: 0, clientX: 2 });
+    // The handle and the date move at once; the map follows when the pointer rests.
+    expect(slider).toHaveAttribute('aria-valuenow', '1');
+    expect(slider).toHaveFocus();
+    expect(useFactoryView.getState().selectedId).toBeNull();
+    await waitFor(() => expect(useFactoryView.getState().selectedId).toBe(1));
+    fireEvent.pointerMove(track, { pointerId: 1, clientX: 170 });
+    expect(slider).toHaveAttribute('aria-valuenow', '2');
+    fireEvent.pointerMove(track, { pointerId: 1, clientX: 299 });
+    fireEvent.pointerUp(track, { pointerId: 1, clientX: 299 });
+    // Let go: the save under it shows right away (the newest stays "newest").
+    expect(useFactoryView.getState().selectedId).toBeNull();
+    expect(slider).toHaveAttribute('aria-valuenow', '3');
+  });
+
+  it('plays from the oldest save to the newest at the chosen speed, remembered', async () => {
+    useFactoryMap.setState({ visible: true });
+    const { ctx, wrap } = setup();
+    const user = userEvent.setup();
+    wrap(<FactoryTimeline ctx={ctx} />);
+    const bar = await screen.findByRole('region', { name: 'Timeline' });
+    await user.selectOptions(within(bar).getByRole('combobox', { name: 'Playback speed' }), '4');
+    expect(useFactoryMap.getState().playSpeed).toBe(4);
+    expect(loadFactoryMapView().playSpeed).toBe(4);
+    // At the newest save, play starts again at the oldest.
+    await user.click(within(bar).getByRole('button', { name: 'Play' }));
+    expect(useFactoryView.getState().selectedId).toBe(1);
+    expect(within(bar).getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+    await waitFor(() => expect(useFactoryView.getState().selectedId).toBe(2), { timeout: 2000 });
+    // It stops at the newest.
+    await waitFor(() => expect(within(bar).getByRole('button', { name: 'Play' })).toBeInTheDocument(), { timeout: 2000 });
+    expect(useFactoryView.getState().selectedId).toBeNull();
+    // A step by hand stops playing.
+    await user.click(within(bar).getByRole('button', { name: 'Play' }));
+    await user.click(within(bar).getByRole('button', { name: 'Next save' }));
+    expect(within(bar).getByRole('button', { name: 'Play' })).toBeInTheDocument();
+    expect(useFactoryView.getState().selectedId).toBe(2);
+  });
+
+  it('keeps the Fabrikplan panel still while the timeline is in use; it catches up when the user turns to it', async () => {
+    useFactoryMap.setState({ visible: true });
+    const { ctx, wrap } = setup();
+    const user = userEvent.setup();
+    wrap(<><FactoryPanel worldId={W} /><FactoryTimeline ctx={ctx} /></>);
+    const bar = await screen.findByRole('region', { name: 'Timeline' });
+    const save = await screen.findByTestId('factory-panel-save');
+    const newest = save.textContent;
+    await user.click(within(bar).getByRole('button', { name: 'Previous save' }));
+    await user.click(within(bar).getByRole('button', { name: 'Previous save' }));
+    expect(useFactoryView.getState().selectedId).toBe(1);
+    // The panel still shows the save it showed, faded, until the timeline rests.
+    expect(save.textContent).toBe(newest);
+    expect(save.parentElement).toHaveAttribute('aria-busy', 'true');
+    fireEvent.pointerEnter(save.parentElement!);
+    fireEvent.focus(within(save.parentElement!).getAllByRole('button')[0]!);
+    expect(save.textContent).not.toBe(newest);
+    expect(save).toHaveTextContent('1 buildings');
+    expect(save.parentElement).not.toHaveAttribute('aria-busy');
   });
 
   it('marks changes against the save before and counts them', async () => {

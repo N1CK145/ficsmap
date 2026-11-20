@@ -2,6 +2,7 @@ import { useQuery, type QueryClient } from '@tanstack/react-query';
 import type { ExtractResult } from '../../../shared/extract.js';
 import { FACTORY_SNAPSHOT_VERSION, type FactorySnapshot, type SnapshotSummary } from '../../../shared/factory/snapshot.js';
 import { MAX_SNAPSHOT_GZIP_BYTES, MAX_SNAPSHOT_JSON_BYTES } from '../../../shared/factory/storage.js';
+import { applyDelta, isSnapshotDelta } from '../../../shared/factory/delta.js';
 import { api, ApiClientError, apiSend } from '../../app/api.js';
 import { queryKeys } from '../../app/queryKeys.js';
 
@@ -17,21 +18,99 @@ export function useSnapshotList(worldId: string, enabled = true) {
   });
 }
 
-/** Fetches one snapshot; one with a newer format version than this client knows is an error (not drawn). */
-export async function fetchSnapshot(worldId: string, id: number): Promise<FactorySnapshot> {
-  const s = await api<FactorySnapshot>('GET', `${snapshotsPath(worldId)}/${id}`);
+function checkVersion(s: FactorySnapshot): FactorySnapshot {
   if (s.v > FACTORY_SNAPSHOT_VERSION) throw new ApiClientError(200, 'invalid_body', `Snapshot version ${s.v} is newer than this app knows`);
   return s;
 }
 
-/** One snapshot (`id` null: none). Snapshots never change under their id, so they are never refetched. */
-export function useSnapshot(worldId: string, id: number | null) {
-  return useQuery({
-    queryKey: queryKeys.snapshot(worldId, id ?? 0),
-    queryFn: () => fetchSnapshot(worldId, id!),
-    enabled: id !== null,
+/** The snapshot downloads under way per `world:id`, with the base each builds on (null: downloaded whole). */
+const building = new Map<string, number | null>();
+
+/**
+ * The snapshot to build `id` on: of those this browser holds or is downloading, the one nearest to it on the timeline
+ * (on a tie the older one), never one whose own download waits for `id`. Null without one.
+ */
+export function deltaBase(qc: QueryClient, worldId: string, id: number): number | null {
+  const list = qc.getQueryData<SnapshotSummary[]>(queryKeys.snapshots(worldId));
+  if (!list) return null;
+  const pos = new Map([...list].sort((a, b) => a.saveTime - b.saveTime || a.id - b.id).map((s, i) => [s.id, i]));
+  const at = pos.get(id);
+  if (at === undefined) return null;
+  /** Whether the download of `b` waits, through its bases, for `id`. */
+  const waitsFor = (b: number) => {
+    for (let x: number | null | undefined = b, n = 0; x != null && n <= list.length; x = building.get(`${worldId}:${x}`), n++) if (x === id) return true;
+    return false;
+  };
+  let best: number | null = null, bestD = Infinity;
+  for (const q of qc.getQueryCache().findAll({ queryKey: ['snapshot', worldId] })) {
+    const qid = q.queryKey[2];
+    if (typeof qid !== 'number' || qid === id) continue;
+    const held = q.state.data !== undefined;
+    if (!held && !(q.state.fetchStatus === 'fetching' && building.has(`${worldId}:${qid}`) && !waitsFor(qid))) continue;
+    const i = pos.get(qid);
+    if (i === undefined) continue;
+    const d = Math.abs(i - at) + (i > at ? 0.5 : 0);
+    if (d < bestD) { best = qid; bestD = d; }
+  }
+  return best;
+}
+
+/**
+ * Fetches one snapshot; one with a newer format version than this client knows is an error (not drawn). With the
+ * query client: when the browser holds (or is downloading) a snapshot near it on the timeline, only the difference is
+ * downloaded and applied to that one (`src/shared/factory/delta.ts`), so both share what did not change; when that
+ * fails for any reason, the whole snapshot is fetched.
+ */
+export async function fetchSnapshot(worldId: string, id: number, qc?: QueryClient): Promise<FactorySnapshot> {
+  const key = `${worldId}:${id}`;
+  const base = qc ? deltaBase(qc, worldId, id) : null;
+  building.set(key, base);
+  try {
+    if (qc && base !== null) {
+      try {
+        const b = await qc.fetchQuery(snapshotQuery(worldId, base));
+        const d = await api<unknown>('GET', `${snapshotsPath(worldId)}/${id}/delta/${base}`);
+        if (isSnapshotDelta(d) && d.base === base && d.id === id) return checkVersion(applyDelta(b, d));
+      } catch {
+        // Base gone, an older server without deltas, a delta that does not fit: the whole snapshot instead.
+      }
+    }
+    return checkVersion(await api<FactorySnapshot>('GET', `${snapshotsPath(worldId)}/${id}`));
+  } finally {
+    building.delete(key);
+  }
+}
+
+/**
+ * How long downloaded snapshots stay cached after the timeline was last used (a step, the slider, playing), in ms.
+ * Then the ones nothing shows are dropped (`evictSnapshots`); while the timeline is in use none is.
+ */
+export const SNAPSHOT_KEEP_MS = 15_000;
+
+/**
+ * The query of one snapshot. Snapshots never change under their id, so they are never refetched; React Query never
+ * drops them by itself either (`gcTime`), `useSnapshotRetention` does once the timeline rests.
+ */
+export function snapshotQuery(worldId: string, id: number) {
+  return {
+    queryKey: queryKeys.snapshot(worldId, id),
+    queryFn: ({ client }: { client: QueryClient }) => fetchSnapshot(worldId, id, client),
     staleTime: Infinity,
-  });
+    gcTime: Infinity,
+  };
+}
+
+/** One snapshot (`id` null: none). */
+export function useSnapshot(worldId: string, id: number | null) {
+  return useQuery({ ...snapshotQuery(worldId, id ?? 0), enabled: id !== null });
+}
+
+/** Drops the world's cached snapshots that nothing shows (no observer), except the ids in `keep`. */
+export function evictSnapshots(qc: QueryClient, worldId: string, keep: ReadonlySet<number>): void {
+  for (const q of qc.getQueryCache().findAll({ queryKey: ['snapshot', worldId], type: 'inactive' })) {
+    const id = q.queryKey[2];
+    if (typeof id === 'number' && !keep.has(id)) qc.removeQueries({ queryKey: q.queryKey, exact: true });
+  }
 }
 
 /** The factory snapshot of a parse result; missing from parsers without factory extraction. */

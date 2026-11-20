@@ -57,6 +57,14 @@
     "saved": "Saved",
     "saveFailed": "Not saved. The setting applies on this device for now.",
     "languageHint": "Remembered on this device.",
+    "dateFormat": {
+      "title": "Date and time",
+      "label": "Format",
+      "auto": "Like the language",
+      "eu": "European",
+      "us": "American",
+      "hint": "Applies to every date and time, whatever the language. Saved to your account."
+    },
     "invite": {
       "title": "Invite to ficsmap",
       "linkLabel": "General invite link",
@@ -1603,6 +1611,9 @@
       "compareWith": "Compare with",
       "comparePrevious": "The save before",
       "slider": "Saves",
+      "play": "Play",
+      "pause": "Pause",
+      "speed": "Playback speed",
       "comparedWith": "Compared with {date}:",
       "nothingToCompare": "No other save to compare with.",
       "better": "{count, plural, one {{n} better} other {{n} better}}",
@@ -1780,6 +1791,24 @@
       "flatpak": "Linux, Steam as Flatpak",
       "steamDeck": "Steam Deck",
       "linuxServer": "Linux, dedicated server"
+    }
+  },
+  "maintenance": {
+    "title": "Maintenance mode",
+    "situation": "The data was last used by ficsmap v{data}, this server runs v{version}. Until an owner sorts this out, ficsmap loads and saves nothing.",
+    "situationUnknown": "This server runs an older version than its data. Until an owner sorts this out, ficsmap loads and saves nothing.",
+    "details": "Details",
+    "jokes": {
+      "0": "FICSIT does not waste. Not even data. Which is why we are not touching it right now.",
+      "1": "ADA reports: your database comes from the future. This has been added to your employee record.",
+      "2": "A Lizard Doggo has curled up on the database and is guarding it. Please do not wake it until an owner decides.",
+      "3": "Please remain calm and productive. Mostly productive. Fine: just calm, today.",
+      "4": "Project Assembly is taking a short break. The Space Elevator waits patiently. Management, less so.",
+      "5": "A Somersloop doubled the versions. Now there are two, and neither fits the other.",
+      "6": "This server is living in the past. FICSIT recommends coffee from the FICSIT cup and a little patience.",
+      "7": "Every conveyor belt has stopped. The Hogs swear they had nothing to do with it this time.",
+      "8": "Safety notice: please do not throw Nobelisks at the server. An owner is on it.",
+      "9": "Efficiency: 0 %. On purpose. In maintenance mode nothing is saved, so nothing is wasted either."
     }
   }
 }

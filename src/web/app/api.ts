@@ -1,4 +1,5 @@
 import type { ApiError, ApiErrorCode } from '../../shared/api.js';
+import { suspectMaintenance } from './maintenanceState.js';
 
 /** `network`: the request never got a response (offline, DNS, aborted). */
 export type ApiClientErrorCode = ApiErrorCode | 'network';
@@ -12,7 +13,8 @@ export class ApiClientError extends Error {
 
 const KNOWN_CODES: ReadonlySet<string> = new Set(Object.keys({
   unauthorized: true, forbidden: true, not_found: true, invalid_body: true,
-  invalid_origin: true, rate_limited: true, invite_invalid: true, limit_reached: true, session_mismatch: true, busy: true, internal: true,
+  invalid_origin: true, rate_limited: true, invite_invalid: true, limit_reached: true, session_mismatch: true, busy: true, maintenance: true,
+  internal: true,
 } satisfies Record<ApiErrorCode, true>));
 
 /** The server rejects a mutation without a JSON content type, so these always send a body. */
@@ -50,6 +52,8 @@ async function request<T>(method: string, path: string, body?: BodyInit, extraHe
     throw new ApiClientError(0, 'network', err instanceof Error ? err.message : String(err));
   }
   if (res.status === 401) redirectToLogin();
+  // A server in maintenance mode answers 503 (older versions with their HTML page): the banner checks.
+  if (res.status === 503) suspectMaintenance();
   if (!res.ok) throw await toError(res);
   const text = await res.text();
   if (!text) return undefined as T;

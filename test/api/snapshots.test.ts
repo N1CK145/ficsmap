@@ -5,6 +5,7 @@ import type { SseEvent } from '../../src/shared/sse.js';
 import type { FactorySnapshot } from '../../src/shared/factory/snapshot.js';
 import { MAX_SNAPSHOT_GZIP_BYTES, MAX_SNAPSHOT_JSON_BYTES, MAX_SNAPSHOTS_PER_WORLD } from '../../src/shared/factory/storage.js';
 import { addMember, makeTestApp } from './helpers.js';
+import { applyDelta, isSnapshotDelta } from '../../src/shared/factory/delta.js';
 
 const ORIGIN = 'https://ficsmap.test';
 const json = { origin: ORIGIN, 'content-type': 'application/json' };
@@ -110,6 +111,29 @@ describe('factory snapshots api', () => {
     const plain = await get(member, `/${id}`);
     expect(plain.headers['content-encoding']).toBeUndefined();
     expect(plain.json()).toEqual(snapshot());
+  });
+
+  it('serves a snapshot as the difference to another of the world, immutable; 404 for a base of another world', async () => {
+    const { owner, member, stranger, upload, get } = await setup();
+    const first = snapshot(1_000);
+    const second = { ...snapshot(2_000), buildings: [...snapshot(2_000).buildings.slice(1), { ...snapshot().buildings[0]!, x: 99 }] };
+    const a = (await upload(owner, first)).json().id as number;
+    const b = (await upload(owner, second)).json().id as number;
+    const res = await get(member, `/${b}/delta/${a}`, { 'accept-encoding': 'gzip' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-encoding']).toBe('gzip');
+    expect(res.headers['cache-control']).toBe('private, max-age=31536000, immutable');
+    const delta = JSON.parse(gunzipSync(res.rawPayload).toString('utf8'));
+    expect(isSnapshotDelta(delta)).toBe(true);
+    expect(delta).toMatchObject({ base: a, id: b });
+    const stored = (await get(member, `/${b}`)).json();
+    expect(applyDelta((await get(member, `/${a}`)).json(), delta)).toEqual(stored);
+    // Only the changed building travels.
+    expect(delta.arrays.buildings.add).toHaveLength(1);
+    expect((await get(member, `/${b}/delta/${a}`)).json()).toEqual(delta);
+    expect((await get(member, `/${b}/delta/999`)).statusCode).toBe(404);
+    expect((await get(member, `/${b}/delta/abc`)).statusCode).toBe(404);
+    expect((await get(stranger, `/${b}/delta/${a}`)).statusCode).toBe(404);
   });
 
   it('a re-import of the same save replaces it under a new id; other saves are listed newest first', async () => {
