@@ -1,19 +1,21 @@
 import './creatures.css';
 import { createElement } from 'react';
 import type { FeatureModule } from '../../app/feature.js';
-import { PawIcon, PlayerIcon } from '../../components/icons.js';
+import { CrateIcon, PawIcon, PlayerIcon } from '../../components/icons.js';
 import { toggleTool } from '../../app/tools.js';
 import { CreatureLayer } from './CreatureLayer.js';
+import { DeathCrateLayer } from './DeathCrateLayer.js';
 import { CreaturesPanel } from './CreaturesPanel.js';
 import { PlayerLayer } from './PlayerLayer.js';
 import { PlayersPanel } from './PlayersPanel.js';
 import { creaturesSearch } from './search.js';
-import { useCreatureFile, useCreatureLayer, usePlayerToggle } from './useCreatures.js';
+import { useCrateToggle, useCreatureFile, useCreatureLayer, usePlayerToggle } from './useCreatures.js';
 
 /**
  * Creatures and players: the creature spawners from the game data (`creatures.json`, optional in a dataset) as a map
  * layer with the kills from the save the timeline shows (`FactorySnapshot.spawners`), a sidebar panel with the
- * filters, and the players' characters from the same save with their own panel (show one on the map, open their statistics). Both switches sit in the tool navigation.
+ * filters, and the players' characters from the same save with their own panel (show one on the map, open their statistics), and the death crates of the world's saves. The
+ * switches sit in the tool navigation.
  */
 export const creaturesFeature: FeatureModule = {
   id: 'creatures',
@@ -24,6 +26,7 @@ export const creaturesFeature: FeatureModule = {
   searchProviders: [creaturesSearch],
   mapLayers: [
     { id: 'creatures', order: 7, Component: CreatureLayer },
+    { id: 'death-crates', order: 8, Component: DeathCrateLayer },
     { id: 'players', order: 9, Component: PlayerLayer },
   ],
   tools: [
@@ -35,6 +38,10 @@ export const creaturesFeature: FeatureModule = {
     toggleTool({
       id: 'players', order: 33, labelKey: 'creatures.playersControl', hintKey: 'creatures.playersHint', icon: createElement(PlayerIcon),
       useToggle: usePlayerToggle,
+    }),
+    toggleTool({
+      id: 'death-crates', order: 34, labelKey: 'deathCrates.control', hintKey: 'deathCrates.hint', icon: createElement(CrateIcon),
+      useToggle: useCrateToggle,
     }),
   ],
 };

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { Db } from '../db/db.js';
 import { FACTORY_SNAPSHOT_VERSION, type FactorySnapshot, type SnapshotSummary } from '../../shared/factory/snapshot.js';
 import {
-  deathCrateIds, MAX_SNAPSHOT_JSON_BYTES, MAX_SNAPSHOTS_PER_WORLD, snapshotFigures, type SnapshotFigures,
+  deathCrates, MAX_SNAPSHOT_JSON_BYTES, MAX_SNAPSHOTS_PER_WORLD, snapshotFigures, type SnapshotFigures,
 } from '../../shared/factory/storage.js';
 import { snapshotsToThin } from '../../shared/factory/retention.js';
 import { MAX_DEPOT_ITEMS, MAX_RUNS, MAX_SLOTS } from '../../shared/factory/inventory.js';
@@ -237,7 +237,8 @@ function toSummary(r: SnapshotRow): SnapshotSummary {
     avgProductivity: f.avgProductivity,
     idle: f.idle,
     bytes: r.bytes,
-    ...(f.deathCrates ? { deathCrates: f.deathCrates } : {}),
+    // Snapshots stored while the summary kept only the ids (never released) count as without the record.
+    ...(Array.isArray(f.deathCrates) && f.deathCrates.every(Array.isArray) ? { deathCrates: f.deathCrates } : {}),
   };
 }
 
@@ -293,7 +294,7 @@ export function storeSnapshot(
   db: Db, worldId: string, s: FactorySnapshot, gz: Buffer, userId: number, now: number,
 ): { summary: SnapshotSummary; replaced: boolean; rev: number; thinned: number[] } {
   const saveTime = Math.trunc(s.meta.saveTime);
-  const figures: SnapshotFigures = { ...snapshotFigures(s), deathCrates: deathCrateIds(s) };
+  const figures: SnapshotFigures = { ...snapshotFigures(s), deathCrates: deathCrates(s) };
   return db.transaction(() => {
     const removed = db.prepare('DELETE FROM factory_snapshots WHERE world_id = ? AND session_name = ? AND save_time = ?')
       .run(worldId, s.meta.sessionName, saveTime).changes;

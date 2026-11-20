@@ -135,8 +135,8 @@ function SwitchButton({ tool, ctx }: { tool: Tool; ctx: WorldCtx }) {
       onClick={state.run}
     >
       {tool.icon !== undefined && <span aria-hidden="true">{tool.icon}</span>}
-      {/* Icons only below 1600 px, where the map's switches would not fit beside the sections; the name stays for screen readers and in the tooltip. */}
-      <span className={tool.icon !== undefined ? 'max-[1599px]:sr-only' : undefined}>{t(tool.labelKey)}</span>
+      {/* Icons only below 1800 px, where the map's switches would not fit beside the sections; the name stays for screen readers and in the tooltip. */}
+      <span className={tool.icon !== undefined ? 'max-[1799px]:sr-only' : undefined}>{t(tool.labelKey)}</span>
     </Button>
   );
 }

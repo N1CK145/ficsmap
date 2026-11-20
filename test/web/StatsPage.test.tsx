@@ -8,6 +8,8 @@ import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { useFactoryPage } from '../../src/web/features/factory/timeline.js';
 import { useFactoryView } from '../../src/web/features/factory/view.js';
+import { useCreatureLayer } from '../../src/web/features/creatures/useCreatures.js';
+import { useMapFit } from '../../src/web/features/search/fit.js';
 import { statsFeature } from '../../src/web/features/stats/index.js';
 import { makeSnapshot, makeSummary } from './factoryFixtures.js';
 import { stubFetch } from './fetchStub.js';
@@ -36,8 +38,8 @@ const WITH_STATS: FactorySnapshot = {
 };
 
 function setup() {
-  const older = { ...makeSummary(1, 1_000, 'Alpha'), deathCrates: ['BP_Crate_C_1'] };
-  const newer = { ...makeSummary(2, 2_000, 'Alpha'), deathCrates: ['BP_Crate_C_1', 'BP_Crate_C_2'] };
+  const older = { ...makeSummary(1, 1_000, 'Alpha'), deathCrates: [['BP_Crate_C_1', 0.2, 0.2, 0]] as [string, number, number, number][] };
+  const newer = { ...makeSummary(2, 2_000, 'Alpha'), deathCrates: [['BP_Crate_C_1', 0.2, 0.2, 0], ['BP_Crate_C_2', 0.8, 0.8, 0]] as [string, number, number, number][] };
   stubFetch({
     [`GET /api/worlds/${W}/snapshots`]: { body: [newer, older] },
     [`GET /api/worlds/${W}/snapshots/1`]: { body: makeSnapshot('Alpha', 1_000) },
@@ -87,6 +89,16 @@ describe('statistics page', () => {
     await userEvent.click(within(view).getByRole('radio', { name: 'Reinsch' }));
     expect(within(main).getByTestId('stats-position')).toHaveTextContent('Area: Grass Fields');
     expect(within(main).getByRole('button', { name: 'On the map' })).toBeInTheDocument();
+  });
+
+  it('shows the death crates on the map: switches them on, fits the map to them and goes to the map', async () => {
+    useCreatureLayer.setState({ crates: false });
+    const { router } = setup();
+    const main = await screen.findByRole('main', { name: 'Statistics' });
+    await userEvent.click(await within(main).findByRole('button', { name: 'On the map' }));
+    expect(useCreatureLayer.getState().crates).toBe(true);
+    expect(useMapFit.getState().request).not.toBeNull();
+    expect(router.state.location.pathname).toBe(`/w/${W}`);
   });
 
   it('says so for a save imported before statistics were read', async () => {

@@ -1917,5 +1917,15 @@
     "stats": "Statistik",
     "source": "Stand: Spielstand vom {date}",
     "away": "Nicht in der Welt"
+  },
+  "deathCrates": {
+    "control": "Todeskisten",
+    "hint": "Wo Spieler gestorben sind: die Todeskisten aller Spielstände bis zum gezeigten",
+    "here": "Liegt noch da",
+    "gone": "Nicht mehr da (zuletzt im Spielstand vom {date})",
+    "firstSeen": "Zuerst im Spielstand vom {date}",
+    "more": "+{count, number} weitere",
+    "empty": "Leer",
+    "showOnMap": "Auf der Karte"
   }
 }

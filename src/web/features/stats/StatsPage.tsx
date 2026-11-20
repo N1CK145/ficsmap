@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { worldToLatLng } from '../../../shared/geo.js';
 import { killsByName, killSummary } from '../../../shared/creatures.js';
-import { countDeaths } from '../../../shared/factory/storage.js';
+import { countDeaths, deathCrateHistory, type DeathCrateSeen } from '../../../shared/factory/storage.js';
 import { statsViews, type BuiltRow, type CountRow, type PlayerStats, type WorldStats } from '../../../shared/factory/statsView.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { worldPath } from '../../app/pages.js';
@@ -21,7 +21,7 @@ import { TABLE, TD, TD_FIRST, TH, THEAD, TR } from '../factory/parts.js';
 import { Timeline } from '../factory/Timeline.js';
 import { useFactoryWorld, useTimeline } from '../factory/timeline.js';
 import { GameIcon, IconsContext, useItemIcons } from '../machineWiki/icons.js';
-import { useMapFit } from '../search/fit.js';
+import { boundsOf, useMapFit } from '../search/fit.js';
 
 /** The world page id: `/w/:id/stats`. */
 export const STATS_PAGE = 'stats';
@@ -65,6 +65,7 @@ export function StatsPage({ ctx }: { ctx: WorldCtx }) {
     ...(views?.players ?? []).map(p => ({ value: p.key, label: p.unassigned ? t('stats.unassigned') : p.name ?? t('stats.unnamed') })),
   ];
   const deaths = sel.selected ? countDeaths(sel.list, sel.selected.saveTime) : null;
+  const crates = sel.selected ? deathCrateHistory(sel.list, sel.selected.saveTime) : [];
   return (
     <IconsContext.Provider value={icons}>
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-3">
@@ -78,7 +79,7 @@ export function StatsPage({ ctx }: { ctx: WorldCtx }) {
             </div>
             {player
               ? <PlayerView ctx={ctx} p={player} labels={labels} fmt={fmt} hasUnassigned={views.players.some(x => x.unassigned)} />
-              : <WorldView w={views.world} players={views.players} spawnerKills={snapshot?.spawners ? killSummary(killsByName(snapshot.spawners), views.world.totals.killed) : null} deaths={deaths} labels={labels} fmt={fmt} version={version} onPlayer={setView} />}
+              : <WorldView ctx={ctx} crates={crates} w={views.world} players={views.players} spawnerKills={snapshot?.spawners ? killSummary(killsByName(snapshot.spawners), views.world.totals.killed) : null} deaths={deaths} labels={labels} fmt={fmt} version={version} onPlayer={setView} />}
           </>
         )}
       </div>
@@ -92,19 +93,40 @@ function playTime(sec: number, t: (k: string, o?: Record<string, unknown>) => st
   return t('stats.playTimeValue', { h, m });
 }
 
-function WorldView({ w, players, spawnerKills, deaths, labels, fmt, version, onPlayer }: {
-  w: WorldStats; players: readonly PlayerStats[]; spawnerKills: ReturnType<typeof killSummary> | null; deaths: { deaths: number; known: boolean } | null;
+function WorldView({ ctx, crates, w, players, spawnerKills, deaths, labels, fmt, version, onPlayer }: {
+  ctx: WorldCtx; crates: readonly DeathCrateSeen[]; w: WorldStats; players: readonly PlayerStats[]; spawnerKills: ReturnType<typeof killSummary> | null; deaths: { deaths: number; known: boolean } | null;
   labels: FactoryLabels; fmt: FactoryFormat; version: string; onPlayer(key: string): void;
 }) {
   const { t } = useTranslation();
   const creature = useCreatureName();
+  const navigate = useNavigate();
   const item = (cls: string) => labels.item(cls, fmt.lang);
+  // Switches the death crates on and fits the map to all of them.
+  const cratesOnMap = () => {
+    const pts = crates.map(c => worldToLatLng(c.x, c.y, ctx.index.ds.bounds));
+    const b = boundsOf([pts]);
+    useCreatureLayer.getState().showCrates();
+    if (b) {
+      const pad = 3;
+      useMapFit.getState().fit([[b[0][0] - pad, b[0][1] - pad], [b[1][0] + pad, b[1][1] + pad]]);
+    }
+    void navigate(worldPath(ctx.worldId));
+  };
   return (
     <>
       <dl aria-label={t('stats.figures')} className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
         <StatTile label={t('stats.playTime')} main className="col-span-2">{w.playTimeSec === null ? '–' : playTime(w.playTimeSec, t)}</StatTile>
         {/* The game keeps no death count: a lower bound from death crates, said as one ("≥ 3"), never a bare 0. */}
-        <StatTile label={t('stats.deaths')} sub={deaths?.known === false ? t('stats.deathsPartial') : t('stats.deathsHint')}>
+        <StatTile label={t('stats.deaths')} sub={
+          <>
+            {deaths?.known === false ? t('stats.deathsPartial') : t('stats.deathsHint')}
+            {crates.length > 0 && (
+              <button type="button" onClick={cratesOnMap} className="mt-1 flex items-center gap-1 font-medium text-accent underline-offset-2 hover:underline focus-ring">
+                <MapIcon size={14} />{t('deathCrates.showOnMap')}
+              </button>
+            )}
+          </>
+        }>
           <span data-testid="stats-deaths">
             {!deaths ? '–' : deaths.deaths > 0 ? t('stats.deathsValue', { count: deaths.deaths }) : <span className="text-base text-muted">{t('stats.noDeaths')}</span>}
           </span>

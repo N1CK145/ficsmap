@@ -65,9 +65,9 @@ export function useCreatureData(version: string, worldId: string, enabled = true
 export type KillFilter = 'all' | KillState;
 export const KILL_FILTERS: readonly KillFilter[] = ['all', 'dead', 'back', 'untouched'];
 
-interface CreatureView { visible: boolean; hidden: CreatureFamily[]; kill: KillFilter; players: boolean }
+interface CreatureView { visible: boolean; hidden: CreatureFamily[]; kill: KillFilter; players: boolean; crates: boolean }
 const KEY = 'ficsmap:creatures';
-const DEFAULTS: CreatureView = { visible: false, hidden: [], kill: 'all', players: false };
+const DEFAULTS: CreatureView = { visible: false, hidden: [], kill: 'all', players: false, crates: false };
 
 function load(): CreatureView {
   try {
@@ -78,6 +78,7 @@ function load(): CreatureView {
       hidden: Array.isArray(d.hidden) ? d.hidden.filter((f): f is CreatureFamily => CREATURE_FAMILIES.includes(f)) : [],
       kill: KILL_FILTERS.includes(d.kill as KillFilter) ? d.kill! : 'all',
       players: d.players === true,
+      crates: d.crates === true,
     };
   } catch {
     return DEFAULTS;
@@ -99,13 +100,16 @@ interface CreatureLayerState extends CreatureView {
   showFamily(f: CreatureFamily): void;
   setKill(k: KillFilter): void;
   togglePlayers(): void;
+  /** The death crates on the map (`DeathCrateLayer`). */
+  toggleCrates(): void;
+  showCrates(): void;
 }
 
 /** Whether the creature layer and the players show, and the creature filter; remembered per device. */
 export const useCreatureLayer = create<CreatureLayerState>()((set, get) => {
   const update = (patch: Partial<CreatureView>) => {
     const s = { ...get(), ...patch };
-    const v: CreatureView = { visible: s.visible, hidden: s.hidden, kill: s.kill, players: s.players };
+    const v: CreatureView = { visible: s.visible, hidden: s.hidden, kill: s.kill, players: s.players, crates: s.crates };
     save(v);
     set(v);
   };
@@ -117,9 +121,18 @@ export const useCreatureLayer = create<CreatureLayerState>()((set, get) => {
     showFamily: f => update({ visible: true, hidden: CREATURE_FAMILIES.filter(x => x !== f) }),
     toggleFamily: f => { const h = get().hidden; update({ hidden: h.includes(f) ? h.filter(x => x !== f) : [...h, f] }); },
     setKill: kill => update({ kill }),
+    toggleCrates: () => update({ crates: !get().crates }),
+    showCrates: () => update({ crates: true }),
     togglePlayers: () => { update({ players: !get().players }); set({ focusedPlayer: null }); },
   };
 });
+
+/** For the death crates' switch in the tools. */
+export function useCrateToggle(): { visible: boolean; toggle(): void } {
+  const visible = useCreatureLayer(s => s.crates);
+  const toggle = useCreatureLayer(s => s.toggleCrates);
+  return { visible, toggle };
+}
 
 /** For the players' switch in the tools (`toggleTool` wants `visible` and `toggle`). */
 export function usePlayerToggle(): { visible: boolean; toggle(): void } {

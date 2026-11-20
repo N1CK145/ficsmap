@@ -55,3 +55,51 @@
 .ficsmap-player.is-dimmed .ficsmap-player-dot {
   box-shadow: 0 0 0 2px var(--color-muted);
 }
+
+/*
+ * Death crates (DeathCrateLayer): the factory map's crate glyph, a box with a cross, larger and in the conflict red,
+ * on a dark halo. A crate that is gone in the shown save is faded and dashed.
+ */
+.ficsmap-crate-box {
+  position: absolute;
+  left: -11px;
+  top: -11px;
+  width: 22px;
+  height: 22px;
+  background:
+    linear-gradient(45deg, transparent calc(50% - 1.25px), var(--color-conflict) calc(50% - 1.25px), var(--color-conflict) calc(50% + 1.25px), transparent calc(50% + 1.25px)),
+    linear-gradient(-45deg, transparent calc(50% - 1.25px), var(--color-conflict) calc(50% - 1.25px), var(--color-conflict) calc(50% + 1.25px), transparent calc(50% + 1.25px)),
+    var(--color-panel);
+  border: 2px solid var(--color-conflict);
+  box-shadow: 0 0 0 2px var(--color-bg);
+}
+.ficsmap-crate.is-gone .ficsmap-crate-box {
+  opacity: 0.5;
+  border-style: dashed;
+}
+.ficsmap-crate:focus-visible {
+  outline: none;
+}
+.ficsmap-crate:focus-visible .ficsmap-crate-box {
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
+}
+.leaflet-tooltip.ficsmap-crate-tip {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-fg);
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: 0;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.4);
+}
+.leaflet-tooltip.ficsmap-crate-tip::before {
+  display: none;
+}
+.ficsmap-crate-muted {
+  color: var(--color-muted);
+}
+.ficsmap-crate-items {
+  display: inline-block;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}

@@ -1917,5 +1917,15 @@
     "stats": "Statistics",
     "source": "As of the save of {date}",
     "away": "Not in the world"
+  },
+  "deathCrates": {
+    "control": "Death crates",
+    "hint": "Where players died: the death crates of all saves up to the shown one",
+    "here": "Still there",
+    "gone": "Gone (last in the save of {date})",
+    "firstSeen": "First in the save of {date}",
+    "more": "+{count, number} more",
+    "empty": "Empty",
+    "showOnMap": "On the map"
   }
 }

@@ -93,7 +93,7 @@ describe('factory snapshots api', () => {
     const summary = res.json();
     expect(summary).toMatchObject({
       saveTime: 1_000, sessionName: 'Letz Fetz', importedAt: 5_000, importedBy: 'user-owner-1',
-      buildings: 7, machines: 5, idle: 1, deathCrates: ['BP_Crate_C_11'],
+      buildings: 7, machines: 5, idle: 1, deathCrates: [['BP_Crate_C_11', 1, 2, 3]],
     });
     expect(summary.avgProductivity).toBeCloseTo(0.5);
     expect(summary.bytes).toBeGreaterThan(0);

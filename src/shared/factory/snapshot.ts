@@ -277,6 +277,9 @@ export interface SnapshotMarker {
   scale: number;
 }
 
+/** A death crate in a snapshot's summary: `[id, x, y, z]`. */
+export type SummaryDeathCrate = [id: string, x: number, y: number, z: number];
+
 /** What the server keeps next to a snapshot for the timeline list (computed from the snapshot when stored). */
 export interface SnapshotSummary {
   id: number;
@@ -292,10 +295,11 @@ export interface SnapshotSummary {
   idle: number;
   bytes: number;
   /**
-   * Ids of the death crates in the save (`CT_DeathCrate`); missing for snapshots stored before they were recorded.
-   * The world's deaths are the distinct ids over its saves (`countDeaths`).
+   * The death crates in the save (`CT_DeathCrate`): id and position (world units); missing for snapshots stored before
+   * they were recorded. The world's deaths are the distinct ids over its saves (`countDeaths`), the map's death crates
+   * all of them with where they were last seen (`deathCrateHistory`).
    */
-  deathCrates?: string[];
+  deathCrates?: SummaryDeathCrate[];
 }
 
 /** One belt or pipe connection from an upstream node's output to a downstream node's input. */

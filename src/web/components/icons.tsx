@@ -54,6 +54,8 @@ export const MapIcon = (p: IconProps) => <Icon {...p}><path d="M1.5 3.75L5.5 2.2
 export const OreIcon = (p: IconProps) => <Icon {...p}><path d="M3 10.5l1.5-5 4-2.5 4 2.5 1 5-4.5 3zM4.5 5.5l4 2.5 4.5-2.5M8.5 8v5.5" /></Icon>;
 /** A paw print: the creature layer. */
 export const PawIcon = (p: IconProps) => <Icon {...p}><circle cx="8" cy="10.5" r="2.8" /><circle cx="3.5" cy="6.5" r="1.3" /><circle cx="6.3" cy="3.5" r="1.3" /><circle cx="9.7" cy="3.5" r="1.3" /><circle cx="12.5" cy="6.5" r="1.3" /></Icon>;
+/** A box with a cross, as the map draws crates: the death crates. */
+export const CrateIcon = (p: IconProps) => <Icon {...p}><path d="M2.5 2.5h11v11h-11zM2.5 2.5l11 11M13.5 2.5l-11 11" /></Icon>;
 /** A person: the players on the map. */
 export const PlayerIcon = (p: IconProps) => <Icon {...p}><circle cx="8" cy="4.5" r="2.5" /><path d="M3 14.5c0-3 2.2-5 5-5s5 2 5 5" /></Icon>;
 /** Bars of a chart: the statistics page. */

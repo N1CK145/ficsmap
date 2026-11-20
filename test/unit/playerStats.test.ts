@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildCreatures, creatureFamily, killsByName, killState, killSummary } from '../../src/shared/creatures.js';
 import { readPlayers, readSpawner, readStats, UNASSIGNED_PLAYER } from '../../src/shared/factory/stats.js';
 import { statsViews } from '../../src/shared/factory/statsView.js';
-import { countDeaths, deathCrateIds } from '../../src/shared/factory/storage.js';
+import { countDeaths, deathCrateHistory, deathCrates } from '../../src/shared/factory/storage.js';
 import type { FactoryObject } from '../../src/shared/factory/extract.js';
 import type { FactorySnapshot } from '../../src/shared/factory/snapshot.js';
 
@@ -126,13 +126,16 @@ describe('statsViews', () => {
 describe('deaths', () => {
   const crate = (id: string, kind: string) => ({ id, x: 0, y: 0, z: 0, kind });
   it('takes the death crates of a save, not the dismantle crates', () => {
-    expect(deathCrateIds({ crates: [crate('b', 'CT_DeathCrate'), crate('c', 'unknown'), crate('a', 'CT_DeathCrate')] })).toEqual(['a', 'b']);
+    expect(deathCrates({ crates: [crate('b', 'CT_DeathCrate'), crate('c', 'unknown'), crate('a', 'CT_DeathCrate')] })).toEqual([['a', 0, 0, 0], ['b', 0, 0, 0]]);
   });
   it('counts distinct crates up to a save; a snapshot without the record makes it partial', () => {
-    const list = [{ saveTime: 1, deathCrates: ['a', 'b'] }, { saveTime: 2, deathCrates: ['b', 'c'] }, { saveTime: 3, deathCrates: ['d'] }];
+    const at = (id: string): [string, number, number, number] => [id, 1, 2, 3];
+    const list = [{ saveTime: 1, deathCrates: [at('a'), at('b')] }, { saveTime: 2, deathCrates: [at('b'), at('c')] }, { saveTime: 3, deathCrates: [at('d')] }];
     expect(countDeaths(list, 2)).toEqual({ deaths: 3, known: true });
     expect(countDeaths(list, 3)).toEqual({ deaths: 4, known: true });
-    expect(countDeaths([{ saveTime: 1 }, { saveTime: 2, deathCrates: ['a'] }], 2)).toEqual({ deaths: 1, known: false });
+    expect(countDeaths([{ saveTime: 1 }, { saveTime: 2, deathCrates: [at('a')] }], 2)).toEqual({ deaths: 1, known: false });
+    // Each crate once, with the first and last save it lay in: a and b are gone by save 2 and 3.
+    expect(deathCrateHistory(list, 2).map(c => [c.id, c.firstSeen, c.lastSeen])).toEqual([['a', 1, 1], ['b', 1, 2], ['c', 2, 2]]);
   });
 });
 
