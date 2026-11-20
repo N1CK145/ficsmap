@@ -354,7 +354,7 @@
     "copied": "Copied"
   },
   "import": {
-    "privacy": "Your save is read in your browser. Only this is sent to the server: the list of collected items; the save's name, date and game build; for resource nodes the resource or purity your save sets and which extractor stands on which node (building, clock speed, Power Shards); and for the factory plan what is built where (buildings with their productivity, belts, pipes, power lines, roads, stations, vehicles, map markers, sign texts and the explored area). No player names or player positions.",
+    "privacy": "Your save is read in your browser. Only this is sent to the server: the list of collected items; the save’s name, date and game build; for resource nodes the resource or purity your save sets and which extractor stands on which node (building, clock speed, Power Shards); for the factory plan what is built where (buildings with their productivity, belts, pipes, power lines, roads, stations, vehicles, map markers, sign texts and the explored area); the players’ names and where their characters stand; the game’s statistics (creatures killed, consumed, built, crafted and picked up, per player where the game counts it); which creature spawn points were killed; and the death crates.",
     "button": "Import",
     "title": "Import save",
     "chooseFolder": "Choose save folder",
@@ -1039,7 +1039,9 @@
       "crashSite": "Crash site",
       "machine": "Machine",
       "vehicle": "Vehicle",
-      "resource": "Resource node"
+      "resource": "Resource node",
+      "creature": "Creatures",
+      "player": "Player"
     }
   },
   "nav": {
@@ -1493,6 +1495,23 @@
       "depotEmpty": "Nothing lies in the Dimensional Depot.",
       "searchKind": "In storage",
       "searchDetail": "{amount} in {count, plural, one {# storage} other {# storages}}"
+    },
+    "splitter": {
+      "unknown": "This save was imported before splitter rules were read. Import it again to see its settings.",
+      "notConnected": "not connected",
+      "noRule": "No rule",
+      "side": {
+        "left": "Left",
+        "center": "Center",
+        "right": "Right",
+        "top": "Top"
+      },
+      "filter": {
+        "Desc_Wildcard_C": "Any",
+        "Desc_AnyUndefined_C": "Any Undefined",
+        "Desc_Overflow_C": "Overflow",
+        "Desc_None_C": "None"
+      }
     }
   },
   "factoryMap": {
@@ -1810,5 +1829,132 @@
       "8": "Safety notice: please do not throw Nobelisks at the server. An owner is on it.",
       "9": "Efficiency: 0 %. On purpose. In maintenance mode nothing is saved, so nothing is wasted either."
     }
+  },
+  "creatures": {
+    "title": "Creatures",
+    "control": "Creatures",
+    "hint": "Show animal and enemy spawn points, with the kills from the save",
+    "playersControl": "Players",
+    "playersHint": "Where the players’ characters stand in the save",
+    "show": "Show creatures",
+    "none": "This dataset has no creatures.",
+    "killLabel": "Spawn points",
+    "kill": {
+      "all": "All",
+      "dead": "Dead now",
+      "back": "Back again",
+      "untouched": "Never killed"
+    },
+    "familyLabel": "Kind",
+    "family": {
+      "hog": "Hogs",
+      "spitter": "Spitters",
+      "stinger": "Stingers",
+      "hatcher": "Crab hatchers",
+      "wildlife": "Wildlife"
+    },
+    "legend": "From zoom 5 the creature’s picture, below that a diamond. Filled: killed before, hollow: never killed, struck out in red: dead right now. Number on the picture: times killed.",
+    "source": "{kills, number} kills at {spawners, number} spawn points · save of {date}",
+    "noKillData": "No kill state: the save was imported before ficsmap read it.",
+    "killed": "{count, plural, one {Killed once} other {Killed {count, number} times}}",
+    "neverKilled": "Never killed",
+    "deadNow": "{count, plural, one {Dead right now} other {{count, number} dead right now}}",
+    "names": {
+      "Char_Hog_C": "Fluffy-Tailed Hog",
+      "Char_AlphaHog_C": "Alpha Hog",
+      "Char_CliffHog_C": "Cliff Hog",
+      "Char_NuclearHog_C": "Radioactive Cliff Hog",
+      "Char_SpitterForestSmall_C": "Small Forest Spitter",
+      "Char_SpitterForestAlpha_C": "Alpha Forest Spitter",
+      "Char_SpitterForestRedSmall_C": "Small Forest Spitter (red)",
+      "Char_SpitterForestRedAlpha_C": "Alpha Forest Spitter (red)",
+      "Char_SpitterDesertSmall_C": "Small Desert Spitter",
+      "Char_SpitterDesertAlpha_C": "Alpha Desert Spitter",
+      "Char_SpitterAquaticSmall_C": "Small Aquatic Spitter",
+      "Char_SpitterAquaticAlpha_C": "Alpha Aquatic Spitter",
+      "Char_Stinger_Child_C": "Small Stinger",
+      "Char_Stinger_C": "Alpha Stinger",
+      "Char_EliteStinger_C": "Gas Stinger",
+      "Char_SpaceRabbit_C": "Lizard Doggo",
+      "Char_SpaceGiraffe_C": "Unknown File Error #6265616e",
+      "Char_NonFlyingBird_C": "Flightless Birb",
+      "Char_Beetle_C": "Beetle",
+      "Char_CrabHatcher_C": "Tropical Crab Hatcher",
+      "Char_BigCrabHatcher_C": "Large Crab Hatcher"
+    },
+    "search": {
+      "spawners": "{count, number} spawn points"
+    }
+  },
+  "stats": {
+    "title": "Statistics",
+    "hint": "The save’s statistics for the world and every player",
+    "empty": "No save imported yet.",
+    "unknown": "This save was imported before ficsmap read its statistics. Import it again.",
+    "viewLabel": "View",
+    "world": "World",
+    "unnamed": "Unknown player",
+    "figures": "Figures",
+    "playTime": "Play time",
+    "playTimeValue": "{h, number} h {m, number} min",
+    "deaths": "Deaths",
+    "deathsHint": "From death crates in the saves; looted crates are missing",
+    "deathsPartial": "From death crates; older saves have no data, looted crates are missing",
+    "killed": "Creatures killed",
+    "built": "Built",
+    "dismantled": "Dismantled",
+    "standing": "{count, number} standing",
+    "crafted": "Crafted by hand",
+    "pickedUp": "Picked up",
+    "killedTitle": "Creatures killed",
+    "consumedTitle": "Consumed",
+    "craftedTitle": "Crafted by hand",
+    "pickedUpTitle": "Picked up",
+    "producedTitle": "Produced",
+    "builtTitle": "Buildings",
+    "builtSubtitle": "{count, number} kinds",
+    "colBuilding": "Building",
+    "colBuilt": "Built",
+    "colDismantled": "Dismantled",
+    "colCurrent": "Now",
+    "colMax": "Most",
+    "none": "Nothing counted.",
+    "position": "Position",
+    "near": "Area: {biome}",
+    "onMap": "In the world",
+    "noPosition": "No character in the save",
+    "perPlayerNote": "The game counts kills, deaths and consumables only for the whole world.",
+    "unassigned": "Unassigned",
+    "unassignedNote": "Counts the game no longer assigns to a player: it now and then makes a new player id for a player, and the old one’s counts stay without a name.",
+    "deathsValue": "≥ {count, number}",
+    "noDeaths": "No death crate found",
+    "playersTitle": "Players",
+    "colPlayer": "Player",
+    "colCrafted": "Crafted",
+    "colPickedUp": "Picked up",
+    "colTop": "Built most",
+    "killedOnSpawners": "{kills, number} at {spawners, number} spawn points{without, plural, =0 {} other { · {without, number} without a spawn point}}",
+    "newId": "New player id in this save: counts from earlier sessions are under “Unassigned”.",
+    "show": "Show",
+    "newIdTag": "new id"
+  },
+  "players": {
+    "title": "Players",
+    "show": "Show players",
+    "none": "No character stands in the shown save.",
+    "center": "Show",
+    "stats": "Statistics",
+    "source": "As of the save of {date}",
+    "away": "Not in the world"
+  },
+  "deathCrates": {
+    "control": "Death crates",
+    "hint": "Where players died: the death crates of all saves up to the shown one",
+    "here": "Still there",
+    "gone": "Gone (last in the save of {date})",
+    "firstSeen": "First in the save of {date}",
+    "more": "+{count, number} more",
+    "empty": "Empty",
+    "showOnMap": "On the map"
   }
 }

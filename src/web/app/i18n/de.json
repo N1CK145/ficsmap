@@ -354,7 +354,7 @@
     "copied": "Kopiert"
   },
   "import": {
-    "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur: die Liste der gesammelten Objekte; Name, Datum und Build des Spielstands; zu den Rohstoffvorkommen die Ressource oder Reinheit, die dein Spielstand festlegt, sowie welcher Extraktor auf welchem Vorkommen steht (Gebäude, Taktrate, Energiefragmente); und für den Fabrikplan, was wo gebaut ist (Gebäude mit ihrer Produktivität, Förderbänder, Rohrleitungen, Stromleitungen, Wege, Stationen, Fahrzeuge, Kartenmarkierungen, Schildertexte und die erkundete Fläche). Keine Spielernamen und keine Spielerpositionen.",
+    "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur: die Liste der gesammelten Objekte; Name, Datum und Build des Spielstands; zu den Rohstoffvorkommen die Ressource oder Reinheit, die dein Spielstand festlegt, sowie welcher Extraktor auf welchem Vorkommen steht (Gebäude, Taktrate, Energiefragmente); für den Fabrikplan, was wo gebaut ist (Gebäude mit ihrer Produktivität, Förderbänder, Rohrleitungen, Stromleitungen, Wege, Stationen, Fahrzeuge, Kartenmarkierungen, Schildertexte und die erkundete Fläche); die Namen der Spieler und wo ihre Spielfiguren stehen; die Statistik des Spiels (getötete Kreaturen, Verbrauch, Gebautes, Gefertigtes und Aufgehobenes, je Spieler, wo das Spiel es zählt); welche Kreaturen-Spawnpunkte getötet wurden; und die Todeskisten.",
     "button": "Importieren",
     "title": "Spielstand importieren",
     "chooseFolder": "Spielstand-Ordner wählen",
@@ -1039,7 +1039,9 @@
       "crashSite": "Absturzort",
       "machine": "Maschine",
       "vehicle": "Fahrzeug",
-      "resource": "Rohstoffvorkommen"
+      "resource": "Rohstoffvorkommen",
+      "creature": "Kreaturen",
+      "player": "Spieler"
     }
   },
   "nav": {
@@ -1493,6 +1495,23 @@
       "depotEmpty": "Im Dimensionalen Depot liegt nichts.",
       "searchKind": "Im Lager",
       "searchDetail": "{amount} in {count, plural, one {# Lager} other {# Lagern}}"
+    },
+    "splitter": {
+      "unknown": "Dieser Spielstand wurde importiert, bevor Splitter-Regeln gelesen wurden. Importiere ihn erneut, um die Einstellungen zu sehen.",
+      "notConnected": "nicht angeschlossen",
+      "noRule": "Keine Regel",
+      "side": {
+        "left": "Links",
+        "center": "Mitte",
+        "right": "Rechts",
+        "top": "Oben"
+      },
+      "filter": {
+        "Desc_Wildcard_C": "Beliebig",
+        "Desc_AnyUndefined_C": "Beliebig undefiniert",
+        "Desc_Overflow_C": "Überlauf",
+        "Desc_None_C": "Keine"
+      }
     }
   },
   "factoryMap": {
@@ -1810,5 +1829,132 @@
       "8": "Sicherheitshinweis: Bitte keine Nobelisks auf den Server werfen. Ein Owner kümmert sich darum.",
       "9": "Effizienz: 0 %. Das ist Absicht. Im Wartungsmodus wird nichts gespeichert, also auch nichts verschwendet."
     }
+  },
+  "creatures": {
+    "title": "Kreaturen",
+    "control": "Kreaturen",
+    "hint": "Spawnpunkte von Tieren und Gegnern zeigen, mit den Kills aus dem Spielstand",
+    "playersControl": "Spieler",
+    "playersHint": "Wo die Spielfiguren im Spielstand stehen",
+    "show": "Kreaturen zeigen",
+    "none": "Dieser Datensatz hat keine Kreaturen.",
+    "killLabel": "Spawnpunkte",
+    "kill": {
+      "all": "Alle",
+      "dead": "Gerade tot",
+      "back": "Wieder da",
+      "untouched": "Nie getötet"
+    },
+    "familyLabel": "Art",
+    "family": {
+      "hog": "Keiler",
+      "spitter": "Spucker",
+      "stinger": "Stecher",
+      "hatcher": "Krabbenbrüter",
+      "wildlife": "Wildtiere"
+    },
+    "legend": "Ab Zoom 5 das Bild der Kreatur, darunter eine Raute. Gefüllt: schon getötet, hohl: nie getötet, rot durchgestrichen: gerade tot. Zahl am Bild: so oft getötet.",
+    "source": "{kills, number} Kills an {spawners, number} Spawnpunkten · Spielstand vom {date}",
+    "noKillData": "Kein Kill-Status: Der Spielstand wurde importiert, bevor ficsmap ihn gelesen hat.",
+    "killed": "{count, plural, one {1-mal getötet} other {{count, number}-mal getötet}}",
+    "neverKilled": "Nie getötet",
+    "deadNow": "{count, plural, one {Gerade tot} other {{count, number} gerade tot}}",
+    "names": {
+      "Char_Hog_C": "Wuschelschweif-Keiler",
+      "Char_AlphaHog_C": "Alpha-Keiler",
+      "Char_CliffHog_C": "Klippen-Keiler",
+      "Char_NuclearHog_C": "Radioaktiver Klippen-Keiler",
+      "Char_SpitterForestSmall_C": "Kleiner Wald-Spucker",
+      "Char_SpitterForestAlpha_C": "Alpha Wald-Spucker",
+      "Char_SpitterForestRedSmall_C": "Kleiner Wald-Spucker (rot)",
+      "Char_SpitterForestRedAlpha_C": "Alpha Wald-Spucker (rot)",
+      "Char_SpitterDesertSmall_C": "Kleiner Wüsten-Spucker",
+      "Char_SpitterDesertAlpha_C": "Alpha Wüsten-Spucker",
+      "Char_SpitterAquaticSmall_C": "Kleiner aquatischer Spucker",
+      "Char_SpitterAquaticAlpha_C": "Alpha aquatischer Spucker",
+      "Char_Stinger_Child_C": "Kleiner Stecher",
+      "Char_Stinger_C": "Alpha-Stecher",
+      "Char_EliteStinger_C": "Gas-Stecher",
+      "Char_SpaceRabbit_C": "Echsenhund",
+      "Char_SpaceGiraffe_C": "Unbekannter Dateifehler #6265616e",
+      "Char_NonFlyingBird_C": "Flugunfähiger Schnogel",
+      "Char_Beetle_C": "Käfer",
+      "Char_CrabHatcher_C": "Tropischer Krabbenbrüter",
+      "Char_BigCrabHatcher_C": "Großer Krabbenbrüter"
+    },
+    "search": {
+      "spawners": "{count, number} Spawnpunkte"
+    }
+  },
+  "stats": {
+    "title": "Statistik",
+    "hint": "Statistik des Spielstands für die Welt und jeden Spieler",
+    "empty": "Noch kein Spielstand importiert.",
+    "unknown": "Dieser Spielstand wurde importiert, bevor ficsmap die Statistik gelesen hat. Importiere ihn erneut.",
+    "viewLabel": "Ansicht",
+    "world": "Welt",
+    "unnamed": "Unbekannter Spieler",
+    "figures": "Kennzahlen",
+    "playTime": "Spielzeit",
+    "playTimeValue": "{h, number} h {m, number} min",
+    "deaths": "Tode",
+    "deathsHint": "Aus Todeskisten in den Spielständen; geplünderte Kisten fehlen",
+    "deathsPartial": "Aus Todeskisten; ältere Spielstände ohne Daten, geplünderte Kisten fehlen",
+    "killed": "Kreaturen getötet",
+    "built": "Gebaut",
+    "dismantled": "Abgebaut",
+    "standing": "{count, number} stehen",
+    "crafted": "Von Hand gefertigt",
+    "pickedUp": "Aufgehoben",
+    "killedTitle": "Getötete Kreaturen",
+    "consumedTitle": "Verbraucht",
+    "craftedTitle": "Von Hand gefertigt",
+    "pickedUpTitle": "Aufgehoben",
+    "producedTitle": "Hergestellt",
+    "builtTitle": "Gebäude",
+    "builtSubtitle": "{count, number} Arten",
+    "colBuilding": "Gebäude",
+    "colBuilt": "Gebaut",
+    "colDismantled": "Abgebaut",
+    "colCurrent": "Jetzt",
+    "colMax": "Höchstens",
+    "none": "Nichts gezählt.",
+    "position": "Position",
+    "near": "Gebiet: {biome}",
+    "onMap": "In der Welt",
+    "noPosition": "Keine Spielfigur im Spielstand",
+    "perPlayerNote": "Kills, Tode und Verbrauch zählt das Spiel nur für die ganze Welt.",
+    "unassigned": "Nicht zuzuordnen",
+    "unassignedNote": "Zahlen, die das Spiel keinem Spieler mehr zuordnet: Es legt die Spieler-ID eines Spielers ab und zu neu an, die Zahlen der alten bleiben ohne Namen.",
+    "deathsValue": "≥ {count, number}",
+    "noDeaths": "Keine Todeskiste gefunden",
+    "playersTitle": "Spieler",
+    "colPlayer": "Spieler",
+    "colCrafted": "Gefertigt",
+    "colPickedUp": "Aufgehoben",
+    "colTop": "Meistgebaut",
+    "killedOnSpawners": "{kills, number} an {spawners, number} Spawnpunkten{without, plural, =0 {} other { · {without, number} ohne Spawnpunkt}}",
+    "newId": "Neue Spieler-ID in diesem Spielstand: Zahlen aus früheren Sitzungen stehen unter „Nicht zuzuordnen“.",
+    "show": "Anzeigen",
+    "newIdTag": "neue ID"
+  },
+  "players": {
+    "title": "Spieler",
+    "show": "Spieler zeigen",
+    "none": "Im gezeigten Spielstand steht keine Spielfigur.",
+    "center": "Zeigen",
+    "stats": "Statistik",
+    "source": "Stand: Spielstand vom {date}",
+    "away": "Nicht in der Welt"
+  },
+  "deathCrates": {
+    "control": "Todeskisten",
+    "hint": "Wo Spieler gestorben sind: die Todeskisten aller Spielstände bis zum gezeigten",
+    "here": "Liegt noch da",
+    "gone": "Nicht mehr da (zuletzt im Spielstand vom {date})",
+    "firstSeen": "Zuerst im Spielstand vom {date}",
+    "more": "+{count, number} weitere",
+    "empty": "Leer",
+    "showOnMap": "Auf der Karte"
   }
 }

@@ -5,6 +5,7 @@ import { parseArgs } from 'node:util';
 import { COLLECTIBLE_TYPES, classify, typeById } from '../src/shared/collectibleTypes.js';
 import { assignBiome, loadEditorBiomes, type BiomeShape } from '../src/shared/biomes.js';
 import { cavesToGeojson, type RawCaves } from '../src/shared/caves.js';
+import { buildCreatures } from '../src/shared/creatures.js';
 import { sampleCaves } from './cave-geometry.js';
 import { readHeightGrid, writeHeightTiles } from './heightmap.js';
 import { AREA_SNAP, biomesFromAreas, landTest, readMapAreas } from './map-areas.js';
@@ -303,6 +304,7 @@ export const DATASET_PARTS = {
   heights: 'height/ (height map tiles)',
   map: 'map.json, tiles/, icons/',
   nodes: 'resource-nodes.json',
+  creatures: 'creatures.json (creature spawners with their creature, map layer)',
   transport: 'transport.json (vehicle calculator)',
   recipes: 'recipes.json (production planner)',
   machines: 'machines.json (machine and vehicle wiki)',
@@ -401,6 +403,7 @@ function main(): void {
     caves: { ok: hasCaves, what: `${cavesPath} and ${join(geometryDir, 'index.json')} (extractor --caves-out, --cave-geometry-out)` },
     heights: { ok: existsSync(join(heightDir, 'meta.json')) || existsSync(join(heightDir, 'top.f32')), what: `height grid in ${heightDir} (extractor --heightmap-out)` },
     map: { ok: existsSync(join(mapDir, 'map.json')), what: `${join(mapDir, 'map.json')} and tiles (extractor --map-out)` },
+    creatures: { ok: true, what: '' },
     nodes: { ok: existsSync(defaultWorldPath), what: `${defaultWorldPath} (extractor --out)` },
     transport: { ok: hasDocs && existsSync(rawTransportPath), what: `${join(docsDir, 'en-US.json')} (--docs) and ${rawTransportPath} (extractor --transport-out)` },
     recipes: { ok: hasDocs, what: `${join(docsDir, 'en-US.json')} (--docs <install>/CommunityResources/Docs)` },
@@ -507,6 +510,11 @@ function main(): void {
     const perKind = new Map<string, number>();
     for (const n of nodes.nodes) perKind.set(n[1], (perKind.get(n[1]) ?? 0) + 1);
     done('nodes', `${[...perKind].map(([k, c]) => `${c} ${k}`).join(', ')}; ${nodes.resources.length} resources`);
+  }
+  if (parts.has('creatures')) {
+    const creatures = buildCreatures(input.collectibles, ds.version);
+    writeFileSync(join(out, 'creatures.json'), JSON.stringify(creatures));
+    done('creatures', `${creatures.spawners.length} spawners, ${new Set(creatures.spawners.map(s => s[1])).size} creatures`);
   }
   if (parts.has('transport')) {
     const deDocs = existsSync(join(docsDir, 'de.json')) ? readDocsFile(join(docsDir, 'de.json')) : [];

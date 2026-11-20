@@ -14,6 +14,7 @@ export const queryKeys = {
   biomes: (version: string) => ['biomes', version] as const,
   crashSites: (version: string) => ['crash-sites', version] as const,
   caves: (version: string) => ['caves', version] as const,
+  creatures: (version: string) => ['creatures', version] as const,
   heightmap: (version: string) => ['heightmap', version] as const,
   resourceNodes: (version: string) => ['resource-nodes', version] as const,
   nodeOverrides: (worldId: string) => ['node-overrides', worldId] as const,

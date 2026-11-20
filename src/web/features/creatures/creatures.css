@@ -1,0 +1,105 @@
+/*
+ * Players on the map (PlayerLayer): a white dot with a dark halo on the character's position and the name on an
+ * accent plate (the save's own map markers have dark plates), in the player's own spelling. The focused player
+ * ("Show") is larger and pulses once a second (not with reduced motion).
+ */
+.ficsmap-player {
+  position: relative;
+}
+.ficsmap-player-dot {
+  position: absolute;
+  left: -8px;
+  top: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--color-player);
+  border: 3px solid var(--color-bg);
+  box-shadow: 0 0 0 2px var(--color-player);
+}
+.ficsmap-player-name {
+  position: absolute;
+  left: 14px;
+  top: -10px;
+  white-space: nowrap;
+  padding: 0 7px;
+  font: 600 12px/20px var(--font-display);
+  letter-spacing: 0.02em;
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+}
+.ficsmap-player.is-focused .ficsmap-player-dot {
+  left: -11px;
+  top: -11px;
+  width: 22px;
+  height: 22px;
+}
+.ficsmap-player.is-focused .ficsmap-player-name {
+  left: 17px;
+  font-size: 14px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ficsmap-player.is-focused .ficsmap-player-dot {
+    animation: ficsmap-player-pulse 1.2s ease-out infinite;
+  }
+}
+@keyframes ficsmap-player-pulse {
+  0% { box-shadow: 0 0 0 2px var(--color-player), 0 0 0 2px color-mix(in srgb, var(--color-accent) 70%, transparent); }
+  100% { box-shadow: 0 0 0 2px var(--color-player), 0 0 0 16px transparent; }
+}
+.ficsmap-player.is-dimmed .ficsmap-player-name {
+  color: var(--color-fg);
+  background: var(--color-raised);
+}
+.ficsmap-player.is-dimmed .ficsmap-player-dot {
+  box-shadow: 0 0 0 2px var(--color-muted);
+}
+
+/*
+ * Death crates (DeathCrateLayer): the factory map's crate glyph, a box with a cross, larger and in the conflict red,
+ * on a dark halo. A crate that is gone in the shown save is faded and dashed.
+ */
+.ficsmap-crate-box {
+  position: absolute;
+  left: -11px;
+  top: -11px;
+  width: 22px;
+  height: 22px;
+  background:
+    linear-gradient(45deg, transparent calc(50% - 1.25px), var(--color-conflict) calc(50% - 1.25px), var(--color-conflict) calc(50% + 1.25px), transparent calc(50% + 1.25px)),
+    linear-gradient(-45deg, transparent calc(50% - 1.25px), var(--color-conflict) calc(50% - 1.25px), var(--color-conflict) calc(50% + 1.25px), transparent calc(50% + 1.25px)),
+    var(--color-panel);
+  border: 2px solid var(--color-conflict);
+  box-shadow: 0 0 0 2px var(--color-bg);
+}
+.ficsmap-crate.is-gone .ficsmap-crate-box {
+  opacity: 0.5;
+  border-style: dashed;
+}
+.ficsmap-crate:focus-visible {
+  outline: none;
+}
+.ficsmap-crate:focus-visible .ficsmap-crate-box {
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
+}
+.leaflet-tooltip.ficsmap-crate-tip {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-fg);
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: 0;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.4);
+}
+.leaflet-tooltip.ficsmap-crate-tip::before {
+  display: none;
+}
+.ficsmap-crate-muted {
+  color: var(--color-muted);
+}
+.ficsmap-crate-items {
+  display: inline-block;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}

@@ -50,6 +50,14 @@ function snapshot(saveTime = 1_000, sessionName = 'Letz Fetz'): FactorySnapshot 
       { from: 'Build_SmelterMk1_C_2', to: 'Build_ConstructorMk1_C_1', kind: 'pipe', via: [], fluid: 'Desc_Water_C' },
     ],
     circuits: [{ id: 3, buildings: ['Build_ConstructorMk1_C_1', 'Build_SmelterMk1_C_2'], fuseTriggered: true }],
+    // players, spawners and stats (added to format 1 later) must survive the schema
+    players: [{ id: 'BP_PlayerState_C_1', name: 'Reinsch', pos: [1, 2, 3] }, { id: 'BP_PlayerState_C_2' }],
+    spawners: [['BP_CreatureSpawner412', 3, 1]],
+    stats: {
+      consumed: [['Desc_Nut_C', 212]], killed: [['Char_Hog_C', 94]], produced: [],
+      crafted: [['BP_PlayerState_C_1', 'Desc_IronPlate_C', 200]], pickedUp: [['BP_PlayerState_C_2', 'Desc_Leaves_C', 5]],
+      built: [{ cls: 'Build_ConstructorMk1_C', total: 10, dismantled: 1, current: 9, max: 10, by: [['BP_PlayerState_C_1', 7, 0]] }],
+    },
   };
 }
 
@@ -86,7 +94,7 @@ describe('factory snapshots api', () => {
     const summary = res.json();
     expect(summary).toMatchObject({
       saveTime: 1_000, sessionName: 'Letz Fetz', importedAt: 5_000, importedBy: 'user-owner-1',
-      buildings: 7, machines: 5, idle: 1,
+      buildings: 7, machines: 5, idle: 1, deathCrates: [['BP_Crate_C_11', 1, 2, 3]],
     });
     expect(summary.avgProductivity).toBeCloseTo(0.5);
     expect(summary.bytes).toBeGreaterThan(0);

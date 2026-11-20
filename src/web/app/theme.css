@@ -92,6 +92,21 @@
   /* Foundations, ramps and walls (the floor plan), their edges. */
   --color-fac-floor: #3A3D42;
   --color-fac-floor-edge: #50545B;
+  /* A splitter's outputs, in its popup and on the map: one hue per side. */
+  --color-out-left: #4DA3FF;
+  --color-out-center: #F5D547;
+  --color-out-right: #F062C0;
+  --color-out-top: #3DDC84;
+  /* Creature families on the map (creatures layer): marker frame and diamond. Away from the collectibles' hues; the shape tells them apart first. */
+  --color-cr-hog: #E8A25A;
+  --color-cr-spitter: #6FD66F;
+  --color-cr-stinger: #FF6FAE;
+  --color-cr-hatcher: #FF7A7A;
+  --color-cr-wildlife: #A9B4C2;
+  /* The plate behind a creature's picture: light, so the game's dark creature pictures stay visible. */
+  --color-cr-disc: #D9D5CD;
+  /* Players on the map. */
+  --color-player: #FFFFFF;
   /* Belts (light, wider and brighter per tier), pipes, roads. */
   --color-fac-belt: #D8D4CC;
   --color-fac-pipe: #7CC4E8;

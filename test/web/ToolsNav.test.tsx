@@ -94,7 +94,7 @@ describe('ToolsNav', () => {
       expect(heights).toHaveAttribute('aria-pressed', 'true');
       expect(useHeightsProbe.getState().visible).toBe(true);
       const nodes = within(layers).getByRole('button', { name: 'Caves' });
-      expect(nodes).toHaveAttribute('title', 'Show caves and their entrances (from the game data)');
+      expect(nodes).toHaveAttribute('title', 'Caves: Show caves and their entrances (from the game data)');
       await userEvent.click(nodes);
       expect(useNodes.getState().visible).toBe(true);
       // An action is a plain button.

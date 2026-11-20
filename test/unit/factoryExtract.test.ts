@@ -218,6 +218,23 @@ describe('other building fields', () => {
     expect(s.buildings[2]!.height).toBe(-550);
     expect(s.buildings[3]).toMatchObject({ texts: ['Iron'], swatch: 3 });
   });
+
+  it('reads smart and programmable splitter sort rules; keeps an empty list; plain splitters have none', () => {
+    const rule = (item: string, index: number) => ({
+      type: 'SplitterSortRule',
+      properties: { ItemClass: cref(`/Game/FactoryGame/Resource/FilteringRules/${item.replace(/_C$/, '')}.${item}`), OutputIndex: { value: index } },
+    });
+    const s = extractFactory(save([
+      obj('Buildable/Factory', 'Build_ConveyorAttachmentSplitterSmart_C', 1, { properties: {
+        mSortRules: { values: [rule('Desc_Gunpowder_C', 0), rule('Desc_AnyUndefined_C', 2), rule('Desc_None_C', 1), { properties: {} }] },
+      } }),
+      obj('Buildable/Factory', 'Build_ConveyorAttachmentSplitterProgrammable_C', 1, { properties: { mSortRules: { values: [] } } }),
+      obj('Buildable/Factory', 'Build_ConveyorAttachmentSplitter_C', 1, { properties: { mCurrentOutputIndex: { value: 1 } } }),
+    ]));
+    expect(s.buildings[0]!.sort).toEqual([['Desc_Gunpowder_C', 0], ['Desc_AnyUndefined_C', 2], ['Desc_None_C', 1]]);
+    expect(s.buildings[1]!.sort).toEqual([]);
+    expect(s.buildings[2]!.sort).toBeUndefined();
+  });
 });
 
 describe('lightweight buildables', () => {
