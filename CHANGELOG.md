@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependencies: minor and patch updates (among others Fastify plugins, TanStack Query, better-sqlite3, i18next, zustand, Vite 8.4, Tailwind CSS 4.3.5, vitest 5.1.2) and the GitHub Actions CodeQL 4.39.3 and docker/login-action 4.8.0 (replaces Dependabot PRs #21 and #17).
 - Dependencies: jsdom 29 → 31 for the web tests (development dependency only; replaces Dependabot PR #19).
 - Dependencies: TypeScript 5.9 → 7.0, the native compiler (development dependency only; replaces Dependabot PR #8). Type checking is several times faster; the server build is byte for byte the same.
+- Dependencies: react-router 7 → 8 (replaces Dependabot PR #9); the router provider now comes from `react-router/dom`.
 
 ## [0.2.4] - 2026-11-21
 

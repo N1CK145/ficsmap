@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
-import { RouterProvider } from 'react-router';
+import { RouterProvider } from 'react-router/dom';
 import { ApiClientError } from './app/api.js';
 import { FeaturesProvider } from './app/FeaturesContext.js';
 import { ToastProvider } from './components/Toast.js';
