@@ -9,6 +9,10 @@ const target = 'http://localhost:3000';
 
 /** The chunk of a module in the production build; `null` leaves it in the entry chunk (app shell, components, shared). */
 function chunkName(id: string): string | null {
+  // The 3D cave view and three.js load only when a cave is opened in 3D (a dynamic import), so they get chunks of
+  // their own instead of joining the feature's and the libraries' chunks the map loads at start.
+  if (/[\\/]node_modules[\\/]three[\\/]build[\\/]/.test(id)) return 'three';
+  if (/[\\/]node_modules[\\/]three[\\/]/.test(id) || /[\\/]features[\\/]caves[\\/]CaveViewer3d\.tsx$/.test(id)) return 'cave-viewer';
   if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router)[\\/]/.test(id)) return 'react';
   if (/[\\/]node_modules[\\/](leaflet|react-leaflet|@react-leaflet[\\/][^\\/]+)[\\/]/.test(id)) return 'leaflet';
   if (/[\\/]node_modules[\\/]/.test(id)) return 'vendor';
@@ -24,6 +28,9 @@ export default defineConfig({
   build: {
     outDir: '../../dist/web',
     emptyOutDir: true,
+    // three.js alone is about 570 kB and cannot be split further; it loads only with the 3D cave view. Every chunk the
+    // map loads at start stays far below this.
+    chunkSizeWarningLimit: 600,
     rolldownOptions: {
       output: {
         // One chunk per library family and per feature instead of one 1.5 MB bundle: the map needs nearly all of it
