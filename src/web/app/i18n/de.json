@@ -1859,6 +1859,14 @@
       "hatcher": "Krabbenbrüter",
       "wildlife": "Wildtiere"
     },
+    "biomes": {
+      "title": "Wo noch Kreaturen leben",
+      "summary": "{count, plural, =0 {alle Biome geräumt} one {# Biom nicht geräumt} other {# Biome nicht geräumt}}",
+      "count": "{open} von {total}",
+      "cleared": "geräumt",
+      "outside": "Außerhalb der Biome",
+      "hint": "Spawnpunkte der angezeigten Arten, deren Kreaturen gerade nicht tot sind, von allen, laut dem Spielstand der Zeitleiste. Ein Klick zeigt das Biom auf der Karte."
+    },
     "legend": "Ab Zoom 5 das Bild der Kreatur, darunter eine Raute. Gefüllt: schon getötet, hohl: nie getötet, rot durchgestrichen: gerade tot. Zahl am Bild: so oft getötet.",
     "source": "{kills, number} Kills an {spawners, number} Spawnpunkten · Spielstand vom {date}",
     "noKillData": "Kein Kill-Status: Der Spielstand wurde importiert, bevor ficsmap ihn gelesen hat.",

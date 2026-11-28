@@ -78,3 +78,25 @@ export function buildCreatures(raw: unknown, version: string): CreaturesFile {
   }
   return { version, spawners: spawners.sort((a, b) => a[0].localeCompare(b[0])) };
 }
+
+/** One biome in the overview of where creatures still live: spawners not dead right now (`open`) of all (`total`). */
+export interface BiomeCreatures { biome: number; open: number; total: number }
+
+/**
+ * Per biome (`biomeOf`, -1 outside every biome), how many of `spawners` still have living creatures: every spawner not
+ * `dead` right now (`killState`; back again or never killed), of all. Most open first, then by biome; biomes without a
+ * spawner are left out, cleared ones (0 open) stay.
+ */
+export function creaturesByBiome(
+  spawners: readonly CreatureSpawner[], kills: ReadonlyMap<string, SpawnerKills>, biomeOf: (x: number, y: number) => number,
+): BiomeCreatures[] {
+  const by = new Map<number, BiomeCreatures>();
+  for (const s of spawners) {
+    const biome = biomeOf(s.x, s.y);
+    let row = by.get(biome);
+    if (!row) by.set(biome, (row = { biome, open: 0, total: 0 }));
+    row.total++;
+    if (killState(kills.get(s.name)) !== 'dead') row.open++;
+  }
+  return [...by.values()].sort((a, b) => b.open - a.open || (a.biome < 0 ? 1 : b.biome < 0 ? -1 : a.biome - b.biome));
+}

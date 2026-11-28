@@ -1859,6 +1859,14 @@
       "hatcher": "Crab hatchers",
       "wildlife": "Wildlife"
     },
+    "biomes": {
+      "title": "Where creatures still live",
+      "summary": "{count, plural, =0 {every biome cleared} one {# biome not cleared} other {# biomes not cleared}}",
+      "count": "{open} of {total}",
+      "cleared": "cleared",
+      "outside": "Outside the biomes",
+      "hint": "Spawn points of the kinds shown whose creatures are not dead right now, of all, from the save the timeline shows. A click shows the biome on the map."
+    },
     "legend": "From zoom 5 the creature’s picture, below that a diamond. Filled: killed before, hollow: never killed, struck out in red: dead right now. Number on the picture: times killed.",
     "source": "{kills, number} kills at {spawners, number} spawn points · save of {date}",
     "noKillData": "No kill state: the save was imported before ficsmap read it.",

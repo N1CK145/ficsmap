@@ -55,3 +55,23 @@ export function assignBiome(x: number, y: number, biomes: BiomeShape[], snapUnit
   }
   return bestD <= snapUnits ? best : -1;
 }
+
+/** `biomes.geojson` of a dataset: one feature per biome (or several), `idx` as in `Dataset.biomes`, world coordinates. */
+export interface BiomeCollection {
+  features: { properties?: { idx?: number } | null; geometry?: { type: string; coordinates: unknown } | null }[];
+}
+
+/**
+ * Which biome a point lies in, by the dataset's `biomes.geojson`: the `idx` of the biome containing it, else of the
+ * nearest one within `snapUnits` (as the dataset build assigns items), else -1.
+ */
+export function biomeLocator(fc: BiomeCollection, snapUnits: number): (x: number, y: number) => number {
+  const shapes: BiomeShape[] = [];
+  for (const f of fc.features) {
+    const idx = f.properties?.idx;
+    if (typeof idx !== 'number' || !Number.isInteger(idx) || idx < 0) continue;
+    while (shapes.length <= idx) shapes.push({ id: '', name: '', rings: [] });
+    for (const poly of polygonsOf(f.geometry ?? null)) shapes[idx]!.rings.push(...poly);
+  }
+  return (x, y) => assignBiome(x, y, shapes, snapUnits);
+}

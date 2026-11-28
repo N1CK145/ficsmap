@@ -23,13 +23,19 @@ export type BiomeShapes = FeatureCollection<Polygon, BiomeProps>;
  */
 export function useBiomeShapes(version: string): BiomeShapes | undefined {
   const index = useDataset(version);
-  const raw = useQuery({
+  const raw = useBiomeCollection(version);
+  const bounds = index?.ds.bounds;
+  return useMemo(() => (raw && bounds ? toImageSpace(raw, bounds) : undefined), [raw, bounds]);
+}
+
+/** The biome polygons as the dataset has them (`/data/<v>/biomes.geojson`, world coordinates); undefined while loading or not `enabled`. */
+export function useBiomeCollection(version: string, enabled = true): BiomeShapes | undefined {
+  return useQuery({
     queryKey: queryKeys.biomes(version),
+    enabled,
     queryFn: () => api<FeatureCollection<Polygon, BiomeProps>>('GET', `/data/${encodeURIComponent(version)}/biomes.geojson`),
     staleTime: Infinity,
   }).data;
-  const bounds = index?.ds.bounds;
-  return useMemo(() => (raw && bounds ? toImageSpace(raw, bounds) : undefined), [raw, bounds]);
 }
 
 function toImageSpace(raw: BiomeShapes, bounds: Dataset['bounds']): BiomeShapes {

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { CREATURE_FAMILIES, killSummary, type CreatureFamily } from '../../../shared/creatures.js';
 import { useMe } from '../worlds/queries.js';
 import { useFactoryFormat } from '../factory/format.js';
+import { CreatureBiomes } from './CreatureBiomes.js';
 import { filterSpawners, KILL_FILTERS, useCreatureData, useCreatureLayer } from './useCreatures.js';
 
 const ROW = 'flex h-8 w-full items-center gap-2 chamfer px-2 text-left text-sm select-none focus-ring hover:bg-raised max-[899px]:h-11';
@@ -13,7 +14,8 @@ export const FAMILY_SWATCH: Record<CreatureFamily, string> = {
 /**
  * The Creatures panel: the layer switch, the filter by kill state (all, dead right now, back again, never killed; the
  * three states add up to all) and by family, each with its count, the save's kill figures (`killSummary`, the same as
- * on the Statistik page) and the legend of the map's shapes.
+ * on the Statistik page), the legend of the map's shapes and, folded, where creatures still live per biome
+ * (`CreatureBiomes`).
  */
 export function CreaturesPanel({ worldId }: { worldId: string }) {
   const { t } = useTranslation();
@@ -82,6 +84,8 @@ export function CreaturesPanel({ worldId }: { worldId: string }) {
         </ul>
         <p className="mt-1 text-xs text-muted">{t('creatures.legend')}</p>
       </div>
+
+      {version !== undefined && <CreatureBiomes version={version} data={data} hidden={hidden} />}
     </div>
   );
 }
