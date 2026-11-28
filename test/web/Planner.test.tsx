@@ -81,7 +81,7 @@ describe('production planner', () => {
     initI18n(['en']);
     localStorage.clear();
     // The step tests below use the list view; the diagram has its own tests.
-    usePlanner.setState({ targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'list' });
+    usePlanner.setState({ targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'list', mode: 'rate', nodes: [] });
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -464,6 +464,54 @@ describe('production planner', () => {
     expect(usePlanner.getState().targets.map(t => t.item)).toEqual(['ingot']);
   });
 
+  it('computes the most the available nodes allow, with the bottleneck, and remembers the nodes', async () => {
+    setup();
+    await openAndPick('plate');
+    await userEvent.click(screen.getByRole('radio', { name: 'Available nodes' }));
+    const needs = screen.getByRole('region', { name: 'What do you need?' });
+    const nodes = within(needs).getByRole('region', { name: 'Available resource nodes' });
+    // A first empty row is there; without nodes nothing can be made.
+    const max = () => screen.getByRole('region', { name: 'Maximum output' });
+    expect(within(max()).getByRole('alert')).toHaveTextContent('No nodes entered for ore');
+    await userEvent.selectOptions(within(nodes).getByLabelText('Resource'), 'ore');
+    // The extractor follows the miner setting; 2 normal nodes with a Mk.1 give 120 ore, enough for 80 plate.
+    expect(within(nodes).getByLabelText('Extractor')).toHaveDisplayValue('Miner Mk.1');
+    const count = within(nodes).getByRole('spinbutton', { name: 'Nodes' });
+    await userEvent.clear(count);
+    await userEvent.type(count, '2');
+    expect(within(nodes).getByText('Gives 120/min')).toBeInTheDocument();
+    expect(rows(max())[0]).toEqual(['plate', '80/min']);
+    expect(max()).toHaveTextContent('Bottleneck: ore');
+    expect(rows(max())[1]).toEqual(['oreBottleneck, fully used', '120 of 120/min']);
+    // The steps show the plan at that rate.
+    expect(within(stepOf('plate').cells[1]!).getByText('80/min')).toBeInTheDocument();
+
+    // Purity and miner tier count; so does the recipe.
+    await userEvent.selectOptions(within(nodes).getByLabelText('Purity'), 'pure');
+    await userEvent.selectOptions(within(nodes).getByLabelText('Extractor'), 'Miner Mk.2');
+    expect(within(nodes).getByText('Gives 480/min')).toBeInTheDocument();
+    expect(rows(max())[0]).toEqual(['plate', '320/min']);
+    usePlanner.getState().setChoice('plate', { kind: 'recipe', recipe: 'R_PlateAlt' });
+    expect(await within(max()).findByText('720/min')).toBeInTheDocument();
+
+    const stored = loadPlanner()!;
+    expect(stored.mode).toBe('nodes');
+    expect(stored.nodes.map(({ key: _, ...n }) => n)).toEqual([{ resource: 'ore', purity: 'pure', count: '2', extractor: 'mk2' }]);
+
+    // Back to the wanted rate: the nodes are not used, the plan makes what is asked for.
+    await userEvent.click(screen.getByRole('radio', { name: 'Wanted rate' }));
+    expect(screen.queryByRole('region', { name: 'Maximum output' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Available resource nodes' })).toBeNull();
+    expect(within(stepOf('plate').cells[1]!).getByText('60/min')).toBeInTheDocument();
+  });
+
+  it('says when the nodes do not limit the plan', async () => {
+    setup();
+    await openAndPick('water');
+    await userEvent.click(screen.getByRole('radio', { name: 'Available nodes' }));
+    expect(screen.getByRole('region', { name: 'Maximum output' })).toHaveTextContent(/needs no resource from nodes/);
+  });
+
   it('shows names and labels in German, with the game\'s terms', async () => {
     initI18n(['de']);
     setup();
@@ -526,7 +574,7 @@ describe('production planner diagram', () => {
   beforeEach(() => {
     initI18n(['en']);
     localStorage.clear();
-    usePlanner.setState({ targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'diagram' });
+    usePlanner.setState({ targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'diagram', mode: 'rate', nodes: [] });
   });
   afterEach(() => vi.unstubAllGlobals());
 

@@ -867,6 +867,31 @@
       "all": "Alle Gegenstände",
       "noMatch": "Kein passendes Alternativrezept",
       "recipeFor": "Rezept für {item}"
+    },
+    "mode": {
+      "label": "Berechnen nach",
+      "rate": "Zielmenge",
+      "nodes": "Verfügbare Vorkommen"
+    },
+    "nodes": {
+      "title": "Verfügbare Rohstoffvorkommen",
+      "hint": "Die Vorkommen, die du nutzen kannst, nach Rohstoff, Reinheit und Extraktor; bei der Taktrate der Extraktoren unten. Wasserextraktoren und Zulieferung von außen sind nicht begrenzt.",
+      "add": "+ Vorkommen hinzufügen",
+      "groupN": "Vorkommen {n}",
+      "resource": "Rohstoff",
+      "pickResource": "Rohstoff wählen…",
+      "count": "Anzahl",
+      "extractor": "Extraktor",
+      "gives": "Ergibt {value}",
+      "ratioHint": "Bei mehreren Gegenständen zählt nur das Verhältnis ihrer Mengen: Der Planer stellt so viel her, wie die Vorkommen in diesem Verhältnis erlauben.",
+      "maxTitle": "Maximale Ausbringung",
+      "unbounded": "Dieser Plan braucht keinen Rohstoff aus Vorkommen (nur Wasser aus Wasserextraktoren oder Zulieferung von außen), die Vorkommen begrenzen ihn also nicht.",
+      "missing": "Für {items} sind keine Vorkommen eingetragen, daher lässt sich nichts herstellen. Trage sie unter „Verfügbare Rohstoffvorkommen“ ein.",
+      "bottleneck": "{count, plural, one {Engpass} other {Engpässe}}: {items}",
+      "usage": "Genutzte Rohstoffvorkommen",
+      "limiting": "Engpass, voll genutzt",
+      "share": "{value} % genutzt",
+      "usedOf": "{used} von {available}"
     }
   },
   "vehicleCalc": {

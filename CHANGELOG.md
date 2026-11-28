@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Planner: "Alternate recipes" ("Alternativrezepte") under "What do you need?", folded away under how many are chosen: every alternate recipe in the game data by the item it makes, the items of the current plan first, each with the recipe picker of the step panel ("Made by"), and a filter by item or recipe name in English or German. A choice applies wherever the item is in the plan, also for items that are not in it yet, and is remembered on the device.
+- Planner: "Calculate from: Wanted rate | Available nodes" ("Berechnen nach: Zielmenge | Verfügbare Vorkommen"). With available nodes you enter groups of resource nodes (resource, purity, how many, extractor such as Miner Mk.1–3, Oil Extractor or Resource Well Extractor; at the extractor clock speed) and the planner shows the most the wanted items can be made at with the chosen recipes ("Maximum output"), the bottleneck resource, and how much of each node resource that uses ("120 of 240/min"). The steps and totals show the plan at that maximum. With several items their rates are the ratio. Water extractors and items supplied from outside are not limited. The mode and the nodes are remembered on the device.
 
 ## [0.2.4] - 2026-11-21
 

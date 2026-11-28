@@ -2,7 +2,8 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type R
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { descriptorClass } from '../../../shared/machines.js';
-import { clockLimits, MAX_SHARDS, plan, PURITY_FACTOR, type ClockLimits, type PlanResult, type PlanStep, type Purity, type StepSettings } from '../../../shared/planner.js';
+import { clockLimits, MAX_SHARDS, plan, PURITY_FACTOR, type ClockLimits, type PlanInput, type PlanResult, type PlanStep, type Purity, type StepSettings } from '../../../shared/planner.js';
+import { maxOutput, nodeSupply } from '../../../shared/plannerNodes.js';
 import { miners as minersOf, type RecipeIndex } from '../../../shared/recipes.js';
 import { worldPath } from '../../app/pages.js';
 import { useUiStore } from '../../app/store.js';
@@ -20,6 +21,7 @@ import { GameIcon, IconsContext, useItemIcons } from '../machineWiki/icons.js';
 import { prefersReducedMotion } from '../map/motion.js';
 import { useNodeLayer, useResourceNodeFile } from '../resourceNodes/useResourceNodes.js';
 import { AlternateRecipes } from './AlternateRecipes.js';
+import { MaxOutputView, NodeInputs, nodeGroups } from './NodeInputs.js';
 import { powerValue, usePurityOptions } from './controls.js';
 import { DirectionSwitch, useDiagramDirection } from './direction.js';
 import { formatNumber, formatRate, itemName, langOf, type Lang } from './format.js';
@@ -27,7 +29,7 @@ import { ItemPicker } from './ItemPicker.js';
 import { PlanDiagram } from './PlanDiagram.js';
 import { StepList } from './StepList.js';
 import { StepPanel } from './StepPanel.js';
-import { parseNumber, usePlanner, usePlannerView, type PlannerView } from './usePlanner.js';
+import { parseNumber, usePlanner, usePlannerView, type PlannerMode, type PlannerView } from './usePlanner.js';
 import { useRecipes } from './useRecipes.js';
 
 /** What the empty planner offers to try: a small chain the dataset has (left out when it does not). */
@@ -70,11 +72,14 @@ function PlannerBody({ index, lang, toast, ...world }: { index: RecipeIndex; lan
   const choices = usePlanner(s => s.choices);
   const settings = usePlanner(s => s.settings);
   const stepInputs = usePlanner(s => s.steps);
+  const mode = usePlanner(s => s.mode);
+  const nodes = usePlanner(s => s.nodes);
   const miners = useMemo(() => minersOf(index), [index]);
   const limits = useMemo(() => clockLimits(index.data.clock), [index]);
   const minerId = miners.some(m => m.id === settings.miner) ? settings.miner! : miners[0]?.id ?? '';
 
-  const result = useMemo<PlanResult | null>(() => {
+  const clock = parseNumber(settings.clock) / 100;
+  const input = useMemo<PlanInput | null>(() => {
     const wanted = targets.flatMap(tg => (tg.item ? [{ item: tg.item, rate: parseNumber(tg.rate) }] : []));
     if (wanted.length === 0) return null;
     const steps: Record<string, StepSettings> = {};
@@ -84,11 +89,20 @@ function PlannerBody({ index, lang, toast, ...world }: { index: RecipeIndex; lan
         ...(st.purity ? { purity: st.purity } : {}),
       };
     }
-    return plan(index, {
-      targets: wanted, choices, steps,
-      settings: { miner: minerId, clock: parseNumber(settings.clock) / 100, purity: settings.purity },
-    });
-  }, [index, targets, choices, stepInputs, settings, minerId]);
+    return { targets: wanted, choices, steps, settings: { miner: minerId, clock, purity: settings.purity } };
+  }, [targets, choices, stepInputs, settings.purity, clock, minerId]);
+  // In the nodes mode the plan is the one at the most the nodes allow.
+  const max = useMemo(
+    () => (input && mode === 'nodes' ? maxOutput(index, input, nodeSupply(index, nodeGroups(index, nodes, minerId), clock)) : null),
+    [index, input, mode, nodes, minerId, clock],
+  );
+  const result = useMemo<PlanResult | null>(() => {
+    if (!input) return null;
+    if (mode !== 'nodes') return plan(index, input);
+    if (!max) return null;
+    if (max.ok) return max.plan ?? null;
+    return max.error === 'unbounded' ? null : max;
+  }, [index, input, mode, max]);
   // A setting that breaks the plan (a clock speed out of range, a loop that cannot work) keeps the last working
   // plan on screen, so the step editor with the field to correct stays reachable.
   const lastOk = useRef<Extract<PlanResult, { ok: true }> | null>(null);
@@ -104,12 +118,13 @@ function PlannerBody({ index, lang, toast, ...world }: { index: RecipeIndex; lan
       <div className="grid gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start 2xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
         <Targets
           index={index} lang={lang} minerId={minerId} miners={miners.map(m => ({ value: m.id, label: m.name[lang] }))} limits={limits} toast={toast}
-          planItems={shown?.steps.map(st => st.item) ?? []}
+          planItems={shown?.steps.map(st => st.item) ?? []} clock={clock}
         />
         <div className="flex min-w-0 flex-col gap-3">
           {failed && <PlanError result={failed} index={index} lang={lang} limits={limits} />}
           {stale && <p className="text-sm text-muted">{t('planner.lastWorking')}</p>}
-          {shown ? <Totals result={shown} index={index} lang={lang} defaultPurity={settings.purity} {...world} /> : !failed && <EmptyResult index={index} lang={lang} />}
+          {max && <MaxOutputView max={max} index={index} lang={lang} />}
+          {shown ? <Totals result={shown} index={index} lang={lang} defaultPurity={settings.purity} {...world} /> : !failed && !max && <EmptyResult index={index} lang={lang} />}
         </div>
       </div>
       {shown && <Steps steps={shown.steps} index={index} lang={lang} minerId={minerId} defaultPurity={settings.purity} limits={limits} />}
@@ -224,12 +239,20 @@ function StepEditor({ id, item, name, onClose, children }: { id: string; item: s
  * entered, "Start over" in the title bar clears the plan; its toast takes the focus to its Undo (so the keyboard and
  * screen readers reach it), and Undo puts the plan back and the focus on the first item.
  */
-function Targets({ index, lang, minerId, miners, limits, toast, planItems }: {
+function Targets({ index, lang, minerId, miners, limits, toast, planItems, clock }: {
   index: RecipeIndex; lang: Lang; minerId: string; miners: { value: string; label: string }[]; limits: ClockLimits; toast: ToastApi;
   /** The items of the plan on screen, listed first among the alternate recipes. */
   planItems: readonly string[];
+  /** The extractor clock speed in effect (1 = 100 %), for what the available nodes give. */
+  clock: number;
 }) {
   const { t } = useTranslation();
+  const mode = usePlanner(s => s.mode);
+  const setMode = usePlanner(s => s.setMode);
+  const modes: { value: PlannerMode; label: string }[] = [
+    { value: 'rate', label: t('planner.mode.rate') },
+    { value: 'nodes', label: t('planner.mode.nodes') },
+  ];
   const targets = usePlanner(s => s.targets);
   const setTarget = usePlanner(s => s.setTarget);
   const addTarget = usePlanner(s => s.addTarget);
@@ -256,6 +279,10 @@ function Targets({ index, lang, minerId, miners, limits, toast, planItems }: {
   const startOverButton = removable && <Button size="sm" variant="ghost" onClick={startOver}>{t('planner.reset')}</Button>;
   return (
     <Window level={3} title={t('planner.needs')} actions={startOverButton || undefined} bodyClassName="flex flex-col gap-3 p-3">
+      <div className="flex flex-col items-start gap-1">
+        <span className={FIELD_LABEL}>{t('planner.mode.label')}</span>
+        <SegmentedControl label={t('planner.mode.label')} options={modes} value={mode} onChange={setMode} />
+      </div>
       <ul ref={list} className="flex flex-col gap-2">
         {targets.map((tg, i) => {
           const name = tg.item ? itemName(index, tg.item, lang) : t('planner.itemN', { n: i + 1 });
@@ -285,6 +312,8 @@ function Targets({ index, lang, minerId, miners, limits, toast, planItems }: {
         })}
       </ul>
       <Button size="sm" onClick={addTarget} className="self-start">{t('planner.add')}</Button>
+      {mode === 'nodes' && targets.filter(tg => tg.item).length > 1 && <p className="text-xs text-muted">{t('planner.nodes.ratioHint')}</p>}
+      {mode === 'nodes' && <NodeInputs index={index} lang={lang} minerId={minerId} clock={clock} />}
       <ExtractorSettings minerId={minerId} miners={miners} limits={limits} />
       <AlternateRecipes index={index} lang={lang} minerId={minerId} planItems={planItems} className="-mx-3 -mb-3 border-t border-line" />
     </Window>
