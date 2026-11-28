@@ -5,21 +5,6 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-- Dataset part `cave-models` (`npm run dataset -- --only cave-models`): a small GLB per cave in `cave-models/` for the 3D view, made from the extractor's cave geometry (simplified to at most 0.3 m off the game's surfaces, quantized and meshopt-compressed; 73 caves, 31 MB instead of 389 MB, the largest 1.8 MB).
-- Caves: a click on a cave on the cave layer shows its number, collectibles and entrances. "3D-Ansicht" there (or "Höhle in 3D zeigen" in the item panel of a collectible in a cave) opens the cave as a 3D model: drag to turn, pinch or scroll to zoom, cut it from above, switch the landscape on or off; entrances and collectibles show as dots through the rock. Works on phones; three.js loads only when a cave is opened.
-- Cave layer: outlines and entrances from the hand-drawn cave layer of satisfactory-calculator.com (maintainer data `caves/scim-caves.json`, `--cave-outlines`): 106 caves instead of 73 coarse ones (caves that were merged are now separate; two caves only the game geometry has stay), 155 entrances at the height of the game's floor. Each cave names the 3D model it lies in; the map shows the caves' own numbers. Items deep underground inside an outline count as in a cave (156 instead of 148). Needs new `caves` and `collectibles` dataset parts.
-
-### Changed
-
-- Route planner: stops in a cave are reached through the cave's entrance that makes the way shortest (with cave data in the dataset): distances, the optimised order and re-planning use these legs, stops of one cave stay together without a detour outside, the route line on the map bends at the entrance, and the stop list names the cave and the entrance ("Höhle 32 · Eingang 2"). From the entrance to the stop the leg is a straight line. Without cave data the planner measures straight lines as before.
-- Crash sites: threats, notes and location hints show in German in the German UI (dataset `crash-sites.json`: `threats[].de`, `notesDe`, `items[].whereDe`; older datasets stay English). Creatures among the threats carry the game's own names; German threat and item names are found in the search. Needs the updated maintainer data and a new `crash-sites` dataset part.
-
-- Dataset pipeline: the extractor patch writes the game's string tables in English and German (`--string-tables-out`), and `scripts/creature-names.ts` writes the creature names of the map from them (`--check` compares only), so they can be regenerated after a game update.
-
 ## [0.3.0] - 2026-11-28
 
 ### Added
@@ -41,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Light theme: the profile page ("Darstellung") switches between dark (default), light and like the system; saved to the account and applied before the page paints. The map stays dark in both.
 - Map: collectibles inside a cave carry a cave badge (bottom left of the marker, in the cave layer's colour, from zoom 2); the list view says "In einer Höhle" under the item.
 - Map: single creature spawners can be reached by keyboard. Tab visits every spawner in view (row by row, left to right), focus shows its box, Enter pins it, Escape lets go.
+- Dataset part `cave-models` (`npm run dataset -- --only cave-models`): a small GLB per cave in `cave-models/` for the 3D view, made from the extractor's cave geometry (simplified to at most 0.3 m off the game's surfaces, quantized and meshopt-compressed; 73 caves, 31 MB instead of 389 MB, the largest 1.8 MB).
+- Caves: a click on a cave on the cave layer shows its number, collectibles and entrances. "3D-Ansicht" there (or "Höhle in 3D zeigen" in the item panel of a collectible in a cave) opens the cave as a 3D model: drag to turn, pinch or scroll to zoom, cut it from above, switch the landscape on or off; entrances and collectibles show as dots through the rock. Works on phones; three.js loads only when a cave is opened.
+- Cave layer: outlines and entrances from the hand-drawn cave layer of satisfactory-calculator.com (maintainer data `caves/scim-caves.json`, `--cave-outlines`): 106 caves instead of 73 coarse ones (caves that were merged are now separate; two caves only the game geometry has stay), 155 entrances at the height of the game's floor. Each cave names the 3D model it lies in; the map shows the caves' own numbers. Items deep underground inside an outline count as in a cave (156 instead of 148). Needs new `caves` and `collectibles` dataset parts.
 
 ### Changed
 
@@ -56,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sidebar: starts at a fixed 360 px instead of following its content, so it no longer jumps while the panels load or fold. A dragged width is kept as before; double-click on the edge goes back to 360 px.
 - Map: while the creature layer filters by kill state ("Gerade tot", "Wieder da", "Nie getötet"), the collectible markers step back (40 %), so the spawners stand out; search matches and the selected item stay full.
 - The conflict and error colour is now a raspberry red, so it no longer looks like the red of impure resource nodes (also for red-green colour blindness).
+- Route planner: stops in a cave are reached through the cave's entrance that makes the way shortest (with cave data in the dataset): distances, the optimised order and re-planning use these legs, stops of one cave stay together without a detour outside, the route line on the map bends at the entrance, and the stop list names the cave and the entrance ("Höhle 32 · Eingang 2"). From the entrance to the stop the leg is a straight line. Without cave data the planner measures straight lines as before.
+- Crash sites: threats, notes and location hints show in German in the German UI (dataset `crash-sites.json`: `threats[].de`, `notesDe`, `items[].whereDe`; older datasets stay English). Creatures among the threats carry the game's own names; German threat and item names are found in the search. Needs the updated maintainer data and a new `crash-sites` dataset part.
+- Dataset pipeline: the extractor patch writes the game's string tables in English and German (`--string-tables-out`), and `scripts/creature-names.ts` writes the creature names of the map from them (`--check` compares only), so they can be regenerated after a game update.
 
 ### Fixed
 
