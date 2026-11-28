@@ -121,6 +121,20 @@ CREATE INDEX invites_expires ON invites(expires_at);
   `
 CREATE UNIQUE INDEX identities_user_provider ON identities(user_id, provider);
 `,
+  // 10: the activity feed of a world (src/server/domain/activity.ts): who did what when. `count` adds up repeated
+  // changes of one person (checks, imports, routes); `target_id` is the member a role change, removal or hand-over
+  // was about; `detail` a new name or role. At most ACTIVITY_KEEP rows per world.
+  `
+CREATE TABLE activity(id INTEGER PRIMARY KEY AUTOINCREMENT,
+      world_id TEXT NOT NULL REFERENCES worlds ON DELETE CASCADE,
+      user_id INT REFERENCES users ON DELETE SET NULL,
+      kind TEXT NOT NULL,
+      target_id INT REFERENCES users ON DELETE SET NULL,
+      detail TEXT,
+      count INT NOT NULL DEFAULT 1,
+      at INT NOT NULL);
+CREATE INDEX activity_world ON activity(world_id, id);
+`,
 ];
 
 export function migrate(db: Db): void {

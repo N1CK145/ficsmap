@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { Db } from '../db/db.js';
 import { isServerOwner, type ServerOwners } from './users.js';
 import { bumpRev } from './worlds.js';
+import { recordActivity } from './activity.js';
 
 /**
  * Invite links (`/invite/<token>`) carry a random one-time token. Only its SHA-256 is stored in `invites`; using the
@@ -70,6 +71,7 @@ export function acceptInvite(db: Db, userId: number, invite: Invite, now: number
   db.prepare("INSERT INTO world_members(world_id, user_id, joined_at, joined_via) VALUES (?, ?, ?, 'invite')")
     .run(worldId, userId, now);
   bumpRev(db, worldId);
+  recordActivity(db, worldId, { kind: 'join', userId }, now);
   return { kind: 'joined', worldId };
 }
 

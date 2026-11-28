@@ -4,6 +4,7 @@ import type { AppDeps } from '../app.js';
 import { makeWorldGuards } from '../auth/guards.js';
 import { HttpError } from '../errors.js';
 import { revokeUploadTokensBy } from '../domain/uploadTokens.js';
+import { recordActivity } from '../domain/activity.js';
 import { removeMember, roleOf, setMemberRole, transferOwnership } from '../domain/worlds.js';
 
 const USER_ID = /^[1-9][0-9]{0,15}$/;
@@ -47,6 +48,9 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     db.transaction(() => {
       removeMember(db, world.id, t.userId);
       revokeUploadTokensBy(db, world.id, t.userId, now());
+      recordActivity(db, world.id, t.userId === req.user!.id
+        ? { kind: 'leave', userId: t.userId }
+        : { kind: 'remove', userId: req.user!.id, targetId: t.userId }, now());
     })();
     deps.hub!.broadcast(world.id, { type: 'removed', userId: t.userId });
     deps.hub!.closeUser(world.id, t.userId);
@@ -65,6 +69,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
       db.transaction(() => {
         setMemberRole(db, world.id, t.userId, role);
         if (role === 'member') revokeUploadTokensBy(db, world.id, t.userId, now());
+        recordActivity(db, world.id, { kind: 'role', userId: req.user!.id, targetId: t.userId, detail: role }, now());
       })();
       deps.hub!.broadcast(world.id, { type: 'members' });
     }
@@ -75,7 +80,10 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     const world = req.world!;
     const { userId } = OwnerBody.parse(req.body);
     if (req.role !== 'owner') throw new HttpError(403, 'forbidden', 'Only the owner can hand over the world');
-    transferOwnership(db, world.id, userId);
+    db.transaction(() => {
+      transferOwnership(db, world.id, userId);
+      recordActivity(db, world.id, { kind: 'owner', userId: req.user!.id, targetId: userId }, now());
+    })();
     deps.hub!.broadcast(world.id, { type: 'members' });
     return reply.code(204).send();
   });

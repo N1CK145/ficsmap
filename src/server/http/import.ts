@@ -4,6 +4,7 @@ import type { AppDeps } from '../app.js';
 import type { ImportResultDto } from '../../shared/api.js';
 import { makeWorldGuards } from '../auth/guards.js';
 import { applyImport } from '../domain/importSave.js';
+import { recordActivity } from '../domain/activity.js';
 import { EXTRACTOR_KINDS, MAX_CLOCK, MAX_SHARDS, type ExtractorKind } from '../../shared/resourceNodes.js';
 
 const ActorName = z.string().regex(/^[A-Za-z0-9_]{1,128}$/);
@@ -51,6 +52,7 @@ export function registerImportRoutes(app: FastifyInstance, deps: AppDeps): void 
   }, async (req): Promise<ImportResultDto> => {
     const body = Body.parse(req.body);
     const out = applyImport(db, req.world!.id, body, dataset, req.user!.id, now());
+    recordActivity(db, req.world!.id, { kind: 'import', userId: req.user!.id }, now());
     hub!.broadcast(req.world!.id, { type: 'import', rev: out.rev });
     return out;
   });

@@ -4,6 +4,7 @@ import type { RouteDto } from '../../shared/api.js';
 import { makeWorldGuards } from '../auth/guards.js';
 import { HttpError } from '../errors.js';
 import { canAdmin } from '../../shared/roles.js';
+import { recordActivity } from '../domain/activity.js';
 import { createRoute, deleteRoute, getRoute, listRoutes, RouteInputSchema, updateRoute } from '../domain/routes.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,6 +38,7 @@ export function registerRouteRoutes(app: FastifyInstance, deps: AppDeps): void {
   app.post('/api/worlds/:id/routes', { preHandler: requireMember, config: limit }, async (req, reply): Promise<RouteDto> => {
     const input = RouteInputSchema.parse(req.body);
     const { route, rev } = createRoute(db, req.world!.id, input, req.user!.id, now());
+    recordActivity(db, req.world!.id, { kind: 'routes', userId: req.user!.id }, now());
     hub!.broadcast(req.world!.id, { type: 'routes', rev });
     return reply.code(201).send(route);
   });
@@ -44,12 +46,14 @@ export function registerRouteRoutes(app: FastifyInstance, deps: AppDeps): void {
   app.put('/api/worlds/:id/routes/:routeId', { preHandler: editable, config: limit }, async (req): Promise<RouteDto> => {
     const input = RouteInputSchema.parse(req.body);
     const { route, rev } = updateRoute(db, req.world!.id, (req.params as { routeId: string }).routeId, input, now());
+    recordActivity(db, req.world!.id, { kind: 'routes', userId: req.user!.id }, now());
     hub!.broadcast(req.world!.id, { type: 'routes', rev });
     return route;
   });
 
   app.delete('/api/worlds/:id/routes/:routeId', { preHandler: editable, config: limit }, async (req, reply) => {
     const { rev } = deleteRoute(db, req.world!.id, (req.params as { routeId: string }).routeId);
+    recordActivity(db, req.world!.id, { kind: 'routes', userId: req.user!.id }, now());
     hub!.broadcast(req.world!.id, { type: 'routes', rev });
     return reply.code(204).send();
   });

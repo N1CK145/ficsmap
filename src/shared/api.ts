@@ -36,6 +36,25 @@ export interface VersionDto {
   dataVersion?: string;
 }
 
+/**
+ * What an activity feed entry is about: checks changed (`count` of them), a save imported, factory snapshots added,
+ * routes changed, the world renamed (`detail`: the new name), a member joined, left or was removed (`target`), a role
+ * changed (`target`, `detail`: the new role) or the world was handed over (`target`: the new owner).
+ */
+export type ActivityKind = 'marks' | 'import' | 'snapshots' | 'routes' | 'rename' | 'join' | 'leave' | 'remove' | 'role' | 'owner';
+
+/** One entry of `GET /api/worlds/:id/activity`, newest first. A deleted account is null. */
+export interface ActivityDto {
+  id: number;
+  kind: ActivityKind;
+  by: { id: number; name: string } | null;
+  target: { id: number; name: string } | null;
+  detail: string | null;
+  /** How many changes the entry adds up (checks, imports, snapshots, route edits); 1 otherwise. */
+  count: number;
+  at: number;
+}
+
 /** A way to sign in (`identities.provider`). */
 export type LoginProvider = 'discord' | 'steam';
 export const LOGIN_PROVIDERS: readonly LoginProvider[] = ['discord', 'steam'];

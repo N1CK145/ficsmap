@@ -22,6 +22,7 @@ import { registerSnapshotRoutes } from './http/snapshots.js';
 import { registerSaveRoutes, SAVE_UPLOAD_ROUTE } from './http/saves.js';
 import { registerUploadTokenRoutes } from './http/uploadTokens.js';
 import { registerEventRoutes } from './http/events.js';
+import { registerActivityRoutes } from './http/activity.js';
 import { registerInviteRoutes } from './http/invites.js';
 import { registerSpa } from './http/spa.js';
 import { appVersion } from './version/appVersion.js';
@@ -140,6 +141,7 @@ export async function buildApp(input: AppDeps): Promise<FastifyInstance> {
   registerMeRoutes(app, deps);
   registerWorldRoutes(app, deps);
   registerMemberRoutes(app, deps);
+  registerActivityRoutes(app, deps);
   registerMarkRoutes(app, deps);
   registerImportRoutes(app, deps);
   registerResourceNodeRoutes(app, deps);
