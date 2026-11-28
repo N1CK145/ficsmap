@@ -15,8 +15,8 @@ interface CaveFeature {
 interface CaveGeojson { type: 'FeatureCollection'; features: CaveFeature[] }
 
 export type LatLngRing = [lat: number, lng: number][];
-/** An entrance in world coordinates (cm) and in map coordinates. */
-export interface CaveEntrancePoint { x: number; y: number; z: number; lat: number; lng: number }
+/** An entrance of a cave (its id) in world coordinates (cm) and in map coordinates. */
+export interface CaveEntrancePoint { cave: string; x: number; y: number; z: number; lat: number; lng: number }
 /** Per cave its outline rings as Leaflet rings (`[lat, lng]`, filled even-odd) and its id (same order), and all entrances. */
 export interface CaveShapes { caves: LatLngRing[][]; ids: string[]; entrances: CaveEntrancePoint[] }
 
@@ -53,7 +53,7 @@ export function toShapes(raw: CaveGeojson, bounds: WorldBounds): CaveShapes {
     } else if (f.properties.kind === 'entrance' && f.geometry.type === 'Point') {
       const [x, y] = f.geometry.coordinates as [number, number];
       const [lat, lng] = worldToLatLng(x, y, bounds);
-      entrances.push({ x, y, z: f.properties.z, lat, lng });
+      entrances.push({ cave: f.properties.cave, x, y, z: f.properties.z, lat, lng });
     }
   }
   return { caves, ids, entrances };

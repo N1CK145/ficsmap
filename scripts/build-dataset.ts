@@ -7,6 +7,7 @@ import { assignBiome, loadEditorBiomes, type BiomeShape } from '../src/shared/bi
 import { cavesToGeojson, type RawCaves } from '../src/shared/caves.js';
 import { buildCreatures } from '../src/shared/creatures.js';
 import { applyEntranceOverrides, cavesWithoutEntrance, entranceCapProblem, readEntranceOverrides, sampleCaves } from './cave-geometry.js';
+import { caveModelSummary, writeCaveModels } from './cave-models.js';
 import { readHeightGrid, writeHeightTiles } from './heightmap.js';
 import { AREA_SNAP, biomesFromAreas, landTest, readMapAreas } from './map-areas.js';
 import { readDocsFile } from './game-docs.js';
@@ -318,6 +319,7 @@ export const DATASET_PARTS = {
   'crash-sites': 'crash-sites.json (maintainer data)',
   biomes: 'biomes.geojson',
   caves: 'caves.geojson',
+  'cave-models': 'cave-models/ (a small GLB per cave for the 3D cave viewer, from the cave geometry)',
   heights: 'height/ (height map tiles)',
   map: 'map.json, tiles/, icons/',
   nodes: 'resource-nodes.json',
@@ -350,7 +352,7 @@ export function missingParts(parts: ReadonlySet<DatasetPart>, inputs: Record<Dat
 const USAGE = 'usage: npm run dataset -- --extractor <dir> --out <dir> [--only <part,...>] [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--cave-entrances <file>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--default-world <default-world.json>] [--docs <dir>] [--transport <file>] [--icons <dir>] [--buildings-raw <file>] [--snap-m 100] [--build N]'
   + `\nparts: ${Object.keys(DATASET_PARTS).join(', ')} (default: all)`;
 
-function main(): void {
+async function main(): Promise<void> {
   const { values: v } = parseArgs({
     options: {
       extractor: { type: 'string' },
@@ -422,6 +424,7 @@ function main(): void {
     'crash-sites': { ok: existsSync(crashSitesPath), what: `${crashSitesPath} (--crash-sites or --data-src)` },
     biomes: { ok: true, what: '' },
     caves: { ok: hasCaves, what: `${cavesPath} and ${join(geometryDir, 'index.json')} (extractor --caves-out, --cave-geometry-out)` },
+    'cave-models': { ok: existsSync(join(geometryDir, 'index.json')), what: `${join(geometryDir, 'index.json')} (extractor --cave-geometry-out, or --cave-geometry)` },
     heights: { ok: existsSync(join(heightDir, 'meta.json')) || existsSync(join(heightDir, 'top.f32')), what: `height grid in ${heightDir} (extractor --heightmap-out)` },
     map: { ok: existsSync(join(mapDir, 'map.json')), what: `${join(mapDir, 'map.json')} and tiles (extractor --map-out)` },
     creatures: { ok: true, what: '' },
@@ -530,6 +533,10 @@ function main(): void {
     const without = cavesWithoutEntrance(caveLayer.caves);
     done('caves', `${caveLayer.caves.length} caves, ${entrances} entrances${fromOverrides}, ${without.length} without an entrance${without.length ? ` (${without.join(', ')})` : ''}`);
   }
+  if (parts.has('cave-models')) {
+    console.log('Simplifying cave models ...');
+    done('cave-models', caveModelSummary(await writeCaveModels(geometryDir, out, line => console.log(line))));
+  }
   if (parts.has('heights') && heightGrid) {
     const { meta, bytes } = writeHeightTiles(heightGrid, join(out, 'height'));
     done('heights', `${meta.width}x${meta.height} cells of ${meta.cell / 100} m, ${(bytes / 1e6).toFixed(1)} MB in tiles of ${meta.tile} cells`);
@@ -601,4 +608,4 @@ function main(): void {
   if (skipped.length) console.log(`  not built (--only): ${skipped.join(', ')}`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

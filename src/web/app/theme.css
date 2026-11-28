@@ -39,6 +39,10 @@
 
   /* Cave layer: areas (drawn translucent) and the ring around entrances. */
   --color-cave: #E8DD55;
+  /* 3D cave view: rock shaded from deep (bottom) to high (top) of the model, the landscape around it see-through. */
+  --color-cave-deep: #3F5A73;
+  --color-cave-high: #C9B48F;
+  --color-cave-surface: #6F8A5A;
 
   /* Resource node purity: the ring around a node (zoomed out its dot), the purity filter and the info box. Never the
      only cue: zoomed out the dot grows with the purity, and the panel, info box and search name it (no pips). Each is

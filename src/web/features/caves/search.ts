@@ -5,13 +5,8 @@ import type { DatasetIndex } from '../../../shared/dataset.js';
 import { pointInRings, worldToLatLng } from '../../../shared/geo.js';
 import type { SearchEntry, SearchProvider, WorldCtx } from '../../app/feature.js';
 import { boundsOf, useMapFit } from '../search/fit.js';
+import { caveNumber } from './caveModels.js';
 import { hasCaves, useCaveLayer, useCaves, type CaveShapes } from './useCaves.js';
-
-/** The cave's number from its id (`cave-012` → 12); caves are numbered by the dataset build. */
-function caveNumber(id: string, fallback: number): number {
-  const n = Number(/\d+/.exec(id)?.[0]);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
 
 /** The biome most of the items inside lie in, else the biome of the item nearest to the cave. */
 function caveBiome(index: DatasetIndex, inside: readonly number[], centre: [number, number]): number | null {
