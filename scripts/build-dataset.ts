@@ -51,9 +51,10 @@ interface RawEntry { name: string; class: string; location: [number, number, num
 interface RawPod { costType: string | null; item: string | null; amount: number; power: number }
 interface RawShrine { name: string; attachedTo: string }
 interface RawCrashSite {
-  items?: { item: string; itemClass?: string; amount: number; pickup?: string; where?: string; inGame?: boolean }[];
-  threats?: { name: string; count: number | null }[];
-  notes?: string[];
+  items?: { item: string; itemClass?: string; amount: number; pickup?: string; where?: string; whereDe?: string; inGame?: boolean }[];
+  threats?: { name: string; de?: string; count: number | null }[];
+  /** A note is English text, or `{ text, de }` with its German. */
+  notes?: (string | { text: string; de?: string })[];
 }
 const crashSitePods = (raw: unknown): Record<string, RawCrashSite> => (raw as { pods?: Record<string, RawCrashSite> } | undefined)?.pods ?? {};
 interface RawMap { id: string; gameVersion?: string; world: WorldBounds }
@@ -166,23 +167,39 @@ export function buildDataset(input: BuildInput): Dataset {
 /**
  * Per pod of the dataset: the items lying around its crash site (only pickups that exist in the game),
  * threats and notes, from data-src/crash-sites/crash-sites.json. Served as `crash-sites.json`. Items whose class is in
- * `itemNames` get the game's English name (the key that matches pod requirements) and its German name.
+ * `itemNames` get the game's English name (the key that matches pod requirements) and its German name; the German of
+ * threats, notes and location hints comes from the maintainer data.
  */
 export function buildCrashSites(raw: unknown, ds: Dataset, itemNames: Record<string, LocalizedName> = {}): CrashSites {
   const pods = new Set(ds.items.filter(i => i[1] === 'hard_drive').map(i => i[0]));
   const out: CrashSites = {};
   for (const [name, site] of Object.entries(crashSitePods(raw))) {
     if (!pods.has(name)) continue;
+    const notes = (site.notes ?? []).map(n => (typeof n === 'string' ? { text: n } : n));
     out[name] = {
       items: (site.items ?? []).filter(i => i.pickup !== undefined && i.inGame !== false).map(i => {
         const known = i.itemClass === undefined ? undefined : itemNames[i.itemClass];
-        return { item: known?.en ?? i.item, ...(known && { de: known.de }), amount: i.amount, ...(i.where ? { where: i.where } : {}) };
+        return {
+          item: known?.en ?? i.item, ...(known && { de: known.de }), amount: i.amount,
+          ...(i.where ? { where: i.where } : {}), ...(i.where && i.whereDe ? { whereDe: i.whereDe } : {}),
+        };
       }),
-      threats: (site.threats ?? []).map(t => ({ name: t.name, count: t.count })),
-      notes: site.notes ?? [],
+      threats: (site.threats ?? []).map(t => ({ name: t.name, ...(t.de ? { de: t.de } : {}), count: t.count })),
+      notes: notes.map(n => n.text),
+      ...(notes.some(n => n.de) ? { notesDe: notes.map(n => n.de ?? null) } : {}),
     };
   }
   return out;
+}
+
+/** How many threats, notes and location hints of the crash sites have no German text (for the build summary). */
+export function crashSitesWithoutGerman(sites: CrashSites): number {
+  let n = 0;
+  for (const s of Object.values(sites)) {
+    n += s.threats.filter(t => !t.de).length + s.items.filter(i => i.where && !i.whereDe).length;
+    n += s.notes.filter((_, k) => !s.notesDe?.[k]).length;
+  }
+  return n;
 }
 
 interface RawNodeEntry { name?: unknown; location?: unknown; resource?: unknown; purity?: unknown }
@@ -482,7 +499,8 @@ function main(): void {
   if (parts.has('crash-sites')) {
     const sites = buildCrashSites(input.crashSites, ds, input.itemNames);
     writeFileSync(join(out, 'crash-sites.json'), JSON.stringify(sites));
-    done('crash-sites', `${Object.keys(sites).length} sites`);
+    const untranslated = crashSitesWithoutGerman(sites);
+    done('crash-sites', `${Object.keys(sites).length} sites` + (untranslated ? `, ${untranslated} threats, notes or location hints without German` : ''));
   }
   if (parts.has('biomes')) {
     const shapes = input.biomeAreas?.biomes ?? loadEditorBiomes(input.biomesGeojson, input.calibration);

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildCrashSites, buildDataset, BuildError, buildResourceNodes, DATASET_PARTS, loadExtractorDir, missingParts, selectParts, type BuildInput } from '../../scripts/build-dataset.js';
+import { buildCrashSites, buildDataset, BuildError, crashSitesWithoutGerman, buildResourceNodes, DATASET_PARTS, loadExtractorDir, missingParts, selectParts, type BuildInput } from '../../scripts/build-dataset.js';
 
 const dir = fileURLToPath(new URL('../fixtures/extractor-mini', import.meta.url));
 const base = (): BuildInput => structuredClone(loadExtractorDir(dir));
@@ -172,6 +172,22 @@ describe('crash-site data', () => {
       { item: 'Steel Pipe', de: 'Stahlrohr', amount: 98, where: 'lower level' },
       { item: 'Stator', amount: 37 },
     ]);
+  });
+
+  it('passes German threats, notes and location hints through, notes either as text or as { text, de }', () => {
+    const d = buildDataset(base());
+    const out = buildCrashSites({ pods: { BP_DropPod1: site({ type: 'none' }, {
+      threats: [{ name: 'Alpha Hog', de: 'Alpha-Keiler', key: 'World_Data::Creatures/Hog/Alpha', count: 1 }, { name: 'Gas Pillar', count: null }],
+      items: [{ item: 'Steel Pipe', itemClass: 'Desc_SteelPipe_C', amount: 98, pickup: 'P1', where: 'lower level', whereDe: 'untere Ebene' }],
+      notes: [{ text: 'Bring a gas mask.', de: 'Gasmaske mitbringen.' }, 'Only 4 items.'],
+    }) } }, d);
+    expect(out.BP_DropPod1).toEqual({
+      items: [{ item: 'Steel Pipe', amount: 98, where: 'lower level', whereDe: 'untere Ebene' }],
+      threats: [{ name: 'Alpha Hog', de: 'Alpha-Keiler', count: 1 }, { name: 'Gas Pillar', count: null }],
+      notes: ['Bring a gas mask.', 'Only 4 items.'],
+      notesDe: ['Gasmaske mitbringen.', null],
+    });
+    expect(crashSitesWithoutGerman(out)).toBe(2); // Gas Pillar, 'Only 4 items.'
   });
 });
 

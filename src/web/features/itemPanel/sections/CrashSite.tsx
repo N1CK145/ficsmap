@@ -27,6 +27,7 @@ export function CrashSite({ item, ctx }: { item: Item; ctx: WorldCtx }) {
   if (!site) return null;
   const german = detectLocale([i18n.language]) === 'de';
   const items = sumPickups(site.items);
+  const threatName = (th: Site['threats'][number]) => (german && th.de) || th.name;
   return (
     <Panel title={t('item.crashSite.title')}>
       <div className="flex flex-col gap-3 text-sm">
@@ -36,7 +37,7 @@ export function CrashSite({ item, ctx }: { item: Item; ctx: WorldCtx }) {
             <ul className="flex flex-col gap-0.5">
               {items.map((i, n) => (
                 <li key={n} className="flex justify-between gap-3">
-                  <span>{(german && i.de) || i.item}{i.where && <span className="text-muted"> · {i.where}</span>}</span>
+                  <span>{(german && i.de) || i.item}{i.where && <span className="text-muted"> · {(german && i.whereDe) || i.where}</span>}</span>
                   <span className="font-display tabular-nums">{t('item.crashSite.amount', { amount: i.amount })}</span>
                 </li>
               ))}
@@ -48,7 +49,7 @@ export function CrashSite({ item, ctx }: { item: Item; ctx: WorldCtx }) {
           {site.threats.length === 0 ? <p className="text-muted">{t('item.crashSite.none')}</p> : (
             <ul className="flex flex-col gap-0.5">
               {site.threats.map((th, n) => (
-                <li key={n}>{th.count === null ? th.name : t('item.crashSite.threat', { count: th.count, name: th.name })}</li>
+                <li key={n}>{th.count === null ? threatName(th) : t('item.crashSite.threat', { count: th.count, name: threatName(th) })}</li>
               ))}
             </ul>
           )}
@@ -56,7 +57,7 @@ export function CrashSite({ item, ctx }: { item: Item; ctx: WorldCtx }) {
         {site.notes.length > 0 && (
           <section>
             <h3 className="mb-1 font-medium">{t('item.crashSite.notes')}</h3>
-            <ul className="flex list-disc flex-col gap-0.5 pl-4">{site.notes.map((note, n) => <li key={n}>{note}</li>)}</ul>
+            <ul className="flex list-disc flex-col gap-0.5 pl-4">{site.notes.map((note, n) => <li key={n}>{(german && site.notesDe?.[n]) || note}</li>)}</ul>
           </section>
         )}
       </div>

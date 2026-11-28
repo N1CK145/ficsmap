@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Crash sites: threats, notes and location hints show in German in the German UI (dataset `crash-sites.json`: `threats[].de`, `notesDe`, `items[].whereDe`; older datasets stay English). Creatures among the threats carry the game's own names; German threat and item names are found in the search. Needs the updated maintainer data and a new `crash-sites` dataset part.
+
 - Dataset pipeline: the extractor patch writes the game's string tables in English and German (`--string-tables-out`), and `scripts/creature-names.ts` writes the creature names of the map from them (`--check` compares only), so they can be regenerated after a game update.
 
 ## [0.2.4] - 2026-11-21
