@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Header at 1280 px: the settings button no longer overlaps the search field inside a world; the "FICSMAP" wordmark shows there only from 1440 px (the mark stays).
+- Map, first visit of a world: the whole map shows at the nearest whole zoom instead of the next lower one (on a 1920 × 1080 screen a 1024 px map instead of a 512 px square).
+- Height map ("Höhenkarte"): the open sea floor (below -25 m, connected to the map edge) is no longer coloured, so its flat pieces no longer show straight edges over the water.
 
 ## [0.2.4] - 2026-11-21
 

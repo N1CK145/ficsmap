@@ -274,6 +274,39 @@ describe('MapView clicks', () => {
   });
 });
 
+describe('MapView first visit', () => {
+  beforeAll(() => { initI18n(['en']); });
+  beforeEach(() => {
+    localStorage.clear();
+    useUiStore.getState().enterWorld(WORLD);
+    probedMap = null;
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it.each([
+    // 1000 px: zoom 2 (1024 px) nearly fits, so the map is not shrunk to a 512 px square at zoom 1.
+    [1000, 1000, 2],
+    [512, 512, 1],
+    [700, 1400, 1],
+    [300, 300, 0],
+  ])('shows the whole map at the nearest whole zoom for a %i × %i map: zoom %i', (w, h, zoom) => {
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(w);
+    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(h);
+    renderMap();
+    expect(probedMap!.getZoom()).toBe(zoom);
+    const c = probedMap!.getCenter();
+    expect([c.lat, c.lng]).toEqual([-128, 128]);
+  });
+
+  it('keeps a saved view', () => {
+    saveView(WORLD, { center: [-100, 100], zoom: 4, typeFilter: [], visibility: 'dim', biomeScope: null });
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(1000);
+    renderMap();
+    expect(probedMap!.getZoom()).toBe(4);
+  });
+});
+
 describe('MapView view persistence', () => {
   const B = '7f1c2b0e-8a43-4f5e-9d1b-2c3d4e5f6a7b';
   beforeAll(() => { initI18n(['en']); });

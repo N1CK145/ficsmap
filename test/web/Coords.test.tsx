@@ -14,7 +14,7 @@ import { HeightLayer } from '../../src/web/features/coords/HeightLayer.js';
 import { HEIGHT_LUT, HEIGHT_RAMP, paintHeights } from '../../src/web/features/coords/heightColors.js';
 import { coordsFeature } from '../../src/web/features/coords/index.js';
 import { wholeMetres } from '../../src/web/features/coords/metres.js';
-import { useHeightLayer } from '../../src/web/features/coords/useHeights.js';
+import { HeightSource, useHeightLayer } from '../../src/web/features/coords/useHeights.js';
 import { ToolButton } from '../../src/web/features/worlds/ToolsNav.js';
 import userEvent from '@testing-library/user-event';
 
@@ -128,6 +128,19 @@ describe('height layer', () => {
     await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled());
     await new Promise(r => setTimeout(r, 20));
     expect(screen.queryByRole('button', { name: 'Height map' })).toBeNull();
+  });
+
+  it('works out the open sea once from the overview, and none without one', async () => {
+    // Overview 2 x 2: three cells of seabed (-50 m) at the edge, one of land.
+    const overview = gzipSync(Buffer.from(encodeHeightTile([-5000, -5000, -5000, 1000], 10).buffer));
+    const fetch = vi.fn(async () => new Response(overview));
+    vi.stubGlobal('fetch', fetch);
+    const source = new HeightSource('sea-test', META);
+    expect([...(await source.seaMask())!]).toEqual([1, 1, 1, 0]);
+    await source.seaMask();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } })));
+    expect(await new HeightSource('sea-none', META).seaMask()).toBeNull();
   });
 
   it('draws the layer with its legend while switched on', async () => {

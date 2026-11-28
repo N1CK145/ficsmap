@@ -25,7 +25,7 @@ import { DOT_ZOOM, markerState, markerVisual, podBadge, type MarkerState } from 
 import { MarkerLayer, type DrawMarker } from './MarkerLayer.js';
 import { prefersReducedMotion } from './motion.js';
 import { WHEEL_COOLDOWN_MS, WHEEL_ZOOM_IDLE, wheelZoomStep } from './wheelZoom.js';
-import { currentMaxZoom } from './zoom.js';
+import { currentMaxZoom, firstViewZoom } from './zoom.js';
 
 const MAX_BOUNDS = L.latLngBounds(IMAGE_BOUNDS).pad(0.1);
 /** Hit radius: covers the 42 px icon marker (mouse); half of the 44 px touch hit area (spec §10.1). */
@@ -108,6 +108,7 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
           </>,
           overlay,
         )}
+        {'bounds' in initial && <FirstView />}
         <ViewPersistence worldId={ctx.worldId} />
         <SizeWatcher />
         <WheelZoom />
@@ -115,6 +116,17 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
       <div ref={setOverlay} className="pointer-events-none absolute inset-0 z-[1000]" />
     </div>
   );
+}
+
+/** Without a saved view: the whole map, centred, at the nearest whole zoom (`firstViewZoom`), once the map has a size. */
+function FirstView() {
+  const map = useMap();
+  useLayoutEffect(() => {
+    const size = map.getSize();
+    if (size.x <= 0 || size.y <= 0) return;
+    map.setView(L.latLngBounds(IMAGE_BOUNDS).getCenter(), Math.min(map.getMaxZoom(), firstViewZoom(size.x, size.y)), { animate: false });
+  }, [map]);
+  return null;
 }
 
 /**

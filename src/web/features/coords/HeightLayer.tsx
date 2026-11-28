@@ -2,7 +2,7 @@ import L from 'leaflet';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMap } from 'react-leaflet';
-import { NO_HEIGHT } from '../../../shared/heightmap.js';
+import { NO_HEIGHT, overviewCell } from '../../../shared/heightmap.js';
 import type { WorldBounds } from '../../../shared/types.js';
 import { UNITS_PER_METER } from '../../../shared/geo.js';
 import type { WorldCtx } from '../../app/feature.js';
@@ -38,6 +38,13 @@ class HeightGridLayer extends L.GridLayer {
     const unit = 2 ** coords.z;
     const wx = (px: number) => w.minX + ((coords.x * TILE + px + 0.5) / unit / 256) * (w.maxX - w.minX);
     const wy = (py: number) => w.minY + ((coords.y * TILE + py + 0.5) / unit / 256) * (w.maxY - w.minY);
+    // The open sea is left out: its floor is a few flat landscape pieces whose straight edges stood out over the water.
+    const sea = await this.source.seaMask();
+    const onSea = (px: number, py: number) => {
+      if (!sea) return false;
+      const k = overviewCell(meta, wx(px), wy(py));
+      return k !== null && sea[k] === 1;
+    };
     let sample: (px: number, py: number) => number | null;
     if (coords.z <= OVERVIEW_MAX_ZOOM) {
       const grid = await this.source.overview();
@@ -70,7 +77,7 @@ class HeightGridLayer extends L.GridLayer {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const img = ctx.createImageData(TILE, TILE);
-    paintHeights(img.data, TILE, sample, meta.range[0], meta.range[1]);
+    paintHeights(img.data, TILE, (px, py) => (onSea(px, py) ? null : sample(px, py)), meta.range[0], meta.range[1]);
     ctx.putImageData(img, 0, 0);
   }
 }
@@ -80,8 +87,9 @@ function* range(a: number, b: number) {
 }
 
 /**
- * The height map as a colour layer, while switched on: the highest surface per spot, light (low) to dark
- * (high), over the map tiles and under caves and markers, with a legend bottom left. Not interactive.
+ * The height map as a colour layer, while switched on: the highest surface per spot on land (not the open sea),
+ * light (low) to dark (high), over the map tiles and under caves and markers, with a legend bottom left. Not
+ * interactive.
  */
 export function HeightLayer({ ctx }: { ctx: WorldCtx }) {
   const { t, i18n } = useTranslation();

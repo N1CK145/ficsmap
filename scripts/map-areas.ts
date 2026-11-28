@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { BiomeShape } from '../src/shared/biomes.js';
 import type { WorldBounds } from '../src/shared/types.js';
+import { openSea, SEA_LEVEL } from '../src/shared/heightmap.js';
 import { traceMask } from './trace.js';
 
 /**
@@ -54,14 +55,9 @@ const SIMPLIFY = 150;
 /** Smaller rings (cm²) are dropped from the outlines (single stray pixels); items still get their biome. */
 const MIN_RING_AREA = 200 * 100 * 100;
 
-/** The open sea: ground below this height (cm) that is connected to the edge of the height grid. */
-export const SEA_LEVEL = -1500;
-
 /**
- * Whether a world point is land: not open sea and not void. Open sea is every cell of the height grid below
- * SEA_LEVEL that is connected to the grid's edge over such cells (breadth-first from the edge).
- * Low ground inland stays land however deep it is (Blue Crater, the Grass Fields crater, much of the south lies
- * below -15 m), as its rim cuts it off from the sea. Undefined without a height grid.
+ * Whether a world point is land: not open sea (`openSea` with SEA_LEVEL, src/shared/heightmap.ts) and not void.
+ * Undefined without a height grid.
  */
 export function landTest(
   heights: { meta: { cell: number; minX: number; minY: number; width: number; height: number }; top: Float32Array } | null,
@@ -69,22 +65,8 @@ export function landTest(
   if (!heights) return undefined;
   const { meta, top } = heights;
   const w = meta.width, h = meta.height;
-  // Only real seabed: cells without any surface (the black void off the map's south and east edges) neither are
-  // sea nor carry it, else the sea would run from the void into the low ground of the south.
-  const low = (k: number) => top[k]! <= SEA_LEVEL;
-  const sea = new Uint8Array(w * h);
-  const queue = new Int32Array(w * h);
-  let head = 0, tail = 0;
-  const push = (k: number) => { if (!sea[k] && low(k)) { sea[k] = 1; queue[tail++] = k; } };
-  for (let i = 0; i < w; i++) { push(i); push((h - 1) * w + i); }
-  for (let j = 0; j < h; j++) { push(j * w); push(j * w + w - 1); }
-  while (head < tail) {
-    const k = queue[head++]!, i = k % w, j = (k - i) / w;
-    if (i > 0) push(k - 1);
-    if (i < w - 1) push(k + 1);
-    if (j > 0) push(k - w);
-    if (j < h - 1) push(k + w);
-  }
+  // NaN (no surface) is never low, so the void neither is sea nor carries it.
+  const sea = openSea(w, h, k => top[k]! <= SEA_LEVEL);
   return (x, y) => {
     const i = Math.floor((x - meta.minX) / meta.cell), j = Math.floor((y - meta.minY) / meta.cell);
     return i >= 0 && j >= 0 && i < w && j < h && !sea[j * w + i] && !Number.isNaN(top[j * w + i]!);
