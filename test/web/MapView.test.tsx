@@ -13,7 +13,7 @@ import { loadView, saveView } from '../../src/web/app/persist.js';
 import { receivePrefs, usePrefsStore } from '../../src/web/app/prefs.js';
 import { queryKeys } from '../../src/web/app/queryKeys.js';
 import { useUiStore } from '../../src/web/app/store.js';
-import { markerClickClaims } from '../../src/web/features/map/clickClaims.js';
+import { backgroundClicks, markerClickClaims } from '../../src/web/features/map/clickClaims.js';
 import { MapView } from '../../src/web/features/map/MapView.js';
 import { MarkerLayer, type DrawMarker } from '../../src/web/features/map/MarkerLayer.js';
 import type { MarksCache } from '../../src/web/features/marks/useMarks.js';
@@ -223,6 +223,26 @@ describe('MapView clicks', () => {
     act(() => { useUiStore.getState().setMode('route'); });
     clickAt(map, 256, 256);
     expect(useUiStore.getState().selectedActor).toBe('S1');
+  });
+
+  it('hands a click that hit no marker to the layers under the markers, only while just looking around', () => {
+    renderMap();
+    const map = probedMap!;
+    act(() => { map.setZoom(3); });
+    const below = vi.fn();
+    backgroundClicks.add(below);
+    try {
+      clickAt(map, 256, 256); // the marker
+      expect(below).not.toHaveBeenCalled();
+      clickAt(map, 50, 50);
+      const ll = map.containerPointToLatLng([50, 50]);
+      expect(below).toHaveBeenCalledWith({ lat: ll.lat, lng: ll.lng, x: 50, y: 50 });
+      act(() => { useUiStore.getState().setMode('route'); });
+      clickAt(map, 60, 60);
+      expect(below).toHaveBeenCalledTimes(1);
+    } finally {
+      backgroundClicks.delete(below);
+    }
   });
 
   it('finds no marker while the collectibles layer is off: no selection, no zoom, a pick mode gets the position', () => {

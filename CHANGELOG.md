@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Dataset part `cave-models` (`npm run dataset -- --only cave-models`): a small GLB per cave in `cave-models/` for the 3D view, made from the extractor's cave geometry (simplified to at most 0.3 m off the game's surfaces, quantized and meshopt-compressed; 73 caves, 31 MB instead of 389 MB, the largest 1.8 MB).
+- Caves: a click on a cave on the cave layer shows its number, collectibles and entrances. "3D-Ansicht" there (or "Höhle in 3D zeigen" in the item panel of a collectible in a cave) opens the cave as a 3D model: drag to turn, pinch or scroll to zoom, cut it from above, switch the landscape on or off; entrances and collectibles show as dots through the rock. Works on phones; three.js loads only when a cave is opened.
 
 ## [0.2.4] - 2026-11-21
 
