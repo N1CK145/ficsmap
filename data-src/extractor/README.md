@@ -7,7 +7,7 @@ Raw game data for ficsmap, read from the game client's paks. Nothing here is han
 ## Provenance
 
 - Tool: [SatisfactoryTools/AssetsExtractor](https://github.com/SatisfactoryTools/AssetsExtractor) `world-extractor-net`, branch `master`, upstream commit `19e3010c781d4250242d4cc68b6c5c8c340fdea0`.
-- Local patch: `world-extractor-extras.patch` (git diff against that commit). Adds the optional flags `--extras-out <file>`, `--caves-out <file>`, `--cave-geometry-out <dir>` (see "Caves" below), `--heightmap-out <dir>` (see "Height map" below), `--map-areas-out <dir>` (see "Map areas" below), `--transport-out <file>` (see "Transport" below), `--icons-out <dir>` (the game's pictures of every item, building and vehicle for the machine wiki, see "Pictures" below) and `--buildings-out <file>` (footprints of every buildable and vehicle for the factory map, see "Buildings" below), and exports the item icons of the five pickup types (`Desc_Crystal_C`, `Desc_Crystal_mk2_C`, `Desc_Crystal_mk3_C`, `Desc_WAT1_C`, `Desc_WAT2_C`, from each descriptor's `mPersistentBigIcon`) into `map/icons/`; the map markers use them. It also reads the item of each loose item pickup (`collectibles.json` `item`) from the pickup itself: `mPickupItems.Item` is an `FInventoryItem` that the game serializes natively and CUE4Parse skips, so the patch finds that property tag in the export's raw bytes and resolves its first field, the item class (a package index). Upstream guessed the item from the pickup's mesh, the item's conveyor mesh; that was wrong for 43 of the 703 pickups (level pickups often keep another item's mesh; packaged and liquid fuels share one) and failed for 4 (Supercomputer, Rifle Ammo, 2 Medicinal Inhalers). The Steam crash-site guide (maintainer data) agrees: of the 41 crash-site items where it named another item than the old classes, 38 now match (2026-11-07). Apply with `git apply` in the AssetsExtractor checkout.
+- Local patch: `world-extractor-extras.patch` (git diff against that commit). Adds the optional flags `--extras-out <file>`, `--caves-out <file>`, `--cave-geometry-out <dir>` (see "Caves" below), `--heightmap-out <dir>` (see "Height map" below), `--map-areas-out <dir>` (see "Map areas" below), `--transport-out <file>` (see "Transport" below), `--icons-out <dir>` (the game's pictures of every item, building and vehicle for the machine wiki, see "Pictures" below), `--buildings-out <file>` (footprints of every buildable and vehicle for the factory map, see "Buildings" below) and `--string-tables-out <dir>` (the game's string tables in English and German, see "String tables" below), and exports the item icons of the five pickup types (`Desc_Crystal_C`, `Desc_Crystal_mk2_C`, `Desc_Crystal_mk3_C`, `Desc_WAT1_C`, `Desc_WAT2_C`, from each descriptor's `mPersistentBigIcon`) into `map/icons/`; the map markers use them. It also reads the item of each loose item pickup (`collectibles.json` `item`) from the pickup itself: `mPickupItems.Item` is an `FInventoryItem` that the game serializes natively and CUE4Parse skips, so the patch finds that property tag in the export's raw bytes and resolves its first field, the item class (a package index). Upstream guessed the item from the pickup's mesh, the item's conveyor mesh; that was wrong for 43 of the 703 pickups (level pickups often keep another item's mesh; packaged and liquid fuels share one) and failed for 4 (Supercomputer, Rifle Ammo, 2 Medicinal Inhalers). The Steam crash-site guide (maintainer data) agrees: of the 41 crash-site items where it named another item than the old classes, 38 now match (2026-11-07). Apply with `git apply` in the AssetsExtractor checkout.
 - Game: Steam install, GameVersion `1.2.5.0` (CL 517554, UE 5.6.1), engine detected as `GAME_UE5_6`. Output folder: `1.2.5.0/` (extracted 2026-11-06). The previous output was from 1.2.4.1 (CL 513885).
 - Build and run (.NET 10 SDK needed):
 
@@ -17,7 +17,8 @@ cd world-extractor-net && dotnet build -c Release
 O=<repo>/data-src/extractor/1.2.5.0
 export DOTNET_GCHeapHardLimit=0x280000000
 dotnet run -c Release --no-build -- --install-dir <game install> --out $O/default-world.json \
-  --collectibles-out $O/collectibles.json --extras-out $O/extras.json --caves-out $O/caves.json
+  --collectibles-out $O/collectibles.json --extras-out $O/extras.json --caves-out $O/caves.json \
+  --string-tables-out $O/string-tables
 dotnet run -c Release --no-build -- --install-dir <game install> --out /tmp/default-world.json \
   --cave-geometry-out $O/cave-geometry
 dotnet run -c Release --no-build -- --install-dir <game install> --out /tmp/default-world.json \
@@ -51,6 +52,7 @@ The cave geometry export needs about 10 GB of memory; cap the .NET heap so a run
 - `transport.json`: from the patch (`--transport-out`), see "Transport".
 - `icons/`: from the patch (`--icons-out`), see "Pictures".
 - `buildings-raw.json`: from the patch (`--buildings-out`), see "Buildings".
+- `string-tables/`: from the patch (`--string-tables-out`), see "String tables".
 
 ## Class names (pickups and dropPods in `collectibles.json`)
 
@@ -130,6 +132,13 @@ Known limitations:
 Rejected first approach (for the record): cave = the volume hulls, entrance = holes in the landscape near a volume. The hulls are boxes, and the landscape holes are mostly cut under rock meshes, not openings (37 of 147 such "entrances" lay deep inside a cave).
 
 Since 2026-11-06 all of the extractor output, and the dataset `data/1.2.5.0`, is from GameVersion **1.2.5.0**. Against the 1.2.4.1 output it has the same map id (`968e47122e1f868c`), identical drop pods, extras and tracked collectibles (only 4 loose item pickups and 1 creature spawner differ), so saves and marks from 1.2.4.1 worlds still match.
+
+## String tables (`string-tables/`)
+
+`--string-tables-out <dir>` writes the game's string tables, `FactoryGame/Content/Localization/AllStringTables/<culture>/AllStringTables.locres`, as `en-US.json` and `de.json`: `{"<table id>": {"<key>": "<text>"}}`, tables and keys sorted. They hold the names the game shows for things that are not items or buildings (creatures `World_Data::Creatures/*`, plants `World_Data::Flora/*`, locations `World_Data::Locations/*`, menu texts). The paks carry no German `Game.locres`, so besides the Docs these tables are the only German source; German names are never made up from class names. The run is quick (a few seconds after the level is read, about 400 MB) and can be done on its own: `dotnet run -c Release --no-build -- --install-dir <game install> --out /tmp/default-world.json --string-tables-out $O/string-tables`. Game 1.2.5.1 (CL 520140): 6457 entries per culture in 33 tables.
+
+- **Creature names** (`creatures.names` in `src/web/app/i18n/en.json`, `de.json`): `npx tsx scripts/creature-names.ts --string-tables $O/string-tables` writes them, `--check` only compares (exit 1 when they differ). The creature blueprints have no `mDisplayName`, so the string-table key per creature class is kept by hand in `CREATURE_NAME_KEYS` (`scripts/creature-names.ts`); the red forest spitters, the beetle and the large crab hatcher have no entry in the tables, and their names stay hand-written.
+- **Crash-site threats:** the German names of the creatures among the threats in the maintainer's `crash-sites.json` are the same `World_Data::Creatures/*` entries (see its README).
 
 ## Height map (`heightmap/`)
 

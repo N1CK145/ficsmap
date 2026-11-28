@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Dataset pipeline: the extractor patch writes the game's string tables in English and German (`--string-tables-out`), and `scripts/creature-names.ts` writes the creature names of the map from them (`--check` compares only), so they can be regenerated after a game update.
+
 ## [0.2.4] - 2026-11-21
 
 ### Added
