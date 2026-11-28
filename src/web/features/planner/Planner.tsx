@@ -2,8 +2,11 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type R
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { descriptorClass } from '../../../shared/machines.js';
-import { clockLimits, MAX_SHARDS, plan, PURITY_FACTOR, type ClockLimits, type PlanResult, type PlanStep, type Purity, type StepSettings } from '../../../shared/planner.js';
+import { clockLimits, MAX_SHARDS, plan, PURITY_FACTOR, type ClockLimits, type PlanInput, type PlanResult, type PlanStep, type Purity, type StepSettings } from '../../../shared/planner.js';
+import { maxOutput, nodeSupply } from '../../../shared/plannerNodes.js';
 import { miners as minersOf, type RecipeIndex } from '../../../shared/recipes.js';
+import { resourceNodeBounds } from '../../../shared/resourceNodes.js';
+import type { WorldBounds } from '../../../shared/types.js';
 import { worldPath } from '../../app/pages.js';
 import { useUiStore } from '../../app/store.js';
 import { Button } from '../../components/Button.js';
@@ -18,7 +21,10 @@ import type { ToastApi } from '../../components/Toast.js';
 import { Window } from '../../components/Window.js';
 import { GameIcon, IconsContext, useItemIcons } from '../machineWiki/icons.js';
 import { prefersReducedMotion } from '../map/motion.js';
-import { useNodeLayer, useResourceNodeFile } from '../resourceNodes/useResourceNodes.js';
+import { useNodeLayer, useWorldNodes } from '../resourceNodes/useResourceNodes.js';
+import { useMapFit } from '../search/fit.js';
+import { AlternateRecipes } from './AlternateRecipes.js';
+import { MaxOutputView, NodeInputs, nodeGroups } from './NodeInputs.js';
 import { powerValue, usePurityOptions } from './controls.js';
 import { DirectionSwitch, useDiagramDirection } from './direction.js';
 import { formatNumber, formatRate, itemName, langOf, type Lang } from './format.js';
@@ -26,7 +32,7 @@ import { ItemPicker } from './ItemPicker.js';
 import { PlanDiagram } from './PlanDiagram.js';
 import { StepList } from './StepList.js';
 import { StepPanel } from './StepPanel.js';
-import { parseNumber, usePlanner, usePlannerView, type PlannerView } from './usePlanner.js';
+import { parseNumber, usePlanner, usePlannerView, type PlannerMode, type PlannerView } from './usePlanner.js';
 import { useRecipes } from './useRecipes.js';
 
 /** What the empty planner offers to try: a small chain the dataset has (left out when it does not). */
@@ -35,14 +41,17 @@ export const EXAMPLE = { item: 'Desc_IronPlateReinforced_C', rate: '5' } as cons
 /** From here (Tailwind's `xl`) a selected step's machine window docks beside the steps. */
 const DOCKED_QUERY = '(min-width: 1280px)';
 
-/** What the planner needs of its world: the dataset version, the map's path for "Show on map", the toast for "Start over"'s Undo. */
-export interface PlannerProps { version: string; worldId: string; toast: ToastApi }
+/**
+ * What the planner needs of its world: the dataset version, the map's path and the dataset's world bounds for "Show on
+ * map", the toast for "Start over"'s Undo.
+ */
+export interface PlannerProps { version: string; worldId: string; bounds: WorldBounds; toast: ToastApi }
 
 /**
  * The planner for a dataset version: loads its recipe data and the dataset's pictures (part `icons`, for items,
  * machines and extractors), then shows the form and the plan.
  */
-export function Planner({ version, worldId, toast }: PlannerProps) {
+export function Planner({ version, worldId, bounds, toast }: PlannerProps) {
   const { t, i18n } = useTranslation();
   const lang = langOf(i18n.resolvedLanguage ?? i18n.language);
   const { index, error } = useRecipes(version);
@@ -52,7 +61,7 @@ export function Planner({ version, worldId, toast }: PlannerProps) {
   if (index === null) return <p>{t('planner.noData')}</p>;
   return (
     <IconsContext.Provider value={icons}>
-      <PlannerBody index={index} lang={lang} version={version} worldId={worldId} toast={toast} />
+      <PlannerBody index={index} lang={lang} version={version} worldId={worldId} bounds={bounds} toast={toast} />
     </IconsContext.Provider>
   );
 }
@@ -69,11 +78,14 @@ function PlannerBody({ index, lang, toast, ...world }: { index: RecipeIndex; lan
   const choices = usePlanner(s => s.choices);
   const settings = usePlanner(s => s.settings);
   const stepInputs = usePlanner(s => s.steps);
+  const mode = usePlanner(s => s.mode);
+  const nodes = usePlanner(s => s.nodes);
   const miners = useMemo(() => minersOf(index), [index]);
   const limits = useMemo(() => clockLimits(index.data.clock), [index]);
   const minerId = miners.some(m => m.id === settings.miner) ? settings.miner! : miners[0]?.id ?? '';
 
-  const result = useMemo<PlanResult | null>(() => {
+  const clock = parseNumber(settings.clock) / 100;
+  const input = useMemo<PlanInput | null>(() => {
     const wanted = targets.flatMap(tg => (tg.item ? [{ item: tg.item, rate: parseNumber(tg.rate) }] : []));
     if (wanted.length === 0) return null;
     const steps: Record<string, StepSettings> = {};
@@ -83,11 +95,20 @@ function PlannerBody({ index, lang, toast, ...world }: { index: RecipeIndex; lan
         ...(st.purity ? { purity: st.purity } : {}),
       };
     }
-    return plan(index, {
-      targets: wanted, choices, steps,
-      settings: { miner: minerId, clock: parseNumber(settings.clock) / 100, purity: settings.purity },
-    });
-  }, [index, targets, choices, stepInputs, settings, minerId]);
+    return { targets: wanted, choices, steps, settings: { miner: minerId, clock, purity: settings.purity } };
+  }, [targets, choices, stepInputs, settings.purity, clock, minerId]);
+  // In the nodes mode the plan is the one at the most the nodes allow.
+  const max = useMemo(
+    () => (input && mode === 'nodes' ? maxOutput(index, input, nodeSupply(index, nodeGroups(index, nodes, minerId), clock)) : null),
+    [index, input, mode, nodes, minerId, clock],
+  );
+  const result = useMemo<PlanResult | null>(() => {
+    if (!input) return null;
+    if (mode !== 'nodes') return plan(index, input);
+    if (!max) return null;
+    if (max.ok) return max.plan ?? null;
+    return max.error === 'unbounded' ? null : max;
+  }, [index, input, mode, max]);
   // A setting that breaks the plan (a clock speed out of range, a loop that cannot work) keeps the last working
   // plan on screen, so the step editor with the field to correct stays reachable.
   const lastOk = useRef<Extract<PlanResult, { ok: true }> | null>(null);
@@ -101,11 +122,15 @@ function PlannerBody({ index, lang, toast, ...world }: { index: RecipeIndex; lan
     <div className="relative flex flex-col gap-4">
       <PlanStatus result={shown} lang={lang} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start 2xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
-        <Targets index={index} lang={lang} minerId={minerId} miners={miners.map(m => ({ value: m.id, label: m.name[lang] }))} limits={limits} toast={toast} />
+        <Targets
+          index={index} lang={lang} minerId={minerId} miners={miners.map(m => ({ value: m.id, label: m.name[lang] }))} limits={limits} toast={toast}
+          planItems={shown?.steps.map(st => st.item) ?? []} clock={clock}
+        />
         <div className="flex min-w-0 flex-col gap-3">
           {failed && <PlanError result={failed} index={index} lang={lang} limits={limits} />}
           {stale && <p className="text-sm text-muted">{t('planner.lastWorking')}</p>}
-          {shown ? <Totals result={shown} index={index} lang={lang} defaultPurity={settings.purity} {...world} /> : !failed && <EmptyResult index={index} lang={lang} />}
+          {max && <MaxOutputView max={max} index={index} lang={lang} />}
+          {shown ? <Totals result={shown} index={index} lang={lang} defaultPurity={settings.purity} {...world} /> : !failed && !max && <EmptyResult index={index} lang={lang} />}
         </div>
       </div>
       {shown && <Steps steps={shown.steps} index={index} lang={lang} minerId={minerId} defaultPurity={settings.purity} limits={limits} />}
@@ -220,10 +245,20 @@ function StepEditor({ id, item, name, onClose, children }: { id: string; item: s
  * entered, "Start over" in the title bar clears the plan; its toast takes the focus to its Undo (so the keyboard and
  * screen readers reach it), and Undo puts the plan back and the focus on the first item.
  */
-function Targets({ index, lang, minerId, miners, limits, toast }: {
+function Targets({ index, lang, minerId, miners, limits, toast, planItems, clock }: {
   index: RecipeIndex; lang: Lang; minerId: string; miners: { value: string; label: string }[]; limits: ClockLimits; toast: ToastApi;
+  /** The items of the plan on screen, listed first among the alternate recipes. */
+  planItems: readonly string[];
+  /** The extractor clock speed in effect (1 = 100 %), for what the available nodes give. */
+  clock: number;
 }) {
   const { t } = useTranslation();
+  const mode = usePlanner(s => s.mode);
+  const setMode = usePlanner(s => s.setMode);
+  const modes: { value: PlannerMode; label: string }[] = [
+    { value: 'rate', label: t('planner.mode.rate') },
+    { value: 'nodes', label: t('planner.mode.nodes') },
+  ];
   const targets = usePlanner(s => s.targets);
   const setTarget = usePlanner(s => s.setTarget);
   const addTarget = usePlanner(s => s.addTarget);
@@ -250,6 +285,10 @@ function Targets({ index, lang, minerId, miners, limits, toast }: {
   const startOverButton = removable && <Button size="sm" variant="ghost" onClick={startOver}>{t('planner.reset')}</Button>;
   return (
     <Window level={3} title={t('planner.needs')} actions={startOverButton || undefined} bodyClassName="flex flex-col gap-3 p-3">
+      <div className="flex flex-col items-start gap-1">
+        <span className={FIELD_LABEL}>{t('planner.mode.label')}</span>
+        <SegmentedControl label={t('planner.mode.label')} options={modes} value={mode} onChange={setMode} />
+      </div>
       <ul ref={list} className="flex flex-col gap-2">
         {targets.map((tg, i) => {
           const name = tg.item ? itemName(index, tg.item, lang) : t('planner.itemN', { n: i + 1 });
@@ -279,7 +318,10 @@ function Targets({ index, lang, minerId, miners, limits, toast }: {
         })}
       </ul>
       <Button size="sm" onClick={addTarget} className="self-start">{t('planner.add')}</Button>
+      {mode === 'nodes' && targets.filter(tg => tg.item).length > 1 && <p className="text-xs text-muted">{t('planner.nodes.ratioHint')}</p>}
+      {mode === 'nodes' && <NodeInputs index={index} lang={lang} minerId={minerId} clock={clock} />}
       <ExtractorSettings minerId={minerId} miners={miners} limits={limits} />
+      <AlternateRecipes index={index} lang={lang} minerId={minerId} planItems={planItems} className="-mx-3 -mb-3 border-t border-line" />
     </Window>
   );
 }
@@ -294,7 +336,7 @@ function ExtractorSettings({ minerId, miners, limits }: { minerId: string; miner
   const purity = t(`planner.purityOption.${settings.purity}`);
   const summary = [miner, purity, `${settings.clock.trim() || '–'} %`].filter(Boolean).join(' · ');
   return (
-    <Fold title={t('planner.extractors')} summary={summary} className="-mx-3 -mb-3 border-t border-line" summaryClassName="px-3 py-1" bodyClassName="flex flex-col gap-3 px-3 pt-1 pb-3">
+    <Fold title={t('planner.extractors')} summary={summary} className="-mx-3 border-t border-line" summaryClassName="px-3 py-1" bodyClassName="flex flex-col gap-3 px-3 pt-1 pb-3">
       {miners.length > 0 && (
         <div className="flex flex-col items-start gap-1">
           <span className={FIELD_LABEL}>{t('planner.miner')}</span>
@@ -376,8 +418,8 @@ function PlanStatus({ result, lang }: { result: Extract<PlanResult, { ok: true }
  * total. Exact counts are in the steps (tooltip, step panel). A resource mined on nodes links to the map, showing only
  * its nodes of the step's purity (the dataset's resource node layer).
  */
-function Totals({ result, index, lang, defaultPurity, version, worldId }: {
-  result: Extract<PlanResult, { ok: true }>; index: RecipeIndex; lang: Lang; defaultPurity: Purity; version: string; worldId: string;
+function Totals({ result, index, lang, defaultPurity, version, worldId, bounds }: {
+  result: Extract<PlanResult, { ok: true }>; index: RecipeIndex; lang: Lang; defaultPurity: Purity; version: string; worldId: string; bounds: WorldBounds;
 }) {
   const { t } = useTranslation();
   const { totals } = result;
@@ -388,13 +430,16 @@ function Totals({ result, index, lang, defaultPurity, version, worldId }: {
   const rate = (item: string, value: number) => formatRate(index, item, value, lang, t);
   const picture = (cls: string) => <GameIcon cls={cls} px={24} placeholder />;
   const onNode = (extractor: string) => index.extractors.get(extractor)?.onNode === true;
-  const nodeFile = useResourceNodeFile(version, totals.raw.some(r => onNode(r.extractor)));
-  const resources = nodeFile ? nodeFile.resources.map(r => r.id) : [];
+  const world = useWorldNodes(version, worldId, totals.raw.some(r => onNode(r.extractor)));
+  const resources = world ? world.file.resources.map(r => r.id) : [];
   function mapLink(item: string, extractor: string) {
     if (!onNode(extractor) || !resources.includes(item)) return null;
     const purity = result.steps.find(st => st.item === item)?.purity ?? defaultPurity;
     const show = () => {
       useNodeLayer.getState().showResource(item, resources, purity);
+      // The map fits itself to those nodes (the world's, as its last save import has them) once it shows.
+      const b = world ? resourceNodeBounds(world.nodes, item, purity, bounds) : null;
+      if (b) useMapFit.getState().fit([[b[0][0] - FIT_MARGIN, b[0][1] - FIT_MARGIN], [b[1][0] + FIT_MARGIN, b[1][1] + FIT_MARGIN]]);
       useUiStore.getState().setMainView('map');
     };
     return (
@@ -471,6 +516,9 @@ function Totals({ result, index, lang, defaultPurity, version, worldId }: {
     </Window>
   );
 }
+
+/** Map units around the nodes "Show on map" fits the map to, so a single node is not zoomed in on to the limit alone. */
+const FIT_MARGIN = 3;
 
 /** A totals list in as many columns of at least 14rem as fit, so a long plan grows sideways before it grows down. */
 function Columns({ children }: { children: ReactNode }) {

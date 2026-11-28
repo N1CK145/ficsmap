@@ -1,14 +1,21 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import type { MeDto } from '../../src/shared/api.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { getWheelSpeed, usePrefsStore } from '../../src/web/app/prefs.js';
+import { useApplyTheme } from '../../src/web/app/theme.js';
 import { ToastProvider } from '../../src/web/components/Toast.js';
 import { AccountMenu } from '../../src/web/features/worlds/AccountMenu.js';
 import { ProfilePage } from '../../src/web/features/worlds/ProfilePage.js';
 import { stubFetch, type StubRoute } from './fetchStub.js';
+
+/** Applies the theme like App does. */
+function ThemeRoot() {
+  useApplyTheme();
+  return null;
+}
 
 const ME: MeDto = { id: 1, displayName: 'Nick', avatarUrl: null, email: null, datasetVersion: 'v1', prefs: { wheelSpeed: 1.5 } };
 /** Debounce of the save plus a margin. */
@@ -103,6 +110,39 @@ describe('ProfilePage', () => {
     expect(patches(calls)).toEqual([{ dateFormat: 'eu' }]);
   });
 
+  it('switches the theme at once (dark by default) and saves it to the account', async () => {
+    const { calls } = stub();
+    render(<ThemeRoot />);
+    renderAt('/profile');
+    const block = await screen.findByRole('region', { name: 'Appearance' });
+    expect(within(block).getByRole('radio', { name: 'Dark' })).toBeChecked();
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    await userEvent.click(within(block).getByRole('radio', { name: 'Light' }));
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(document.querySelector('meta[name="color-scheme"]')?.getAttribute('content')).toBe('light');
+    await waitFor(() => expect(within(block).getByRole('status')).toHaveTextContent('Saved'), SAVE_WAIT);
+    expect(patches(calls)).toEqual([{ theme: 'light' }]);
+  });
+
+  it('follows the system with "Like the system", also when it changes', async () => {
+    stub();
+    let light = false;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      get matches() { return q === '(prefers-color-scheme: light)' && light; },
+      addEventListener: (_: string, l: () => void) => listeners.add(l),
+      removeEventListener: (_: string, l: () => void) => listeners.delete(l),
+    }));
+    render(<ThemeRoot />);
+    renderAt('/profile');
+    const block = await screen.findByRole('region', { name: 'Appearance' });
+    await userEvent.click(within(block).getByRole('radio', { name: 'Like the system' }));
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    light = true;
+    act(() => { for (const l of listeners) l(); });
+    expect(document.documentElement.dataset.theme).toBe('light');
+  });
+
   it('[Default] goes back to 1.0× and is off at the default', async () => {
     const { calls } = stub();
     renderAt('/profile');
@@ -187,5 +227,48 @@ describe('prefs store', () => {
     const region = await screen.findByRole('region', { name: 'Invite to ficsmap' });
     expect(await within(region).findByDisplayValue('https://ficsmap.test/invite/abc')).toBeInTheDocument();
     expect(within(region).getByText(/works once/)).toBeInTheDocument();
+  });
+
+  describe('sign-in methods', () => {
+    const linked: MeDto = {
+      ...ME,
+      identities: [{ provider: 'discord', subject: '111', name: 'nick' }, { provider: 'steam', subject: '76561197960287930', name: null }],
+    };
+    const region = () => screen.findByRole('region', { name: 'Sign-in' });
+
+    it('lists both providers and links the missing one through its sign-in with link=1', async () => {
+      stubFetch({ 'GET /api/me': { body: { ...ME, identities: [{ provider: 'discord', subject: '111', name: 'nick' }] } } });
+      renderAt('/profile');
+      const r = await region();
+      expect(within(r).getByText('nick')).toBeInTheDocument();
+      expect(within(r).getByRole('link', { name: 'Link Steam' })).toHaveAttribute('href', '/auth/steam/login?link=1');
+      // The only sign-in cannot be removed.
+      expect(within(r).queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument();
+    });
+
+    it('shows the SteamID without a Steam name and removes a sign-in after a confirm', async () => {
+      const { calls } = stubFetch({ 'GET /api/me': { body: linked }, 'DELETE /api/me/identities/steam': { status: 204 } });
+      renderAt('/profile');
+      const r = await region();
+      expect(within(r).getByText('76561197960287930')).toBeInTheDocument();
+      expect(within(r).queryByRole('link', { name: /^Link/ })).not.toBeInTheDocument();
+      await userEvent.click(within(r).getByRole('button', { name: 'Remove Steam sign-in' }));
+      expect(screen.getByText('Remove sign-in with Steam? You can link it again later.')).toBeInTheDocument();
+      await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove' }));
+      await waitFor(() => expect(calls).toContainEqual({ method: 'DELETE', path: '/api/me/identities/steam', body: undefined }));
+      expect(await screen.findByText('Steam sign-in removed')).toBeInTheDocument();
+    });
+
+    it('says how linking went after coming back from the provider', async () => {
+      stubFetch({ 'GET /api/me': { body: linked } });
+      renderAt('/profile?linked=steam');
+      expect(await screen.findByText('Steam is linked to your account now.')).toBeInTheDocument();
+    });
+
+    it('explains a link that failed', async () => {
+      stubFetch({ 'GET /api/me': { body: linked } });
+      renderAt('/profile?link_error=taken');
+      expect(await screen.findByRole('alert')).toHaveTextContent('That account already signs in to another ficsmap account.');
+    });
   });
 });

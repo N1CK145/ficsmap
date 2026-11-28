@@ -24,3 +24,12 @@ export function requestDetailZoom(key: string, on: boolean, map?: L.Map): void {
   else requests.delete(key);
   if (map && map.getMaxZoom() !== currentMaxZoom()) map.setMaxZoom(currentMaxZoom());
 }
+
+/**
+ * The zoom of a first visit (no saved view) for a map of `width` × `height` px: the whole 256-unit image at the nearest
+ * whole zoom, not the next lower one. Leaflet's fit with `zoomSnap` 1 rounds down, which left a 992 px high map with
+ * a 512 px square at zoom 1; at zoom 2 (1024 px) the image's sea edge is cut by a few px instead.
+ */
+export function firstViewZoom(width: number, height: number): number {
+  return Math.max(0, Math.round(Math.log2(Math.min(width, height) / 256)));
+}

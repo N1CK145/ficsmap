@@ -32,9 +32,10 @@ function setup(over: Partial<FlowDiagramProps<GraphLink>> = {}) {
   const canvas = screen.getByRole('group', { name: 'Test diagram' });
   const box = canvas.parentElement!;
   const view = () => {
-    const m = /translate\((-?[\d.]+)px, (-?[\d.]+)px\) scale\(([\d.]+)\)/.exec(canvas.style.transform);
+    // jsdom 31 serializes like browsers do and drops a zero y ("translate(-256px)").
+    const m = /translate\((-?[\d.]+)px(?:, (-?[\d.]+)px)?\) scale\(([\d.]+)\)/.exec(canvas.style.transform);
     if (!m) throw new Error(`no transform: "${canvas.style.transform}"`);
-    return { x: Number(m[1]), y: Number(m[2]), k: Number(m[3]) };
+    return { x: Number(m[1]), y: Number(m[2] ?? 0), k: Number(m[3]) };
   };
   const size = { width: parseFloat(canvas.style.width), height: parseFloat(canvas.style.height) };
   const node = (id: string) => within(canvas).getByRole('button', { name: `Node ${id}` });

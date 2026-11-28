@@ -13,6 +13,7 @@ import type { ToastApi } from '../../components/Toast.js';
 import {
   draftFromRoute, draftReducer, dropUnknown, emptyDraft, optimizeDraft, sameRoute, type DraftAction, type DraftNotice, type RouteDraft,
 } from './draft.js';
+import { useRouteCaves } from './routeCaves.js';
 
 const routesPath = (worldId: string) => `/api/worlds/${encodeURIComponent(worldId)}/routes`;
 
@@ -95,7 +96,7 @@ export const useRouteDraft = create<RouteDraftState>()((set, get) => ({
     if (notice) toast.show({ message: noticeMessage(notice, t) });
     const { draft: known, dropped } = dropUnknown(reduced, index);
     if (dropped > 0) toast.show({ message: t('routes.dropped', { count: dropped }) });
-    const next = RESHAPING.has(action.type) && !known.manualOrder && known !== current ? optimizeDraft(known, index) : known;
+    const next = RESHAPING.has(action.type) && !known.manualOrder && known !== current ? optimizeDraft(known, index, useRouteCaves.getState().caves) : known;
     if (next !== current) set({ draft: next });
   },
   beginEdit: ({ index, toast, t }) => {

@@ -6,7 +6,11 @@ interface Client {
   close: () => void;
 }
 
-/** In-memory fan-out of world events to open SSE streams. */
+/**
+ * In-memory fan-out of world events to open SSE streams. It also knows who is in a world right now (presence): the
+ * users with at least one open stream. Whenever that set changes, every stream of the world gets a `presence` event;
+ * a stream that joins without changing it (a second tab) gets the list for itself.
+ */
 export class SseHub {
   private readonly worlds = new Map<string, Set<Client>>();
 
@@ -15,8 +19,23 @@ export class SseHub {
     const client: Client = { userId, write, close };
     let set = this.worlds.get(worldId);
     if (!set) this.worlds.set(worldId, (set = new Set()));
+    const isNew = !this.presence(worldId).includes(userId);
     set.add(client);
+    if (isNew) {
+      this.broadcastPresence(worldId);
+    } else {
+      try {
+        write(encodeSse({ type: 'presence', userIds: this.presence(worldId) }));
+      } catch {
+        this.remove(worldId, client);
+      }
+    }
     return () => this.remove(worldId, client);
+  }
+
+  /** The users with an open stream in the world, ascending. */
+  presence(worldId: string): number[] {
+    return [...new Set([...(this.worlds.get(worldId) ?? [])].map(c => c.userId))].sort((a, b) => a - b);
   }
 
   broadcast(worldId: string, e: SseEvent): void {
@@ -62,10 +81,14 @@ export class SseHub {
     }
   }
 
+  private broadcastPresence(worldId: string): void {
+    this.broadcast(worldId, { type: 'presence', userIds: this.presence(worldId) });
+  }
+
   private remove(worldId: string, c: Client): void {
     const set = this.worlds.get(worldId);
-    if (!set) return;
-    set.delete(c);
+    if (!set?.delete(c)) return;
     if (set.size === 0) this.worlds.delete(worldId);
+    if (!this.presence(worldId).includes(c.userId)) this.broadcastPresence(worldId);
   }
 }

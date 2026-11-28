@@ -1,5 +1,9 @@
 import type { RouteDto } from '../../src/shared/api.js';
-import type { Item } from '../../src/shared/dataset.js';
+import type { TFunction } from 'i18next';
+import { indexDataset, type Dataset, type Item } from '../../src/shared/dataset.js';
+import { toShapes } from '../../src/web/features/caves/useCaves.js';
+import { caveStopText } from '../../src/web/features/routes/RouteEditor.js';
+import { routeLine, stopCaves } from '../../src/web/features/routes/routeCaves.js';
 import { MAX_ROUTE_STOPS } from '../../src/shared/route.js';
 import {
   draftReducer, emptyDraft, nearestUncollected, replan, routeStats, type RouteDraft,
@@ -138,5 +142,72 @@ describe('routeStats', () => {
 
   it('has nothing left when every stop is done', () => {
     expect(routeStats(at('S', 0), [at('A', 2)], () => true).leftM).toBe(0);
+  });
+});
+
+describe('routes through caves', () => {
+  // A cave around x 50..60 m, y 10..20 m, with its entrance at (50 m, 0).
+  const cave = { id: 'sc-007', n: 7, entrances: [{ x: 5000, y: 0, z: 0 }] };
+  const inCave = (name: string, xm: number, ym: number): Item => ({ name, type: 'somersloop', x: xm * 100, y: ym * 100, z: 0, biome: 0, seq: 1, extra: { cave: true } });
+  const caves = new Map([['C1', cave], ['C2', cave]]);
+
+  it('measures a cave stop through the entrance, and two stops in one cave inside it', () => {
+    const start = at('S', 0);
+    const stops = [inCave('C1', 50, 10), inCave('C2', 50, 20)];
+    expect(routeStats(start, stops, () => false, caves).totalM).toBeCloseTo(50 + 10 + 10);
+    expect(routeStats(start, stops, () => false).totalM).toBeCloseTo(Math.hypot(50, 10) + 10);
+  });
+
+  it('re-plans with the cave legs', () => {
+    // Straight-line C1 (40 m, 5 m, behind the cave wall) is nearer than O (45 m); through the entrance at 50 m it is
+    // 61 m away, and from O only 16 m, so O comes first.
+    const start = at('S', 0);
+    const stops = [inCave('C1', 40, 5), at('O', 45)];
+    expect(replan(start, stops, () => false, new Map([['C1', cave]]))).toEqual(['O', 'C1']);
+    expect(replan(start, stops, () => false)).toEqual(['C1', 'O']);
+  });
+});
+
+describe('stop caves', () => {
+  const bounds = { minX: 0, minY: 0, maxX: 100_000, maxY: 100_000 };
+  const ds: Dataset = {
+    version: 't', build: 1, bounds, mapId: 'm', podRequirementsKnown: true, biomes: [{ id: 'b', name: { en: 'B', de: 'B' } }],
+    items: [
+      ['IN', 'somersloop', 1000, 1000, 0, 0, 1, { cave: true }], // inside the outline
+      ['NEAR', 'somersloop', 3000, 0, 0, 0, 2, { cave: true }], // flagged, outside the outline, 10 m from its entrance
+      ['FAR', 'somersloop', 60_000, 60_000, 0, 0, 3, { cave: true }], // flagged, far from every cave
+      ['OPEN', 'somersloop', 1500, 1500, 0, 0, 4], // inside the outline but not in the cave (on the hill above)
+    ],
+    aliases: {},
+  };
+  const shapes = toShapes({
+    type: 'FeatureCollection',
+    features: [
+      { type: 'Feature', properties: { kind: 'cave', id: 'sc-007', n: 7 }, geometry: { type: 'Polygon', coordinates: [[[0, 0], [2000, 0], [2000, 2000], [0, 2000], [0, 0]]] } },
+      { type: 'Feature', properties: { kind: 'entrance', cave: 'sc-007', z: 5 }, geometry: { type: 'Point', coordinates: [2000, 0] } },
+    ],
+  }, bounds);
+
+  it('gives each item in a cave its cave with the entrances, by outline or by the nearest entrance', () => {
+    const caves = stopCaves(indexDataset(ds), shapes);
+    expect([...caves.keys()].sort()).toEqual(['IN', 'NEAR']);
+    expect(caves.get('IN')).toEqual({ id: 'sc-007', n: 7, entrances: [{ x: 2000, y: 0, z: 5 }] });
+  });
+
+  it('names a cave stop and the entrance it is entered by', () => {
+    const caves = stopCaves(indexDataset(ds), shapes);
+    const t = ((key: string, o: Record<string, unknown>) => `${key} ${JSON.stringify(o)}`) as unknown as TFunction;
+    const item = (name: string) => indexDataset(ds).byName.get(name)!;
+    expect(caveStopText(at('S', 0), item('IN'), caves, t)).toBe('routes.caveStopVia {"n":7,"entrance":1}');
+    expect(caveStopText(item('NEAR'), item('IN'), caves, t)).toBe('routes.caveStop {"n":7}');
+    expect(caveStopText(at('S', 0), item('OPEN'), caves, t)).toBeUndefined();
+  });
+
+  it('draws the route line through the entrance into the cave', () => {
+    const caves = stopCaves(indexDataset(ds), shapes);
+    const item = (name: string) => indexDataset(ds).byName.get(name)!;
+    const ll = (x: number, y: number) => [0 - (y / 100_000) * 256, (x / 100_000) * 256];
+    expect(routeLine([item('OPEN'), item('IN')], caves, bounds)).toEqual([ll(1500, 1500), ll(2000, 0), ll(1000, 1000)]);
+    expect(routeLine([item('OPEN'), item('IN')], null, bounds)).toEqual([ll(1500, 1500), ll(1000, 1000)]);
   });
 });

@@ -7,7 +7,8 @@ import { createUserForTest } from '../api/helpers.js';
 
 const DAY = 86_400_000;
 const T0 = 1_800_000_000_000;
-const OWNERS = new Set(['o']);
+const owners = (...discord: string[]) => ({ ownerDiscordIds: new Set(discord), ownerSteamIds: new Set<string>() });
+const OWNERS = owners('o');
 const n = (db: Db, t: string) => (db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get() as { n: number }).n;
 
 function setup() {
@@ -121,12 +122,21 @@ describe('general invites', () => {
     const other = createUserForTest(db, 'x');
     expect(isServerOwner(db, OWNERS, owner)).toBe(true);
     expect(isServerOwner(db, OWNERS, other)).toBe(false);
-    expect(isServerOwner(db, new Set(), owner)).toBe(false);
+    expect(isServerOwner(db, owners(), owner)).toBe(false);
+  });
+  it('isServerOwner also counts a linked Steam identity on OWNER_STEAM_IDS', () => {
+    const { db } = setup();
+    const u = createUserForTest(db, 'x');
+    db.prepare("INSERT INTO identities(user_id, provider, subject, created_at, last_login_at) VALUES (?, 'steam', '76561197960287930', 0, 0)").run(u);
+    expect(isServerOwner(db, owners(), u)).toBe(false);
+    expect(isServerOwner(db, { ownerDiscordIds: new Set(), ownerSteamIds: new Set(['76561197960287930']) }, u)).toBe(true);
+    // The same id on the Discord list does not count for a Steam identity.
+    expect(isServerOwner(db, owners('76561197960287930'), u)).toBe(false);
   });
   it('work only while their creator is a server owner, and once', () => {
     const { db, owner } = setup();
     const t = createInvite(db, { worldId: null, createdBy: owner, now: T0 }).token;
-    expect(findInvite(db, t, T0, new Set(['someone-else']))).toBeNull();
+    expect(findInvite(db, t, T0, owners('someone-else'))).toBeNull();
     const inv = findInvite(db, t, T0, OWNERS);
     expect(inv).toMatchObject({ worldId: null, createdBy: owner });
     consumeInvite(db, inv!);

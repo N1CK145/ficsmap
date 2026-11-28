@@ -1,9 +1,10 @@
 import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
-import { DATE_FORMATS, nearestWheelSpeedStop, WHEEL_SPEED, WHEEL_SPEED_STOPS } from '../../../shared/prefs.js';
+import { DATE_FORMATS, nearestWheelSpeedStop, THEMES, WHEEL_SPEED, WHEEL_SPEED_STOPS } from '../../../shared/prefs.js';
 import { dateTimeFormat, useDateFormatPref } from '../../app/dates.js';
 import { savePrefs, useSetPrefs, usePrefsSaveStatus, usePrefsStore, useWheelSpeed } from '../../app/prefs.js';
+import { useThemePref } from '../../app/theme.js';
 import { Button } from '../../components/Button.js';
 import { FIELD_LABEL } from '../../components/Field.js';
 import { Footer } from '../../components/Footer.js';
@@ -14,12 +15,13 @@ import { SectionMarker } from '../../components/SectionHeading.js';
 import { Window } from '../../components/Window.js';
 import { AccountMenu } from './AccountMenu.js';
 import { GeneralInvite } from './GeneralInvite.js';
+import { SignInMethods } from './SignInMethods.js';
 import { useMe } from './queries.js';
 
 /**
  * `/profile`: the signed-in user's own settings, outside any world (reached from the account menu). The mouse wheel
- * speed and the date format are stored on the account (app/prefs.ts); the language stays a setting of this device.
- * Server owners also get a general invite link here.
+ * speed, the date format and the theme are stored on the account (app/prefs.ts); the language stays a setting of this device.
+ * The account's sign-ins (Discord, Steam) are linked and removed here; server owners also get a general invite link.
  */
 export function ProfilePage() {
   const { t } = useTranslation();
@@ -29,7 +31,7 @@ export function ProfilePage() {
   // Opened from the account menu: back to where the user came from; opened directly: to the world list.
   const back = () => (location.key === 'default' ? navigate('/?list=1') : navigate(-1));
   // The save state shows under the setting changed last (one status for all would be announced twice).
-  const [changed, setChanged] = useState<'wheel' | 'date'>('wheel');
+  const [changed, setChanged] = useState<'wheel' | 'date' | 'theme'>('wheel');
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -57,8 +59,14 @@ export function ProfilePage() {
               <p className="text-sm text-muted">{t('profile.languageHint')}</p>
               <LanguageSwitch />
             </Window>
+            <Window title={t('profile.theme.title')} bodyClassName="p-4">
+              <ThemeSetting onChange={() => setChanged('theme')} status={changed === 'theme'} />
+            </Window>
             <Window title={t('profile.dateFormat.title')} bodyClassName="p-4">
               <DateFormatSetting onChange={() => setChanged('date')} status={changed === 'date'} />
+            </Window>
+            <Window title={t('profile.signIn.title')} bodyClassName="p-4">
+              <SignInMethods me={me.data} />
             </Window>
             {me.data.serverOwner && (
               <Window title={t('profile.invite.title')} bodyClassName="p-4">
@@ -160,6 +168,36 @@ function DateFormatSetting({ onChange, status }: SettingProps) {
         ))}
       </fieldset>
       <p id={hintId} className="text-xs text-muted max-[899px]:text-sm">{t('profile.dateFormat.hint')}</p>
+      <SaveStatus active={status} />
+    </div>
+  );
+}
+
+/** The theme: a radio group (dark, light, like the system). Applies at once (app/theme.ts) and is saved to the account. */
+function ThemeSetting({ onChange, status }: SettingProps) {
+  const { t } = useTranslation();
+  const value = useThemePref();
+  const setPrefs = useSetPrefs();
+  const hintId = useId();
+  return (
+    <div className="flex flex-col gap-1.5">
+      <fieldset aria-describedby={hintId} className="flex flex-col gap-1">
+        <legend className={`${FIELD_LABEL} mb-1`}>{t('profile.theme.label')}</legend>
+        {THEMES.map(theme => (
+          <label key={theme} className="flex min-h-10 cursor-pointer items-center gap-3 chamfer px-2 hover:bg-raised max-[899px]:min-h-11">
+            <input
+              type="radio"
+              name="theme"
+              value={theme}
+              checked={value === theme}
+              onChange={() => { onChange(); setPrefs({ theme }); }}
+              className="size-4 accent-accent"
+            />
+            <span className="min-w-0 flex-1">{t(`profile.theme.${theme}`)}</span>
+          </label>
+        ))}
+      </fieldset>
+      <p id={hintId} className="text-xs text-muted max-[899px]:text-sm">{t('profile.theme.hint')}</p>
       <SaveStatus active={status} />
     </div>
   );

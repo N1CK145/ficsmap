@@ -26,6 +26,7 @@
     "inviteOnly": "Invite-only: you need an invite link from someone who owns a world, or run your own ficsmap.",
     "tagline": "Track your Satisfactory collectibles together with your friends.",
     "signIn": "Sign in with Discord",
+    "signInSteam": "Sign in with Steam",
     "error": {
       "invite_only": "ficsmap is invite-only. Ask a friend for an invite link.",
       "cancelled": "Sign-in was cancelled. You can try again at any time.",
@@ -57,6 +58,14 @@
     "saved": "Saved",
     "saveFailed": "Not saved. The setting applies on this device for now.",
     "languageHint": "Remembered on this device.",
+    "theme": {
+      "title": "Appearance",
+      "label": "Colours",
+      "dark": "Dark",
+      "light": "Light",
+      "system": "Like the system",
+      "hint": "The map stays dark in both. Saved to your account."
+    },
     "dateFormat": {
       "title": "Date and time",
       "label": "Format",
@@ -69,6 +78,25 @@
       "title": "Invite to ficsmap",
       "linkLabel": "General invite link",
       "hint": "Lets one person create an account without joining a world. Only server owners see this."
+    },
+    "signIn": {
+      "title": "Sign-in",
+      "hint": "Sign in with Discord or Steam. Link both to use either; your worlds stay the same.",
+      "notLinked": "Not linked",
+      "link": "Link {provider}",
+      "unlink": "Remove",
+      "unlinkNamed": "Remove {provider} sign-in",
+      "unlinkConfirm": "Remove sign-in with {provider}? You can link it again later.",
+      "unlinked": "{provider} sign-in removed",
+      "unlinkFailed": "The sign-in couldn't be removed. Please try again.",
+      "linked": "{provider} is linked to your account now.",
+      "error": {
+        "taken": "That account already signs in to another ficsmap account.",
+        "provider_taken": "Your account already has another account of that provider. Remove it first.",
+        "cancelled": "Linking was cancelled.",
+        "expired": "Linking took too long. Please try again.",
+        "failed": "Linking didn't work. Please try again."
+      }
     }
   },
   "worlds": {
@@ -112,12 +140,13 @@
     "hideSidebar": "Hide sidebar",
     "showSidebar": "Show sidebar",
     "resizeSidebar": "Resize sidebar",
-    "resizeSidebarHint": "Drag or use the arrow keys; double-click to fit the content"
+    "resizeSidebarHint": "Drag or use the arrow keys; double-click for the default width"
   },
   "live": {
     "live": "Live",
     "connecting": "Connecting…",
-    "offline": "Offline"
+    "offline": "Offline",
+    "alsoHere": "Also here: {names}"
   },
   "biomes": {
     "title": "Biomes",
@@ -132,7 +161,26 @@
     "item": {
       "title": "Cave",
       "inCave": "Lies in a cave.",
-      "nearestEntrance": "Nearest cave entrance: {distance, number} m (straight line)"
+      "nearestEntrance": "Nearest cave entrance: {distance, number} m (straight line)",
+      "view3d": "Show cave in 3D"
+    },
+    "popup": {
+      "title": "Cave {n, number}",
+      "contents": "{items, plural, one {# item} other {# items}} · {entrances, plural, =0 {no known entrance} one {# entrance} other {# entrances}}",
+      "view3d": "3D view"
+    },
+    "viewer": {
+      "title": "Cave {n, number} in 3D",
+      "landscape": "Landscape",
+      "cut": "Cut from above",
+      "reset": "Reset view",
+      "hint": "Drag to turn, scroll or pinch to zoom, right-drag or two fingers to move. Dots show through the rock.",
+      "loading": "Loading 3D model …",
+      "loadingPercent": "Loading 3D model … {progress, number, percent}",
+      "noWebgl": "This browser cannot show 3D graphics (WebGL is off or not supported).",
+      "loadFailed": "The 3D model could not be loaded.",
+      "missing": "This dataset has no 3D model of this cave.",
+      "entrance": "Entrance"
     }
   },
   "coords": {
@@ -351,7 +399,10 @@
     },
     "coords": "X {x} · Y {y} · Z {z}",
     "copyId": "Copy ID",
-    "copied": "Copied"
+    "copied": "Copied",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied",
+    "linkNotFound": "The linked object is not on this map."
   },
   "import": {
     "privacy": "Your save is read in your browser. Only this is sent to the server: the list of collected items; the save’s name, date and game build; for resource nodes the resource or purity your save sets and which extractor stands on which node (building, clock speed, Power Shards); for the factory plan what is built where (buildings with their productivity, belts, pipes, power lines, roads, stations, vehicles, map markers, sign texts and the explored area); the players’ names and where their characters stand; the game’s statistics (creatures killed, consumed, built, crafted and picked up, per player where the game counts it); which creature spawn points were killed; and the death crates.",
@@ -488,6 +539,8 @@
     "done": "Done",
     "doneBy": "({name})",
     "noDistance": "—",
+    "caveStop": "Cave {n, number}",
+    "caveStopVia": "Cave {n, number} · entrance {entrance, number}",
     "total": "Total {total} · {left} left · {done, number}/{count, number} done",
     "optimize": "Optimize order",
     "next": "Next stop ›",
@@ -499,7 +552,7 @@
     "optimizeAgain": "Optimize again",
     "doneByOthers": "{count, plural, one {# stop done by others} other {# stops done by others}}",
     "replan": "Re-plan",
-    "hint": "Straight-line distances, terrain not included",
+    "hint": "Straight-line distances (into caves through their entrances), terrain not included",
     "dismiss": "Dismiss",
     "full": "Route is full ({max, number}). Remove a stop to add another.",
     "partial": "Added {added, number} of {requested, number} (route limit {max, number}). Nearest first.",
@@ -576,7 +629,15 @@
       "confirmLabel": "Type the world name to confirm",
       "delete": "Delete world",
       "deleted": "World deleted",
-      "failed": "Couldn't delete the world. Please try again."
+      "failed": "Couldn't delete the world. Please try again.",
+      "transferHint": "Hand the world over to another member. You stay as an admin.",
+      "transferLabel": "New owner",
+      "transferChoose": "Choose a member",
+      "transfer": "Hand over",
+      "transferConfirm": "Make {name} the owner of {world}? You become an admin; only {name} can delete the world or hand it back.",
+      "transferAction": "Make owner",
+      "transferred": "{name} now owns {world}",
+      "transferFailed": "Couldn't hand over the world. Please try again."
     }
   },
   "list": {
@@ -591,7 +652,8 @@
     "changedBy": "Last changed by",
     "showOnMap": "Show on map",
     "empty": "No items match the current filters.",
-    "none": "—"
+    "none": "—",
+    "inCave": "In a cave"
   },
   "mobile": {
     "sheet": {
@@ -689,6 +751,9 @@
     "atFullClock": "Per minute at 100 % clock speed.",
     "description": "In the game",
     "noDescription": "The game has no description.",
+    "descriptionNote": {
+      "truckStation": "The description still says “up to 120 stacks per minute”. Since game version 1.2 a Truck Station loads or unloads a docked vehicle in one fixed cycle, whatever it carries; the vehicle calculator counts with that."
+    },
     "buildCost": "{place, select, workshop {Crafted in the Equipment Workshop from} other {Build cost}}",
     "unlockedBy": "Unlocked by",
     "unlock": "{kind, select, milestone {Tier {tier, number}: {name}} tutorial {Tier 0: {name}} mam {MAM research: {name}} alternate {Alternate recipe: {name}} hardDrive {Hard drive: {name}} shop {AWESOME Shop: {name}} other {{name}}}",
@@ -854,6 +919,48 @@
     "list": {
       "item": "Item",
       "rate": "Per minute"
+    },
+    "alternates": {
+      "title": "Alternate recipes",
+      "available": "{count, number} available",
+      "chosen": "{count, plural, one {# chosen} other {# chosen}}",
+      "hint": "Every alternate recipe in the game data, by the item it makes. The choice applies wherever the item is in the plan, the same as in a step's \"Made by\", and is remembered on this device.",
+      "filter": "Filter alternate recipes",
+      "filterPlaceholder": "Item or recipe…",
+      "inPlan": "In this plan",
+      "others": "Other items",
+      "all": "All items",
+      "noMatch": "No matching alternate recipe",
+      "recipeFor": "Recipe for {item}"
+    },
+    "mode": {
+      "label": "Calculate from",
+      "rate": "Wanted rate",
+      "nodes": "Available nodes"
+    },
+    "nodes": {
+      "title": "Available resource nodes",
+      "hint": "The nodes you can use, by resource, purity and extractor; at the extractor clock speed below. Water extractors and items supplied from outside are not limited.",
+      "add": "+ Add nodes",
+      "groupN": "Nodes {n}",
+      "resource": "Resource",
+      "pickResource": "Pick a resource…",
+      "count": "Nodes",
+      "extractor": "Extractor",
+      "gives": "Gives {value}",
+      "ratioHint": "With several items only the ratio of their rates counts: the planner makes as much as the nodes allow in that ratio.",
+      "maxTitle": "Maximum output",
+      "unbounded": "This plan needs no resource from nodes (only water from water extractors or items supplied from outside), so the nodes do not limit it.",
+      "missing": "No nodes entered for {items}, so nothing can be made. Add them under \"Available resource nodes\".",
+      "bottleneck": "{count, plural, one {Bottleneck} other {Bottlenecks}}: {items}",
+      "usage": "Node resources used",
+      "limiting": "Bottleneck, fully used",
+      "share": "{value} % used",
+      "usedOf": "{used} of {available}"
+    },
+    "transport": {
+      "lines": "{count}× {tier}",
+      "needs": "Needs {tier}"
     }
   },
   "vehicleCalc": {
@@ -870,7 +977,7 @@
     "route": "Route length (one way)",
     "pick": {
       "button": "Pick on the map",
-      "hint": "Choose the start (A) and the destination (B) on the map, or type the length.",
+      "hint": "Choose the start (A) and the destination (B) on the map, or type the length. A point near a resource node shown on the map snaps onto it.",
       "again": "Pick again",
       "clear": "Clear points",
       "start": "Vehicle calculator: choose the start on the map",
@@ -924,7 +1031,7 @@
     "speedMissing": "Not in the game data: enter the average speed you see in the game.",
     "stop": "Load and unload time",
     "stopSource": {
-      "truckStation": "Both ends together. Game value: one Truck Station cycle at each end.",
+      "truckStation": "Both ends together. Game value: one Truck Station cycle at each end. Its description says “up to 120 stacks per minute”, but since game version 1.2 one cycle moves the whole load, so that is not used.",
       "fluidTruckStation": "Both ends together. Game value: one Fluid Truck Station cycle at each end.",
       "freightPlatform": "Both ends together. Game value: a Freight Platform's load and unload time.",
       "dronePort": "Both ends together. Game value: docking and take-off at both Drone Ports."
@@ -1853,6 +1960,14 @@
       "hatcher": "Crab hatchers",
       "wildlife": "Wildlife"
     },
+    "biomes": {
+      "title": "Where creatures still live",
+      "summary": "{count, plural, =0 {every biome cleared} one {# biome not cleared} other {# biomes not cleared}}",
+      "count": "{open} of {total}",
+      "cleared": "cleared",
+      "outside": "Outside the biomes",
+      "hint": "Spawn points of the kinds shown whose creatures are not dead right now, of all, from the save the timeline shows. A click shows the biome on the map."
+    },
     "legend": "From zoom 5 the creature’s picture, below that a diamond. Filled: killed before, hollow: never killed, struck out in red: dead right now. Number on the picture: times killed.",
     "source": "{kills, number} kills at {spawners, number} spawn points · save of {date}",
     "noKillData": "No kill state: the save was imported before ficsmap read it.",
@@ -1956,5 +2071,28 @@
     "more": "+{count, number} more",
     "empty": "Empty",
     "showOnMap": "On the map"
+  },
+  "activity": {
+    "title": "Activity",
+    "hereNow": "Here now: {names}",
+    "alone": "Nobody else is here right now.",
+    "recent": "Recent changes",
+    "empty": "Nothing has happened yet.",
+    "loadFailed": "The activity couldn't be loaded.",
+    "someone": "Someone",
+    "kind": {
+      "marks": "{name} changed {count, plural, one {# check} other {# checks}}",
+      "import": "{name} imported {count, plural, one {a save} other {# saves}}",
+      "snapshots": "{name} added {count, plural, one {a save} other {# saves}} to the factory plan",
+      "routes": "{name} edited routes",
+      "rename": "{name} renamed the world to {detail}",
+      "join": "{name} joined",
+      "leave": "{name} left",
+      "remove": "{name} removed {target}",
+      "roleAdmin": "{name} made {target} an admin",
+      "roleMember": "{name} took admin rights from {target}",
+      "stepDown": "{name} gave up admin rights",
+      "owner": "{name} handed the world to {target}"
+    }
   }
 }

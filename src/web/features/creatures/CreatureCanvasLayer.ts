@@ -1,9 +1,10 @@
 import L from 'leaflet';
 import { CREATURE_FAMILIES, type CreatureFamily } from '../../../shared/creatures.js';
+import { mapStyle } from '../map/mapStyle.js';
 
 export const CREATURE_PANE = 'ficsmap-creatures';
 /** Like the resource nodes (455): above the collectible markers (450), below the vehicle route (460). */
-const CREATURE_PANE_Z = 452;
+export const CREATURE_PANE_Z = 452;
 const CULL_PX = 20;
 /** From this zoom on the creature's picture; below it a dot in the family's colour. */
 export const PICTURE_ZOOM = 5;
@@ -64,7 +65,7 @@ function image(url: string, onLoad: () => void): HTMLImageElement {
 }
 
 function readPalette(): { bg: string; fg: string; conflict: string; disc: string; family: Record<CreatureFamily, string> } | null {
-  const style = getComputedStyle(document.documentElement);
+  const style = mapStyle();
   const token = (n: string) => style.getPropertyValue(`--color-${n}`).trim();
   const family = Object.fromEntries(CREATURE_FAMILIES.map(f => [f, token(`cr-${f}`)])) as Record<CreatureFamily, string>;
   const p = { bg: token('bg'), fg: token('fg'), conflict: token('conflict'), disc: token('cr-disc'), family };

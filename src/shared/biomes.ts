@@ -55,3 +55,38 @@ export function assignBiome(x: number, y: number, biomes: BiomeShape[], snapUnit
   }
   return bestD <= snapUnits ? best : -1;
 }
+
+/** `biomes.geojson` of a dataset: one feature per biome (or several), `idx` as in `Dataset.biomes`, world coordinates. */
+export interface BiomeCollection {
+  features: { properties?: { idx?: number } | null; geometry?: { type: string; coordinates: unknown } | null }[];
+}
+
+/**
+ * Which biome a point lies in, by the dataset's `biomes.geojson`: the `idx` of the biome containing it, else of the
+ * nearest one within `snapUnits` (as the dataset build assigns items), else -1.
+ */
+export function biomeLocator(fc: BiomeCollection, snapUnits: number): (x: number, y: number) => number {
+  const shapes: BiomeShape[] = [];
+  for (const f of fc.features) {
+    const idx = f.properties?.idx;
+    if (typeof idx !== 'number' || !Number.isInteger(idx) || idx < 0) continue;
+    while (shapes.length <= idx) shapes.push({ id: '', name: '', rings: [] });
+    for (const poly of polygonsOf(f.geometry ?? null)) shapes[idx]!.rings.push(...poly);
+  }
+  // Bounding boxes, grown by the snap distance: a point outside one can be neither in that biome nor near enough.
+  const boxes = shapes.map(b => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const ring of b.rings) for (const [px, py] of ring) {
+      minX = Math.min(minX, px!); minY = Math.min(minY, py!); maxX = Math.max(maxX, px!); maxY = Math.max(maxY, py!);
+    }
+    return { minX: minX - snapUnits, minY: minY - snapUnits, maxX: maxX + snapUnits, maxY: maxY + snapUnits };
+  });
+  const empty: BiomeShape = { id: '', name: '', rings: [] };
+  return (x, y) => {
+    const near = shapes.map((b, i) => {
+      const box = boxes[i]!;
+      return x >= box.minX && x <= box.maxX && y >= box.minY && y <= box.maxY ? b : empty;
+    });
+    return assignBiome(x, y, near, snapUnits);
+  };
+}

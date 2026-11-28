@@ -9,6 +9,7 @@ import {
   bandOf, REASONS, starvesFor, type AnalysisData, type CauseContext, type Band, type FactoryAnalysis, type MachineFlow, type MachineHint, type MachineState, type Reason,
 } from './analysis.js';
 import type { FactorySnapshot, SnapshotBuilding, SnapshotLink } from './snapshot.js';
+import { rulesBySide, sideOfPort, sortMatch, type SortMatch } from './splitter.js';
 
 export interface ProductionLine {
   /** Stable within a snapshot: the id of its most downstream machine. */
@@ -163,7 +164,9 @@ export type LineHint = { kind: 'sharedBeltFull'; belt: string; rate: number } | 
  * pipe: fluid; filtered by what lies on the belt or the pipe's fluid when that is known): first to links leading to
  * consumers that need it, evenly up to their need (water-filling), the rest evenly to links leading to storage,
  * stations or sinks; never more than a belt's capacity; what nobody takes backs up and is dropped, and links that close
- * a loop carry nothing. A building without inputs in the line (storage, an unloading station) delivers what is taken.
+ * a loop carry nothing. A smart or programmable splitter follows its sort rules (`sortMatch`): an item goes only to
+ * the outputs whose rules take it, Overflow outputs get what those do not take, None and outputs without a rule get
+ * nothing. A building without inputs in the line (storage, an unloading station) delivers what is taken.
  * Splitters, mergers, junctions, pumps and valves only pass things on. Edge capacity is the dataset's belt rate of
  * the slowest class (pipes: unknown, the dataset has no pipe rates), summed over the edge's links; saturated at ≥ 95 %.
  * Products are what flows into storage, stations or sinks plus outputs with no link at all; inputs what comes out of
@@ -381,10 +384,22 @@ function buildLine(members: ReadonlySet<string>, ctx: Ctx): ProductionLine {
   const linkIndex = new Map(links.map((l, i) => [l, i]));
   const isBack = (l: SnapshotLink) => nodeLayer.back.has(linkIndex.get(l)!);
   const canCarry = (l: SnapshotLink, item: string) => (known(item) ? fluid(item) === (l.kind === 'pipe') : true);
-  const mayCarry = (l: SnapshotLink, item: string) => (l.kind === 'pipe' ? !l.fluid || l.fluid === item : !l.items || item in l.items);
+  /** A smart or programmable splitter's rules for `item` on link `l` leaving it (`match` for every other building). */
+  const ruleOf = (l: SnapshotLink, item: string): SortMatch => {
+    const b = building.get(l.from)!;
+    return b.sort ? sortMatch(b.cls, b.sort, l.fromPort, item) : 'match';
+  };
+  /** Whether a link leaving a sorting splitter can take anything at all (an output with no rule or only None cannot). */
+  const takesAny = (l: SnapshotLink) => {
+    const b = building.get(l.from)!;
+    const side = b.sort ? sideOfPort(b.cls, l.fromPort) : undefined;
+    return !side || (rulesBySide(b.cls, b.sort!).get(side) ?? []).some(r => r !== 'Desc_None_C');
+  };
+  const mayCarry = (l: SnapshotLink, item: string) =>
+    (l.kind === 'pipe' ? !l.fluid || l.fluid === item : !l.items || item in l.items) && ruleOf(l, item) !== null;
   /**
    * Links of `list` that can carry `item`: by form (belt: solid, pipe: fluid), without those known to carry something
-   * else (a pipe's fluid, a belt with items on it but none of this one).
+   * else (a pipe's fluid, a belt with items on it but none of this one) and those a splitter's sort rules keep it off.
    */
   const carriers = (list: readonly SnapshotLink[], item: string) => list.filter(l => canCarry(l, item) && mayCarry(l, item));
   const demand = new Map<SnapshotLink, Rates>();
@@ -418,7 +433,10 @@ function buildLine(members: ReadonlySet<string>, ctx: Ctx): ProductionLine {
       const d: Rates = new Map();
       for (const l of outs.get(id) ?? []) {
         if (isBack(l)) continue;
-        for (const [item, v] of demand.get(l) ?? []) d.set(item, (d.get(item) ?? 0) + v);
+        for (const [item, v] of demand.get(l) ?? []) {
+          if (item === ANY ? !takesAny(l) : ruleOf(l, item) === null) continue;
+          d.set(item, (d.get(item) ?? 0) + v);
+        }
       }
       for (const l of into) demand.set(l, new Map(d));
     }
@@ -457,10 +475,24 @@ function buildLine(members: ReadonlySet<string>, ctx: Ctx): ProductionLine {
         for (const [item, amount] of supply) {
           const c = carriers(from, item);
           if (c.length === 0) { if (m) add(leftover, item, amount); continue; }
-          const finite = c.filter(l => Number.isFinite(need(l, item)) && need(l, item) > 0);
-          const open = c.filter(l => !Number.isFinite(need(l, item)));
-          let rest = waterFill(amount, finite.map(l => Math.min(need(l, item), room(l))), (i, v) => add(flow.get(finite[i]!)!, item, v));
-          if (open.length > 0 && rest > 1e-9) rest = waterFill(rest, open.map(room), (i, v) => add(flow.get(open[i]!)!, item, v));
+          /** Hands `amount` to the needs behind `list`, then to its storage, stations and sinks; returns the rest. */
+          const serve = (list: readonly SnapshotLink[], amount: number) => {
+            const finite = list.filter(l => Number.isFinite(need(l, item)) && need(l, item) > 0);
+            const open = list.filter(l => !Number.isFinite(need(l, item)));
+            let left = waterFill(amount, finite.map(l => Math.min(need(l, item), room(l))), (i, v) => add(flow.get(finite[i]!)!, item, v));
+            if (open.length > 0 && left > 1e-9) left = waterFill(left, open.map(room), (i, v) => add(flow.get(open[i]!)!, item, v));
+            return left;
+          };
+          // A sorting splitter serves the outputs its rules send the item to first; Overflow outputs get what they do
+          // not take (all of it when no output matches), up to their room, as the game sends there what backs up.
+          const matching = c.filter(l => ruleOf(l, item) === 'match');
+          const first = matching.length > 0 ? matching : c;
+          const overflow = c.filter(l => !first.includes(l));
+          let rest = serve(first, amount);
+          if (overflow.length > 0 && rest > 1e-9) {
+            rest = serve(overflow, rest);
+            if (rest > 1e-9 && !overflow.some(isBack)) rest = waterFill(rest, overflow.map(room), (i, v) => add(flow.get(overflow[i]!)!, item, v));
+          }
           // With a way back into a loop the rest circulates there (left out of the estimate, like the loop itself).
           if ((m || passes(id)) && rest > 1e-9 && !c.some(isBack)) {
             const onward = c;

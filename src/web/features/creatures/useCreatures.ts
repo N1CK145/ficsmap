@@ -93,6 +93,8 @@ interface CreatureLayerState extends CreatureView {
   /** The player "Show" was chosen for (`SnapshotPlayer.name`), marked on the map until the layer goes off; not remembered. */
   focusedPlayer: string | null;
   toggle(): void;
+  /** Switches the layer on. */
+  show(): void;
   /** Switches the players on and marks one of them. */
   focusPlayer(name: string | null): void;
   toggleFamily(f: CreatureFamily): void;
@@ -118,6 +120,7 @@ export const useCreatureLayer = create<CreatureLayerState>()((set, get) => {
     focusedPlayer: null,
     focusPlayer: name => { if (!get().players) update({ players: true }); set({ focusedPlayer: name }); },
     toggle: () => update({ visible: !get().visible }),
+    show: () => { if (!get().visible) update({ visible: true }); },
     showFamily: f => update({ visible: true, hidden: CREATURE_FAMILIES.filter(x => x !== f) }),
     toggleFamily: f => { const h = get().hidden; update({ hidden: h.includes(f) ? h.filter(x => x !== f) : [...h, f] }); },
     setKill: kill => update({ kill }),

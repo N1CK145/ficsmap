@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
-import type { MachineData } from '../../src/shared/machines.js';
+import type { MachineData, MachineEntry } from '../../src/shared/machines.js';
 import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { machineWikiFeature, machineWikiTool } from '../../src/web/features/machineWiki/index.js';
@@ -12,6 +12,7 @@ import type { ItemIcons } from '../../src/web/features/machineWiki/icons.js';
 import { getI18n } from 'react-i18next';
 import { useMachineWiki } from '../../src/web/features/machineWiki/useMachineWiki.js';
 import { NARROW_QUERY } from '../../src/web/features/machineWiki/MachineWiki.js';
+import type { RecipeData } from '../../src/shared/recipes.js';
 import { RECIPE_DATA } from '../fixtures/recipeData.js';
 import { stubFetch } from './fetchStub.js';
 import { stubMatchMedia } from './matchMedia.js';
@@ -93,11 +94,14 @@ const ICONS = {
   icons: [...Object.keys(DATA.items).filter(i => i !== 'Desc_Coal_C'), ...DATA.machines.map(m => m.id.replace(/^Build_/, 'Desc_'))].sort(),
 };
 
-function setup(data: 'present' | 'missing', icons: 'present' | 'missing' = 'present', url = `/w/${W}`, { recipes = false } = {}) {
+function setup(
+  data: 'present' | 'missing', icons: 'present' | 'missing' = 'present', url = `/w/${W}`,
+  { recipes = false, machines = DATA, recipeData = RECIPE_DATA }: { recipes?: boolean; machines?: MachineData; recipeData?: RecipeData } = {},
+) {
   const { calls } = stubFetch({
-    ...(data === 'present' && { 'GET /data/test/machines.json': { body: DATA } }),
+    ...(data === 'present' && { 'GET /data/test/machines.json': { body: machines } }),
     ...(icons === 'present' && { 'GET /data/test/icons/items/index.json': { body: ICONS } }),
-    ...(recipes && { 'GET /data/test/recipes.json': { body: RECIPE_DATA } }),
+    ...(recipes && { 'GET /data/test/recipes.json': { body: recipeData } }),
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ctx: WorldCtx = { worldId: W, world: WORLD, me: ME, index: indexDataset(DS), queryClient: client, navigate: () => {}, toast: { show: () => {} } };
@@ -223,6 +227,22 @@ describe('machine wiki', () => {
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
+  it('reads the recipes an entry refers to from recipes.json (datasets built since machines.json keeps only their ids)', async () => {
+    const plate = DATA.recipes![0]!;
+    const machines: MachineData = {
+      ...DATA, recipes: undefined,
+      machines: DATA.machines.map(m => (m.id === plate.machine ? { ...m, recipes: [plate.id] } : m)),
+    };
+    const { calls } = setup('present', 'present', `/w/${W}`, { recipes: true, machines, recipeData: { ...RECIPE_DATA, recipes: [...RECIPE_DATA.recipes, plate] } });
+    const page = await open();
+    await user().click(await within(page).findByRole('button', { name: 'Constructor' }));
+    const article = within(page).getByRole('article', { name: 'Constructor' });
+    expect(await within(article).findByText('1 recipe')).toBeInTheDocument();
+    const recipe = within(article).getAllByRole('listitem').find(li => li.textContent?.startsWith('Iron Plate'));
+    expect(recipe).toHaveTextContent('Iron Plate30/min Iron Ingot→makes20/min Iron Plate6 s per cycle');
+    expect(calls.map(c => c.path)).toContain('/data/test/recipes.json');
+  });
+
   it('gives the clock speed with Power Shards from the recipe data, loaded for an entry that has one', async () => {
     const { calls } = setup('present', 'present', `/w/${W}`, { recipes: true });
     const page = await open();
@@ -275,6 +295,20 @@ describe('machine wiki', () => {
     expect(hasStat(within(page).getByRole('article'), 'Clock speed') || hasStat(within(page).getByRole('article'), 'Power exponent (clock speed)')).toBe(false);
     await user().click(within(page).getByRole('button', { name: 'Resource Well Extractor' }));
     expect(value('Extraction rate')).toHaveTextContent('60 m³/min (normal node)');
+  });
+
+  it('notes under the Truck Station\'s description that its "120 stacks per minute" is not what the game does', async () => {
+    const station: MachineEntry = {
+      id: 'Build_TruckStation_C', category: 'logistics', name: { en: 'Truck Station', de: 'Lkw-Station' },
+      description: { en: 'Transfers up to 120 stacks per minute to/from docked vehicles.', de: 'Überträgt bis zu 120 Stapel pro Minute.' },
+      wikiPage: 'Truck_Station', stats: { powerUse: 20, inventorySlots: 48, fuelSlots: 1 }, unlockedBy: [],
+    };
+    setup('present', 'present', `/w/${W}/wiki/Build_TruckStation_C`, { machines: { ...DATA, machines: [...DATA.machines, station] } });
+    const article = await screen.findByRole('article', { name: 'Truck Station' });
+    expect(within(article).getByText(/still says “up to 120 stacks per minute”/)).toHaveTextContent(
+      'The description still says “up to 120 stacks per minute”. Since game version 1.2 a Truck Station loads or unloads a docked vehicle in one fixed cycle, whatever it carries; the vehicle calculator counts with that.');
+    await user().click(within(screen.getByRole('main')).getByRole('button', { name: 'Drone Port' }));
+    expect(within(screen.getByRole('article')).queryByText(/120 stacks/)).toBeNull();
   });
 
   it('goes back to the list from an entry with the window\'s ×', async () => {

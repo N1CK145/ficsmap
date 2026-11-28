@@ -7,7 +7,7 @@ import type { MarkerVisual } from './markerStyle.js';
  */
 
 /** Resolved colours: the theme tokens, read at runtime (no raw hex here). */
-export interface MarkerPalette { bg: string; fg: string; accent: string; conflict: string; power: string; free: string; types: Record<string, string> }
+export interface MarkerPalette { bg: string; fg: string; accent: string; conflict: string; power: string; free: string; cave: string; types: Record<string, string> }
 
 export const SHAPE = {
   circleR: 8,
@@ -59,6 +59,9 @@ const DOT_HALO_R = DOT_R + 5;
 const HALO_R = SELECT_R + 2;
 const ICON_HALO_R = ICON_SELECT_R + 3;
 const ICON_POD_BADGE = { x: 14, y: 14, r: 6 };
+/** The cave badge sits bottom left (conflict top right, route top left, drop pod bottom right). */
+const CAVE_BADGE = { x: -7, y: 6, r: 4.5 };
+const ICON_CAVE_BADGE = { x: -14, y: 14, r: 6 };
 
 /** A lightning bolt, centred on (0, 0), about 8 px high at scale 1. */
 const BOLT: readonly (readonly [number, number])[] = [[0.9, -4.2], [-2.4, 0.6], [-0.2, 0.6], [-0.9, 4.2], [2.4, -0.8], [0.2, -0.8]];
@@ -196,6 +199,30 @@ function drawPodBadge(ctx: CanvasRenderingContext2D, x: number, y: number, kind:
   }
 }
 
+/** In a cave: a disk in the cave layer's colour with a dark cave mouth (an arch standing on the disk's lower part). */
+function drawCaveBadge(ctx: CanvasRenderingContext2D, x: number, y: number, p: MarkerPalette, badge: Badge): void {
+  const bx = x + badge.x;
+  const by = y + badge.y;
+  const r = badge.r;
+  circle(ctx, bx, by, r);
+  ctx.fillStyle = p.cave;
+  ctx.fill();
+  ctx.strokeStyle = p.bg;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  const w = r * 0.5;
+  const floor = by + r * 0.55;
+  const top = by - r * 0.05;
+  ctx.beginPath();
+  ctx.moveTo(bx - w, floor);
+  ctx.lineTo(bx - w, top);
+  ctx.arc(bx, top, w, Math.PI, 0);
+  ctx.lineTo(bx + w, floor);
+  ctx.closePath();
+  ctx.fillStyle = p.bg;
+  ctx.fill();
+}
+
 /** Stop `n` of the shown route; the start (0) reads "S". */
 function drawRouteBadge(ctx: CanvasRenderingContext2D, x: number, y: number, n: number, p: MarkerPalette, badge: Badge = ROUTE_BADGE): void {
   const bx = x + badge.x;
@@ -277,6 +304,7 @@ function drawIconMarker(
   if (collected) drawCheck(ctx, x, y, p, 1.7);
   if (v.badge === 'conflict') drawConflictBadge(ctx, x, y, p, conflictPulse, ICON_BADGE);
   if (v.badge === 'none' && v.pod) drawPodBadge(ctx, x, y, v.pod, p, ICON_POD_BADGE);
+  if (v.cave) drawCaveBadge(ctx, x, y, p, ICON_CAVE_BADGE);
   if (v.routeIndex !== null) drawRouteBadge(ctx, x, y, v.routeIndex, p, ICON_ROUTE_BADGE);
   ctx.globalAlpha = 1;
   if (v.selected) {
@@ -353,6 +381,7 @@ export function drawMarker(
     drawCheck(ctx, x, y, p);
     if (v.badge === 'conflict') drawConflictBadge(ctx, x, y, p, conflictPulse);
   }
+  if (v.cave) drawCaveBadge(ctx, x, y, p, CAVE_BADGE);
   if (v.routeIndex !== null) drawRouteBadge(ctx, x, y, v.routeIndex, p);
   ctx.globalAlpha = 1;
 

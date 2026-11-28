@@ -1,7 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { CircleMarker, Pane, Polygon } from 'react-leaflet';
 import type { WorldCtx } from '../../app/feature.js';
+import { backgroundClicks, type BackgroundClick } from '../map/clickClaims.js';
+import { caveAt, useCaveViewer } from './caveModels.js';
 import { useCaveLayer, useCaves } from './useCaves.js';
+import { mapStyle } from '../map/mapStyle.js';
 
 /** Above the tiles (200), below the biome outlines (overlay pane, 400) and the marker canvas (450). */
 const AREA_PANE_Z = 350;
@@ -11,20 +14,32 @@ const AREA_OPACITY = 0.35;
 const ENTRANCE_RADIUS = 5;
 
 function readColors() {
-  const style = getComputedStyle(document.documentElement);
+  const style = mapStyle();
   const token = (name: string) => style.getPropertyValue(name).trim() || 'currentColor';
   return { cave: token('--color-cave'), bg: token('--color-bg') };
 }
 
 /**
  * Caves on the map, while the layer is switched on: the caves' floor plans (sampled from the game's 3D
- * geometry) as translucent shapes and the entrances as dark dots ringed in the cave colour. Not
- * interactive; clicks go to the map and markers.
+ * geometry) as translucent shapes and the entrances as dark dots ringed in the cave colour. The shapes themselves
+ * take no events (markers stay clickable); a map click inside a cave that hit no marker opens the cave's box
+ * (CaveInfo), a click outside every cave closes it.
  */
 export function CaveLayer({ ctx }: { ctx: WorldCtx }) {
   const visible = useCaveLayer(s => s.visible);
   const caves = useCaves(ctx.me.datasetVersion, ctx.index.ds.bounds, visible);
   const colors = useMemo(readColors, []);
+  useEffect(() => {
+    if (!visible || !caves) return;
+    const onClick: BackgroundClick = ({ lat, lng }) => {
+      const id = caveAt(lat, lng, caves);
+      const viewer = useCaveViewer.getState();
+      if (id) viewer.openPopup(id, lat, lng);
+      else viewer.closePopup();
+    };
+    backgroundClicks.add(onClick);
+    return () => { backgroundClicks.delete(onClick); };
+  }, [visible, caves]);
   if (!visible || !caves) return null;
   // Fill and outline share one colour at full opacity; the pane's opacity makes the union translucent.
   // One multi-polygon, a polygon per cave; within a cave the even-odd rule makes inner rings holes.

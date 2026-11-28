@@ -130,6 +130,7 @@ describe('auth', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       id: 1, displayName: 'user-owner-1', avatarUrl: null, email: 'owner-1@example.test', datasetVersion: 'test', prefs: {}, serverOwner: true,
+      identities: [{ provider: 'discord', subject: 'owner-1', name: 'user-owner-1' }],
     });
   });
   it('an expired session is treated as absent', async () => {

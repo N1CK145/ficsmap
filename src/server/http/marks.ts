@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { AppDeps } from '../app.js';
 import { makeWorldGuards } from '../auth/guards.js';
 import { HttpError } from '../errors.js';
+import { recordActivity } from '../domain/activity.js';
 import { bulkMarks, listMarks, restoreMarks, setMark, type MarkTuple, type RestoreRow } from '../domain/marks.js';
 
 const Actor = z.string().regex(/^[A-Za-z0-9_]{1,128}$/);
@@ -43,6 +44,7 @@ export function registerMarkRoutes(app: FastifyInstance, deps: AppDeps): void {
     const { collected } = PutBody.parse(req.body);
     const at = now();
     const { rev } = setMark(db, req.world!.id, actor.data, collected, req.user!.id, at);
+    recordActivity(db, req.world!.id, { kind: 'marks', userId: req.user!.id }, at);
     hub!.broadcast(req.world!.id, {
       type: 'mark', actor: actor.data, collected, mismatch: false, by: req.user!.id, at, rev,
     });
@@ -54,6 +56,7 @@ export function registerMarkRoutes(app: FastifyInstance, deps: AppDeps): void {
     // Unknown actors are dropped (spec §5: their existing marks stay, kept but hidden).
     const actors = body.actors.filter(a => dataset.has(a));
     const out = bulkMarks(db, req.world!.id, { ...body, actors }, req.user!.id, now());
+    recordActivity(db, req.world!.id, { kind: 'marks', userId: req.user!.id, count: actors.length }, now());
     hub!.broadcast(req.world!.id, { type: 'marks-bulk', rev: out.rev });
     return out satisfies { rev: number; previous: RestoreRow[] };
   });
@@ -61,6 +64,7 @@ export function registerMarkRoutes(app: FastifyInstance, deps: AppDeps): void {
   app.post('/api/worlds/:id/marks/restore', { preHandler: requireMember, config: limit }, async req => {
     const rows = RestoreBody.parse(req.body).rows.filter(([a]) => dataset.has(a));
     const { rev } = restoreMarks(db, req.world!.id, rows, req.user!.id, now());
+    recordActivity(db, req.world!.id, { kind: 'marks', userId: req.user!.id, count: rows.length }, now());
     hub!.broadcast(req.world!.id, { type: 'marks-bulk', rev });
     return { rev };
   });

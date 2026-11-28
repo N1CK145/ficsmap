@@ -20,6 +20,8 @@ export type ApiErrorCode =
   | 'busy'
   /** The server runs in maintenance mode (an older version on newer data): nothing is read or written. */
   | 'maintenance'
+  /** The account's only sign-in cannot be removed (`DELETE /api/me/identities/:provider`). */
+  | 'last_identity'
   | 'internal';
 
 export interface ApiError {
@@ -34,6 +36,32 @@ export interface VersionDto {
   dataVersion?: string;
 }
 
+/**
+ * What an activity feed entry is about: checks changed (`count` of them), a save imported, factory snapshots added,
+ * routes changed, the world renamed (`detail`: the new name), a member joined, left or was removed (`target`), a role
+ * changed (`target`, `detail`: the new role) or the world was handed over (`target`: the new owner).
+ */
+export type ActivityKind = 'marks' | 'import' | 'snapshots' | 'routes' | 'rename' | 'join' | 'leave' | 'remove' | 'role' | 'owner';
+
+/** One entry of `GET /api/worlds/:id/activity`, newest first. A deleted account is null. */
+export interface ActivityDto {
+  id: number;
+  kind: ActivityKind;
+  by: { id: number; name: string } | null;
+  target: { id: number; name: string } | null;
+  detail: string | null;
+  /** How many changes the entry adds up (checks, imports, snapshots, route edits); 1 otherwise. */
+  count: number;
+  at: number;
+}
+
+/** A way to sign in (`identities.provider`). */
+export type LoginProvider = 'discord' | 'steam';
+export const LOGIN_PROVIDERS: readonly LoginProvider[] = ['discord', 'steam'];
+
+/** One of the user's own sign-ins: the provider's id (Discord id, SteamID64) and account name if known. */
+export interface IdentityDto { provider: LoginProvider; subject: string; name: string | null }
+
 export interface MeDto {
   id: number;
   displayName: string;
@@ -43,8 +71,10 @@ export interface MeDto {
   datasetVersion: string;
   /** The user's preferences (src/shared/prefs.ts); always sent by the server. A missing key has its default. */
   prefs?: UserPrefs;
-  /** True for a server owner (OWNER_DISCORD_IDS), who may create general invites (`GET /api/invite-link`). */
+  /** True for a server owner (OWNER_DISCORD_IDS, OWNER_STEAM_IDS), who may create general invites (`GET /api/invite-link`). */
   serverOwner?: boolean;
+  /** The user's sign-ins (Discord, Steam); always sent by the server. */
+  identities?: IdentityDto[];
 }
 
 export interface MemberDto {

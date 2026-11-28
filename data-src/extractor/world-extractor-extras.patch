@@ -1,5 +1,5 @@
 diff --git a/world-extractor-net/Program.cs b/world-extractor-net/Program.cs
-index 5af71fd..a29d402 100644
+index 5af71fd..77d86ca 100644
 --- a/world-extractor-net/Program.cs
 +++ b/world-extractor-net/Program.cs
 @@ -7,8 +7,12 @@ using CUE4Parse.Encryption.Aes;
@@ -15,7 +15,7 @@ index 5af71fd..a29d402 100644
  using CUE4Parse.UE4.Objects.Core.Math;
  using CUE4Parse.UE4.Objects.Core.Misc;
  using CUE4Parse.UE4.Objects.Engine;
-@@ -30,10 +34,19 @@ using SkiaSharp;
+@@ -30,10 +34,20 @@ using SkiaSharp;
  //   --map-out           a directory with the in-game map as a 256px WebP tile pyramid
  //                       (tiles/{z}/{x}/{y}.webp) plus map.json (content id, zoom range and the world
  //                       rectangle the image covers, read from the level's minimap capture actor).
@@ -26,17 +26,18 @@ index 5af71fd..a29d402 100644
 +//   --transport-out     transport.json: capacity, timing, speed and drone fuel values of the transport vehicles, see TransportData.
 +//   --icons-out         a directory with the icon of every item, building and vehicle descriptor (WebP per size), see DescriptorIcons.
 +//   --buildings-out     buildings-raw.json: clearance boxes, grid sizes, mesh bounds and descriptors of every buildable and vehicle, see BuildingsData.
++//   --string-tables-out a directory with the game's string tables per culture (en-US.json, de.json), see StringTables.
  //
  // Usage:
  //   WorldExtractor --install-dir <game install> --out <default-world.json>
 -//                  [--collectibles-out <collectibles.json>] [--map-out <dir>]
 +//                  [--collectibles-out <collectibles.json>] [--map-out <dir>] [--caves-out <caves.json>]
 +//                  [--cave-geometry-out <dir>] [--heightmap-out <dir>] [--map-areas-out <dir>] [--transport-out <file>]
-+//                  [--icons-out <dir>] [--buildings-out <file>]
++//                  [--icons-out <dir>] [--buildings-out <file>] [--string-tables-out <dir>]
  //                  [--engine-candidates GAME_UE5_6,GAME_UE5_5] [--game-version 1.2.3.1]
  
  var opts = Args.Parse(args);
-@@ -41,6 +54,14 @@ string installDir = opts.Require("install-dir");
+@@ -41,6 +55,15 @@ string installDir = opts.Require("install-dir");
  string outPath = opts.Require("out");
  string? collectiblesPath = opts.Get("collectibles-out");
  string? mapDir = opts.Get("map-out");
@@ -48,10 +49,11 @@ index 5af71fd..a29d402 100644
 +string? transportPath = opts.Get("transport-out");
 +string? iconsDir = opts.Get("icons-out");
 +string? buildingsPath = opts.Get("buildings-out");
++string? stringTablesDir = opts.Get("string-tables-out");
  
  string paksDir = Path.Combine(installDir, "FactoryGame", "Content", "Paks");
  string usmapPath = Path.Combine(installDir, "CommunityResources", "FactoryGame.usmap");
-@@ -62,7 +83,6 @@ const string levelPath = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persis
+@@ -62,7 +85,6 @@ const string levelPath = "FactoryGame/Content/FactoryGame/Map/GameLevel01/Persis
  
  var (provider, level, engine) = OpenLevel(paksDir, usmapPath, candidates);
  Console.WriteLine($"Engine: {engine} | mounted files: {provider.Files.Count} | game version: {gameVersion}");
@@ -59,7 +61,7 @@ index 5af71fd..a29d402 100644
  var resourceNodes = new List<ResourceNode>();
  var geysers = new List<GeyserNode>();
  var cores = new List<FrackingCore>();
-@@ -71,6 +91,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
+@@ -71,6 +93,8 @@ var satellites = new List<(string Core, string Resource, GeyserNode Satellite)>(
  UObject? scannableGenerator = null;
  UObject? minimapCapture = null;
  int skipped = 0;
@@ -68,7 +70,7 @@ index 5af71fd..a29d402 100644
  
  foreach (var actorIndex in level.Actors)
  {
-@@ -99,6 +121,9 @@ foreach (var actorIndex in level.Actors)
+@@ -99,6 +123,9 @@ foreach (var actorIndex in level.Actors)
              satellites.Add((actor.Get<FPackageIndex>("mCore").Name, ResourceClass(actor),
                  new GeyserNode(actor.Name, Location(actor), Purity(actor))));
              break;
@@ -78,7 +80,7 @@ index 5af71fd..a29d402 100644
          case "BP_WorldScannableDataGenerator_C":
              scannableGenerator = actor;
              break;
-@@ -146,6 +171,72 @@ if (collectiblesPath is not null)
+@@ -146,6 +173,78 @@ if (collectiblesPath is not null)
          $"{collectibles.DropPods.Count} drop pods, {collectibles.CreatureSpawners.Count} creature spawners -> {collectiblesPath}");
  }
  
@@ -133,6 +135,12 @@ index 5af71fd..a29d402 100644
 +        $"{icons.Missing.Count} without an icon -> {iconsDir}");
 +}
 +
++if (stringTablesDir is not null)
++{
++    var counts = StringTables.Write(provider, stringTablesDir);
++    Console.WriteLine($"String tables: {string.Join(", ", counts.Select(c => $"{c.Key} {c.Value} entries"))} -> {stringTablesDir}");
++}
++
 +if (buildingsPath is not null)
 +{
 +    var b = BuildingsData.Read(provider, installDir, gameVersion);
@@ -151,7 +159,7 @@ index 5af71fd..a29d402 100644
  if (mapDir is not null)
  {
      if (minimapCapture is null) throw new Exception("BP_MinimapCaptureActor_C not found in the level.");
-@@ -163,6 +254,31 @@ static float[] Location(UObject actor)
+@@ -163,6 +262,31 @@ static float[] Location(UObject actor)
      return [loc.X, loc.Y, loc.Z];
  }
  
@@ -183,7 +191,7 @@ index 5af71fd..a29d402 100644
  static string ResourceClass(UObject actor) => actor.Get<FPackageIndex>("mResourceClass").Name;
  
  static string Purity(UObject actor) => actor.GetOrDefault<FName>("mPurity", new FName("RP_Normal")).ToString();
-@@ -372,7 +488,7 @@ static class MapTiler
+@@ -372,7 +496,7 @@ static class MapTiler
      }
  
      /** A top-down orthographic capture: the image is OrthoWidth world units wide and as tall, centred on the capture. */
@@ -192,7 +200,7 @@ index 5af71fd..a29d402 100644
      {
          var root = captureActor.Get<FPackageIndex>("RootComponent").Load()!;
          var capture = captureActor.Get<FPackageIndex>("CaptureComponent2D").Load()!;
-@@ -390,12 +506,8 @@ static class MapTiler
+@@ -390,12 +514,8 @@ static class MapTiler
          {
              try
              {
@@ -207,7 +215,7 @@ index 5af71fd..a29d402 100644
              }
              catch (Exception e)
              {
-@@ -428,64 +540,67 @@ record PickupContent(string? Item, int Amount);
+@@ -428,64 +548,67 @@ record PickupContent(string? Item, int Amount);
  /** What each loose item pickup holds, from the world partition cells that contain the pickups. */
  static class PickupContents
  {
@@ -309,7 +317,7 @@ index 5af71fd..a29d402 100644
      }
  }
  
-@@ -534,8 +649,156 @@ static class MapIcons
+@@ -534,8 +657,156 @@ static class MapIcons
              }
              catch (Exception e) { Console.Error.WriteLine($"WARN: creature descriptor {file}: {e.Message}"); }
          }
@@ -466,7 +474,7 @@ index 5af71fd..a29d402 100644
  }
  
  // ---- output model (matches Konsl/satisfactory-world-generator default-world.json) ----
-@@ -599,6 +862,1674 @@ record MapInfo(
+@@ -599,6 +870,1705 @@ record MapInfo(
      [property: JsonPropertyName("world")] MapBounds World,
      [property: JsonPropertyName("icons")] Dictionary<string, string> Icons);
  
@@ -1413,8 +1421,8 @@ index 5af71fd..a29d402 100644
 +        if (width <= 0 || data.Length % width != 0) throw new Exception($"mAreaData {data.Length} bytes, width {width}");
 +        var palette = tex.GetOrDefault<FColor[]>("mColorPalette", []);
 +        var pairs = tex.GetOrDefault<FStructFallback[]>("mColorToArea", []);
-+        var en = StringTable(provider, "en-US");
-+        var de = StringTable(provider, "de");
++        var en = StringTables.Read(provider, "en-US");
++        var de = StringTables.Read(provider, "de");
 +        var areas = new List<Area>();
 +        for (int i = 0; i < pairs.Length; i++)
 +        {
@@ -1452,9 +1460,19 @@ index 5af71fd..a29d402 100644
 +        catch (Exception x) { Console.Error.WriteLine($"WARN: display name of {areaRef.Name} ({x.Message})"); }
 +        return (null, null);
 +    }
++}
 +
-+    /// The game's string tables in one culture: (table id, key) -> text.
-+    static Dictionary<(string, string), string> StringTable(IFileProvider provider, string culture)
++// The game's string tables (FactoryGame/Content/Localization/AllStringTables/<culture>/AllStringTables.locres): every
++// table id (namespace) and key with its text. Written by --string-tables-out as <culture>.json per culture, shaped
++// {"<table id>": {"<key>": "<text>"}}, tables and keys sorted ordinally. The dataset build and the scripts take
++// German names from here (creature names, crash-site threats); the paks carry no German Game.locres, so these tables
++// and the Docs are the only German source.
++static class StringTables
++{
++    public static readonly string[] Cultures = ["en-US", "de"];
++
++    /// The string tables in one culture: (table id, key) -> text.
++    public static Dictionary<(string, string), string> Read(IFileProvider provider, string culture)
 +    {
 +        var path = $"FactoryGame/Content/Localization/AllStringTables/{culture}/AllStringTables.locres";
 +        var result = new Dictionary<(string, string), string>();
@@ -1463,6 +1481,27 @@ index 5af71fd..a29d402 100644
 +        foreach (var (ns, keys) in loc.Entries)
 +            foreach (var (key, val) in keys) result[(ns.Str, key.Str)] = val.LocalizedString;
 +        return result;
++    }
++
++    /// Writes <culture>.json per culture into dir; returns the entry count per culture.
++    public static SortedDictionary<string, int> Write(IFileProvider provider, string dir)
++    {
++        Directory.CreateDirectory(dir);
++        var counts = new SortedDictionary<string, int>(StringComparer.Ordinal);
++        foreach (var culture in Cultures)
++        {
++            var entries = Read(provider, culture);
++            if (entries.Count == 0) throw new Exception($"No string tables for culture {culture}.");
++            var tables = new SortedDictionary<string, SortedDictionary<string, string>>(StringComparer.Ordinal);
++            foreach (var ((table, key), text) in entries)
++            {
++                if (!tables.TryGetValue(table, out var keys)) tables[table] = keys = new SortedDictionary<string, string>(StringComparer.Ordinal);
++                keys[key] = text;
++            }
++            File.WriteAllText(Path.Combine(dir, $"{culture}.json"), JsonSerializer.Serialize(tables, Json.Options));
++            counts[culture] = entries.Count;
++        }
++        return counts;
 +    }
 +}
 +

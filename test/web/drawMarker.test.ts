@@ -2,7 +2,7 @@ import { typeById } from '../../src/shared/collectibleTypes.js';
 import { drawMarker, ICON, NO_PULSES, type MarkerPalette } from '../../src/web/features/map/drawMarker.js';
 import { markerVisual, type MarkerState } from '../../src/web/features/map/markerStyle.js';
 
-const palette: MarkerPalette = { bg: '#000000', fg: '#ffffff', accent: '#ff8800', conflict: '#ff0000', power: '#ffd23f', free: '#3ddc84', types: { sloop: '#cc00cc', hdd: '#c8cdd3' } };
+const palette: MarkerPalette = { bg: '#000000', fg: '#ffffff', accent: '#ff8800', conflict: '#ff0000', power: '#ffd23f', free: '#3ddc84', cave: '#e8dd55', types: { sloop: '#cc00cc', hdd: '#c8cdd3' } };
 
 /** A 2D context stub that records drawImage calls and the alpha they ran with. */
 function stubCtx() {
@@ -86,5 +86,25 @@ describe('search halo', () => {
     expect(firstFill(false, 0, false)).not.toBe(palette.accent);
     expect(firstFill(false, 3, false)).not.toBe(palette.accent);
     expect(firstFill(false, 3, true)).not.toBe(palette.accent);
+  });
+});
+
+describe('cave badge', () => {
+  const fillsOf = (cave: boolean | undefined, zoom: number, state: MarkerState = 'uncollected', withImg = false) => {
+    const { ctx, images } = stubCtx();
+    drawMarker(ctx, 0, 0, typeById('hard_drive'), { ...visual(state, zoom), cave }, palette, NO_PULSES, withImg ? img : null);
+    return (images as unknown as { fills: string[] }).fills;
+  };
+
+  it('draws the cave badge on shape and icon markers in a cave, collected or not', () => {
+    expect(fillsOf(true, 3)).toContain(palette.cave);
+    expect(fillsOf(true, 3, 'collected')).toContain(palette.cave);
+    expect(fillsOf(true, 3, 'uncollected', true)).toContain(palette.cave);
+  });
+
+  it('draws none without the flag, and none on the dots of a far zoom', () => {
+    expect(fillsOf(undefined, 3)).not.toContain(palette.cave);
+    expect(fillsOf(false, 3, 'uncollected', true)).not.toContain(palette.cave);
+    expect(fillsOf(true, 0)).not.toContain(palette.cave);
   });
 });

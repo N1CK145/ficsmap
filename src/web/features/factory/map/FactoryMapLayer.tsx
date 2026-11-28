@@ -28,6 +28,7 @@ import { useHeight } from './useHeight.js';
 import { HoverTip } from './HoverTip.js';
 import { langOf, stationNumber, vehicleName } from './names.js';
 import { isSortingSplitter, splitterOutputs } from './splitterView.js';
+import { mapStyle } from '../../map/mapStyle.js';
 
 const HOVER_CLASS = 'ficsmap-marker-hover';
 /** Hit distance around a belt or pipe of a production line, CSS px. */
@@ -540,7 +541,7 @@ function Fog({ snapshot }: { snapshot: FactorySnapshot }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    const color = getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim() || '#000000';
+    const color = mapStyle().getPropertyValue('--color-bg').trim() || '#000000';
     void fogVeil(snapshot, color).then(u => { if (live) setUrl(u); });
     return () => { live = false; };
   }, [snapshot]);

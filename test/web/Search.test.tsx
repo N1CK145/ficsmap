@@ -41,7 +41,7 @@ const DS: Dataset = {
   aliases: { BP_MercerShrine_A: 'BP_WAT2_X' },
 };
 const SITES: CrashSites = {
-  BP_DropPod1: { items: [{ item: 'Modular Frame', amount: 11 }], threats: [{ name: 'Alpha Hog', count: 1 }], notes: [] },
+  BP_DropPod1: { items: [{ item: 'Modular Frame', de: 'Modularer Rahmen', amount: 11 }], threats: [{ name: 'Alpha Hog', de: 'Alpha-Keiler', count: 1 }], notes: [] },
 };
 const CAVES = {
   type: 'FeatureCollection',
@@ -118,6 +118,7 @@ describe('search providers', () => {
     const [site] = crashSiteEntries(indexDataset(DS), SITES, initI18n(['en']));
     expect(site).toMatchObject({ label: 'Crash site · Swamp 3', detail: 'To open: 5× Motor', actors: ['BP_DropPod1'] });
     expect(site!.terms).toEqual(expect.arrayContaining(['crash site', 'drop pod', 'Absturzort', 'Motor', 'Modular Frame', 'Alpha Hog']));
+    expect(site!.terms).toEqual(expect.arrayContaining(['Modularer Rahmen', 'Alpha-Keiler']));
   });
 
   it('does not search the crash sites\' notes, so a note about a Somersloop nearby does not count as one', () => {

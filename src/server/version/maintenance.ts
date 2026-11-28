@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { ApiError, VersionDto } from '../../shared/api.js';
 import type { DiscordClient } from '../auth/discord.js';
 import type { Config } from '../config.js';
+import { registerClientIpHeader } from '../clientIp.js';
 import { releaseUrl } from './appVersion.js';
 import type { RollbackPlan } from './guard.js';
 
@@ -101,6 +102,7 @@ export async function buildMaintenanceApp(deps: MaintenanceDeps): Promise<Fastif
   const now = deps.now ?? Date.now;
   const app = Fastify({ trustProxy: config.trustProxy, logger: config.logLevel === 'silent' ? false : { level: config.logLevel } });
   await app.register(cookie, { secret: config.sessionSecret });
+  registerClientIpHeader(app, config);
   await app.register(rateLimit, { global: true, max: 60, timeWindow: '1 minute' });
   // The confirm form posts urlencoded; the body itself is not used.
   app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, _body, done) => done(null, {}));

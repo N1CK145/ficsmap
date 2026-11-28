@@ -68,3 +68,21 @@ jobs:
       - run: npm ci
       - name: Version above the latest release, CHANGELOG section present
         run: npx tsx scripts/release.ts check "$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+
+  watchers:
+    name: Save watcher scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # shellcheck and pwsh come with the ubuntu runner image.
+      - name: shellcheck (Bash watcher)
+        run: shellcheck src/web/features/saveWatcher/templates/ficsmap-watch.sh
+      - name: Parse the PowerShell watcher
+        shell: pwsh
+        run: |
+          # The template has @@NAME@@ placeholders that generate.ts fills with quoted values; parse a filled copy.
+          $source = (Get-Content -Raw src/web/features/saveWatcher/templates/ficsmap-watch.ps1) -replace '@@[A-Z_]+@@', "'x'"
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors | ForEach-Object { Write-Error $_.ToString() }; exit 1 }

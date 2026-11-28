@@ -5,6 +5,55 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-28
+
+### Added
+
+- `.env.development.example` with localhost values, as README and CONTRIBUTING describe.
+- CI checks the save watcher scripts: shellcheck for the Bash watcher, a parse check for the PowerShell watcher.
+- Planner: "Alternate recipes" ("Alternativrezepte") under "What do you need?", folded away under how many are chosen: every alternate recipe in the game data by the item it makes, the items of the current plan first, each with the recipe picker of the step panel ("Made by"), and a filter by item or recipe name in English or German. A choice applies wherever the item is in the plan, also for items that are not in it yet, and is remembered on the device.
+- Planner: "Calculate from: Wanted rate | Available nodes" ("Berechnen nach: Zielmenge | Verfügbare Vorkommen"). With available nodes you enter groups of resource nodes (resource, purity, how many, extractor such as Miner Mk.1–3, Oil Extractor or Resource Well Extractor; at the extractor clock speed) and the planner shows the most the wanted items can be made at with the chosen recipes ("Maximum output"), the bottleneck resource, and how much of each node resource that uses ("120 of 240/min"). The steps and totals show the plan at that maximum. With several items their rates are the ratio. Water extractors and items supplied from outside are not limited. The mode and the nodes are remembered on the device.
+- Planner: every flow shows the conveyor belt or pipeline tier it needs ("Mk.2", "2× Mk.6" when even the fastest is too slow; "Braucht Förderband Mk.2" as tooltip): on the diagram's rate labels, on the list's input chips and under the inputs and outputs of the step panel. Belts for solids, pipelines for fluids, the rates from the dataset's `recipes.json` (`belts`, `pipes`); a dataset built without them shows no tier.
+- Creatures panel: "Where creatures still live" ("Wo noch Kreaturen leben") lists per biome how many spawn points of the shown kinds still have living creatures (not dead right now in the save the timeline shows), most first, cleared biomes marked. A click shows the creature layer and scopes the map to the biome.
+- Links to a single collectible: `/w/<world>?item=<actor>` opens the world's map zoomed to the object with its panel open; "Copy link" ("Link kopieren") in the panel's footer copies it. An unknown object says so in a toast.
+- Vehicle calculator: a route point picked or dropped near a resource node shown on the map (node layer on, with its filters) snaps onto the node, within 20 px at the map's zoom.
+- Factory page and map: the estimated flows of the production lines follow the sort rules of smart and programmable splitters. An item goes only to the outputs that take it (named, "Any", or "Any Undefined" when no rule names it), Overflow outputs get what those do not take, and "None" or an output without a rule gets nothing.
+- Sidebar panel "Aktivität": who else is in the world right now and the latest changes: checks (added up per person and quarter hour), imports, saves added to the factory plan, route edits, renames, members joining, leaving or removed, role changes and hand-overs, each with how long ago. The server keeps the newest 200 per world (migration 10, `GET /api/worlds/:id/activity`).
+- Sign in with Steam (OpenID 2.0) next to Discord, on the login page and on invite pages. Accounts stay invite-only; `OWNER_STEAM_IDS` lists Steam server owners. With an optional `STEAM_API_KEY` Steam names and avatars are shown, otherwise the SteamID. Profile settings, "Anmeldung": link Steam to a Discord account (or the other way round) and sign in with either; remove one while another is left. Migration 9 (one sign-in per provider and account).
+- Header: the other members who have the world open right now, as avatars next to the live dot (up to three, then "+n"; names in the tooltip). The event stream sends a `presence` event whenever someone comes or goes.
+- World settings: the owner can hand the world over to another member (danger zone "Gefahrenzone": "Neuer Besitzer", "Übergeben", `PUT /api/worlds/:id/owner`); the former owner stays as an admin and keeps their upload keys.
+- `CLIENT_IP_HEADER` (e.g. `CF-Connecting-IP`): behind Cloudflare's proxy the rate limits count the real client IP from that header instead of the Cloudflare address. The header is only believed on requests from a `TRUST_PROXY` address; see "Behind Cloudflare" in the README.
+- Light theme: the profile page ("Darstellung") switches between dark (default), light and like the system; saved to the account and applied before the page paints. The map stays dark in both.
+- Map: collectibles inside a cave carry a cave badge (bottom left of the marker, in the cave layer's colour, from zoom 2); the list view says "In einer Höhle" under the item.
+- Map: single creature spawners can be reached by keyboard. Tab visits every spawner in view (row by row, left to right), focus shows its box, Enter pins it, Escape lets go.
+- Dataset part `cave-models` (`npm run dataset -- --only cave-models`): a small GLB per cave in `cave-models/` for the 3D view, made from the extractor's cave geometry (simplified to at most 0.3 m off the game's surfaces, quantized and meshopt-compressed; 73 caves, 31 MB instead of 389 MB, the largest 1.8 MB).
+- Caves: a click on a cave on the cave layer shows its number, collectibles and entrances. "3D-Ansicht" there (or "Höhle in 3D zeigen" in the item panel of a collectible in a cave) opens the cave as a 3D model: drag to turn, pinch or scroll to zoom, cut it from above, switch the landscape on or off; entrances and collectibles show as dots through the rock. Works on phones; three.js loads only when a cave is opened.
+- Cave layer: outlines and entrances from the hand-drawn cave layer of satisfactory-calculator.com (maintainer data `caves/scim-caves.json`, `--cave-outlines`): 106 caves instead of 73 coarse ones (caves that were merged are now separate; two caves only the game geometry has stay), 155 entrances at the height of the game's floor. Each cave names the 3D model it lies in; the map shows the caves' own numbers. Items deep underground inside an outline count as in a cave (156 instead of 148). Needs new `caves` and `collectibles` dataset parts.
+
+### Changed
+
+- README: the biomes come from the wiki biome raster (`--biome-raster`), and the limitations name the source of the crash-site data.
+- Dependencies: minor and patch updates (among others Fastify plugins, TanStack Query, better-sqlite3, i18next, zustand, Vite 8.4, Tailwind CSS 4.3.5, vitest 5.1.2) and the GitHub Actions CodeQL 4.39.3 and docker/login-action 4.8.0 (replaces Dependabot PRs #21 and #17).
+- Dependencies: jsdom 29 → 31 for the web tests (development dependency only; replaces Dependabot PR #19).
+- Dependencies: TypeScript 5.9 → 7.0, the native compiler (development dependency only; replaces Dependabot PR #8). Type checking is several times faster; the server build is byte for byte the same.
+- Dependencies: react-router 7 → 8 (replaces Dependabot PR #9); the router provider now comes from `react-router/dom`.
+- The web app is built as one script per library family (React, Leaflet, other libraries) and per feature instead of one 1.5 MB script, so an update only reloads what changed. Every script the map loads at start is under 330 kB; three.js (570 kB) loads only with the 3D cave view.
+- Dataset: `recipes.json` is the one source of recipes. `machines.json` no longer has its own copy; each production building lists the ids of its recipes (`recipes`), and the machine wiki reads the recipes from `recipes.json` (loaded when an entry with recipes or a clock speed opens). A `machines.json` built before still works: the wiki reads its own recipe list as before. Rebuild with `--only machines` to drop the copy.
+- Planner: "Show on map" at a raw resource also fits the map to that resource's nodes of the step's purity (the world's nodes, as its last save import has them), instead of leaving the view where it was.
+- Machine wiki and vehicle calculator: the Truck Station's "up to 120 stacks per minute" is marked as left over from before 1.2. A note under its description and the hint of the load and unload time say that one fixed cycle moves the whole load and that the calculator counts with that.
+- Sidebar: starts at a fixed 360 px instead of following its content, so it no longer jumps while the panels load or fold. A dragged width is kept as before; double-click on the edge goes back to 360 px.
+- Map: while the creature layer filters by kill state ("Gerade tot", "Wieder da", "Nie getötet"), the collectible markers step back (40 %), so the spawners stand out; search matches and the selected item stay full.
+- The conflict and error colour is now a raspberry red, so it no longer looks like the red of impure resource nodes (also for red-green colour blindness).
+- Route planner: stops in a cave are reached through the cave's entrance that makes the way shortest (with cave data in the dataset): distances, the optimised order and re-planning use these legs, stops of one cave stay together without a detour outside, the route line on the map bends at the entrance, and the stop list names the cave and the entrance ("Höhle 32 · Eingang 2"). From the entrance to the stop the leg is a straight line. Without cave data the planner measures straight lines as before.
+- Crash sites: threats, notes and location hints show in German in the German UI (dataset `crash-sites.json`: `threats[].de`, `notesDe`, `items[].whereDe`; older datasets stay English). Creatures among the threats carry the game's own names; German threat and item names are found in the search. Needs the updated maintainer data and a new `crash-sites` dataset part.
+- Dataset pipeline: the extractor patch writes the game's string tables in English and German (`--string-tables-out`), and `scripts/creature-names.ts` writes the creature names of the map from them (`--check` compares only), so they can be regenerated after a game update.
+
+### Fixed
+
+- Header at 1280 px: the settings button no longer overlaps the search field inside a world; the "FICSMAP" wordmark shows there only from 1440 px (the mark stays).
+- Map, first visit of a world: the whole map shows at the nearest whole zoom instead of the next lower one (on a 1920 × 1080 screen a 1024 px map instead of a 512 px square).
+- Height map ("Höhenkarte"): the open sea floor (below -25 m, connected to the map edge) is no longer coloured, so its flat pieces no longer show straight edges over the water.
+
 ## [0.2.4] - 2026-11-21
 
 ### Added

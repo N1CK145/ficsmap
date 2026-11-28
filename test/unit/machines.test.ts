@@ -1,6 +1,6 @@
 import {
-  descriptorClass, entryTierKeys, groupByCategory, isTierKey, matchesQuery, matchesTiers, perMinute, selectedUpTo, sortTierKeys, statRows,
-  tierOf, tierOptions, toggleTier, unlockKey, upToTier, wikiTitle, wikiUrl, type MachineEntry, type Unlock, type WikiItem,
+  descriptorClass, entryRecipes, entryTierKeys, groupByCategory, isTierKey, matchesQuery, matchesTiers, perMinute, selectedUpTo, sortTierKeys, statRows,
+  tierOf, tierOptions, toggleTier, unlockKey, upToTier, wikiTitle, wikiUrl, type MachineEntry, type Unlock, type WikiItem, type WikiRecipe,
 } from '../../src/shared/machines.js';
 
 const entry = (over: Partial<MachineEntry>): MachineEntry => ({
@@ -147,5 +147,25 @@ describe('machine wiki tier filter', () => {
   it('accepts only known keys from storage', () => {
     expect(['T0', 'T9', 'mam', 'shop', 'other'].every(isTierKey)).toBe(true);
     expect(['T', 'T10', 'tier4', 'MAM', 4, null].some(isTierKey)).toBe(false);
+  });
+});
+
+describe('entryRecipes', () => {
+  const recipe = (id: string, machine: string): WikiRecipe => ({
+    id, name: { en: id, de: id }, alternate: false, machine, duration: 1, ingredients: [], products: [{ item: 'Desc_X_C', amount: 1 }],
+  });
+  const a = recipe('Recipe_A_C', 'Build_X_C'), b = recipe('Recipe_B_C', 'Build_X_C'), other = recipe('Recipe_C_C', 'Build_Y_C');
+
+  it('resolves the entry\'s recipe ids from recipes.json, in the entry\'s order', () => {
+    const byId = new Map([a, b, other].map(r => [r.id, r]));
+    expect(entryRecipes({}, entry({ recipes: ['Recipe_B_C', 'Recipe_A_C', 'Recipe_Gone_C'] }), byId)).toEqual([b, a]);
+    // Nothing while recipes.json is loading or missing.
+    expect(entryRecipes({}, entry({ recipes: ['Recipe_A_C'] }), undefined)).toEqual([]);
+    expect(entryRecipes({}, entry({ recipes: ['Recipe_A_C'] }), null)).toEqual([]);
+  });
+
+  it('reads machines.json\'s own recipes in a dataset built before', () => {
+    expect(entryRecipes({ recipes: [a, other, b] }, entry({}), undefined)).toEqual([a, b]);
+    expect(entryRecipes({}, entry({}), new Map([[a.id, a]]))).toEqual([]);
   });
 });

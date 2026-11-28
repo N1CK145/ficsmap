@@ -22,7 +22,8 @@ export function Header({ children, center, tools, end }: { children?: ReactNode;
         {/* In a world on a phone the mark gives way to the world's name; the account menu leads to the worlds there. */}
         <Link to="/?list=1" className={`flex shrink-0 items-center gap-2 rounded focus-ring ${children !== undefined ? 'max-[899px]:hidden' : ''}`}>
           <BrandMark size={28} />
-          <span className="font-display text-xl font-bold tracking-wide uppercase max-[1279px]:sr-only">{t('app.name')}</span>
+          {/* Inside a world only from 1440 px: at 1280 px its items (name, live, import, settings) need the room beside the search. */}
+          <span className={`font-display text-xl font-bold tracking-wide uppercase ${children !== undefined ? 'max-[1439px]:sr-only' : 'max-[1279px]:sr-only'}`}>{t('app.name')}</span>
         </Link>
         {children !== undefined && <span aria-hidden="true" className="h-6 w-px shrink-0 bg-line max-[899px]:hidden" />}
         {children}

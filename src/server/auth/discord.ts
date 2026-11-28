@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Config } from '../config.js';
+import type { LoginProfile } from '../domain/users.js';
 
 export interface DiscordProfile {
   id: string;
@@ -8,6 +9,18 @@ export interface DiscordProfile {
   avatar: string | null;
   email: string | null;
   verified: boolean;
+}
+
+/** The provider-neutral profile of a Discord sign-in: global name or username, CDN avatar, e-mail only when verified. */
+export function discordLoginProfile(p: DiscordProfile): LoginProfile {
+  return {
+    provider: 'discord',
+    subject: p.id,
+    username: p.username,
+    displayName: p.globalName ?? p.username,
+    avatarUrl: p.avatar ? `https://cdn.discordapp.com/avatars/${p.id}/${p.avatar}.png?size=64` : null,
+    email: p.verified ? p.email : null,
+  };
 }
 
 export interface DiscordClient {

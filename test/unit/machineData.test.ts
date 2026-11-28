@@ -289,15 +289,13 @@ describe('machine wiki data', () => {
     expect(displayName(' Two\r\nlines ')).toBe('Two lines');
   });
 
-  it('lists the recipes of production buildings in the planner shape, fluids in m³', () => {
+  it('refers to the recipes of production buildings by id (recipes.json holds them) and names their items', () => {
     const d = build();
-    expect(d.recipes).toEqual([
-      { id: 'Recipe_IronPlate_C', name: { en: 'Iron Plate', de: 'Eisenplatte' }, alternate: false, machine: 'Build_ConstructorMk1_C', duration: 6,
-        ingredients: [{ item: 'Desc_IronIngot_C', amount: 3 }], products: [{ item: 'Desc_IronPlate_C', amount: 2 }] },
-      { id: 'Recipe_Alternate_Dark_C', name: { en: 'Alternate: Dark Plate', de: 'Alternativ: Dunkle Platte' }, alternate: true,
-        machine: 'Build_HadronCollider_C', duration: 30, ingredients: [{ item: 'Desc_IronPlate_C', amount: 1 }],
-        products: [{ item: 'Desc_Dark_C', amount: 10 }], power: { min: 500, max: 1500 } },
-    ]);
+    expect(d.recipes).toBeUndefined();
+    expect(d.machines.find(m => m.id === 'Build_ConstructorMk1_C')?.recipes).toEqual(['Recipe_IronPlate_C']);
+    expect(d.machines.find(m => m.id === 'Build_HadronCollider_C')?.recipes).toEqual(['Recipe_Alternate_Dark_C']);
+    // Only production buildings have recipes.
+    expect(d.machines.filter(m => m.recipes).map(m => m.category)).toEqual(['production', 'production']);
     expect(d.items.Desc_Dark_C).toEqual({ name: { en: 'Dark Matter', de: 'Dunkle Materie' }, form: 'gas' });
     expect(d.items.Desc_IronPlate_C?.name.de).toBe('Eisenplatte');
   });

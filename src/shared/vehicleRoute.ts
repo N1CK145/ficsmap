@@ -30,3 +30,18 @@ export function routeGeometry(start: WorldPoint, end: WorldPoint, startHeight?: 
 export function routeLengthInput(route: VehicleRoute): string {
   return String(Math.round(routeGeometry(route.start, route.end).meters));
 }
+
+/**
+ * A route point placed near a resource node snaps onto it: the nearest of `nodes` within `radius` world units
+ * (inclusive), else the point as it is. Only the position is returned, so a node's other fields do not end up in
+ * the route.
+ */
+export function snapToNode(point: WorldPoint, nodes: readonly WorldPoint[], radius: number): WorldPoint {
+  let best: WorldPoint | null = null;
+  let bestD = radius;
+  for (const n of nodes) {
+    const d = Math.hypot(n.x - point.x, n.y - point.y);
+    if (d <= bestD) { best = n; bestD = d; }
+  }
+  return best ? { x: best.x, y: best.y } : point;
+}

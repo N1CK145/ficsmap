@@ -176,6 +176,32 @@ describe('ItemPanel', () => {
     }
   });
 
+  it('shows threats, notes and location hints in German in the German UI, English where the dataset has no German', async () => {
+    stubFetch({
+      'GET /data/test/crash-sites.json': { body: { P1: {
+        items: [{ item: 'Screws', de: 'Schrauben', amount: 98, where: 'lower level', whereDe: 'untere Ebene' }],
+        threats: [{ name: 'Alpha Hog', de: 'Alpha-Keiler', count: 2 }, { name: 'Gas Pillar', de: 'Gassäule', count: null }, { name: 'Spitter', count: 1 }],
+        notes: ['Bring a gas mask.', 'Only 4 items.'],
+        notesDe: ['Gasmaske mitbringen.', null],
+      } } },
+    });
+    initI18n(['de']);
+    try {
+      renderPanel('P1');
+      const details = screen.getByRole('complementary', { name: 'Objektdetails' });
+      const section = await within(details).findByRole('region', { name: 'Absturzstelle' });
+      expect(section).toHaveTextContent('Schrauben · untere Ebene98×');
+      expect(section).toHaveTextContent('2× Alpha-Keiler');
+      expect(section).toHaveTextContent('Gassäule');
+      expect(section).toHaveTextContent('1× Spitter');
+      expect(section).toHaveTextContent('Gasmaske mitbringen.');
+      expect(section).toHaveTextContent('Only 4 items.');
+      expect(section).not.toHaveTextContent('Bring a gas mask.');
+    } finally {
+      initI18n(['en']);
+    }
+  });
+
   it('has no crash-site section for a pod without data, or when the dataset has no crash-sites file', async () => {
     stubFetch({ 'GET /data/test/crash-sites.json': { status: 404, body: { error: 'not_found', message: 'x' } } });
     renderPanel('P2');
@@ -222,7 +248,7 @@ describe('ItemPanel', () => {
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
     const { toasts } = renderPanel('P1');
     const footer = panel().querySelector('footer')!;
-    expect(footer).toHaveTextContent(/^X 50 · Y 10 · Z 5Copy ID$/);
+    expect(footer).toHaveTextContent(/^X 50 · Y 10 · Z 5Copy linkCopy ID$/);
     // The raw ID is not shown, the button's tooltip names it.
     expect(within(panel()).queryByText('P1')).toBeNull();
     expect(screen.getByRole('button', { name: 'Copy ID' })).toHaveAttribute('title', 'P1');
@@ -231,9 +257,18 @@ describe('ItemPanel', () => {
     await waitFor(() => expect(toasts).toContainEqual({ message: 'Copied' }));
   });
 
+  it('copies a link that opens the world at the item', async () => {
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    const { toasts } = renderPanel('P1');
+    await userEvent.click(screen.getByRole('button', { name: 'Copy link' }));
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/w/${W}?item=P1`);
+    await waitFor(() => expect(toasts).toContainEqual({ message: 'Link copied' }));
+  });
+
   it('shows a height just below zero as 0, not -0', () => {
     renderPanel('F1');
-    expect(panel().querySelector('footer')).toHaveTextContent(/^X 900 · Y 900 · Z 0Copy ID$/);
+    expect(panel().querySelector('footer')).toHaveTextContent(/^X 900 · Y 900 · Z 0Copy linkCopy ID$/);
   });
 
   it('pins the footer under the scrolling sections', () => {

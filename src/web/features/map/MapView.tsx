@@ -14,17 +14,18 @@ import { useFeatures } from '../../app/FeaturesContext.js';
 import { loadView, saveView, type PersistedView } from '../../app/persist.js';
 import { getWheelSpeed } from '../../app/prefs.js';
 import { useUiStore, type UiState } from '../../app/store.js';
+import { useCreatureLayer } from '../creatures/useCreatures.js';
 import { useRemotePulse } from '../live/pulse.js';
 import { hasMismatch, isCollected, useMarks, type MarksCache } from '../marks/useMarks.js';
 import { useRouteIndex } from '../routes/useRoutes.js';
-import { clickClaimed } from './clickClaims.js';
+import { backgroundClicks, clickClaimed } from './clickClaims.js';
 import { IMAGE_BOUNDS } from './imageBounds.js';
 import { CONFLICT_PULSE_MS, newConflicts } from './conflictPulse.js';
 import { DOT_ZOOM, markerState, markerVisual, podBadge, type MarkerState } from './markerStyle.js';
 import { MarkerLayer, type DrawMarker } from './MarkerLayer.js';
 import { prefersReducedMotion } from './motion.js';
 import { WHEEL_COOLDOWN_MS, WHEEL_ZOOM_IDLE, wheelZoomStep } from './wheelZoom.js';
-import { currentMaxZoom } from './zoom.js';
+import { currentMaxZoom, firstViewZoom } from './zoom.js';
 
 const MAX_BOUNDS = L.latLngBounds(IMAGE_BOUNDS).pad(0.1);
 /** Hit radius: covers the 42 px icon marker (mouse); half of the 44 px touch hit area (spec §10.1). */
@@ -65,7 +66,8 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
   const [overlay, setOverlay] = useState<HTMLDivElement | null>(null);
 
   return (
-    <div className={`ficsmap-map-root absolute inset-0 ${Banner ? 'ficsmap-banner-on' : ''} ${activeMode?.onMapClick ? 'ficsmap-map-pick' : ''}`}>
+    // The map and everything over it stay dark in the light theme (theme.css).
+    <div data-theme="dark" className={`ficsmap-map-root absolute inset-0 ${Banner ? 'ficsmap-banner-on' : ''} ${activeMode?.onMapClick ? 'ficsmap-map-pick' : ''}`}>
       <MapContainer
         {...initial}
         crs={L.CRS.Simple}
@@ -107,6 +109,7 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
           </>,
           overlay,
         )}
+        {'bounds' in initial && <FirstView />}
         <ViewPersistence worldId={ctx.worldId} />
         <SizeWatcher />
         <WheelZoom />
@@ -114,6 +117,17 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
       <div ref={setOverlay} className="pointer-events-none absolute inset-0 z-[1000]" />
     </div>
   );
+}
+
+/** Without a saved view: the whole map, centred, at the nearest whole zoom (`firstViewZoom`), once the map has a size. */
+function FirstView() {
+  const map = useMap();
+  useLayoutEffect(() => {
+    const size = map.getSize();
+    if (size.x <= 0 || size.y <= 0) return;
+    map.setView(L.latLngBounds(IMAGE_BOUNDS).getCenter(), Math.min(map.getMaxZoom(), firstViewZoom(size.x, size.y)), { animate: false });
+  }, [map]);
+  return null;
 }
 
 /**
@@ -150,6 +164,8 @@ interface BaseMarker { item: Item; lat: number; lng: number; type: CollectibleTy
 type MarkerFilters = Pick<UiState, 'typeFilter' | 'visibility' | 'biomeScope' | 'onlyConflicts' | 'selectedActor' | 'searchHighlight'> & {
   /** A mode that takes points anywhere is on: the markers fade like non-matches of a search, so its points stand out. */
   picking: boolean;
+  /** The creature layer filters by kill state: the markers step back, so the spawners stand out. */
+  recede: boolean;
 };
 
 /** Draw order: uncollected, collected, conflicts, search matches, then the selected marker on top. */
@@ -181,9 +197,11 @@ function buildMarkers(
       onlyConflicts: f.onlyConflicts,
       routeIndex: routeIndex.get(item.name) ?? null,
       search: f.searchHighlight === null ? (f.picking ? false : null) : f.searchHighlight.has(item.name),
+      recede: f.recede,
     });
     const pod = podBadge(item.extra?.pod);
-    const m: DrawMarker = { id: item.name, lat, lng, type, visual: pod ? { ...visual, pod } : visual };
+    const cave = item.extra?.cave === true;
+    const m: DrawMarker = { id: item.name, lat, lng, type, visual: pod || cave ? { ...visual, ...(pod && { pod }), ...(cave && { cave }) } : visual };
     const until = pulses?.remote.get(item.name);
     if (until !== undefined) m.pulseUntil = until;
     const conflictUntil = pulses?.conflict.get(item.name);
@@ -204,10 +222,11 @@ function baseMarkers(index: DatasetIndex): BaseMarker[] {
 function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
   const map = useMap();
   const marks = useMarks(ctx.worldId);
-  const filters = useUiStore(useShallow((s): MarkerFilters => ({
+  const filters = useUiStore(useShallow((s): Omit<MarkerFilters, 'recede'> => ({
     typeFilter: s.typeFilter, visibility: s.visibility, biomeScope: s.biomeScope, onlyConflicts: s.onlyConflicts, selectedActor: s.selectedActor,
     searchHighlight: s.searchHighlight, picking: modes.some(m => m.id === s.interactionMode && m.onMapClick !== undefined),
   })));
+  const recede = useCreatureLayer(s => s.visible && s.kill !== 'all');
   const pulse = useRemotePulse(s => s.pulse);
   const routeIndex = useRouteIndex(ctx.worldId);
   const [reducedMotion] = useState(prefersReducedMotion);
@@ -216,8 +235,8 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
   const base = useMemo(() => baseMarkers(ctx.index), [ctx.index]);
   const conflictPulse = useConflictPulse(base, marks, reducedMotion);
   const markers = useMemo(
-    () => buildMarkers(base, marks, filters, zoom, reducedMotion ? null : { remote: pulse, conflict: conflictPulse }, routeIndex),
-    [base, marks, filters, zoom, reducedMotion, pulse, conflictPulse, routeIndex],
+    () => buildMarkers(base, marks, { ...filters, recede }, zoom, reducedMotion ? null : { remote: pulse, conflict: conflictPulse }, routeIndex),
+    [base, marks, filters, recede, zoom, reducedMotion, pulse, conflictPulse, routeIndex],
   );
 
   const markersRef = useRef(markers);
@@ -254,7 +273,12 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
       // A layer drawn above the markers (resource nodes) takes clicks on what it shows while just looking around.
       if (useUiStore.getState().interactionMode === 'inspect' && clickClaimed(e.containerPoint.x, e.containerPoint.y)) return;
       const id = pickAt(e);
-      if (id === null) return;
+      if (id === null) {
+        if (useUiStore.getState().interactionMode === 'inspect') {
+          for (const f of backgroundClicks) f({ lat: e.latlng.lat, lng: e.latlng.lng, x: e.containerPoint.x, y: e.containerPoint.y });
+        }
+        return;
+      }
       if (z < DOT_ZOOM) {
         map.setZoomAround(e.latlng, z + 2);
         return;

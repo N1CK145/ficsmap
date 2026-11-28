@@ -3,6 +3,9 @@
  * the per-world differences a save import reports, and the filter logic of the map layer.
  */
 
+import { worldToLatLng } from './geo.js';
+import type { WorldBounds } from './types.js';
+
 export type Purity = 'impure' | 'normal' | 'pure';
 export const PURITIES: readonly Purity[] = ['impure', 'normal', 'pure'];
 
@@ -491,4 +494,23 @@ export function changedNodeSettings(s: NodeSettings | null): ChangedNodeSetting[
 /** Whether the settings say the world's nodes were randomised (resource layout or purities). */
 export function isRandomized(s: NodeSettings | null): boolean {
   return changedNodeSettings(s).length > 0;
+}
+
+/**
+ * `[[south, west], [north, east]]` in map coordinates around the nodes the layer shows with only `resource` of one
+ * `purity` (a resource well's centre too, where its extraction points show); null when there are none.
+ */
+export function resourceNodeBounds(
+  nodes: readonly ResourceNode[], resource: string, purity: Purity, bounds: WorldBounds,
+): [[number, number], [number, number]] | null {
+  const hidden = new Set(nodes.map(n => n.resource).filter(r => r !== resource));
+  const shown = filterNodes(nodes, { hiddenResources: hidden, purities: new Set([purity]) });
+  if (shown.length === 0) return null;
+  let south = Infinity, west = Infinity, north = -Infinity, east = -Infinity;
+  for (const n of shown) {
+    const [lat, lng] = worldToLatLng(n.x, n.y, bounds);
+    south = Math.min(south, lat); north = Math.max(north, lat);
+    west = Math.min(west, lng); east = Math.max(east, lng);
+  }
+  return [[south, west], [north, east]];
 }

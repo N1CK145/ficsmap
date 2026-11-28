@@ -1,5 +1,6 @@
+import { act, renderHook } from '@testing-library/react';
 import { loadSidebarWidth, saveSidebarWidth } from '../../src/web/app/persist.js';
-import { clampSidebarWidth, SIDEBAR } from '../../src/web/features/worlds/useSidebarWidth.js';
+import { clampSidebarWidth, SIDEBAR, useSidebarWidth } from '../../src/web/features/worlds/useSidebarWidth.js';
 
 describe('clampSidebarWidth', () => {
   it('keeps widths between the minimum and the maximum', () => {
@@ -27,6 +28,25 @@ describe('sidebar width persistence', () => {
 
   it('ignores garbage in storage', () => {
     localStorage.setItem('ficsmap:sidebarWidth', 'wide');
+    expect(loadSidebarWidth()).toBeNull();
+  });
+});
+
+describe('useSidebarWidth', () => {
+  afterEach(() => localStorage.clear());
+
+  it('starts at the fixed default width, whatever the panels hold, so it does not jump while they load or fold', () => {
+    const { result } = renderHook(() => useSidebarWidth());
+    expect(result.current.width).toBe(SIDEBAR.initial);
+    expect(result.current).not.toHaveProperty('contentRef');
+  });
+
+  it('keeps a stored width, and a double-click goes back to the default and forgets it', () => {
+    saveSidebarWidth(500);
+    const { result } = renderHook(() => useSidebarWidth());
+    expect(result.current.width).toBe(500);
+    act(() => { result.current.handleProps.onDoubleClick(); });
+    expect(result.current.width).toBe(SIDEBAR.initial);
     expect(loadSidebarWidth()).toBeNull();
   });
 });

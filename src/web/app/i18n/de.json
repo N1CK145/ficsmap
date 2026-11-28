@@ -26,6 +26,7 @@
     "inviteOnly": "Nur mit Einladung: Du brauchst einen Einladungslink von jemandem mit einer eigenen Welt, oder du betreibst dein eigenes ficsmap.",
     "tagline": "Erfasse deine Satisfactory-Sammelobjekte gemeinsam mit deinen Freunden.",
     "signIn": "Mit Discord anmelden",
+    "signInSteam": "Mit Steam anmelden",
     "error": {
       "invite_only": "ficsmap ist nur mit Einladung nutzbar. Bitte einen Freund um einen Einladungslink.",
       "cancelled": "Die Anmeldung wurde abgebrochen. Du kannst es jederzeit erneut versuchen.",
@@ -57,6 +58,14 @@
     "saved": "Gespeichert",
     "saveFailed": "Nicht gespeichert. Die Einstellung gilt vorerst nur auf diesem Gerät.",
     "languageHint": "Wird auf diesem Gerät gespeichert.",
+    "theme": {
+      "title": "Darstellung",
+      "label": "Farben",
+      "dark": "Dunkel",
+      "light": "Hell",
+      "system": "Wie das System",
+      "hint": "Die Karte bleibt in beiden dunkel. Wird in deinem Konto gespeichert."
+    },
     "dateFormat": {
       "title": "Datum und Uhrzeit",
       "label": "Format",
@@ -69,6 +78,25 @@
       "title": "Zu ficsmap einladen",
       "linkLabel": "Allgemeiner Einladungslink",
       "hint": "Damit kann eine Person ein Konto anlegen, ohne einer Welt beizutreten. Nur Server-Owner sehen das."
+    },
+    "signIn": {
+      "title": "Anmeldung",
+      "hint": "Melde dich mit Discord oder Steam an. Verknüpfe beide, um beide zu nutzen; deine Welten bleiben dieselben.",
+      "notLinked": "Nicht verknüpft",
+      "link": "Mit {provider} verknüpfen",
+      "unlink": "Entfernen",
+      "unlinkNamed": "Anmeldung mit {provider} entfernen",
+      "unlinkConfirm": "Anmeldung mit {provider} entfernen? Du kannst sie später wieder verknüpfen.",
+      "unlinked": "Anmeldung mit {provider} entfernt",
+      "unlinkFailed": "Die Anmeldung konnte nicht entfernt werden. Bitte versuche es erneut.",
+      "linked": "{provider} ist jetzt mit deinem Konto verknüpft.",
+      "error": {
+        "taken": "Mit diesem Konto meldet sich schon ein anderes ficsmap-Konto an.",
+        "provider_taken": "Dein Konto hat schon ein anderes Konto dieses Anbieters. Entferne es zuerst.",
+        "cancelled": "Verknüpfen abgebrochen.",
+        "expired": "Das Verknüpfen hat zu lange gedauert. Bitte versuche es erneut.",
+        "failed": "Das Verknüpfen hat nicht geklappt. Bitte versuche es erneut."
+      }
     }
   },
   "worlds": {
@@ -112,12 +140,13 @@
     "hideSidebar": "Seitenleiste ausblenden",
     "showSidebar": "Seitenleiste einblenden",
     "resizeSidebar": "Seitenleiste in der Breite ändern",
-    "resizeSidebarHint": "Ziehen oder Pfeiltasten; Doppelklick passt die Breite an den Inhalt an"
+    "resizeSidebarHint": "Ziehen oder Pfeiltasten; Doppelklick stellt die Standardbreite her"
   },
   "live": {
     "live": "Live",
     "connecting": "Verbinde…",
-    "offline": "Offline"
+    "offline": "Offline",
+    "alsoHere": "Auch gerade da: {names}"
   },
   "biomes": {
     "title": "Biome",
@@ -132,7 +161,26 @@
     "item": {
       "title": "Höhle",
       "inCave": "Liegt in einer Höhle.",
-      "nearestEntrance": "Nächster Höhleneingang: {distance, number} m (Luftlinie)"
+      "nearestEntrance": "Nächster Höhleneingang: {distance, number} m (Luftlinie)",
+      "view3d": "Höhle in 3D zeigen"
+    },
+    "popup": {
+      "title": "Höhle {n, number}",
+      "contents": "{items, plural, one {# Objekt} other {# Objekte}} · {entrances, plural, =0 {kein bekannter Eingang} one {# Eingang} other {# Eingänge}}",
+      "view3d": "3D-Ansicht"
+    },
+    "viewer": {
+      "title": "Höhle {n, number} in 3D",
+      "landscape": "Landschaft",
+      "cut": "Von oben abschneiden",
+      "reset": "Ansicht zurücksetzen",
+      "hint": "Ziehen dreht, Mausrad oder zwei Finger zoomen, Rechtsklick-Ziehen oder zwei Finger verschieben. Punkte sind durch den Fels sichtbar.",
+      "loading": "3D-Modell wird geladen …",
+      "loadingPercent": "3D-Modell wird geladen … {progress, number, percent}",
+      "noWebgl": "Dieser Browser kann keine 3D-Grafik zeigen (WebGL ist aus oder fehlt).",
+      "loadFailed": "Das 3D-Modell konnte nicht geladen werden.",
+      "missing": "Dieser Datensatz hat kein 3D-Modell dieser Höhle.",
+      "entrance": "Eingang"
     }
   },
   "coords": {
@@ -351,7 +399,10 @@
     },
     "coords": "X {x} · Y {y} · Z {z}",
     "copyId": "ID kopieren",
-    "copied": "Kopiert"
+    "copied": "Kopiert",
+    "copyLink": "Link kopieren",
+    "linkCopied": "Link kopiert",
+    "linkNotFound": "Das verlinkte Objekt gibt es auf dieser Karte nicht."
   },
   "import": {
     "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur: die Liste der gesammelten Objekte; Name, Datum und Build des Spielstands; zu den Rohstoffvorkommen die Ressource oder Reinheit, die dein Spielstand festlegt, sowie welcher Extraktor auf welchem Vorkommen steht (Gebäude, Taktrate, Energiefragmente); für den Fabrikplan, was wo gebaut ist (Gebäude mit ihrer Produktivität, Förderbänder, Rohrleitungen, Stromleitungen, Wege, Stationen, Fahrzeuge, Kartenmarkierungen, Schildertexte und die erkundete Fläche); die Namen der Spieler und wo ihre Spielfiguren stehen; die Statistik des Spiels (getötete Kreaturen, Verbrauch, Gebautes, Gefertigtes und Aufgehobenes, je Spieler, wo das Spiel es zählt); welche Kreaturen-Spawnpunkte getötet wurden; und die Todeskisten.",
@@ -488,6 +539,8 @@
     "done": "Erledigt",
     "doneBy": "({name})",
     "noDistance": "—",
+    "caveStop": "Höhle {n, number}",
+    "caveStopVia": "Höhle {n, number} · Eingang {entrance, number}",
     "total": "Gesamt {total} · {left} übrig · {done, number}/{count, number} erledigt",
     "optimize": "Reihenfolge optimieren",
     "next": "Nächster Stopp ›",
@@ -499,7 +552,7 @@
     "optimizeAgain": "Neu optimieren",
     "doneByOthers": "{count, plural, one {# Stopp von anderen erledigt} other {# Stopps von anderen erledigt}}",
     "replan": "Neu planen",
-    "hint": "Luftlinie, Gelände nicht berücksichtigt",
+    "hint": "Luftlinie (in Höhlen über ihre Eingänge), Gelände nicht berücksichtigt",
     "dismiss": "Ausblenden",
     "full": "Die Route ist voll ({max, number}). Entferne einen Stopp, um einen neuen hinzuzufügen.",
     "partial": "{added, number} von {requested, number} hinzugefügt (Routenlimit {max, number}). Die nächsten zuerst.",
@@ -576,7 +629,15 @@
       "confirmLabel": "Zur Bestätigung den Namen der Welt eingeben",
       "delete": "Welt löschen",
       "deleted": "Welt gelöscht",
-      "failed": "Die Welt konnte nicht gelöscht werden. Bitte versuche es erneut."
+      "failed": "Die Welt konnte nicht gelöscht werden. Bitte versuche es erneut.",
+      "transferHint": "Übergib die Welt an ein anderes Mitglied. Du bleibst als Admin dabei.",
+      "transferLabel": "Neuer Besitzer",
+      "transferChoose": "Mitglied wählen",
+      "transfer": "Übergeben",
+      "transferConfirm": "{name} zum Besitzer von {world} machen? Du wirst Admin; nur {name} kann die Welt dann löschen oder zurückgeben.",
+      "transferAction": "Zum Besitzer machen",
+      "transferred": "{name} besitzt jetzt {world}",
+      "transferFailed": "Die Welt konnte nicht übergeben werden. Bitte versuche es erneut."
     }
   },
   "list": {
@@ -591,7 +652,8 @@
     "changedBy": "Zuletzt geändert von",
     "showOnMap": "Auf der Karte zeigen",
     "empty": "Keine Objekte passen zu den aktuellen Filtern.",
-    "none": "—"
+    "none": "—",
+    "inCave": "In einer Höhle"
   },
   "mobile": {
     "sheet": {
@@ -689,6 +751,9 @@
     "atFullClock": "Pro Minute bei 100 % Taktrate.",
     "description": "Im Spiel",
     "noDescription": "Das Spiel hat keine Beschreibung.",
+    "descriptionNote": {
+      "truckStation": "Die Beschreibung nennt noch „bis zu 120 Stapel pro Minute“. Seit Spielversion 1.2 belädt oder entlädt eine Lkw-Station ein angedocktes Fahrzeug in einem festen Zyklus, egal was es geladen hat; der Fahrzeugrechner rechnet damit."
+    },
     "buildCost": "{place, select, workshop {Hergestellt in der Ausrüstungs-Werkstatt aus} other {Baukosten}}",
     "unlockedBy": "Freigeschaltet durch",
     "unlock": "{kind, select, milestone {Stufe {tier, number}: {name}} tutorial {Stufe 0: {name}} mam {MAM-Forschung: {name}} alternate {Alternatives Rezept: {name}} hardDrive {Festplatte: {name}} shop {AWESOME-Shop: {name}} other {{name}}}",
@@ -854,6 +919,48 @@
     "list": {
       "item": "Gegenstand",
       "rate": "Pro Minute"
+    },
+    "alternates": {
+      "title": "Alternativrezepte",
+      "available": "{count, number} verfügbar",
+      "chosen": "{count, plural, one {# gewählt} other {# gewählt}}",
+      "hint": "Alle Alternativrezepte der Spieldaten, nach dem Gegenstand, den sie herstellen. Die Wahl gilt überall, wo der Gegenstand im Plan vorkommt, wie bei „Hergestellt mit“ eines Schritts, und bleibt auf diesem Gerät gespeichert.",
+      "filter": "Alternativrezepte filtern",
+      "filterPlaceholder": "Gegenstand oder Rezept…",
+      "inPlan": "In diesem Plan",
+      "others": "Weitere Gegenstände",
+      "all": "Alle Gegenstände",
+      "noMatch": "Kein passendes Alternativrezept",
+      "recipeFor": "Rezept für {item}"
+    },
+    "mode": {
+      "label": "Berechnen nach",
+      "rate": "Zielmenge",
+      "nodes": "Verfügbare Vorkommen"
+    },
+    "nodes": {
+      "title": "Verfügbare Rohstoffvorkommen",
+      "hint": "Die Vorkommen, die du nutzen kannst, nach Rohstoff, Reinheit und Extraktor; bei der Taktrate der Extraktoren unten. Wasserextraktoren und Zulieferung von außen sind nicht begrenzt.",
+      "add": "+ Vorkommen hinzufügen",
+      "groupN": "Vorkommen {n}",
+      "resource": "Rohstoff",
+      "pickResource": "Rohstoff wählen…",
+      "count": "Anzahl",
+      "extractor": "Extraktor",
+      "gives": "Ergibt {value}",
+      "ratioHint": "Bei mehreren Gegenständen zählt nur das Verhältnis ihrer Mengen: Der Planer stellt so viel her, wie die Vorkommen in diesem Verhältnis erlauben.",
+      "maxTitle": "Maximale Ausbringung",
+      "unbounded": "Dieser Plan braucht keinen Rohstoff aus Vorkommen (nur Wasser aus Wasserextraktoren oder Zulieferung von außen), die Vorkommen begrenzen ihn also nicht.",
+      "missing": "Für {items} sind keine Vorkommen eingetragen, daher lässt sich nichts herstellen. Trage sie unter „Verfügbare Rohstoffvorkommen“ ein.",
+      "bottleneck": "{count, plural, one {Engpass} other {Engpässe}}: {items}",
+      "usage": "Genutzte Rohstoffvorkommen",
+      "limiting": "Engpass, voll genutzt",
+      "share": "{value} % genutzt",
+      "usedOf": "{used} von {available}"
+    },
+    "transport": {
+      "lines": "{count}× {tier}",
+      "needs": "Braucht {tier}"
     }
   },
   "vehicleCalc": {
@@ -870,7 +977,7 @@
     "route": "Streckenlänge (einfach)",
     "pick": {
       "button": "Auf der Karte wählen",
-      "hint": "Start (A) und Ziel (B) auf der Karte wählen oder die Länge eintippen.",
+      "hint": "Start (A) und Ziel (B) auf der Karte wählen oder die Länge eintippen. Ein Punkt nahe einem angezeigten Rohstoffvorkommen rastet darauf ein.",
       "again": "Neu wählen",
       "clear": "Punkte entfernen",
       "start": "Fahrzeug-Rechner: Start auf der Karte wählen",
@@ -924,7 +1031,7 @@
     "speedMissing": "Nicht in den Spieldaten: trag die Durchschnittsgeschwindigkeit ein, die du im Spiel siehst.",
     "stop": "Lade- und Entladezeit",
     "stopSource": {
-      "truckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Lkw-Station an jedem Ende.",
+      "truckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Lkw-Station an jedem Ende. Ihre Beschreibung nennt „bis zu 120 Stapel pro Minute“, seit Spielversion 1.2 bewegt aber ein Zyklus die ganze Ladung; das wird daher nicht verwendet.",
       "fluidTruckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Tanklaster-Station an jedem Ende.",
       "freightPlatform": "Beide Enden zusammen. Spielwert: Lade- und Entladezeit der Frachtplattform.",
       "dronePort": "Beide Enden zusammen. Spielwert: Andocken und Abheben an beiden Drohnenlandeplätzen."
@@ -1853,6 +1960,14 @@
       "hatcher": "Krabbenbrüter",
       "wildlife": "Wildtiere"
     },
+    "biomes": {
+      "title": "Wo noch Kreaturen leben",
+      "summary": "{count, plural, =0 {alle Biome geräumt} one {# Biom nicht geräumt} other {# Biome nicht geräumt}}",
+      "count": "{open} von {total}",
+      "cleared": "geräumt",
+      "outside": "Außerhalb der Biome",
+      "hint": "Spawnpunkte der angezeigten Arten, deren Kreaturen gerade nicht tot sind, von allen, laut dem Spielstand der Zeitleiste. Ein Klick zeigt das Biom auf der Karte."
+    },
     "legend": "Ab Zoom 5 das Bild der Kreatur, darunter eine Raute. Gefüllt: schon getötet, hohl: nie getötet, rot durchgestrichen: gerade tot. Zahl am Bild: so oft getötet.",
     "source": "{kills, number} Kills an {spawners, number} Spawnpunkten · Spielstand vom {date}",
     "noKillData": "Kein Kill-Status: Der Spielstand wurde importiert, bevor ficsmap ihn gelesen hat.",
@@ -1956,5 +2071,28 @@
     "more": "+{count, number} weitere",
     "empty": "Leer",
     "showOnMap": "Auf der Karte"
+  },
+  "activity": {
+    "title": "Aktivität",
+    "hereNow": "Gerade da: {names}",
+    "alone": "Sonst ist gerade niemand da.",
+    "recent": "Letzte Änderungen",
+    "empty": "Noch ist nichts passiert.",
+    "loadFailed": "Die Aktivität konnte nicht geladen werden.",
+    "someone": "Jemand",
+    "kind": {
+      "marks": "{name} hat {count, plural, one {# Häkchen} other {# Häkchen}} geändert",
+      "import": "{name} hat {count, plural, one {einen Spielstand} other {# Spielstände}} importiert",
+      "snapshots": "{name} hat {count, plural, one {einen Spielstand} other {# Spielstände}} zum Fabrikplan hinzugefügt",
+      "routes": "{name} hat Routen bearbeitet",
+      "rename": "{name} hat die Welt in {detail} umbenannt",
+      "join": "{name} ist beigetreten",
+      "leave": "{name} hat die Welt verlassen",
+      "remove": "{name} hat {target} entfernt",
+      "roleAdmin": "{name} hat {target} zum Admin gemacht",
+      "roleMember": "{name} hat {target} die Admin-Rechte entzogen",
+      "stepDown": "{name} hat die Admin-Rechte abgegeben",
+      "owner": "{name} hat die Welt an {target} übergeben"
+    }
   }
 }

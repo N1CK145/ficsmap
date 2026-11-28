@@ -9,6 +9,15 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>ficsmap</title>
+    <!-- The remembered theme (app/theme.ts) before the stylesheet paints, so a light page does not flash dark. -->
+    <script>
+      (function () {
+        var t;
+        try { t = JSON.parse(localStorage.getItem('ficsmap:prefs') || '{}').theme; } catch (e) { t = undefined; }
+        if (t === 'system') t = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        document.documentElement.dataset.theme = t === 'light' ? 'light' : 'dark';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

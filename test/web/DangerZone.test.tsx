@@ -17,9 +17,9 @@ const WORLD: WorldDto = {
 const navigate = vi.fn();
 const show = vi.fn();
 let currentCtx: WorldCtx;
-function Zone() {
+function Zone({ world = WORLD }: { world?: WorldDto }) {
   const queryClient = useQueryClient();
-  const ctx = { worldId: W, world: WORLD, me: { id: 1 } as MeDto, toast: { show }, navigate, queryClient } as unknown as WorldCtx;
+  const ctx = { worldId: W, world, me: { id: 1 } as MeDto, toast: { show }, navigate, queryClient } as unknown as WorldCtx;
   currentCtx = ctx;
   return <DangerZone ctx={ctx} />;
 }
@@ -61,5 +61,40 @@ describe('DangerZone', () => {
     await act(async () => { release(); });
     await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1));
     expect(show).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands the world to a chosen member after a confirm, then refreshes the world', async () => {
+    const { calls } = stubFetch({ [`PUT /api/worlds/${W}/owner`]: { status: 204 } });
+    const world: WorldDto = {
+      ...WORLD,
+      members: [
+        { userId: 1, displayName: 'Nick', avatarUrl: null, joinedVia: 'owner', joinedAt: 0, role: 'owner' },
+        { userId: 2, displayName: 'Anna', avatarUrl: null, joinedVia: 'invite', joinedAt: 1, role: 'member' },
+        { userId: 4, displayName: 'Cleo', avatarUrl: null, joinedVia: 'invite', joinedAt: 2, role: 'admin' },
+      ],
+    };
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    render(<QueryClientProvider client={client}><ToastProvider><Zone world={world} /></ToastProvider></QueryClientProvider>);
+
+    const select = screen.getByLabelText('New owner');
+    expect([...select.querySelectorAll('option')].map(o => o.textContent)).toEqual(['Choose a member', 'Anna', 'Cleo']);
+    const button = screen.getByRole('button', { name: 'Hand over' });
+    expect(button).toBeDisabled();
+    await userEvent.selectOptions(select, 'Cleo');
+    await userEvent.click(button);
+    expect(screen.getByText('Make Cleo the owner of Alpha? You become an admin; only Cleo can delete the world or hand it back.')).toBeInTheDocument();
+    expect(calls.some(c => c.method === 'PUT')).toBe(false);
+    await userEvent.click(screen.getByRole('button', { name: 'Make owner' }));
+    await waitFor(() => expect(calls).toContainEqual({ method: 'PUT', path: `/api/worlds/${W}/owner`, body: { userId: 4 } }));
+    await waitFor(() => expect(show).toHaveBeenCalledWith({ message: 'Cleo now owns Alpha' }));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['world', W] });
+  });
+
+  it('offers no hand-over when the owner is alone', () => {
+    stubFetch({});
+    render(<QueryClientProvider client={new QueryClient()}><ToastProvider><Zone /></ToastProvider></QueryClientProvider>);
+    expect(screen.queryByLabelText('New owner')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete world' })).toBeInTheDocument();
   });
 });

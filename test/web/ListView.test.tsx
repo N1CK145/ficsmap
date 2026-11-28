@@ -20,7 +20,7 @@ const dataset: Dataset = {
   biomes: [{ id: 'grass', name: { en: 'Grass Fields', de: 'Grasfelder' } }, { id: 'swamp', name: { en: 'Swamp', de: 'Sumpf' } }],
   items: [
     ['S1', 'somersloop', 1, 1, 0, 0, 1], ['S2', 'somersloop', 2, 2, 0, 0, 2],
-    ['M1', 'mercer_sphere', 4, 4, 0, 1, 1], ['H1', 'hard_drive', 5, 5, 0, 1, 1],
+    ['M1', 'mercer_sphere', 4, 4, 0, 1, 1, { cave: true }], ['H1', 'hard_drive', 5, 5, 0, 1, 1],
   ],
   aliases: {},
 };
@@ -62,6 +62,13 @@ describe('ListView', () => {
     expect(cell(row, 2)).toHaveTextContent('Grass Fields');
     expect(cell(row, 4)).toHaveTextContent('Anna');
     expect(cell(screen.getByRole('checkbox', { name: 'Somersloop · Grass Fields\u00a02' }).closest('tr') as HTMLElement, 4)).toHaveTextContent('—');
+  });
+
+  it('says "In a cave" in the item cell of an item inside a cave, and nothing for the others', () => {
+    renderList(marks({}));
+    const row = (name: RegExp) => screen.getByRole('checkbox', { name }).closest('tr')!;
+    expect(cell(row(/^Mercer Sphere/), 1)).toHaveTextContent('In a cave');
+    expect(cell(row(/^Hard Drive/), 1)).not.toHaveTextContent('In a cave');
   });
 
   it('toggling the checkbox sets the mark', async () => {

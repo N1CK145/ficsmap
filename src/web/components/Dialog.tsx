@@ -12,10 +12,12 @@ export interface DialogProps {
   labelledBy?: string;
   children: ReactNode;
   footer?: ReactNode;
+  /** The width: a max-width class instead of the default `max-w-md` (e.g. a 3D view). */
+  widthClass?: string;
 }
 
 /** Modal on the native <dialog> (focus trap, Esc, top layer). Content is only mounted while open. */
-export function Dialog({ open, onClose, title, labelledBy, children, footer }: DialogProps) {
+export function Dialog({ open, onClose, title, labelledBy, children, footer, widthClass = 'max-w-md' }: DialogProps) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -40,7 +42,7 @@ export function Dialog({ open, onClose, title, labelledBy, children, footer }: D
       // Esc: the parent decides. A close the browser forces anyway (or a form method=dialog) is reported too.
       onCancel={e => { e.preventDefault(); onClose(); }}
       onClose={() => { if (open) onClose(); }}
-      className={`m-auto w-[calc(100%-2rem)] max-w-md p-0 ${WINDOW_FRAME} backdrop:bg-bg/75 backdrop:backdrop-blur-[2px]`}
+      className={`m-auto w-[calc(100%-2rem)] ${widthClass} p-0 ${WINDOW_FRAME} backdrop:bg-bg/75 backdrop:backdrop-blur-[2px]`}
     >
       {open && (
         <>

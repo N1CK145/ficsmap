@@ -5,8 +5,10 @@ interface Strings {
   invitedYou: (owner: string, world: string) => string;
   invitedYouToApp: (owner: string) => string;
   signUp: string;
+  signUpSteam: string;
   collected: (pct: number) => string;
   signIn: string;
+  signInSteam: string;
   validUntil: (date: string) => string;
   noLongerValid: string;
   goToWorlds: string;
@@ -18,8 +20,10 @@ const STRINGS: Record<Locale, Strings> = {
     invitedYou: (owner, world) => `${owner} invited you to ${world}`,
     invitedYouToApp: owner => `${owner} invited you to ficsmap`,
     signUp: 'Sign in with Discord to create your account',
+    signUpSteam: 'Sign in with Steam to create your account',
     collected: pct => `Collected so far: ${pct} %`,
     signIn: 'Sign in with Discord to join',
+    signInSteam: 'Sign in with Steam to join',
     validUntil: date => `Invite valid until ${date}`,
     noLongerValid: 'This invite is no longer valid. Ask the owner for a new link.',
     goToWorlds: 'Go to my worlds',
@@ -29,8 +33,10 @@ const STRINGS: Record<Locale, Strings> = {
     invitedYou: (owner, world) => `${owner} hat dich zu ${world} eingeladen`,
     invitedYouToApp: owner => `${owner} hat dich zu ficsmap eingeladen`,
     signUp: 'Mit Discord anmelden und Konto anlegen',
+    signUpSteam: 'Mit Steam anmelden und Konto anlegen',
     collected: pct => `Bisher gesammelt: ${pct} %`,
     signIn: 'Mit Discord anmelden und beitreten',
+    signInSteam: 'Mit Steam anmelden und beitreten',
     validUntil: date => `Einladung gültig bis ${date}`,
     noLongerValid: 'Diese Einladung ist nicht mehr gültig. Bitte den Besitzer um einen neuen Link.',
     goToWorlds: 'Zu meinen Welten',
@@ -56,7 +62,9 @@ main{width:100%;max-width:440px;background:#1E2125;border:1px solid #2E3238;bord
 h1{margin:0 0 12px;font:600 28px/1.2 'Barlow Condensed',system-ui,sans-serif;letter-spacing:.02em}
 p{margin:0 0 16px}
 .muted{color:#9BA1A8;font-size:14px}
-a.btn{display:inline-block;margin:8px 0 16px;padding:12px 20px;background:#F28C28;color:#15171A;font-weight:600;text-decoration:none;border-radius:4px}
+a.btn{display:block;margin:8px 0;padding:12px 20px;background:#F28C28;color:#15171A;font-weight:600;text-decoration:none;border-radius:4px}
+a.btn.alt{background:transparent;color:#E8E6E3;border:1px solid #9BA1A8}
+.btns{margin:8px 0 16px}
 a.btn:focus-visible{outline:2px solid #E8E6E3;outline-offset:2px}
 `;
 
@@ -69,13 +77,14 @@ export function renderInvitePage(page: InvitePage, locale: Locale): string {
     body = `<p>${escapeHtml(t.noLongerValid)}</p><a class="btn" href="/">${escapeHtml(t.goToWorlds)}</a>`;
   } else {
     const date = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(page.expiresAt));
-    const href = `/auth/login?invite=${encodeURIComponent(page.token)}&returnTo=/`;
+    const query = `?invite=${encodeURIComponent(page.token)}&returnTo=/`;
     const head = page.kind === 'landing'
       ? `<h1>${escapeHtml(t.invitedYou(page.owner, page.world))}</h1>
 <p>${escapeHtml(t.collected(page.percent))}</p>`
       : `<h1>${escapeHtml(t.invitedYouToApp(page.owner))}</h1>`;
     body = `${head}
-<a class="btn" href="${escapeHtml(href)}">${escapeHtml(page.kind === 'landing' ? t.signIn : t.signUp)}</a>
+<div class="btns"><a class="btn" href="${escapeHtml(`/auth/login${query}`)}">${escapeHtml(page.kind === 'landing' ? t.signIn : t.signUp)}</a>
+<a class="btn alt" href="${escapeHtml(`/auth/steam/login${query}`)}">${escapeHtml(page.kind === 'landing' ? t.signInSteam : t.signUpSteam)}</a></div>
 <p class="muted">${escapeHtml(t.validUntil(date))}</p>`;
   }
   return `<!doctype html>

@@ -6,7 +6,8 @@
  *
  * Units: MW, seconds, items per minute; fluids (liquids and gases) in m³ (the game stores litres).
  * `Names`, `ItemAmount` and `WikiRecipe` have the same shape as `Names`, `ItemAmount` and `GameRecipe`
- * of the production planner's `src/shared/recipes.ts`, so the two can be merged into one.
+ * of the production planner's `src/shared/recipes.ts`: the recipes are only in `recipes.json`, and an entry refers to
+ * them by id (`MachineEntry.recipes`, `entryRecipes`).
  */
 
 export interface Names { en: string; de: string }
@@ -133,6 +134,11 @@ export interface MachineEntry {
   stats: MachineStats;
   build?: BuildCost;
   unlockedBy: Unlock[];
+  /**
+   * Production buildings: the ids of the recipes that run in it, in the order of the Docs. The recipes themselves are
+   * in the dataset's `recipes.json` (`GameRecipe`); see `entryRecipes`. Missing in datasets built before.
+   */
+  recipes?: string[];
 }
 
 export interface MachineData {
@@ -143,7 +149,22 @@ export interface MachineData {
   items: Record<string, WikiItem>;
   /** Grouped by category in `MACHINE_CATEGORIES` order, in build-menu order within a category. */
   machines: MachineEntry[];
-  recipes: WikiRecipe[];
+  /**
+   * Only in datasets built before `recipes.json` became the one source of recipes (entries without `recipes`): the
+   * recipes of the production buildings. Read them with `entryRecipes`.
+   */
+  recipes?: WikiRecipe[];
+}
+
+/**
+ * The recipes that run in an entry: by its recipe ids from `recipes.json` (`recipes`, its recipes by id; nothing while
+ * that is not loaded or missing), or in a dataset built before, from `machines.json`'s own list.
+ */
+export function entryRecipes(
+  data: Pick<MachineData, 'recipes'>, entry: Pick<MachineEntry, 'id' | 'recipes'>, recipes: ReadonlyMap<string, WikiRecipe> | null | undefined,
+): WikiRecipe[] {
+  if (entry.recipes) return recipes ? entry.recipes.flatMap(id => recipes.get(id) ?? []) : [];
+  return (data.recipes ?? []).filter(r => r.machine === entry.id);
 }
 
 export const WIKI_BASE = 'https://satisfactory.wiki.gg/wiki/';
@@ -313,3 +334,14 @@ export function statRows(entry: MachineEntry, items: Readonly<Record<string, Wik
   if (s.somersloopSlots !== undefined) add('somersloopSlots', { slots: s.somersloopSlots });
   return rows;
 }
+
+/**
+ * Entries whose game description says something the game no longer does, with the key of the note the wiki shows
+ * under it (`machineWiki.descriptionNote.<key>`). The Truck Station still says "up to 120 stacks per minute", left
+ * over from before 1.2.0.0; since then it moves a docked vehicle's whole load in one fixed cycle
+ * (`data-src/extractor/README.md`, stop time).
+ */
+const DESCRIPTION_NOTES: Record<string, string> = { Build_TruckStation_C: 'truckStation' };
+
+/** The key of the note under an entry's game description, or null. */
+export const descriptionNote = (id: string): string | null => DESCRIPTION_NOTES[id] ?? null;

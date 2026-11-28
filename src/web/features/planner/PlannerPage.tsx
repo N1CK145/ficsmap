@@ -3,5 +3,5 @@ import { Planner } from './Planner.js';
 
 /** The planner page (`/w/:id/planner`) for the dataset the server serves (like the map and the other tools). */
 export function PlannerPage({ ctx }: { ctx: WorldCtx }) {
-  return <Planner version={ctx.me.datasetVersion} worldId={ctx.worldId} toast={ctx.toast} />;
+  return <Planner version={ctx.me.datasetVersion} worldId={ctx.worldId} bounds={ctx.index.ds.bounds} toast={ctx.toast} />;
 }

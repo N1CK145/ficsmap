@@ -32,6 +32,15 @@ describe('user preferences', () => {
     expect((await app.inject({ url: '/api/me', headers: { cookie } })).json().prefs).toEqual({ wheelSpeed: 1.5, dateFormat: 'eu' });
   });
 
+  it('saves the theme next to the other preferences', async () => {
+    const { app, login } = await makeTestApp();
+    const cookie = await login('owner-1');
+    for (const theme of ['light', 'system', 'dark']) {
+      const res = await app.inject({ method: 'PATCH', url: '/api/me/prefs', payload: { theme }, headers: { ...json, cookie } });
+      expect(res.json()).toEqual({ theme });
+    }
+  });
+
   it('an empty patch keeps what is stored', async () => {
     const { app, login } = await makeTestApp();
     const cookie = await login('owner-1');
@@ -57,7 +66,8 @@ describe('user preferences', () => {
     ['off the 0.05 grid', { wheelSpeed: 1.01 }],
     ['not a number', { wheelSpeed: '1.5' }],
     ['null', { wheelSpeed: null }],
-    ['an unknown key', { wheelSpeed: 1, theme: 'light' }],
+    ['an unknown key', { wheelSpeed: 1, colour: 'light' }],
+    ['an unknown theme', { theme: 'blue' }],
     ['not an object', [1]],
   ])('rejects %s with 400 and keeps the stored value', async (_name, payload) => {
     const { app, login } = await makeTestApp();

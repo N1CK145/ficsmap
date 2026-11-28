@@ -14,6 +14,24 @@ export interface UserPrefs {
    * 12 hours ("11/09/2026, 11:05 PM"). Left out: `auto`.
    */
   dateFormat?: DateFormat;
+  /**
+   * The colours of the interface: `dark` (the FICSIT look), `light`, or `system` (follows the system's light or dark
+   * setting). The map keeps its dark colours in both. Left out: `dark`.
+   */
+  theme?: ThemePref;
+}
+
+export const THEMES = ['dark', 'light', 'system'] as const;
+export type ThemePref = (typeof THEMES)[number];
+
+export function isThemePref(v: unknown): v is ThemePref {
+  return (THEMES as readonly unknown[]).includes(v);
+}
+
+/** The theme to show: the preference (dark when left out), `system` resolved by whether the system prefers dark. */
+export function resolveTheme(pref: ThemePref | undefined, systemDark: boolean): 'dark' | 'light' {
+  if (pref === 'system') return systemDark ? 'dark' : 'light';
+  return pref ?? 'dark';
 }
 
 export const DATE_FORMATS = ['auto', 'eu', 'us'] as const;
@@ -57,5 +75,6 @@ export function cleanPrefs(raw: unknown): UserPrefs {
   const out: UserPrefs = {};
   if (isWheelSpeed(r.wheelSpeed)) out.wheelSpeed = roundWheelSpeed(r.wheelSpeed);
   if (isDateFormat(r.dateFormat)) out.dateFormat = r.dateFormat;
+  if (isThemePref(r.theme)) out.theme = r.theme;
   return out;
 }

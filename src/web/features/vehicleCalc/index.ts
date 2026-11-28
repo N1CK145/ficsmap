@@ -4,6 +4,7 @@ import { pageTool } from '../../app/tools.js';
 import { TruckIcon } from '../../components/icons.js';
 import { PickBanner } from './PickBanner.js';
 import { PickReturn } from './PickReturn.js';
+import { RouteSnap } from './RouteSnap.js';
 import { PICK_MODE, useVehicleCalc, VEHICLES_PAGE } from './useVehicleCalc.js';
 import { VehicleCalcPage } from './VehicleCalcPage.js';
 import { VehicleRouteLayer } from './VehicleRouteLayer.js';
@@ -15,13 +16,14 @@ export { PICK_MODE, useVehicleCalc, VEHICLES_PAGE, vehiclesPath } from './useVeh
 export const vehicleCalcTool = pageTool({ id: 'vehicle-calc', order: 50, labelKey: 'vehicleCalc.open', hintKey: 'vehicleCalc.openHint', page: VEHICLES_PAGE, icon: createElement(TruckIcon) });
 
 /**
- * Picking the route's start and destination on the map: a click on the map gives that point, a click on a marker
- * the marker's position. The banner says which point is next; Esc or Cancel leave.
+ * Picking the route's start and destination on the map: a click on the map gives that point (on a resource node shown
+ * near it: the node's, `RouteSnap`), a click on a marker the marker's position. The banner says which point is next;
+ * Esc or Cancel leave.
  */
 export const pickRouteMode: MapMode = {
   id: PICK_MODE,
   onMarkerClick: item => useVehicleCalc.getState().pick({ x: item.x, y: item.y }),
-  onMapClick: point => useVehicleCalc.getState().pick(point),
+  onMapClick: point => { const s = useVehicleCalc.getState(); s.pick(s.snap(point)); },
   Banner: PickBanner,
 };
 
@@ -43,5 +45,6 @@ export const vehicleCalcFeature: FeatureModule = {
     // Over the route planner's line (110).
     { id: 'vehicle-route', order: 115, Component: VehicleRouteLayer },
     { id: 'vehicle-pick-return', order: 116, Component: PickReturn },
+    { id: 'vehicle-route-snap', order: 117, Component: RouteSnap },
   ],
 };
