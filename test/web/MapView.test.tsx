@@ -54,13 +54,13 @@ const probeFeature: FeatureModule = {
   ],
 };
 
-function renderMap(worldId = WORLD) {
+function renderMap(worldId = WORLD, ds: Dataset = dataset) {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
   const marks: MarksCache = { rev: 0, baseRev: 0, marks: new Map(), revs: new Map(), pending: new Map() };
   client.setQueryData(queryKeys.marks(worldId), marks);
   const me: MeDto = { id: 1, displayName: 'Anna', avatarUrl: null, email: null, datasetVersion: 'test' };
   const ctx: WorldCtx = {
-    worldId, world: {} as WorldDto, me, index: indexDataset(dataset), queryClient: client,
+    worldId, world: {} as WorldDto, me, index: indexDataset(ds), queryClient: client,
     navigate: () => {}, toast: { show: () => {} },
   };
   return render(
@@ -209,6 +209,16 @@ describe('MapView clicks', () => {
     act(() => { useUiStore.getState().setMode('vehicle-route'); useUiStore.getState().setSearchHighlight(new Set(['S1'])); });
     expect(drawn()[0]!.visual).toMatchObject({ opacity: 1, highlight: true });
     act(() => { useUiStore.getState().setSearchHighlight(null); });
+  });
+
+  it('marks the markers of items in a cave (the dataset flag), and only those', () => {
+    const caveSet: Dataset = { ...dataset, items: [['S1', 'somersloop', 50, 50, 0, 0, 1, { cave: true }], ['S2', 'somersloop', 60, 60, 0, 0, 2]] };
+    renderMap(WORLD, caveSet);
+    let layer: MarkerLayer | undefined;
+    probedMap!.eachLayer(l => { if (l instanceof MarkerLayer) layer = l; });
+    const drawn = (layer as unknown as { getMarkers(): readonly DrawMarker[] }).getMarkers();
+    expect(drawn.find(m => m.id === 'S1')!.visual.cave).toBe(true);
+    expect(drawn.find(m => m.id === 'S2')!.visual.cave).toBeFalsy();
   });
 
   it('fades the markers while the creature layer filters by kill state', () => {

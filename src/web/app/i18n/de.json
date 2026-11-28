@@ -599,7 +599,8 @@
     "changedBy": "Zuletzt geändert von",
     "showOnMap": "Auf der Karte zeigen",
     "empty": "Keine Objekte passen zu den aktuellen Filtern.",
-    "none": "—"
+    "none": "—",
+    "inCave": "In einer Höhle"
   },
   "mobile": {
     "sheet": {

@@ -32,7 +32,7 @@ function readPalette(): MarkerPalette | null {
   const token = (name: string) => style.getPropertyValue(`--color-${name}`).trim();
   const types: Record<string, string> = {};
   for (const t of COLLECTIBLE_TYPES) types[t.colorToken] = token(t.colorToken);
-  const p: MarkerPalette = { bg: token('bg'), fg: token('fg'), accent: token('accent'), conflict: token('conflict'), power: token('power'), free: token('free'), types };
+  const p: MarkerPalette = { bg: token('bg'), fg: token('fg'), accent: token('accent'), conflict: token('conflict'), power: token('power'), free: token('free'), cave: token('cave'), types };
   // The stylesheet may not be applied yet; try again on the next draw instead of caching blanks.
   const complete = [p.bg, p.fg, p.accent, p.conflict, p.power, p.free, ...Object.values(types)].every(c => c !== '');
   return complete ? p : null;

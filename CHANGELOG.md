@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Light theme: the profile page ("Darstellung") switches between dark (default), light and like the system; saved to the account and applied before the page paints. The map stays dark in both.
+- Map: collectibles inside a cave carry a cave badge (bottom left of the marker, in the cave layer's colour, from zoom 2); the list view says "In einer Höhle" under the item.
 - Map: single creature spawners can be reached by keyboard. Tab visits every spawner in view (row by row, left to right), focus shows its box, Enter pins it, Escape lets go.
 
 ### Changed

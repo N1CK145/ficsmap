@@ -200,7 +200,8 @@ function buildMarkers(
       recede: f.recede,
     });
     const pod = podBadge(item.extra?.pod);
-    const m: DrawMarker = { id: item.name, lat, lng, type, visual: pod ? { ...visual, pod } : visual };
+    const cave = item.extra?.cave === true;
+    const m: DrawMarker = { id: item.name, lat, lng, type, visual: pod || cave ? { ...visual, ...(pod && { pod }), ...(cave && { cave }) } : visual };
     const until = pulses?.remote.get(item.name);
     if (until !== undefined) m.pulseUntil = until;
     const conflictUntil = pulses?.conflict.get(item.name);

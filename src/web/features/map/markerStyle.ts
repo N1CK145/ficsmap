@@ -10,6 +10,8 @@ export interface MarkerVisual {
   pod?: 'power' | 'free';
   /** A match of the header search: drawn with a halo, above the other markers. */
   highlight?: boolean;
+  /** The item lies in a cave (dataset flag `extra.cave`): a cave badge, from the zoom where markers have their shape. */
+  cave?: boolean;
 }
 
 /** The badge a drop pod's requirement gets on the map (none for item pods and unknown data). */

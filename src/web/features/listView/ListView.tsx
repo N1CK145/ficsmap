@@ -6,7 +6,7 @@ import { detectLocale } from '../../../shared/i18n.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { useUiStore } from '../../app/store.js';
 import { Button } from '../../components/Button.js';
-import { PinIcon } from '../../components/icons.js';
+import { CaveIcon, PinIcon } from '../../components/icons.js';
 import { itemLabel } from '../itemPanel/label.js';
 import { TypeIcon } from '../map/TypeIcon.js';
 import { hasMismatch, isCollected, useMarks, useSetMark, type SetMark } from '../marks/useMarks.js';
@@ -16,7 +16,7 @@ interface RowProps {
   /** undefined: unchecked; null: checked by someone who is not (or no longer) a member. */
   by: string | null | undefined;
   someone: string;
-  texts: { conflict: string; showOnMap: string; none: string };
+  texts: { conflict: string; showOnMap: string; none: string; inCave: string };
   setMark: SetMark;
   show(actor: string): void;
 }
@@ -35,6 +35,9 @@ const Row = memo(function Row({ item, label, typeLabel, biome, collected, confli
           <TypeIcon type={typeById(item.type)} className="shrink-0 @2xl:hidden" />
           <span className="min-w-0">
             {label}
+            {item.extra?.cave && (
+              <span className="flex items-center gap-1 text-xs text-muted"><CaveIcon size={12} className="shrink-0" />{texts.inCave}</span>
+            )}
             {by !== undefined && <span className="block text-xs text-muted @2xl:hidden">{changed}</span>}
           </span>
         </span>
@@ -85,7 +88,7 @@ export function ListView({ ctx }: { ctx: WorldCtx }) {
   const locale = detectLocale([i18n.language]);
 
   const texts = useMemo(() => ({
-    conflict: t('item.status.conflict'), showOnMap: t('list.showOnMap'), none: t('list.none'),
+    conflict: t('item.status.conflict'), showOnMap: t('list.showOnMap'), none: t('list.none'), inCave: t('list.inCave'),
   }), [t]);
   const members = useMemo(() => new Map(world.members.map(m => [m.userId, m.displayName])), [world.members]);
   const someone = t('item.someone');
