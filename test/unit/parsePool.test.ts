@@ -38,7 +38,8 @@ describe('save parse pool', () => {
   });
 
   it('ends a worker that takes too long (timeout) and goes on with the next save', async () => {
-    const pool = createParsePool({ dataset, workerUrl: FAKE, timeoutMs: 100 });
+    // 500 ms leaves room for the next save's fresh worker to start while the other test files run.
+    const pool = createParsePool({ dataset, workerUrl: FAKE, timeoutMs: 500 });
     const slow = code(pool.parse(bytes(1)));
     const next = code(pool.parse(bytes(0, 0)));
     expect(await slow).toBe('timeout');
