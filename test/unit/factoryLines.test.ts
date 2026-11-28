@@ -352,6 +352,57 @@ describe('bottleneck rules (the same as the item chain)', () => {
     expect(lines(s).lines[0]!.edges[0]).toMatchObject({ capacity: 300, pipe: true });
   });
 
+  describe('smart splitters follow their sort rules', () => {
+    const SS = 'Build_ConveyorAttachmentSplitterSmart_C_2';
+    // Output1 leaves ahead (centre), Output2 to the right, Output3 to the left.
+    const out = (from: string, to: string, port: string) => belt(from, to, { fromPort: port });
+
+    it('the named item goes to its output, the rest to Overflow, nothing to None', () => {
+      const MI = 'Build_MinerMk1_C_1', SM = 'Build_SmelterMk1_C_3', BOX = 'Build_StorageContainerMk1_C_4', SINK = 'Build_ResourceSink_C_5';
+      const sort: [string, number][] = [['Desc_OreIron_C', 0], ['Desc_Overflow_C', 1], ['Desc_None_C', 2]];
+      const s = snapshot(
+        [miner(MI, {}, 'Node_Pure'), node(SS), smelter(SM), node(BOX), node(SINK)],
+        [belt(MI, SS), out(SS, SM, 'Output1'), out(SS, SINK, 'Output2'), out(SS, BOX, 'Output3')],
+      );
+      s.buildings.find(b => b.id === SS)!.sort = sort;
+      const line = lines(s).lines[0]!;
+      expect(edgeBetween(line, SS, SM).perMin).toBeCloseTo(30);
+      expect(edgeBetween(line, SS, SINK).perMin).toBeCloseTo(90);
+      expect(edgeBetween(line, SS, BOX).perMin ?? 0).toBeCloseTo(0);
+    });
+
+    it('a mixed belt: each item to the output that names it, Any Undefined takes the others', () => {
+      const MI = 'Build_MinerMk1_C_1', SM = 'Build_SmelterMk1_C_6', M = 'Build_ConveyorAttachmentMerger_C_7';
+      const C = 'Build_ConstructorMk1_C_3', BOX = 'Build_StorageContainerMk1_C_4', SINK = 'Build_ResourceSink_C_5';
+      const s = snapshot(
+        [miner(MI), miner('Build_MinerMk1_C_8'), smelter(SM), node(M), node(SS), constructor(C), node(BOX), node(SINK)],
+        [belt('Build_MinerMk1_C_8', SM), belt(MI, M), belt(SM, M), belt(M, SS), out(SS, C, 'Output1'), out(SS, BOX, 'Output3'), out(SS, SINK, 'Output2')],
+      );
+      s.buildings.find(b => b.id === SS)!.sort = [['Desc_IronIngot_C', 0], ['Desc_AnyUndefined_C', 2]];
+      const line = lines(s).lines[0]!;
+      const items = (a: string, b: string) => {
+        const e = edgeBetween(line, a, b);
+        const list = e.items ?? (e.item ? [{ item: e.item, perMin: e.perMin ?? 0 }] : []);
+        return Object.fromEntries(list.map(r => [r.item, Math.round(r.perMin)]));
+      };
+      expect(items(SS, C)).toEqual({ Desc_IronIngot_C: 30 });
+      expect(items(SS, BOX)).toEqual({ Desc_OreIron_C: 60 });
+      expect(edgeBetween(line, SS, SINK).perMin ?? 0).toBeCloseTo(0);
+    });
+
+    it('without rules (an older snapshot) a smart splitter splits like a plain one', () => {
+      const MI = 'Build_MinerMk1_C_1', SM = 'Build_SmelterMk1_C_3', BOX = 'Build_StorageContainerMk1_C_4', SINK = 'Build_ResourceSink_C_5';
+      const s = snapshot(
+        [miner(MI, {}, 'Node_Pure'), node(SS), smelter(SM), node(BOX), node(SINK)],
+        [belt(MI, SS), out(SS, SM, 'Output1'), out(SS, SINK, 'Output2'), out(SS, BOX, 'Output3')],
+      );
+      const line = lines(s).lines[0]!;
+      expect(edgeBetween(line, SS, SM).perMin).toBeCloseTo(30);
+      expect(edgeBetween(line, SS, SINK).perMin).toBeCloseTo(45);
+      expect(edgeBetween(line, SS, BOX).perMin).toBeCloseTo(45);
+    });
+  });
+
   it('a merger passes on what comes in: its inflow equals its outflow even when the consumer behind needs less', () => {
     const M = 'Build_ConveyorAttachmentMerger_C_3', C = 'Build_ConstructorMk1_C_4';
     const s = snapshot(

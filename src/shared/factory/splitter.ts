@@ -47,3 +47,22 @@ export function rulesBySide(cls: string, sort: readonly (readonly [string, numbe
   }
   return out;
 }
+
+/** How a splitter's rules treat an item on one output: it goes there, only as overflow, or not at all (null). */
+export type SortMatch = 'match' | 'overflow' | null;
+
+/**
+ * How the rules `sort` of a splitter of class `cls` treat `item` on the output that leaves by `port` (as in
+ * `SnapshotLink.fromPort`): `match` when a rule there names the item, is Any (`Desc_Wildcard_C`), or is Any Undefined
+ * (`Desc_AnyUndefined_C`) and no output names the item; `overflow` when the output has an Overflow rule (it takes
+ * what the matching outputs cannot, and any item no other output takes); else null (None, or no rule at all). A port
+ * that is not one of the splitter's outputs is not filtered (`match`).
+ */
+export function sortMatch(cls: string, sort: readonly (readonly [string, number])[], port: string | undefined, item: string): SortMatch {
+  const side = sideOfPort(cls, port);
+  if (!side) return 'match';
+  const rules = rulesBySide(cls, sort).get(side) ?? [];
+  if (rules.includes(item) || rules.includes('Desc_Wildcard_C')) return 'match';
+  if (rules.includes('Desc_AnyUndefined_C') && !sort.some(([i]) => i === item)) return 'match';
+  return rules.includes('Desc_Overflow_C') ? 'overflow' : null;
+}

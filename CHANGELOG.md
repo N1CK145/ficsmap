@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Factory page and map: the estimated flows of the production lines follow the sort rules of smart and programmable splitters. An item goes only to the outputs that take it (named, "Any", or "Any Undefined" when no rule names it), Overflow outputs get what those do not take, and "None" or an output without a rule gets nothing.
+
 ### Changed
 
 - Machine wiki and vehicle calculator: the Truck Station's "up to 120 stacks per minute" is marked as left over from before 1.2. A note under its description and the hint of the load and unload time say that one fixed cycle moves the whole load and that the calculator counts with that.
