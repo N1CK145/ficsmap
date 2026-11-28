@@ -11,6 +11,7 @@ import { Button } from '../../components/Button.js';
 import { WINDOW_FRAME, WindowTitleBar } from '../../components/Window.js';
 import { wholeMetres } from '../coords/metres.js';
 import { TypeIcon } from '../map/TypeIcon.js';
+import { itemLink } from './itemLink.js';
 
 /** The selected item, if it is on the map. */
 export function useSelectedItem(ctx: WorldCtx): Item | undefined {
@@ -87,22 +88,28 @@ export function ItemDetails({ item, ctx, footerScrolls = false }: { item: Item; 
   );
 }
 
-/** X/Y/Z in whole metres and [Copy ID], which copies the actor name (its tooltip shows it). */
+/**
+ * X/Y/Z in whole metres, [Copy link] (a link that opens the world at this item, `itemLink`) and [Copy ID], which
+ * copies the actor name (its tooltip shows it).
+ */
 function Footer({ item, ctx }: { item: Item; ctx: WorldCtx }) {
   const { t, i18n } = useTranslation();
   const m = wholeMetres(i18n.language);
-  const copy = async () => {
+  const copy = async (text: string, message: string) => {
     try {
-      await navigator.clipboard.writeText(item.name);
+      await navigator.clipboard.writeText(text);
     } catch {
       return; // No clipboard access: the name stays selectable.
     }
-    ctx.toast.show({ message: t('item.copied') });
+    ctx.toast.show({ message });
   };
   return (
-    <footer className="flex items-center justify-between gap-2 border-t border-line bg-bg/50 px-3 py-2 text-sm">
+    <footer className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-line bg-bg/50 px-3 py-2 text-sm">
       <span className="font-display font-semibold tracking-wide tabular-nums">{t('item.coords', { x: m(item.x), y: m(item.y), z: m(item.z) })}</span>
-      <Button variant="ghost" size="sm" title={item.name} onClick={() => void copy()}>{t('item.copyId')}</Button>
+      <span className="flex gap-1">
+        <Button variant="ghost" size="sm" onClick={() => void copy(itemLink(ctx.worldId, item.name), t('item.linkCopied'))}>{t('item.copyLink')}</Button>
+        <Button variant="ghost" size="sm" title={item.name} onClick={() => void copy(item.name, t('item.copied'))}>{t('item.copyId')}</Button>
+      </span>
     </footer>
   );
 }

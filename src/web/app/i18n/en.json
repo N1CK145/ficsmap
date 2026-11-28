@@ -351,7 +351,10 @@
     },
     "coords": "X {x} · Y {y} · Z {z}",
     "copyId": "Copy ID",
-    "copied": "Copied"
+    "copied": "Copied",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied",
+    "linkNotFound": "The linked object is not on this map."
   },
   "import": {
     "privacy": "Your save is read in your browser. Only this is sent to the server: the list of collected items; the save’s name, date and game build; for resource nodes the resource or purity your save sets and which extractor stands on which node (building, clock speed, Power Shards); for the factory plan what is built where (buildings with their productivity, belts, pipes, power lines, roads, stations, vehicles, map markers, sign texts and the explored area); the players’ names and where their characters stand; the game’s statistics (creatures killed, consumed, built, crafted and picked up, per player where the game counts it); which creature spawn points were killed; and the death crates.",
