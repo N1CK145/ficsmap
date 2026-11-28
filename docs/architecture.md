@@ -207,7 +207,7 @@ The look follows the game's FICSIT interface without copying its textures, logos
 | `line`, `edge` | Hairlines between areas (decoration); the 3:1 edge of form controls |
 | `fg`, `muted` | Text and secondary text (both at least 4.5:1 on all three surfaces) |
 | `accent`, `accent-hi`, `accent-lo`, `on-accent` | FICSIT orange: primary buttons, the active state, title rules, focus rings; its hover and pressed shades; text on orange |
-| `conflict`, `free`, `power` | Errors and conflicts (also the danger tone), done or live, power |
+| `conflict`, `free`, `power` | Errors and conflicts (also the danger tone; a raspberry red kept apart from `purity-impure`, ΔE00 ≥ 10 also for protan and deutan viewers), done or live, power |
 
 Fonts: `font-sans` is Barlow (400/500/600) for reading, `font-display` is Barlow Condensed (500/600/700) for titles, headings, labels and numbers, usually `uppercase tracking-wider`. Both are self-hosted through `@fontsource`.
 

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { COLLECTIBLE_TYPES } from '../../src/shared/collectibleTypes.js';
 import { luminance } from '../../src/web/features/resourceNodes/drawNode.js';
+import { deltaE, minDeltaE, simulate } from './colorDistance.js';
 import { PURITY_TOKENS, RESOURCE_TOKENS } from '../../src/web/features/resourceNodes/resourceStyle.js';
 
 // Vitest stubs CSS imports (also `?raw`), so the file is read directly (tests run from the repo root).
@@ -55,6 +56,10 @@ describe('theme.css', () => {
     }
   });
 
+  it('keeps the impure purity red clearly apart from the conflict red, also for protan and deutan viewers', () => {
+    expect(minDeltaE(color('purity-impure')!, color('conflict')!)).toBeGreaterThanOrEqual(10);
+  });
+
   it('defines the Power Shard colour the resource node layer reads', () => {
     expect(css).toMatch(/--color-shard:\s*#[0-9A-Fa-f]{6};/);
   });
@@ -70,5 +75,16 @@ describe('fonts', () => {
     for (const w of [500, 600, 700]) expect(main).toContain(`import '@fontsource/barlow-condensed/${w}.css';`);
     expect(css).toMatch(/--font-sans:\s*"Barlow",/);
     expect(css).toMatch(/--font-display:\s*"Barlow Condensed",/);
+  });
+});
+
+describe('colour distance helper', () => {
+  it('measures ΔE00 and simulates protan and deutan vision', () => {
+    expect(deltaE('#FF5C5C', '#FF5C5C')).toBe(0);
+    // Reference values from an independent implementation.
+    expect(deltaE('#FF5C5C', '#F7666B')).toBeCloseTo(3.3, 1);
+    expect(deltaE('#FF5C5C', '#FFA94D')).toBeCloseTo(29.4, 1);
+    expect(simulate('#FFFFFF', 'protan')).toBe('#ffffff');
+    expect(minDeltaE('#FF5C5C', '#FFA94D')).toBeCloseTo(11.5, 1);
   });
 });

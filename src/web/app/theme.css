@@ -24,7 +24,9 @@
   --color-accent-hi: #FFB062;
   --color-accent-lo: #D9822A;
   --color-on-accent: #141416;
-  --color-conflict: #F7666B;
+  /* Errors, danger and save conflicts: a raspberry red, kept apart from the purity red of impure nodes (ΔE00 ≥ 10,
+     also for protan and deutan viewers; test/web/theme.test.ts). */
+  --color-conflict: #FF4D8B;
   /* Drop-pod badges on the map: opened with power (bolt), needs nothing (dot). */
   --color-power: #FFD23F;
   --color-free: #3DDC84;
