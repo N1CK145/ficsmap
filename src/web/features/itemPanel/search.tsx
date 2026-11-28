@@ -41,7 +41,7 @@ export function crashSiteEntries(index: DatasetIndex, sites: CrashSites, i18n: I
       terms: [
         ...words,
         ...(pod?.item ? [pod.item.en, pod.item.de] : []),
-        ...(site ? [...site.items.map(i => i.item), ...site.threats.map(th => th.name)] : []),
+        ...(site ? [...site.items, ...site.threats.map(th => ({ item: th.name, de: th.de }))].flatMap(i => (i.de ? [i.item, i.de] : [i.item])) : []),
       ],
       actors: [item.name],
       icon: <TypeIcon type={type} size={16} />,

@@ -3,13 +3,18 @@ import type { CollectibleTypeId, LocalizedName, WorldBounds } from './types.js';
 export interface PodRequirement { item: LocalizedName | null; amount: number; power: number }
 /** `cave`: the item lies inside a cave (dataset built with caves.json). */
 export interface ItemExtra { pod?: PodRequirement; shards?: number; cave?: true }
-/** What lies around a drop pod's crash site (`/data/<v>/crash-sites.json`); threats and notes are English. */
+/**
+ * What lies around a drop pod's crash site (`/data/<v>/crash-sites.json`). Texts are English; the German ones (`de`,
+ * `whereDe`, `notesDe`) are missing in older datasets and wherever the maintainer data has none.
+ */
 export interface CrashSite {
-  /** `item`: the English name, which matches pod requirements; `de`: the German name (missing in older datasets). */
-  items: { item: string; de?: string; amount: number; where?: string }[];
+  /** `item`: the English name, which matches pod requirements; `de`: the German name. `where`: a location hint. */
+  items: { item: string; de?: string; amount: number; where?: string; whereDe?: string }[];
   /** `count` null: "some" (e.g. gas pillars). */
-  threats: { name: string; count: number | null }[];
+  threats: { name: string; de?: string; count: number | null }[];
   notes: string[];
+  /** The German of `notes`, index by index (null: none). Missing when no note has one. */
+  notesDe?: (string | null)[];
 }
 export type CrashSites = Record<string, CrashSite>;
 export type DatasetItemTuple = [

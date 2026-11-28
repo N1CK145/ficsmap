@@ -4,9 +4,11 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { COLLECTIBLE_TYPES, classify, typeById } from '../src/shared/collectibleTypes.js';
 import { assignBiome, loadEditorBiomes, type BiomeShape } from '../src/shared/biomes.js';
-import { cavesToGeojson, type RawCaves } from '../src/shared/caves.js';
+import { cavesToGeojson, type CaveShape, type RawCaves } from '../src/shared/caves.js';
 import { buildCreatures } from '../src/shared/creatures.js';
-import { sampleCaves } from './cave-geometry.js';
+import { cavesWithoutEntrance, entranceCapProblem, sampleCaves } from './cave-geometry.js';
+import { mergeOutlineCaves, outlineEntrancePoints, readGeometryCaves, readOutlineCaves } from './outline-caves.js';
+import { caveModelSummary, writeCaveModels } from './cave-models.js';
 import { readHeightGrid, writeHeightTiles } from './heightmap.js';
 import { AREA_SNAP, biomesFromAreas, landTest, readMapAreas } from './map-areas.js';
 import { readDocsFile } from './game-docs.js';
@@ -51,9 +53,10 @@ interface RawEntry { name: string; class: string; location: [number, number, num
 interface RawPod { costType: string | null; item: string | null; amount: number; power: number }
 interface RawShrine { name: string; attachedTo: string }
 interface RawCrashSite {
-  items?: { item: string; itemClass?: string; amount: number; pickup?: string; where?: string; inGame?: boolean }[];
-  threats?: { name: string; count: number | null }[];
-  notes?: string[];
+  items?: { item: string; itemClass?: string; amount: number; pickup?: string; where?: string; whereDe?: string; inGame?: boolean }[];
+  threats?: { name: string; de?: string; count: number | null }[];
+  /** A note is English text, or `{ text, de }` with its German. */
+  notes?: (string | { text: string; de?: string })[];
 }
 const crashSitePods = (raw: unknown): Record<string, RawCrashSite> => (raw as { pods?: Record<string, RawCrashSite> } | undefined)?.pods ?? {};
 interface RawMap { id: string; gameVersion?: string; world: WorldBounds }
@@ -166,23 +169,39 @@ export function buildDataset(input: BuildInput): Dataset {
 /**
  * Per pod of the dataset: the items lying around its crash site (only pickups that exist in the game),
  * threats and notes, from data-src/crash-sites/crash-sites.json. Served as `crash-sites.json`. Items whose class is in
- * `itemNames` get the game's English name (the key that matches pod requirements) and its German name.
+ * `itemNames` get the game's English name (the key that matches pod requirements) and its German name; the German of
+ * threats, notes and location hints comes from the maintainer data.
  */
 export function buildCrashSites(raw: unknown, ds: Dataset, itemNames: Record<string, LocalizedName> = {}): CrashSites {
   const pods = new Set(ds.items.filter(i => i[1] === 'hard_drive').map(i => i[0]));
   const out: CrashSites = {};
   for (const [name, site] of Object.entries(crashSitePods(raw))) {
     if (!pods.has(name)) continue;
+    const notes = (site.notes ?? []).map(n => (typeof n === 'string' ? { text: n } : n));
     out[name] = {
       items: (site.items ?? []).filter(i => i.pickup !== undefined && i.inGame !== false).map(i => {
         const known = i.itemClass === undefined ? undefined : itemNames[i.itemClass];
-        return { item: known?.en ?? i.item, ...(known && { de: known.de }), amount: i.amount, ...(i.where ? { where: i.where } : {}) };
+        return {
+          item: known?.en ?? i.item, ...(known && { de: known.de }), amount: i.amount,
+          ...(i.where ? { where: i.where } : {}), ...(i.where && i.whereDe ? { whereDe: i.whereDe } : {}),
+        };
       }),
-      threats: (site.threats ?? []).map(t => ({ name: t.name, count: t.count })),
-      notes: site.notes ?? [],
+      threats: (site.threats ?? []).map(t => ({ name: t.name, ...(t.de ? { de: t.de } : {}), count: t.count })),
+      notes: notes.map(n => n.text),
+      ...(notes.some(n => n.de) ? { notesDe: notes.map(n => n.de ?? null) } : {}),
     };
   }
   return out;
+}
+
+/** How many threats, notes and location hints of the crash sites have no German text (for the build summary). */
+export function crashSitesWithoutGerman(sites: CrashSites): number {
+  let n = 0;
+  for (const s of Object.values(sites)) {
+    n += s.threats.filter(t => !t.de).length + s.items.filter(i => i.where && !i.whereDe).length;
+    n += s.notes.filter((_, k) => !s.notesDe?.[k]).length;
+  }
+  return n;
 }
 
 interface RawNodeEntry { name?: unknown; location?: unknown; resource?: unknown; purity?: unknown }
@@ -301,6 +320,7 @@ export const DATASET_PARTS = {
   'crash-sites': 'crash-sites.json (maintainer data)',
   biomes: 'biomes.geojson',
   caves: 'caves.geojson',
+  'cave-models': 'cave-models/ (a small GLB per cave for the 3D cave viewer, from the cave geometry)',
   heights: 'height/ (height map tiles)',
   map: 'map.json, tiles/, icons/',
   nodes: 'resource-nodes.json',
@@ -330,10 +350,10 @@ export function missingParts(parts: ReadonlySet<DatasetPart>, inputs: Record<Dat
   return [...parts].filter(p => !inputs[p].ok).map(p => `${p}: ${inputs[p].what}`);
 }
 
-const USAGE = 'usage: npm run dataset -- --extractor <dir> --out <dir> [--only <part,...>] [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--default-world <default-world.json>] [--docs <dir>] [--transport <file>] [--icons <dir>] [--buildings-raw <file>] [--snap-m 100] [--build N]'
+const USAGE = 'usage: npm run dataset -- --extractor <dir> --out <dir> [--only <part,...>] [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--cave-outlines <file>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--default-world <default-world.json>] [--docs <dir>] [--transport <file>] [--icons <dir>] [--buildings-raw <file>] [--snap-m 100] [--build N]'
   + `\nparts: ${Object.keys(DATASET_PARTS).join(', ')} (default: all)`;
 
-function main(): void {
+async function main(): Promise<void> {
   const { values: v } = parseArgs({
     options: {
       extractor: { type: 'string' },
@@ -352,6 +372,9 @@ function main(): void {
       // default: inside --extractor.
       caves: { type: 'string' },
       'cave-geometry': { type: 'string' },
+      // Hand-drawn cave outlines and entrances (maintainer data, from satisfactory-calculator.com); default:
+      // <data-src>/caves/scim-caves.json. Without it the outlines and entrances come from the sampling alone.
+      'cave-outlines': { type: 'string' },
       // The extractor's height grid (`--heightmap-out`); default: inside --extractor.
       heightmap: { type: 'string' },
       // The game's map areas (`--map-areas-out`); default: inside --extractor. They tell land from sea for the
@@ -387,6 +410,7 @@ function main(): void {
   const crashSitesPath = resolve(v['crash-sites'] ?? join(src, 'crash-sites', 'crash-sites.json'));
   const cavesPath = resolve(v.caves ?? join(ext, 'caves.json'));
   const geometryDir = resolve(v['cave-geometry'] ?? join(ext, 'cave-geometry'));
+  const caveOutlinesPath = resolve(v['cave-outlines'] ?? join(src, 'caves', 'scim-caves.json'));
   const heightDir = resolve(v.heightmap ?? join(ext, 'heightmap'));
   const defaultWorldPath = resolve(v['default-world'] ?? join(ext, 'default-world.json'));
   const docsDir = resolve(v.docs ?? join(ext, 'docs'));
@@ -401,6 +425,7 @@ function main(): void {
     'crash-sites': { ok: existsSync(crashSitesPath), what: `${crashSitesPath} (--crash-sites or --data-src)` },
     biomes: { ok: true, what: '' },
     caves: { ok: hasCaves, what: `${cavesPath} and ${join(geometryDir, 'index.json')} (extractor --caves-out, --cave-geometry-out)` },
+    'cave-models': { ok: existsSync(join(geometryDir, 'index.json')), what: `${join(geometryDir, 'index.json')} (extractor --cave-geometry-out, or --cave-geometry)` },
     heights: { ok: existsSync(join(heightDir, 'meta.json')) || existsSync(join(heightDir, 'top.f32')), what: `height grid in ${heightDir} (extractor --heightmap-out)` },
     map: { ok: existsSync(join(mapDir, 'map.json')), what: `${join(mapDir, 'map.json')} and tiles (extractor --map-out)` },
     creatures: { ok: true, what: '' },
@@ -452,15 +477,36 @@ function main(): void {
     }
   }
   // The cave sampling gives the cave layer and the items' cave flags, so the collectibles need it too.
-  let caveLayer: ReturnType<typeof sampleCaves> | undefined;
+  let caveLayer: { caves: CaveShape[]; summary: string; problem: string | null } | undefined;
   if (hasCaves && want('caves', 'collectibles')) {
     console.log('Sampling caves ...');
     const coll = input.collectibles as { pickups: RawEntry[]; dropPods: RawEntry[] };
     const points = [...coll.pickups, ...coll.dropPods].map(e => ({ name: e.name, x: e.location[0], y: e.location[1], z: e.location[2] }));
     // The landscape alone (`landscape.f32` next to the height grid): items far under it lie in a cave.
     const landscape = readHeightGrid(heightDir, 'landscape.f32');
-    caveLayer = sampleCaves(geometryDir, readJson(cavesPath) as RawCaves, points, line => console.log(line), landscape);
-    input.itemsInCaves = caveLayer.itemsInCaves;
+    const volumes = readJson(cavesPath) as RawCaves;
+    const outlines = existsSync(caveOutlinesPath) ? readOutlineCaves(readJson(caveOutlinesPath)) : null;
+    const sampled = sampleCaves(geometryDir, volumes, points, line => console.log(line), landscape, outlines ? outlineEntrancePoints(outlines) : []);
+    const sampledLine = `sampling: ${sampled.caves.length} caves, ${sampled.caves.reduce((n, c) => n + c.entrances.length, 0)} entrances, ${sampled.itemsInCaves.size} items in caves`;
+    if (outlines) {
+      const landscapeZ = (x: number, y: number) => {
+        if (!landscape) return null;
+        const g = landscape.meta, i = Math.floor((x - g.minX) / g.cell), j = Math.floor((y - g.minY) / g.cell);
+        const z = i >= 0 && j >= 0 && i < g.width && j < g.height ? landscape.top[j * g.width + i]! : Number.NaN;
+        return Number.isFinite(z) ? z : null;
+      };
+      const merged = mergeOutlineCaves({ outlines, sampled, geometry: readGeometryCaves(geometryDir, volumes), items: points, landscapeZ });
+      input.itemsInCaves = merged.itemsInCaves;
+      caveLayer = {
+        caves: merged.caves,
+        problem: entranceCapProblem(merged.caves),
+        summary: `${outlines.length} from ${caveOutlinesPath}, ${merged.geometryOnly.length} only in the game geometry (${merged.geometryOnly.join(', ') || 'none'}), `
+          + `${merged.caves.filter(c => !c.model).length} without a 3D model; ${merged.itemsInCaves.size} items in caves (${sampledLine})`,
+      };
+    } else {
+      input.itemsInCaves = sampled.itemsInCaves;
+      caveLayer = { caves: sampled.caves, problem: null, summary: `from the sampling alone, no ${caveOutlinesPath}; ${sampled.itemsInCaves.size} items in caves` };
+    }
   }
   let ds: Dataset;
   try { ds = buildDataset(input); } catch (e) {
@@ -482,7 +528,8 @@ function main(): void {
   if (parts.has('crash-sites')) {
     const sites = buildCrashSites(input.crashSites, ds, input.itemNames);
     writeFileSync(join(out, 'crash-sites.json'), JSON.stringify(sites));
-    done('crash-sites', `${Object.keys(sites).length} sites`);
+    const untranslated = crashSitesWithoutGerman(sites);
+    done('crash-sites', `${Object.keys(sites).length} sites` + (untranslated ? `, ${untranslated} threats, notes or location hints without German` : ''));
   }
   if (parts.has('biomes')) {
     const shapes = input.biomeAreas?.biomes ?? loadEditorBiomes(input.biomesGeojson, input.calibration);
@@ -492,9 +539,16 @@ function main(): void {
     done('biomes', `${biomeSummary}; items per biome: ${ds.biomes.map((b, i) => `${b.name.en} ${perBiome.get(i) ?? 0}`).join(', ')}`);
   }
   if (parts.has('caves') && caveLayer) {
+    // With the outlines every cave but the few only the geometry has must have an entrance.
+    if (caveLayer.problem) { console.error(new BuildError([caveLayer.problem]).message); process.exit(1); }
     writeFileSync(join(out, 'caves.geojson'), JSON.stringify(cavesToGeojson(caveLayer.caves)));
     const entrances = caveLayer.caves.reduce((sum, c) => sum + c.entrances.length, 0);
-    done('caves', `${caveLayer.caves.length} caves, ${entrances} entrances`);
+    const without = cavesWithoutEntrance(caveLayer.caves);
+    done('caves', `${caveLayer.caves.length} caves, ${entrances} entrances, ${without.length} without an entrance${without.length ? ` (${without.join(', ')})` : ''}; ${caveLayer.summary}`);
+  }
+  if (parts.has('cave-models')) {
+    console.log('Simplifying cave models ...');
+    done('cave-models', caveModelSummary(await writeCaveModels(geometryDir, out, line => console.log(line))));
   }
   if (parts.has('heights') && heightGrid) {
     const { meta, bytes } = writeHeightTiles(heightGrid, join(out, 'height'));
@@ -567,4 +621,4 @@ function main(): void {
   if (skipped.length) console.log(`  not built (--only): ${skipped.join(', ')}`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

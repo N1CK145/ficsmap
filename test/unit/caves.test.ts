@@ -38,4 +38,9 @@ describe('cavesToGeojson', () => {
       { type: 'Feature', properties: { kind: 'entrance', cave: 'cave-001', z: -950 }, geometry: { type: 'Point', coordinates: [2, 2] } },
     ]);
   });
+
+  it('writes the map number and the 3D model of a cave where it has them', () => {
+    const gj = cavesToGeojson([{ id: 'sc-007', n: 7, model: 'cave-001', rings: [[[0, 0], [10, 0], [10, 10]]], entrances: [] }]);
+    expect(gj.features[0]!.properties).toEqual({ kind: 'cave', id: 'sc-007', n: 7, model: 'cave-001' });
+  });
 });

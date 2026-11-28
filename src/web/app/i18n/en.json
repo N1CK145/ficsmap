@@ -161,7 +161,26 @@
     "item": {
       "title": "Cave",
       "inCave": "Lies in a cave.",
-      "nearestEntrance": "Nearest cave entrance: {distance, number} m (straight line)"
+      "nearestEntrance": "Nearest cave entrance: {distance, number} m (straight line)",
+      "view3d": "Show cave in 3D"
+    },
+    "popup": {
+      "title": "Cave {n, number}",
+      "contents": "{items, plural, one {# item} other {# items}} · {entrances, plural, =0 {no known entrance} one {# entrance} other {# entrances}}",
+      "view3d": "3D view"
+    },
+    "viewer": {
+      "title": "Cave {n, number} in 3D",
+      "landscape": "Landscape",
+      "cut": "Cut from above",
+      "reset": "Reset view",
+      "hint": "Drag to turn, scroll or pinch to zoom, right-drag or two fingers to move. Dots show through the rock.",
+      "loading": "Loading 3D model …",
+      "loadingPercent": "Loading 3D model … {progress, number, percent}",
+      "noWebgl": "This browser cannot show 3D graphics (WebGL is off or not supported).",
+      "loadFailed": "The 3D model could not be loaded.",
+      "missing": "This dataset has no 3D model of this cave.",
+      "entrance": "Entrance"
     }
   },
   "coords": {
@@ -520,6 +539,8 @@
     "done": "Done",
     "doneBy": "({name})",
     "noDistance": "—",
+    "caveStop": "Cave {n, number}",
+    "caveStopVia": "Cave {n, number} · entrance {entrance, number}",
     "total": "Total {total} · {left} left · {done, number}/{count, number} done",
     "optimize": "Optimize order",
     "next": "Next stop ›",
@@ -531,7 +552,7 @@
     "optimizeAgain": "Optimize again",
     "doneByOthers": "{count, plural, one {# stop done by others} other {# stops done by others}}",
     "replan": "Re-plan",
-    "hint": "Straight-line distances, terrain not included",
+    "hint": "Straight-line distances (into caves through their entrances), terrain not included",
     "dismiss": "Dismiss",
     "full": "Route is full ({max, number}). Remove a stop to add another.",
     "partial": "Added {added, number} of {requested, number} (route limit {max, number}). Nearest first.",

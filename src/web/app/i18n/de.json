@@ -161,7 +161,26 @@
     "item": {
       "title": "Höhle",
       "inCave": "Liegt in einer Höhle.",
-      "nearestEntrance": "Nächster Höhleneingang: {distance, number} m (Luftlinie)"
+      "nearestEntrance": "Nächster Höhleneingang: {distance, number} m (Luftlinie)",
+      "view3d": "Höhle in 3D zeigen"
+    },
+    "popup": {
+      "title": "Höhle {n, number}",
+      "contents": "{items, plural, one {# Objekt} other {# Objekte}} · {entrances, plural, =0 {kein bekannter Eingang} one {# Eingang} other {# Eingänge}}",
+      "view3d": "3D-Ansicht"
+    },
+    "viewer": {
+      "title": "Höhle {n, number} in 3D",
+      "landscape": "Landschaft",
+      "cut": "Von oben abschneiden",
+      "reset": "Ansicht zurücksetzen",
+      "hint": "Ziehen dreht, Mausrad oder zwei Finger zoomen, Rechtsklick-Ziehen oder zwei Finger verschieben. Punkte sind durch den Fels sichtbar.",
+      "loading": "3D-Modell wird geladen …",
+      "loadingPercent": "3D-Modell wird geladen … {progress, number, percent}",
+      "noWebgl": "Dieser Browser kann keine 3D-Grafik zeigen (WebGL ist aus oder fehlt).",
+      "loadFailed": "Das 3D-Modell konnte nicht geladen werden.",
+      "missing": "Dieser Datensatz hat kein 3D-Modell dieser Höhle.",
+      "entrance": "Eingang"
     }
   },
   "coords": {
@@ -520,6 +539,8 @@
     "done": "Erledigt",
     "doneBy": "({name})",
     "noDistance": "—",
+    "caveStop": "Höhle {n, number}",
+    "caveStopVia": "Höhle {n, number} · Eingang {entrance, number}",
     "total": "Gesamt {total} · {left} übrig · {done, number}/{count, number} erledigt",
     "optimize": "Reihenfolge optimieren",
     "next": "Nächster Stopp ›",
@@ -531,7 +552,7 @@
     "optimizeAgain": "Neu optimieren",
     "doneByOthers": "{count, plural, one {# Stopp von anderen erledigt} other {# Stopps von anderen erledigt}}",
     "replan": "Neu planen",
-    "hint": "Luftlinie, Gelände nicht berücksichtigt",
+    "hint": "Luftlinie (in Höhlen über ihre Eingänge), Gelände nicht berücksichtigt",
     "dismiss": "Ausblenden",
     "full": "Die Route ist voll ({max, number}). Entferne einen Stopp, um einen neuen hinzuzufügen.",
     "partial": "{added, number} von {requested, number} hinzugefügt (Routenlimit {max, number}). Die nächsten zuerst.",

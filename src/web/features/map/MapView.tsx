@@ -18,7 +18,7 @@ import { useCreatureLayer } from '../creatures/useCreatures.js';
 import { useRemotePulse } from '../live/pulse.js';
 import { hasMismatch, isCollected, useMarks, type MarksCache } from '../marks/useMarks.js';
 import { useRouteIndex } from '../routes/useRoutes.js';
-import { clickClaimed } from './clickClaims.js';
+import { backgroundClicks, clickClaimed } from './clickClaims.js';
 import { IMAGE_BOUNDS } from './imageBounds.js';
 import { CONFLICT_PULSE_MS, newConflicts } from './conflictPulse.js';
 import { DOT_ZOOM, markerState, markerVisual, podBadge, type MarkerState } from './markerStyle.js';
@@ -273,7 +273,12 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
       // A layer drawn above the markers (resource nodes) takes clicks on what it shows while just looking around.
       if (useUiStore.getState().interactionMode === 'inspect' && clickClaimed(e.containerPoint.x, e.containerPoint.y)) return;
       const id = pickAt(e);
-      if (id === null) return;
+      if (id === null) {
+        if (useUiStore.getState().interactionMode === 'inspect') {
+          for (const f of backgroundClicks) f({ lat: e.latlng.lat, lng: e.latlng.lng, x: e.containerPoint.x, y: e.containerPoint.y });
+        }
+        return;
+      }
       if (z < DOT_ZOOM) {
         map.setZoomAround(e.latlng, z + 2);
         return;

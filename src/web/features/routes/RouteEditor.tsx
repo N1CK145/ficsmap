@@ -1,12 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { MeDto, RouteDto, WorldDto } from '../../../shared/api.js';
 import { typeById } from '../../../shared/collectibleTypes.js';
 import type { DatasetIndex, Item } from '../../../shared/dataset.js';
-import { distance3d, UNITS_PER_METER } from '../../../shared/geo.js';
+import { UNITS_PER_METER } from '../../../shared/geo.js';
 import { detectLocale } from '../../../shared/i18n.js';
-import { MAX_ROUTE_STOPS } from '../../../shared/route.js';
+import { leg, MAX_ROUTE_STOPS } from '../../../shared/route.js';
 import { ApiClientError } from '../../app/api.js';
 import { useUiStore } from '../../app/store.js';
 import { useIsMobile } from '../../app/useMediaQuery.js';
@@ -24,6 +25,7 @@ import { useMe, useWorld } from '../worlds/queries.js';
 import { goToStop, useNextStop } from './NextStopButton.js';
 import { PodChecklist } from './PodChecklist.js';
 import { nearestUncollected, optimizeDraft, replan, routeStats, type DraftAction, type RouteDraft } from './draft.js';
+import { placeOf, useRouteCaves, type StopCave } from './routeCaves.js';
 import { canEditRoute, deleteRoute, saveRoute, useRouteDraft, useRoutesQuery, isDirty, type DraftEnv } from './useRoutes.js';
 
 const HINT_KEY = 'ficsmap:routeHintDismissed';
@@ -91,7 +93,8 @@ function EditorBody({ worldId, me, world, index, marks, draft, route }: BodyProp
 
   const start = draft.start === null ? undefined : index.byName.get(draft.start);
   const stops = useMemo(() => draft.stops.flatMap(s => index.byName.get(s) ?? []), [draft.stops, index]);
-  const stats = start && stops.length > 0 ? routeStats(start, stops, isDone) : null;
+  const caves = useRouteCaves(s => s.caves);
+  const stats = start && stops.length > 0 ? routeStats(start, stops, isDone, caves) : null;
   const nextStop = useNextStop(worldId);
 
   /** Who checked a stop, when that is someone else. A write of the user's own still pending counts as theirs. */
@@ -123,7 +126,7 @@ function EditorBody({ worldId, me, world, index, marks, draft, route }: BodyProp
   const doReplan = () => {
     if (!start) return;
     if (!editing) beginEdit();
-    apply({ type: 'optimize', order: replan(start, stops, isDone) });
+    apply({ type: 'optimize', order: replan(start, stops, isDone, caves) });
   };
   const goToNext = () => {
     if (nextStop) goToStop(nextStop.name);
@@ -243,7 +246,7 @@ function EditorBody({ worldId, me, world, index, marks, draft, route }: BodyProp
       {editing && draft.manualOrder && (
         <p className="flex items-center gap-2 text-sm">
           <span className="text-muted">{t('routes.orderChanged')} ·</span>
-          <Button size="sm" variant="link-accent" onClick={() => apply({ type: 'optimize', order: optimizeDraft(draft, index).stops })}>
+          <Button size="sm" variant="link-accent" onClick={() => apply({ type: 'optimize', order: optimizeDraft(draft, index, caves).stops })}>
             {t('routes.optimizeAgain')}
           </Button>
         </p>
@@ -256,6 +259,7 @@ function EditorBody({ worldId, me, world, index, marks, draft, route }: BodyProp
         isDone={isDone}
         doneByName={n => (byOthers(n) ? memberName(doneBy(n)) ?? '' : undefined)}
         label={label}
+        caves={caves}
         locale={i18n.language}
         onCheck={(n, on) => void setMark(n, on)}
         onMove={(from, to) => apply({ type: 'move', from, to })}
@@ -275,7 +279,7 @@ function EditorBody({ worldId, me, world, index, marks, draft, route }: BodyProp
 
       <div className="flex flex-wrap gap-2">
         {editing && (
-          <Button size="sm" disabled={!start || stops.length < 2} onClick={() => apply({ type: 'optimize', order: optimizeDraft(draft, index).stops })}>
+          <Button size="sm" disabled={!start || stops.length < 2} onClick={() => apply({ type: 'optimize', order: optimizeDraft(draft, index, caves).stops })}>
             {t('routes.optimize')}
           </Button>
         )}
@@ -312,6 +316,8 @@ interface StopListProps {
   /** The teammate's name for a stop someone else checked ('' if unknown), else undefined. */
   doneByName(name: string): string | undefined;
   label(item: Item): string;
+  /** Per item its cave (null without cave data): distances go through the entrances, cave stops are named. */
+  caves: ReadonlyMap<string, StopCave> | null;
   locale: string;
   onCheck(name: string, collected: boolean): void;
   onMove(from: number, to: number): void;
@@ -319,10 +325,23 @@ interface StopListProps {
 }
 
 /**
- * The stop rows: number, shape, label, distance from the previous point; in edit mode drag (≡),
- * Alt+↑/↓ and ×. Touch has no HTML5 drag and drop, so on mobile ▲/▼ buttons replace the drag handle.
+ * Where a stop lies when it is in a cave: "Cave 32", with the entrance the leg from the previous point goes in by
+ * ("Cave 32 · entrance 2", numbered in the cave's order) when it comes from outside the cave. Undefined outside caves.
  */
-function StopList({ start, stops, editing, isDone, doneByName, label, locale, onCheck, onMove, onRemove }: StopListProps) {
+export function caveStopText(prev: Item | undefined, stop: Item, caves: ReadonlyMap<string, StopCave> | null, t: TFunction): string | undefined {
+  const cave = caves?.get(stop.name);
+  if (!cave) return undefined;
+  const entry = prev ? leg(placeOf(prev, caves), placeOf(stop, caves)).via.at(-1) : undefined;
+  const k = entry ? cave.entrances.findIndex(e => e.x === entry.x && e.y === entry.y && e.z === entry.z) : -1;
+  return k >= 0 ? t('routes.caveStopVia', { n: cave.n, entrance: k + 1 }) : t('routes.caveStop', { n: cave.n });
+}
+
+/**
+ * The stop rows: number, shape, label (and the cave a stop lies in), distance from the previous point (through cave
+ * entrances); in edit mode drag (≡), Alt+↑/↓ and ×. Touch has no HTML5 drag and drop, so on mobile ▲/▼ buttons
+ * replace the drag handle.
+ */
+function StopList({ start, stops, editing, isDone, doneByName, label, caves, locale, onCheck, onMove, onRemove }: StopListProps) {
   const { t } = useTranslation();
   const mobile = useIsMobile();
   const rows = useRef(new Map<string, HTMLLIElement>());
@@ -357,7 +376,8 @@ function StopList({ start, stops, editing, isDone, doneByName, label, locale, on
         const done = isDone(stop.name);
         const by = doneByName(stop.name);
         const prev = i === 0 ? start : stops[i - 1];
-        const metres = prev ? distance3d(prev, stop) / UNITS_PER_METER : null;
+        const metres = prev ? leg(placeOf(prev, caves), placeOf(stop, caves)).length / UNITS_PER_METER : null;
+        const inCave = caveStopText(prev, stop, caves, t);
         return (
           <li
             key={stop.name}
@@ -378,7 +398,9 @@ function StopList({ start, stops, editing, isDone, doneByName, label, locale, on
             <span className="w-6 shrink-0 text-right font-display tabular-nums">{done && '✓'}{i + 1}</span>
             <input type="checkbox" aria-label={t('routes.done')} checked={done} onChange={e => onCheck(stop.name, e.target.checked)} className="size-4 shrink-0 accent-accent focus-ring" />
             <TypeIcon type={typeById(stop.type)} size={14} className="shrink-0" />
-            <span className={`min-w-0 flex-1 truncate ${done ? 'text-muted line-through' : ''}`}>{label(stop)}</span>
+            <span className={`min-w-0 flex-1 truncate ${done ? 'text-muted line-through' : ''}`}>
+              {label(stop)}{inCave && <span className="text-muted"> · {inCave}</span>}
+            </span>
             {by !== undefined && by !== '' && <span className="shrink-0 text-muted">{t('routes.doneBy', { name: by })}</span>}
             <span className="shrink-0 text-muted tabular-nums">
               {done || metres === null ? t('routes.noDistance') : formatDistance(metres, locale)}

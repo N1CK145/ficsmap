@@ -12,3 +12,11 @@ export function clickClaimed(x: number, y: number): boolean {
   for (const claim of markerClickClaims) if (claim(x, y)) return true;
   return false;
 }
+
+/**
+ * Layers drawn under the markers (the caves) register a handler here: it gets a click in the `inspect` mode that hit
+ * no marker and that no layer above claimed (map coordinates and container point).
+ */
+export type BackgroundClick = (at: { lat: number; lng: number; x: number; y: number }) => void;
+
+export const backgroundClicks = new Set<BackgroundClick>();

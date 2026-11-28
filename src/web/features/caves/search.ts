@@ -7,12 +7,6 @@ import type { SearchEntry, SearchProvider, WorldCtx } from '../../app/feature.js
 import { boundsOf, useMapFit } from '../search/fit.js';
 import { hasCaves, useCaveLayer, useCaves, type CaveShapes } from './useCaves.js';
 
-/** The cave's number from its id (`cave-012` → 12); caves are numbered by the dataset build. */
-function caveNumber(id: string, fallback: number): number {
-  const n = Number(/\d+/.exec(id)?.[0]);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
-
 /** The biome most of the items inside lie in, else the biome of the item nearest to the cave. */
 function caveBiome(index: DatasetIndex, inside: readonly number[], centre: [number, number]): number | null {
   if (inside.length > 0) {
@@ -45,7 +39,7 @@ export function caveEntries(index: DatasetIndex, shapes: CaveShapes, i18n: I18n)
     const bounds = boundsOf(rings);
     if (!bounds) return [];
     const id = shapes.ids[k] ?? `cave-${k + 1}`;
-    const n = caveNumber(id, k + 1);
+    const n = shapes.numbers[k] ?? k + 1;
     const inside = inCave.filter(({ at }) => pointInRings(at[0], at[1], rings)).map(({ item }) => item);
     const centre: [number, number] = [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2];
     const biome = caveBiome(index, inside.map(i => i.biome), centre);

@@ -16,6 +16,7 @@ import { NextStopButton } from '../../src/web/features/routes/NextStopButton.js'
 import { RouteEditor } from '../../src/web/features/routes/RouteEditor.js';
 import { RoutesHost } from '../../src/web/features/routes/RoutesPanel.js';
 import { noticeMessage, useRouteDraft } from '../../src/web/features/routes/useRoutes.js';
+import { useRouteCaves } from '../../src/web/features/routes/routeCaves.js';
 import { MOBILE, stubMatchMedia } from './matchMedia.js';
 
 vi.mock('../../src/shared/route.js', async importOriginal => {
@@ -191,13 +192,29 @@ describe('RouteEditor', () => {
     expect(screen.getByText(/1\/7 done/)).toBeInTheDocument();
   });
 
+  it('names a stop in a cave with the entrance it is entered by, and measures through it', () => {
+    const { client, route: r } = setup();
+    useRouteCaves.getState().setCaves(new Map([['A1', { id: 'sc-007', n: 7, entrances: [{ x: 5000, y: 0, z: 0 }] }]]));
+    try {
+      useRouteDraft.getState().load(r);
+      renderEditor(client);
+      const [a1, a2] = rowLabels();
+      expect(a1).toContain('Cave 7 · entrance 1');
+      expect(a1).toContain('100 m'); // start (0 m) to the entrance (50 m) to A1 (100 m)
+      expect(a2).not.toContain('Cave');
+      expect(a2).toContain('200 m'); // back out through the entrance, then on to A2 (200 m)
+    } finally {
+      useRouteCaves.getState().setCaves(null);
+    }
+  });
+
   it('shows the straight-line hint until it is dismissed', async () => {
     const { client, route: r } = setup();
     useRouteDraft.getState().load(r);
     renderEditor(client);
-    expect(screen.getByText('Straight-line distances, terrain not included')).toBeInTheDocument();
+    expect(screen.getByText('Straight-line distances (into caves through their entrances), terrain not included')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
-    expect(screen.queryByText('Straight-line distances, terrain not included')).not.toBeInTheDocument();
+    expect(screen.queryByText('Straight-line distances (into caves through their entrances), terrain not included')).not.toBeInTheDocument();
     expect(localStorage.getItem('ficsmap:routeHintDismissed')).toBe('1');
   });
 
