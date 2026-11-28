@@ -14,6 +14,7 @@ import { EXAMPLE } from '../../src/web/features/planner/Planner.js';
 import { loadPlanner, usePlanner } from '../../src/web/features/planner/usePlanner.js';
 import { useNodeLayer } from '../../src/web/features/resourceNodes/useResourceNodes.js';
 import { useUiStore } from '../../src/web/app/store.js';
+import { useMapFit } from '../../src/web/features/search/fit.js';
 import { RECIPE_DATA } from '../fixtures/recipeData.js';
 import { stubFetch, type StubRoute } from './fetchStub.js';
 import { MOBILE, stubMatchMedia } from './matchMedia.js';
@@ -81,7 +82,7 @@ describe('production planner', () => {
     initI18n(['en']);
     localStorage.clear();
     // The step tests below use the list view; the diagram has its own tests.
-    usePlanner.setState({ targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'list' });
+    usePlanner.setState({ targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'list', mode: 'rate', nodes: [] });
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -268,6 +269,37 @@ describe('production planner', () => {
     expect(usePlanner.getState().choices).toEqual({});
   });
 
+  it('lists every alternate recipe, the plan\'s items first; a choice there changes the plan and is remembered', async () => {
+    setup();
+    await openAndPick('plate');
+    const fold = screen.getByText('Alternate recipes', { selector: 'summary *' }).closest('details')!;
+    expect(fold).not.toHaveAttribute('open');
+    // The fixture has 5 alternates.
+    expect(fold.querySelector('summary')).toHaveTextContent('Alternate recipes5 available');
+    await userEvent.click(screen.getByText('Alternate recipes', { selector: 'summary *' }));
+    const inPlan = within(fold).getByRole('heading', { name: 'In this plan' }).closest('section')!;
+    expect(within(inPlan).getAllByRole<HTMLSelectElement>('combobox').map(c => c.labels?.[0]?.textContent)).toEqual(['Recipe for plate']);
+    const others = within(fold).getByRole('heading', { name: 'Other items' }).closest('section')!;
+    expect(within(others).getAllByRole<HTMLSelectElement>('combobox').map(c => c.labels?.[0]?.textContent)).toEqual([
+      'Recipe for fuel', 'Recipe for plastic', 'Recipe for residue', 'Recipe for rubber',
+    ]);
+
+    await userEvent.selectOptions(within(fold).getByLabelText('Recipe for plate'), 'R_PlateAlt (Assembler)');
+    expect(built('plate').getByText('4× Assembler')).toBeInTheDocument();
+    expect(fold.querySelector('summary')).toHaveTextContent('Alternate recipes1 chosen');
+    expect(within(inPlan).getByText('Alternate')).toBeInTheDocument();
+    // An item not in the plan yet keeps its choice for later.
+    await userEvent.selectOptions(within(fold).getByLabelText('Recipe for fuel'), 'R_ResFuel (Refinery)');
+    expect(JSON.parse(localStorage.getItem('ficsmap:planner')!).choices).toEqual({ plate: 'recipe:R_PlateAlt', fuel: 'recipe:R_ResFuel' });
+    expect(loadPlanner()?.choices).toEqual({ plate: { kind: 'recipe', recipe: 'R_PlateAlt' }, fuel: { kind: 'recipe', recipe: 'R_ResFuel' } });
+
+    // The filter finds items and recipes in either language.
+    await userEvent.type(within(fold).getByRole('searchbox', { name: 'Filter alternate recipes' }), 'recrub');
+    expect(within(fold).getAllByRole<HTMLSelectElement>('combobox').map(c => c.labels?.[0]?.textContent)).toEqual(['Recipe for rubber']);
+    await userEvent.type(within(fold).getByRole('searchbox', { name: 'Filter alternate recipes' }), 'xyz');
+    expect(within(fold).getByText('No matching alternate recipe')).toBeInTheDocument();
+  });
+
   it('applies extractor clock speed and purity, per step too, and reports invalid clock speeds', async () => {
     setup();
     await openAndPick('ore');
@@ -335,8 +367,12 @@ describe('production planner', () => {
     expect(within(totals).queryByText('Power Shards', { selector: 'dt' })).toBeNull();
   });
 
-  it('links a resource mined on nodes to the map, showing only its nodes of the step\'s purity', async () => {
-    const nodes = { version: 'test', resources: [{ id: 'ore', name: 'Ore' }, { id: 'water', name: 'Water' }, { id: 'Geyser', name: 'Geyser' }], nodes: [] };
+  it('links a resource mined on nodes to the map, showing only its nodes of the step\'s purity and fitting the map to them', async () => {
+    const nodes = {
+      version: 'test', resources: [{ id: 'ore', name: 'Ore' }, { id: 'water', name: 'Water' }, { id: 'Geyser', name: 'Geyser' }],
+      nodes: [['N1', 'node', 'ore', 'pure', 0.2, 0.5, 0], ['N2', 'node', 'ore', 'pure', 0.6, 0.25, 0], ['N3', 'node', 'ore', 'normal', 1, 1, 0], ['N4', 'node', 'water', 'pure', 0, 0, 0]],
+    };
+    useMapFit.setState({ request: null });
     useNodeLayer.setState({ visible: false, hiddenResources: [], purities: ['impure', 'normal', 'pure'] });
     useUiStore.setState({ mainView: 'list' });
     const { router } = setup('present', undefined, { 'GET /data/test/resource-nodes.json': { body: nodes } });
@@ -350,6 +386,8 @@ describe('production planner', () => {
     expect(router.state.location.pathname).toBe(`/w/${W}`);
     expect(useNodeLayer.getState()).toMatchObject({ visible: true, hiddenResources: ['water', 'Geyser'], purities: ['pure'] });
     expect(useUiStore.getState().mainView).toBe('map');
+    // The two pure ore nodes (world bounds 0..1 = map 0..256, y down), with a margin of 3.
+    expect(useMapFit.getState().request).toEqual([[-128 - 3, 0.2 * 256 - 3], [-64 + 3, 0.6 * 256 + 3]]);
   });
 
   it('links no resource that is not mined on a node, nor any without the dataset\'s resource nodes', async () => {
@@ -433,6 +471,54 @@ describe('production planner', () => {
     expect(usePlanner.getState().targets.map(t => t.item)).toEqual(['ingot']);
   });
 
+  it('computes the most the available nodes allow, with the bottleneck, and remembers the nodes', async () => {
+    setup();
+    await openAndPick('plate');
+    await userEvent.click(screen.getByRole('radio', { name: 'Available nodes' }));
+    const needs = screen.getByRole('region', { name: 'What do you need?' });
+    const nodes = within(needs).getByRole('region', { name: 'Available resource nodes' });
+    // A first empty row is there; without nodes nothing can be made.
+    const max = () => screen.getByRole('region', { name: 'Maximum output' });
+    expect(within(max()).getByRole('alert')).toHaveTextContent('No nodes entered for ore');
+    await userEvent.selectOptions(within(nodes).getByLabelText('Resource'), 'ore');
+    // The extractor follows the miner setting; 2 normal nodes with a Mk.1 give 120 ore, enough for 80 plate.
+    expect(within(nodes).getByLabelText('Extractor')).toHaveDisplayValue('Miner Mk.1');
+    const count = within(nodes).getByRole('spinbutton', { name: 'Nodes' });
+    await userEvent.clear(count);
+    await userEvent.type(count, '2');
+    expect(within(nodes).getByText('Gives 120/min')).toBeInTheDocument();
+    expect(rows(max())[0]).toEqual(['plate', '80/min']);
+    expect(max()).toHaveTextContent('Bottleneck: ore');
+    expect(rows(max())[1]).toEqual(['oreBottleneck, fully used', '120 of 120/min']);
+    // The steps show the plan at that rate.
+    expect(within(stepOf('plate').cells[1]!).getByText('80/min')).toBeInTheDocument();
+
+    // Purity and miner tier count; so does the recipe.
+    await userEvent.selectOptions(within(nodes).getByLabelText('Purity'), 'pure');
+    await userEvent.selectOptions(within(nodes).getByLabelText('Extractor'), 'Miner Mk.2');
+    expect(within(nodes).getByText('Gives 480/min')).toBeInTheDocument();
+    expect(rows(max())[0]).toEqual(['plate', '320/min']);
+    usePlanner.getState().setChoice('plate', { kind: 'recipe', recipe: 'R_PlateAlt' });
+    expect(await within(max()).findByText('720/min')).toBeInTheDocument();
+
+    const stored = loadPlanner()!;
+    expect(stored.mode).toBe('nodes');
+    expect(stored.nodes.map(({ key: _, ...n }) => n)).toEqual([{ resource: 'ore', purity: 'pure', count: '2', extractor: 'mk2' }]);
+
+    // Back to the wanted rate: the nodes are not used, the plan makes what is asked for.
+    await userEvent.click(screen.getByRole('radio', { name: 'Wanted rate' }));
+    expect(screen.queryByRole('region', { name: 'Maximum output' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Available resource nodes' })).toBeNull();
+    expect(within(stepOf('plate').cells[1]!).getByText('60/min')).toBeInTheDocument();
+  });
+
+  it('says when the nodes do not limit the plan', async () => {
+    setup();
+    await openAndPick('water');
+    await userEvent.click(screen.getByRole('radio', { name: 'Available nodes' }));
+    expect(screen.getByRole('region', { name: 'Maximum output' })).toHaveTextContent(/needs no resource from nodes/);
+  });
+
   it('shows names and labels in German, with the game\'s terms', async () => {
     initI18n(['de']);
     setup();
@@ -495,7 +581,7 @@ describe('production planner diagram', () => {
   beforeEach(() => {
     initI18n(['en']);
     localStorage.clear();
-    usePlanner.setState({ targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'diagram' });
+    usePlanner.setState({ targets: [{ key: 1, item: null, rate: '60' }], choices: {}, steps: {}, settings: { miner: null, clock: '100', purity: 'normal' }, view: 'diagram', mode: 'rate', nodes: [] });
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -546,6 +632,38 @@ describe('production planner diagram', () => {
       .toEqual(['Material per minute', 'All buildings fully used (100 %)', 'Part load (< 90 %)']);
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Totals' })).toBeInTheDocument();
+  });
+
+  it('marks every flow with the belt or pipeline tier it needs: on the edges, in the list and in the step panel', async () => {
+    const n = (en: string, de: string) => ({ en, de });
+    const withBelts = {
+      ...RECIPE_DATA,
+      belts: [
+        { id: 'Build_ConveyorBeltMk1_C', name: n('Conveyor Belt Mk.1', 'Förderband Mk.1'), kind: 'belt' as const, rate: 60 },
+        { id: 'Build_ConveyorBeltMk2_C', name: n('Conveyor Belt Mk.2', 'Förderband Mk.2'), kind: 'belt' as const, rate: 120 },
+      ],
+      pipes: [{ id: 'Build_Pipeline_C', name: n('Pipeline Mk.1', 'Pipeline Mk.1'), rate: 300 }],
+    };
+    setup('present', undefined, { 'GET /data/test/recipes.json': { body: withBelts } });
+    await openAndPick('plate');
+    // 90 ingot and 90 ore per minute: Mk.2 on both edges.
+    const label = diagram().querySelector('[data-label-to="plate"]')!;
+    expect(label).toHaveTextContent('90/minMk.2');
+    expect(within(label as HTMLElement).getByTitle('Needs Conveyor Belt Mk.2')).toBeInTheDocument();
+    expect(diagram().querySelector('[data-label-to="ingot"]')).toHaveTextContent('Mk.2');
+
+    // 240 plate per minute leave the step on two Mk.2 belts.
+    await userEvent.clear(screen.getByRole('spinbutton', { name: 'Per minute of plate' }));
+    await userEvent.type(screen.getByRole('spinbutton', { name: 'Per minute of plate' }), '240');
+    await userEvent.click(node('plate'));
+    const output = screen.getByText('Output').closest('div')!;
+    expect(slots(output)[0]).toContain('Needs 2× Conveyor Belt Mk.2');
+
+    // The list's input chips; fluids on pipelines.
+    await userEvent.click(screen.getByRole('radio', { name: 'List' }));
+    expect(within(within(stepOf('plate')).getByRole('list', { name: 'Input' })).getByTitle('Needs 3× Conveyor Belt Mk.2')).toBeInTheDocument();
+    usePlanner.getState().setChoice('plate', { kind: 'recipe', recipe: 'R_PlateAlt' });
+    expect(await within(within(stepOf('plate')).getByRole('list', { name: 'Input' })).findByTitle('Needs Pipeline Mk.1')).toBeInTheDocument();
   });
 
   it('highlights the edges of the hovered and the selected step and fades the others', async () => {

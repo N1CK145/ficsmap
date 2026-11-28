@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `.env.development.example` with localhost values, as README and CONTRIBUTING describe.
 - CI checks the save watcher scripts: shellcheck for the Bash watcher, a parse check for the PowerShell watcher.
+- Planner: "Alternate recipes" ("Alternativrezepte") under "What do you need?", folded away under how many are chosen: every alternate recipe in the game data by the item it makes, the items of the current plan first, each with the recipe picker of the step panel ("Made by"), and a filter by item or recipe name in English or German. A choice applies wherever the item is in the plan, also for items that are not in it yet, and is remembered on the device.
+- Planner: "Calculate from: Wanted rate | Available nodes" ("Berechnen nach: Zielmenge | Verfügbare Vorkommen"). With available nodes you enter groups of resource nodes (resource, purity, how many, extractor such as Miner Mk.1–3, Oil Extractor or Resource Well Extractor; at the extractor clock speed) and the planner shows the most the wanted items can be made at with the chosen recipes ("Maximum output"), the bottleneck resource, and how much of each node resource that uses ("120 of 240/min"). The steps and totals show the plan at that maximum. With several items their rates are the ratio. Water extractors and items supplied from outside are not limited. The mode and the nodes are remembered on the device.
+- Planner: every flow shows the conveyor belt or pipeline tier it needs ("Mk.2", "2× Mk.6" when even the fastest is too slow; "Braucht Förderband Mk.2" as tooltip): on the diagram's rate labels, on the list's input chips and under the inputs and outputs of the step panel. Belts for solids, pipelines for fluids, the rates from the dataset's `recipes.json` (`belts`, `pipes`); a dataset built without them shows no tier.
 
 ### Changed
 
@@ -21,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependencies: react-router 7 → 8 (replaces Dependabot PR #9); the router provider now comes from `react-router/dom`.
 - The web app is built as one script per library family (React, Leaflet, other libraries) and per feature instead of one 1.5 MB script, so an update only reloads what changed; no chunk is over 500 kB any more.
 - Dataset: `recipes.json` is the one source of recipes. `machines.json` no longer has its own copy; each production building lists the ids of its recipes (`recipes`), and the machine wiki reads the recipes from `recipes.json` (loaded when an entry with recipes or a clock speed opens). A `machines.json` built before still works: the wiki reads its own recipe list as before. Rebuild with `--only machines` to drop the copy.
+- Planner: "Show on map" at a raw resource also fits the map to that resource's nodes of the step's purity (the world's nodes, as its last save import has them), instead of leaving the view where it was.
 
 ## [0.2.4] - 2026-11-21
 

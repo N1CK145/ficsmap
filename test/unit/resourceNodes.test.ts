@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Parser } from '@etothepii/satisfactory-file-parser';
 import {
   applyOverrides, changedNodeSettings, countNodes, extractorsByNode, extractResourceNodes, filterNodes, isRandomized, MAX_CLOCK, MAX_SHARDS,
-  NODE_PURITY_SETTINGS, NODE_RANDOMIZATION_MODES, purityFromGame, readResourceNodes,
+  NODE_PURITY_SETTINGS, NODE_RANDOMIZATION_MODES, purityFromGame, readResourceNodes, resourceNodeBounds,
   summarizeExtractors, type NodeExtractor, type NodeFilter, type Purity, type ResourceNodesFile, type SaveNodesLike,
 } from '../../src/shared/resourceNodes.js';
 
@@ -365,4 +365,18 @@ describe('real save', () => {
       }
     }
   }, 30_000);
+});
+
+describe('resourceNodeBounds', () => {
+  const B = { minX: 0, minY: -100, maxX: 256, maxY: 156 };
+  it('fits the nodes of one resource and purity, a well\'s centre with its shown extraction points', () => {
+    expect(resourceNodeBounds(nodes, 'Desc_OreIron_C', 'pure', B)).toEqual([[-100, 10], [-100, 10]]);
+    expect(resourceNodeBounds(nodes, 'Desc_Water_C', 'pure', B)).toEqual([[-100, 30], [-100, 31]]);
+    const more = readResourceNodes({ ...FILE, nodes: [...FILE.nodes, ['N3', 'node', 'Desc_OreIron_C', 'impure', 50, 56, 0]] });
+    expect(resourceNodeBounds(more, 'Desc_OreIron_C', 'impure', B)).toEqual([[-156, 0], [-100, 50]]);
+  });
+  it('is null without such nodes', () => {
+    expect(resourceNodeBounds(nodes, 'Desc_OreIron_C', 'normal', B)).toBeNull();
+    expect(resourceNodeBounds(nodes, 'Desc_Coal_C', 'pure', B)).toBeNull();
+  });
 });

@@ -854,6 +854,48 @@
     "list": {
       "item": "Item",
       "rate": "Per minute"
+    },
+    "alternates": {
+      "title": "Alternate recipes",
+      "available": "{count, number} available",
+      "chosen": "{count, plural, one {# chosen} other {# chosen}}",
+      "hint": "Every alternate recipe in the game data, by the item it makes. The choice applies wherever the item is in the plan, the same as in a step's \"Made by\", and is remembered on this device.",
+      "filter": "Filter alternate recipes",
+      "filterPlaceholder": "Item or recipe…",
+      "inPlan": "In this plan",
+      "others": "Other items",
+      "all": "All items",
+      "noMatch": "No matching alternate recipe",
+      "recipeFor": "Recipe for {item}"
+    },
+    "mode": {
+      "label": "Calculate from",
+      "rate": "Wanted rate",
+      "nodes": "Available nodes"
+    },
+    "nodes": {
+      "title": "Available resource nodes",
+      "hint": "The nodes you can use, by resource, purity and extractor; at the extractor clock speed below. Water extractors and items supplied from outside are not limited.",
+      "add": "+ Add nodes",
+      "groupN": "Nodes {n}",
+      "resource": "Resource",
+      "pickResource": "Pick a resource…",
+      "count": "Nodes",
+      "extractor": "Extractor",
+      "gives": "Gives {value}",
+      "ratioHint": "With several items only the ratio of their rates counts: the planner makes as much as the nodes allow in that ratio.",
+      "maxTitle": "Maximum output",
+      "unbounded": "This plan needs no resource from nodes (only water from water extractors or items supplied from outside), so the nodes do not limit it.",
+      "missing": "No nodes entered for {items}, so nothing can be made. Add them under \"Available resource nodes\".",
+      "bottleneck": "{count, plural, one {Bottleneck} other {Bottlenecks}}: {items}",
+      "usage": "Node resources used",
+      "limiting": "Bottleneck, fully used",
+      "share": "{value} % used",
+      "usedOf": "{used} of {available}"
+    },
+    "transport": {
+      "lines": "{count}× {tier}",
+      "needs": "Needs {tier}"
     }
   },
   "vehicleCalc": {

@@ -11,6 +11,7 @@ import { formatNumber, formatRate, itemName, type Lang } from './format.js';
 import { CycleBar, ItemSlot, MachineSection as Section, productionGrid, SLOT_LABEL, ShardSlots, SlotColumn } from './machineParts.js';
 import { Picture, SHARD_CLASS, StepPicture, UseMark } from './pictures.js';
 import { stepUse } from './stepText.js';
+import { useTransportText } from './transport.js';
 import { usePlanner } from './usePlanner.js';
 
 export interface StepPanelProps {
@@ -63,7 +64,7 @@ export function StepPanel({ step, index, lang, minerId, limits, onClose, closeLa
       bodyClassName="flex flex-col gap-4 overflow-y-auto p-3"
     >
       <Section title={t('planner.panel.recipe')}>
-        <ChoiceSelect step={step} index={index} lang={lang} minerId={minerId} />
+        <ChoiceSelect item={step.item} choice={step.choice} index={index} lang={lang} minerId={minerId} />
       </Section>
 
       {!external && !covered && <Production step={step} index={index} lang={lang} />}
@@ -138,10 +139,12 @@ function Production({ step, index, lang }: { step: PlanStep; index: RecipeIndex;
   );
 }
 
-/** An item slot: picture, name, rate of all buildings, rate of one. */
+/** An item slot: picture, name, rate of all buildings, rate of one and the belt or pipeline tier the whole flow needs. */
 function Slot({ flow, index, lang, per }: { flow: Flow; index: RecipeIndex; lang: Lang; per: string }) {
   const { t } = useTranslation();
-  return <ItemSlot item={flow.item} name={itemName(index, flow.item, lang)} value={formatRate(index, flow.item, flow.rate, lang, t)} sub={per} />;
+  const transport = useTransportText(index, lang)(flow.item, flow.rate);
+  const sub = transport ? `${per} · ${transport.long}` : per;
+  return <ItemSlot item={flow.item} name={itemName(index, flow.item, lang)} value={formatRate(index, flow.item, flow.rate, lang, t)} sub={sub} />;
 }
 
 /**

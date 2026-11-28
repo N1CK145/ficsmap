@@ -6,6 +6,7 @@ import { powerText } from './controls.js';
 import { formatRate, itemName, type Lang } from './format.js';
 import { StepBadges, stepPicture, UseMark } from './pictures.js';
 import { stepText } from './stepText.js';
+import { TransportMark, useTransportText } from './transport.js';
 
 export interface StepListProps {
   steps: readonly PlanStep[];
@@ -32,6 +33,7 @@ const HEAD = 'py-2 font-display text-xs font-semibold tracking-wider text-muted 
  */
 export function StepList({ steps, index, lang, selected, onSelect, editorId, nodeId, defaultPurity }: StepListProps) {
   const { t } = useTranslation();
+  const transport = useTransportText(index, lang);
   return (
     <table className="w-full border-collapse text-sm">
       <thead>
@@ -81,6 +83,7 @@ export function StepList({ steps, index, lang, selected, onSelect, editorId, nod
                           <GameIcon cls={f.item} px={16} />
                           <span className="text-fg">{name}</span>
                           {formatRate(index, f.item, f.rate, lang, t)}
+                          <TransportMark text={transport(f.item, f.rate)} />
                         </li>
                       );
                     })}
