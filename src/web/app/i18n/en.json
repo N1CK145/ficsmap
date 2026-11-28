@@ -689,6 +689,9 @@
     "atFullClock": "Per minute at 100 % clock speed.",
     "description": "In the game",
     "noDescription": "The game has no description.",
+    "descriptionNote": {
+      "truckStation": "The description still says “up to 120 stacks per minute”. Since game version 1.2 a Truck Station loads or unloads a docked vehicle in one fixed cycle, whatever it carries; the vehicle calculator counts with that."
+    },
     "buildCost": "{place, select, workshop {Crafted in the Equipment Workshop from} other {Build cost}}",
     "unlockedBy": "Unlocked by",
     "unlock": "{kind, select, milestone {Tier {tier, number}: {name}} tutorial {Tier 0: {name}} mam {MAM research: {name}} alternate {Alternate recipe: {name}} hardDrive {Hard drive: {name}} shop {AWESOME Shop: {name}} other {{name}}}",
@@ -924,7 +927,7 @@
     "speedMissing": "Not in the game data: enter the average speed you see in the game.",
     "stop": "Load and unload time",
     "stopSource": {
-      "truckStation": "Both ends together. Game value: one Truck Station cycle at each end.",
+      "truckStation": "Both ends together. Game value: one Truck Station cycle at each end. Its description says “up to 120 stacks per minute”, but since game version 1.2 one cycle moves the whole load, so that is not used.",
       "fluidTruckStation": "Both ends together. Game value: one Fluid Truck Station cycle at each end.",
       "freightPlatform": "Both ends together. Game value: a Freight Platform's load and unload time.",
       "dronePort": "Both ends together. Game value: docking and take-off at both Drone Ports."

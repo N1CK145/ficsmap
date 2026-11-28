@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Machine wiki and vehicle calculator: the Truck Station's "up to 120 stacks per minute" is marked as left over from before 1.2. A note under its description and the hint of the load and unload time say that one fixed cycle moves the whole load and that the calculator counts with that.
+
 ## [0.2.4] - 2026-11-21
 
 ### Added

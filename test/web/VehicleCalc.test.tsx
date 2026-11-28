@@ -231,7 +231,8 @@ describe('vehicle calculator', () => {
     expect(speed).toHaveAccessibleDescription("km/h Game value: the autopilot's limit on a straight road. The real average is lower (curves, slopes).");
     const stop = within(more).getByLabelText('Load and unload time');
     expect(stop).toHaveValue(16);
-    expect(stop).toHaveAccessibleDescription('s Both ends together. Game value: one Truck Station cycle at each end.');
+    expect(stop).toHaveAccessibleDescription('s Both ends together. Game value: one Truck Station cycle at each end. '
+      + 'Its description says “up to 120 stacks per minute”, but since game version 1.2 one cycle moves the whole load, so that is not used.');
     expect(within(more).queryByRole('button', { name: /game value/ })).toBeNull();
 
     await u.type(within(page).getByLabelText('Route length (one way)'), '1800');

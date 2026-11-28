@@ -313,3 +313,14 @@ export function statRows(entry: MachineEntry, items: Readonly<Record<string, Wik
   if (s.somersloopSlots !== undefined) add('somersloopSlots', { slots: s.somersloopSlots });
   return rows;
 }
+
+/**
+ * Entries whose game description says something the game no longer does, with the key of the note the wiki shows
+ * under it (`machineWiki.descriptionNote.<key>`). The Truck Station still says "up to 120 stacks per minute", left
+ * over from before 1.2.0.0; since then it moves a docked vehicle's whole load in one fixed cycle
+ * (`data-src/extractor/README.md`, stop time).
+ */
+const DESCRIPTION_NOTES: Record<string, string> = { Build_TruckStation_C: 'truckStation' };
+
+/** The key of the note under an entry's game description, or null. */
+export const descriptionNote = (id: string): string | null => DESCRIPTION_NOTES[id] ?? null;

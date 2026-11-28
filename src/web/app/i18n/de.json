@@ -689,6 +689,9 @@
     "atFullClock": "Pro Minute bei 100 % Taktrate.",
     "description": "Im Spiel",
     "noDescription": "Das Spiel hat keine Beschreibung.",
+    "descriptionNote": {
+      "truckStation": "Die Beschreibung nennt noch „bis zu 120 Stapel pro Minute“. Seit Spielversion 1.2 belädt oder entlädt eine Lkw-Station ein angedocktes Fahrzeug in einem festen Zyklus, egal was es geladen hat; der Fahrzeugrechner rechnet damit."
+    },
     "buildCost": "{place, select, workshop {Hergestellt in der Ausrüstungs-Werkstatt aus} other {Baukosten}}",
     "unlockedBy": "Freigeschaltet durch",
     "unlock": "{kind, select, milestone {Stufe {tier, number}: {name}} tutorial {Stufe 0: {name}} mam {MAM-Forschung: {name}} alternate {Alternatives Rezept: {name}} hardDrive {Festplatte: {name}} shop {AWESOME-Shop: {name}} other {{name}}}",
@@ -924,7 +927,7 @@
     "speedMissing": "Nicht in den Spieldaten: trag die Durchschnittsgeschwindigkeit ein, die du im Spiel siehst.",
     "stop": "Lade- und Entladezeit",
     "stopSource": {
-      "truckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Lkw-Station an jedem Ende.",
+      "truckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Lkw-Station an jedem Ende. Ihre Beschreibung nennt „bis zu 120 Stapel pro Minute“, seit Spielversion 1.2 bewegt aber ein Zyklus die ganze Ladung; das wird daher nicht verwendet.",
       "fluidTruckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Tanklaster-Station an jedem Ende.",
       "freightPlatform": "Beide Enden zusammen. Spielwert: Lade- und Entladezeit der Frachtplattform.",
       "dronePort": "Beide Enden zusammen. Spielwert: Andocken und Abheben an beiden Drohnenlandeplätzen."
