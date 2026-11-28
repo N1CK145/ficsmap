@@ -5,6 +5,7 @@ import { caveModelUrl } from '../../../shared/caveModels.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { Button } from '../../components/Button.js';
 import { Dialog } from '../../components/Dialog.js';
+import { mapStyle } from '../map/mapStyle.js';
 import { caveContents, caveLabelNumber, caveModelId, useCaveModels, useCaveViewer, type ViewerMarker } from './caveModels.js';
 import type { CaveViewer3dProps, ViewerStatus } from './CaveViewer3d.js';
 import { useCaves } from './useCaves.js';
@@ -18,7 +19,8 @@ function LoadFailed({ onStatus }: { onStatus(s: ViewerStatus): void }) {
 /** three.js and the viewer load only when a cave is opened in 3D. */
 const CaveViewer3d = lazy((): Promise<{ default: ComponentType<CaveViewer3dProps> }> => import('./CaveViewer3d.js').catch(() => ({ default: LoadFailed })));
 
-const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#ffffff';
+/** Marker colours from the dark palette, as the 3D view stays dark like the map. */
+const token = (name: string) => mapStyle().getPropertyValue(name).trim() || '#ffffff';
 
 /**
  * The 3D view of the cave `useCaveViewer.viewing`: its model from the dataset part `cave-models`, turned and zoomed by

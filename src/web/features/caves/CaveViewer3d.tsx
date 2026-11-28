@@ -7,6 +7,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { CAVE_MODEL_LANDSCAPE } from '../../../shared/caveModels.js';
+import { mapStyle } from '../map/mapStyle.js';
 import { cutHeight, ueToModel, type ViewerMarker } from './caveModels.js';
 
 export type ViewerStatus = { kind: 'loading'; progress: number | null } | { kind: 'ready' } | { kind: 'error'; reason: 'webgl' | 'load' };
@@ -32,7 +33,8 @@ interface Handles {
   reset(): void;
 }
 
-const css = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+/** Colour tokens of the dark palette: the 3D view, like the map, stays dark in the light theme. */
+const css = (name: string, fallback: string) => mapStyle().getPropertyValue(name).trim() || fallback;
 
 /** A round, soft-edged dot for the markers (points are squares otherwise). */
 function dotTexture(): CanvasTexture {
