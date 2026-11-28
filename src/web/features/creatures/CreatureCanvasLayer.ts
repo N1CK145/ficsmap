@@ -3,7 +3,7 @@ import { CREATURE_FAMILIES, type CreatureFamily } from '../../../shared/creature
 
 export const CREATURE_PANE = 'ficsmap-creatures';
 /** Like the resource nodes (455): above the collectible markers (450), below the vehicle route (460). */
-const CREATURE_PANE_Z = 452;
+export const CREATURE_PANE_Z = 452;
 const CULL_PX = 20;
 /** From this zoom on the creature's picture; below it a dot in the family's colour. */
 export const PICTURE_ZOOM = 5;

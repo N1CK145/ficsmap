@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Map: single creature spawners can be reached by keyboard. Tab visits every spawner in view (row by row, left to right), focus shows its box, Enter pins it, Escape lets go.
+
 ### Changed
 
 - The conflict and error colour is now a raspberry red, so it no longer looks like the red of impure resource nodes (also for red-green colour blindness).

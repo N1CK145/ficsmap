@@ -1,22 +1,27 @@
-import type L from 'leaflet';
+import L from 'leaflet';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useMap } from 'react-leaflet';
 import type { CreatureSpawner } from '../../../shared/creatures.js';
 import { UNITS_PER_METER, worldToLatLng } from '../../../shared/geo.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { markerClickClaims } from '../map/clickClaims.js';
-import { CreatureCanvasLayer, type DrawCreature } from './CreatureCanvasLayer.js';
+import { CREATURE_PANE_Z, CreatureCanvasLayer, creatureRadius, type DrawCreature } from './CreatureCanvasLayer.js';
+import { focusOrder } from './focusOrder.js';
 import { creatureIcon, useCreatureName } from './names.js';
 import { filterSpawners, useCreatureData, useCreatureLayer } from './useCreatures.js';
 
 const HOVER_CLASS = 'ficsmap-node-hover';
 const BOX_OFFSET = 16;
+/** The pane of the keyboard's focus stops, just above the creature canvas. */
+const FOCUS_PANE = 'ficsmap-creature-focus';
 
 /**
  * The creature spawners on the map while the layer is on, filtered by family and kill state, with the kills from the
  * save the timeline shows. Hovering a spawner shows its creature, how often it was killed and whether it is dead
- * right now; a click pins the box until a click elsewhere or Escape.
+ * right now; a click pins the box until a click elsewhere or Escape. By keyboard, every spawner in view is a focus
+ * stop (in reading order): focusing one shows its box, Enter pins it.
  */
 export function CreatureLayer({ ctx }: { ctx: WorldCtx }) {
   const map = useMap();
@@ -40,7 +45,8 @@ export function CreatureLayer({ ctx }: { ctx: WorldCtx }) {
 
   const [hover, setHover] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string | null>(null);
-  const active = pinned ?? hover;
+  const [focused, setFocused] = useState<string | null>(null);
+  const active = pinned ?? hover ?? focused;
   const itemsRef = useRef(draw);
   const activeRef = useRef(active);
   const layerRef = useRef<CreatureCanvasLayer | null>(null);
@@ -84,6 +90,7 @@ export function CreatureLayer({ ctx }: { ctx: WorldCtx }) {
       layerRef.current = null;
       setHover(null);
       setPinned(null);
+      setFocused(null);
     };
   }, [map, visible]);
 
@@ -93,24 +100,94 @@ export function CreatureLayer({ ctx }: { ctx: WorldCtx }) {
     layerRef.current?.redraw();
   }, [draw, active]);
 
+  /** A spawner in words: its creature, then (with kill data) its kills and whether it is dead right now. */
+  const describe = (s: CreatureSpawner) => {
+    const k = data?.kills.get(s.name);
+    if (!data?.hasKills) return name(s.creature);
+    return [name(s.creature), k && k.kills > 0 ? t('creatures.killed', { count: k.kills }) : t('creatures.neverKilled'), k && k.dead > 0 ? t('creatures.deadNow', { count: k.dead }) : '']
+      .filter(Boolean).join(', ');
+  };
   const spawner = active === null ? undefined : byName.get(active);
-  // A pinned spawner is read out (the canvas marker has no element of its own to focus).
+  // A pinned spawner is read out (also when it was pinned by a click, which moves no focus).
   const pinnedSpawner = pinned === null ? undefined : byName.get(pinned);
-  const pk = pinnedSpawner ? data?.kills.get(pinnedSpawner.name) : undefined;
-  const announce = pinnedSpawner
-    ? [name(pinnedSpawner.creature), pk && pk.kills > 0 ? t('creatures.killed', { count: pk.kills }) : t('creatures.neverKilled'), pk && pk.dead > 0 ? t('creatures.deadNow', { count: pk.dead }) : '']
-      .filter(Boolean).join(', ')
-    : '';
+  const announce = pinnedSpawner ? describe(pinnedSpawner) : '';
   const live = visible ? <div className="sr-only" aria-live="polite" data-testid="creature-announce">{announce}</div> : null;
-  if (!visible || !spawner || !data) return live;
-  const k = data.kills.get(spawner.name);
-  return <>{live}<CreatureInfo spawner={spawner} kills={k?.kills ?? 0} dead={k?.dead ?? 0} hasKills={data.hasKills} ctx={ctx} /></>;
+  if (!visible || !data) return live;
+  const k = spawner && data.kills.get(spawner.name);
+  return (
+    <>
+      {live}
+      <CreatureFocusStops
+        items={draw}
+        focused={focused}
+        pinned={pinned}
+        label={id => { const s = byName.get(id); return s ? describe(s) : id; }}
+        onFocus={setFocused}
+        onToggle={id => setPinned(p => (p === id ? null : id))}
+      />
+      {spawner && <CreatureInfo spawner={spawner} kills={k?.kills ?? 0} dead={k?.dead ?? 0} hasKills={data.hasKills} ctx={ctx} />}
+    </>
+  );
 }
 
 /**
- * The spawner's box next to it. A pinned box is also read out (a polite live region), since the canvas marker
- * itself has no element to focus.
+ * The keyboard's way to single spawners (the canvas markers have no elements): a transparent button over each spawner
+ * wholly in view, in reading order, in a pane of its own that moves with the map. They take no pointer events, so
+ * the mouse still goes to the map; the list follows the view when a move or zoom ends.
  */
+function CreatureFocusStops({ items, focused, pinned, label, onFocus, onToggle }: {
+  items: readonly DrawCreature[];
+  focused: string | null;
+  pinned: string | null;
+  label: (id: string) => string;
+  onFocus: (id: string | null) => void;
+  onToggle: (id: string) => void;
+}) {
+  const map = useMap();
+  const { t } = useTranslation();
+  const [pane, setPane] = useState<HTMLElement | null>(null);
+  const [, setView] = useState(0);
+  useEffect(() => {
+    const p = map.getPane(FOCUS_PANE) ?? map.createPane(FOCUS_PANE);
+    p.style.zIndex = String(CREATURE_PANE_Z + 1);
+    p.style.pointerEvents = 'none';
+    // Hidden while a zoom animates: the stops jump to their new places when it ends.
+    p.classList.add('leaflet-zoom-hide');
+    setPane(p);
+    const update = () => setView(n => n + 1);
+    map.on('moveend zoomend viewreset resize', update);
+    return () => { map.off('moveend zoomend viewreset resize', update); };
+  }, [map]);
+  if (!pane) return null;
+  const size = map.getSize();
+  const r = creatureRadius(map.getZoom());
+  const points = items.map(c => { const p = map.latLngToContainerPoint([c.lat, c.lng]); return { id: c.id, x: p.x, y: p.y }; });
+  const stops = focusOrder(points, size.x, size.y, r, focused);
+  return createPortal(
+    // Leaflet leaves the stops' clicks (Enter, Space) alone: its map click would unpin.
+    <div role="group" aria-label={t('creatures.title')} ref={el => { if (el) L.DomEvent.disableClickPropagation(el); }}>
+      {stops.map(s => {
+        const at = map.containerPointToLayerPoint([s.x, s.y]);
+        return (
+          <button
+            key={s.id}
+            type="button"
+            aria-label={label(s.id)}
+            aria-pressed={pinned === s.id}
+            className="pointer-events-none absolute rounded-full focus-ring"
+            style={{ left: at.x - r, top: at.y - r, width: 2 * r, height: 2 * r }}
+            onFocus={() => onFocus(s.id)}
+            onBlur={() => onFocus(null)}
+            onClick={() => onToggle(s.id)}
+          />
+        );
+      })}
+    </div>,
+    pane,
+  );
+}
+
+/** The spawner's box next to it; a pinned one is also read out (a polite live region). */
 function CreatureInfo({ spawner, kills, dead, hasKills, ctx }: {
   spawner: CreatureSpawner; kills: number; dead: number; hasKills: boolean; ctx: WorldCtx;
 }) {
