@@ -57,6 +57,14 @@
     "saved": "Saved",
     "saveFailed": "Not saved. The setting applies on this device for now.",
     "languageHint": "Remembered on this device.",
+    "theme": {
+      "title": "Appearance",
+      "label": "Colours",
+      "dark": "Dark",
+      "light": "Light",
+      "system": "Like the system",
+      "hint": "The map stays dark in both. Saved to your account."
+    },
     "dateFormat": {
       "title": "Date and time",
       "label": "Format",
