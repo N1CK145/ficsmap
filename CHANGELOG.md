@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Planner: "Calculate from: Wanted rate | Available nodes" ("Berechnen nach: Zielmenge | Verfügbare Vorkommen"). With available nodes you enter groups of resource nodes (resource, purity, how many, extractor such as Miner Mk.1–3, Oil Extractor or Resource Well Extractor; at the extractor clock speed) and the planner shows the most the wanted items can be made at with the chosen recipes ("Maximum output"), the bottleneck resource, and how much of each node resource that uses ("120 of 240/min"). The steps and totals show the plan at that maximum. With several items their rates are the ratio. Water extractors and items supplied from outside are not limited. The mode and the nodes are remembered on the device.
 - Planner: every flow shows the conveyor belt or pipeline tier it needs ("Mk.2", "2× Mk.6" when even the fastest is too slow; "Braucht Förderband Mk.2" as tooltip): on the diagram's rate labels, on the list's input chips and under the inputs and outputs of the step panel. Belts for solids, pipelines for fluids, the rates from the dataset's `recipes.json` (`belts`, `pipes`); a dataset built without them shows no tier.
 
+### Changed
+
+- Planner: "Show on map" at a raw resource also fits the map to that resource's nodes of the step's purity (the world's nodes, as its last save import has them), instead of leaving the view where it was.
+
 ## [0.2.4] - 2026-11-21
 
 ### Added

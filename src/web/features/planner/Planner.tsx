@@ -5,6 +5,8 @@ import { descriptorClass } from '../../../shared/machines.js';
 import { clockLimits, MAX_SHARDS, plan, PURITY_FACTOR, type ClockLimits, type PlanInput, type PlanResult, type PlanStep, type Purity, type StepSettings } from '../../../shared/planner.js';
 import { maxOutput, nodeSupply } from '../../../shared/plannerNodes.js';
 import { miners as minersOf, type RecipeIndex } from '../../../shared/recipes.js';
+import { resourceNodeBounds } from '../../../shared/resourceNodes.js';
+import type { WorldBounds } from '../../../shared/types.js';
 import { worldPath } from '../../app/pages.js';
 import { useUiStore } from '../../app/store.js';
 import { Button } from '../../components/Button.js';
@@ -19,7 +21,8 @@ import type { ToastApi } from '../../components/Toast.js';
 import { Window } from '../../components/Window.js';
 import { GameIcon, IconsContext, useItemIcons } from '../machineWiki/icons.js';
 import { prefersReducedMotion } from '../map/motion.js';
-import { useNodeLayer, useResourceNodeFile } from '../resourceNodes/useResourceNodes.js';
+import { useNodeLayer, useWorldNodes } from '../resourceNodes/useResourceNodes.js';
+import { useMapFit } from '../search/fit.js';
 import { AlternateRecipes } from './AlternateRecipes.js';
 import { MaxOutputView, NodeInputs, nodeGroups } from './NodeInputs.js';
 import { powerValue, usePurityOptions } from './controls.js';
@@ -38,14 +41,17 @@ export const EXAMPLE = { item: 'Desc_IronPlateReinforced_C', rate: '5' } as cons
 /** From here (Tailwind's `xl`) a selected step's machine window docks beside the steps. */
 const DOCKED_QUERY = '(min-width: 1280px)';
 
-/** What the planner needs of its world: the dataset version, the map's path for "Show on map", the toast for "Start over"'s Undo. */
-export interface PlannerProps { version: string; worldId: string; toast: ToastApi }
+/**
+ * What the planner needs of its world: the dataset version, the map's path and the dataset's world bounds for "Show on
+ * map", the toast for "Start over"'s Undo.
+ */
+export interface PlannerProps { version: string; worldId: string; bounds: WorldBounds; toast: ToastApi }
 
 /**
  * The planner for a dataset version: loads its recipe data and the dataset's pictures (part `icons`, for items,
  * machines and extractors), then shows the form and the plan.
  */
-export function Planner({ version, worldId, toast }: PlannerProps) {
+export function Planner({ version, worldId, bounds, toast }: PlannerProps) {
   const { t, i18n } = useTranslation();
   const lang = langOf(i18n.resolvedLanguage ?? i18n.language);
   const { index, error } = useRecipes(version);
@@ -55,7 +61,7 @@ export function Planner({ version, worldId, toast }: PlannerProps) {
   if (index === null) return <p>{t('planner.noData')}</p>;
   return (
     <IconsContext.Provider value={icons}>
-      <PlannerBody index={index} lang={lang} version={version} worldId={worldId} toast={toast} />
+      <PlannerBody index={index} lang={lang} version={version} worldId={worldId} bounds={bounds} toast={toast} />
     </IconsContext.Provider>
   );
 }
@@ -412,8 +418,8 @@ function PlanStatus({ result, lang }: { result: Extract<PlanResult, { ok: true }
  * total. Exact counts are in the steps (tooltip, step panel). A resource mined on nodes links to the map, showing only
  * its nodes of the step's purity (the dataset's resource node layer).
  */
-function Totals({ result, index, lang, defaultPurity, version, worldId }: {
-  result: Extract<PlanResult, { ok: true }>; index: RecipeIndex; lang: Lang; defaultPurity: Purity; version: string; worldId: string;
+function Totals({ result, index, lang, defaultPurity, version, worldId, bounds }: {
+  result: Extract<PlanResult, { ok: true }>; index: RecipeIndex; lang: Lang; defaultPurity: Purity; version: string; worldId: string; bounds: WorldBounds;
 }) {
   const { t } = useTranslation();
   const { totals } = result;
@@ -424,13 +430,16 @@ function Totals({ result, index, lang, defaultPurity, version, worldId }: {
   const rate = (item: string, value: number) => formatRate(index, item, value, lang, t);
   const picture = (cls: string) => <GameIcon cls={cls} px={24} placeholder />;
   const onNode = (extractor: string) => index.extractors.get(extractor)?.onNode === true;
-  const nodeFile = useResourceNodeFile(version, totals.raw.some(r => onNode(r.extractor)));
-  const resources = nodeFile ? nodeFile.resources.map(r => r.id) : [];
+  const world = useWorldNodes(version, worldId, totals.raw.some(r => onNode(r.extractor)));
+  const resources = world ? world.file.resources.map(r => r.id) : [];
   function mapLink(item: string, extractor: string) {
     if (!onNode(extractor) || !resources.includes(item)) return null;
     const purity = result.steps.find(st => st.item === item)?.purity ?? defaultPurity;
     const show = () => {
       useNodeLayer.getState().showResource(item, resources, purity);
+      // The map fits itself to those nodes (the world's, as its last save import has them) once it shows.
+      const b = world ? resourceNodeBounds(world.nodes, item, purity, bounds) : null;
+      if (b) useMapFit.getState().fit([[b[0][0] - FIT_MARGIN, b[0][1] - FIT_MARGIN], [b[1][0] + FIT_MARGIN, b[1][1] + FIT_MARGIN]]);
       useUiStore.getState().setMainView('map');
     };
     return (
@@ -507,6 +516,9 @@ function Totals({ result, index, lang, defaultPurity, version, worldId }: {
     </Window>
   );
 }
+
+/** Map units around the nodes "Show on map" fits the map to, so a single node is not zoomed in on to the limit alone. */
+const FIT_MARGIN = 3;
 
 /** A totals list in as many columns of at least 14rem as fit, so a long plan grows sideways before it grows down. */
 function Columns({ children }: { children: ReactNode }) {

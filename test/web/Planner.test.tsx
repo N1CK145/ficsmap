@@ -14,6 +14,7 @@ import { EXAMPLE } from '../../src/web/features/planner/Planner.js';
 import { loadPlanner, usePlanner } from '../../src/web/features/planner/usePlanner.js';
 import { useNodeLayer } from '../../src/web/features/resourceNodes/useResourceNodes.js';
 import { useUiStore } from '../../src/web/app/store.js';
+import { useMapFit } from '../../src/web/features/search/fit.js';
 import { RECIPE_DATA } from '../fixtures/recipeData.js';
 import { stubFetch, type StubRoute } from './fetchStub.js';
 import { MOBILE, stubMatchMedia } from './matchMedia.js';
@@ -366,8 +367,12 @@ describe('production planner', () => {
     expect(within(totals).queryByText('Power Shards', { selector: 'dt' })).toBeNull();
   });
 
-  it('links a resource mined on nodes to the map, showing only its nodes of the step\'s purity', async () => {
-    const nodes = { version: 'test', resources: [{ id: 'ore', name: 'Ore' }, { id: 'water', name: 'Water' }, { id: 'Geyser', name: 'Geyser' }], nodes: [] };
+  it('links a resource mined on nodes to the map, showing only its nodes of the step\'s purity and fitting the map to them', async () => {
+    const nodes = {
+      version: 'test', resources: [{ id: 'ore', name: 'Ore' }, { id: 'water', name: 'Water' }, { id: 'Geyser', name: 'Geyser' }],
+      nodes: [['N1', 'node', 'ore', 'pure', 0.2, 0.5, 0], ['N2', 'node', 'ore', 'pure', 0.6, 0.25, 0], ['N3', 'node', 'ore', 'normal', 1, 1, 0], ['N4', 'node', 'water', 'pure', 0, 0, 0]],
+    };
+    useMapFit.setState({ request: null });
     useNodeLayer.setState({ visible: false, hiddenResources: [], purities: ['impure', 'normal', 'pure'] });
     useUiStore.setState({ mainView: 'list' });
     const { router } = setup('present', undefined, { 'GET /data/test/resource-nodes.json': { body: nodes } });
@@ -381,6 +386,8 @@ describe('production planner', () => {
     expect(router.state.location.pathname).toBe(`/w/${W}`);
     expect(useNodeLayer.getState()).toMatchObject({ visible: true, hiddenResources: ['water', 'Geyser'], purities: ['pure'] });
     expect(useUiStore.getState().mainView).toBe('map');
+    // The two pure ore nodes (world bounds 0..1 = map 0..256, y down), with a margin of 3.
+    expect(useMapFit.getState().request).toEqual([[-128 - 3, 0.2 * 256 - 3], [-64 + 3, 0.6 * 256 + 3]]);
   });
 
   it('links no resource that is not mined on a node, nor any without the dataset\'s resource nodes', async () => {
