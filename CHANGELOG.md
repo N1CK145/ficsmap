@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Dataset part `cave-models` (`npm run dataset -- --only cave-models`): a small GLB per cave in `cave-models/` for the 3D view, made from the extractor's cave geometry (simplified to at most 0.3 m off the game's surfaces, quantized and meshopt-compressed; 73 caves, 31 MB instead of 389 MB, the largest 1.8 MB).
+
 ## [0.2.4] - 2026-11-21
 
 ### Added
