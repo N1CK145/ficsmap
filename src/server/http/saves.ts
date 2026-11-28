@@ -6,6 +6,7 @@ import { HttpError } from '../errors.js';
 import { authenticateUploadToken, touchUploadToken, uploadTokenId, type UploadTokenRow } from '../domain/uploadTokens.js';
 import { applyUpload, planUpload } from '../domain/saveUpload.js';
 import { getWorld } from '../domain/worlds.js';
+import { recordActivity } from '../domain/activity.js';
 import { readSaveHeader } from '../parse/header.js';
 import { SaveParseError, type SaveParser } from '../parse/pool.js';
 
@@ -126,6 +127,8 @@ export function registerSaveRoutes(app: FastifyInstance, deps: AppDeps & { saveP
         fileName: saveFileName(req.headers['x-save-name'], header.sessionName),
       });
       for (const e of events) hub!.broadcast(world.id, e);
+      const kind = events.some(e => e.type === 'import') ? 'import' : events.some(e => e.type === 'snapshots') ? 'snapshots' : null;
+      if (kind) recordActivity(db, world.id, { kind, userId }, now());
       req.log.info({ world: world.id, token: token.id, status: dto.status, parseMs: parsed.timing.parseMs, totalMs: parsed.timing.totalMs, bytes: body.length }, 'save uploaded');
       return reply.code(201).send(dto);
     });

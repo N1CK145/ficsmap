@@ -188,4 +188,47 @@ describe('prefs store', () => {
     expect(await within(region).findByDisplayValue('https://ficsmap.test/invite/abc')).toBeInTheDocument();
     expect(within(region).getByText(/works once/)).toBeInTheDocument();
   });
+
+  describe('sign-in methods', () => {
+    const linked: MeDto = {
+      ...ME,
+      identities: [{ provider: 'discord', subject: '111', name: 'nick' }, { provider: 'steam', subject: '76561197960287930', name: null }],
+    };
+    const region = () => screen.findByRole('region', { name: 'Sign-in' });
+
+    it('lists both providers and links the missing one through its sign-in with link=1', async () => {
+      stubFetch({ 'GET /api/me': { body: { ...ME, identities: [{ provider: 'discord', subject: '111', name: 'nick' }] } } });
+      renderAt('/profile');
+      const r = await region();
+      expect(within(r).getByText('nick')).toBeInTheDocument();
+      expect(within(r).getByRole('link', { name: 'Link Steam' })).toHaveAttribute('href', '/auth/steam/login?link=1');
+      // The only sign-in cannot be removed.
+      expect(within(r).queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument();
+    });
+
+    it('shows the SteamID without a Steam name and removes a sign-in after a confirm', async () => {
+      const { calls } = stubFetch({ 'GET /api/me': { body: linked }, 'DELETE /api/me/identities/steam': { status: 204 } });
+      renderAt('/profile');
+      const r = await region();
+      expect(within(r).getByText('76561197960287930')).toBeInTheDocument();
+      expect(within(r).queryByRole('link', { name: /^Link/ })).not.toBeInTheDocument();
+      await userEvent.click(within(r).getByRole('button', { name: 'Remove Steam sign-in' }));
+      expect(screen.getByText('Remove sign-in with Steam? You can link it again later.')).toBeInTheDocument();
+      await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove' }));
+      await waitFor(() => expect(calls).toContainEqual({ method: 'DELETE', path: '/api/me/identities/steam', body: undefined }));
+      expect(await screen.findByText('Steam sign-in removed')).toBeInTheDocument();
+    });
+
+    it('says how linking went after coming back from the provider', async () => {
+      stubFetch({ 'GET /api/me': { body: linked } });
+      renderAt('/profile?linked=steam');
+      expect(await screen.findByText('Steam is linked to your account now.')).toBeInTheDocument();
+    });
+
+    it('explains a link that failed', async () => {
+      stubFetch({ 'GET /api/me': { body: linked } });
+      renderAt('/profile?link_error=taken');
+      expect(await screen.findByRole('alert')).toHaveTextContent('That account already signs in to another ficsmap account.');
+    });
+  });
 });

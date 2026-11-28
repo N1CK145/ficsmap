@@ -1,7 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Db } from '../db/db.js';
-import { isServerOwner } from './users.js';
+import { isServerOwner, type ServerOwners } from './users.js';
 import { bumpRev } from './worlds.js';
+import { recordActivity } from './activity.js';
 
 /**
  * Invite links (`/invite/<token>`) carry a random one-time token. Only its SHA-256 is stored in `invites`; using the
@@ -41,13 +42,13 @@ export function createInvite(db: Db, o: { worldId: string | null; createdBy: num
  * The invite behind `token` while it can still be used: not used, not expired, not revoked, and for a general invite
  * its creator still a server owner (taking someone off OWNER_DISCORD_IDS invalidates the links they handed out).
  */
-export function findInvite(db: Db, token: string, now: number, ownerIds: Set<string>): Invite | null {
+export function findInvite(db: Db, token: string, now: number, owners: ServerOwners): Invite | null {
   if (!TOKEN_RE.test(token)) return null;
   const hash = hashToken(token);
   const row = db.prepare('SELECT world_id, created_by, expires_at FROM invites WHERE token_hash = ? AND expires_at > ?')
     .get(hash, now) as { world_id: string | null; created_by: number; expires_at: number } | undefined;
   if (!row) return null;
-  if (row.world_id === null && !isServerOwner(db, ownerIds, row.created_by)) return null;
+  if (row.world_id === null && !isServerOwner(db, owners, row.created_by)) return null;
   return { hash, worldId: row.world_id, createdBy: row.created_by, expiresAt: row.expires_at };
 }
 
@@ -70,6 +71,7 @@ export function acceptInvite(db: Db, userId: number, invite: Invite, now: number
   db.prepare("INSERT INTO world_members(world_id, user_id, joined_at, joined_via) VALUES (?, ?, ?, 'invite')")
     .run(worldId, userId, now);
   bumpRev(db, worldId);
+  recordActivity(db, worldId, { kind: 'join', userId }, now);
   return { kind: 'joined', worldId };
 }
 

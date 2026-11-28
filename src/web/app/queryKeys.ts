@@ -8,6 +8,7 @@ export const queryKeys = {
   uploadTokens: (worldId: string) => ['upload-tokens', worldId] as const,
   marks: (worldId: string) => ['marks', worldId] as const,
   routes: (worldId: string) => ['routes', worldId] as const,
+  activity: (worldId: string) => ['activity', worldId] as const,
   snapshots: (worldId: string) => ['snapshots', worldId] as const,
   snapshot: (worldId: string, id: number) => ['snapshot', worldId, id] as const,
   dataset: (version: string) => ['dataset', version] as const,

@@ -20,13 +20,26 @@ describe('loadConfig', () => {
     expect(c.ownerDiscordIds).toEqual(new Set(['1', '2']));
   });
   it('warns at startup when OWNER_DISCORD_IDS is empty (nobody could log in without an invite)', () => {
-    expect(configWarnings(loadConfig(base))).toEqual([expect.stringContaining('OWNER_DISCORD_IDS is empty')]);
+    expect(configWarnings(loadConfig(base))).toEqual([expect.stringContaining('OWNER_DISCORD_IDS and OWNER_STEAM_IDS are empty')]);
+    expect(configWarnings(loadConfig({ ...base, OWNER_STEAM_IDS: '76561197960287930' }))).toEqual([]);
     expect(configWarnings(loadConfig({ ...base, OWNER_DISCORD_IDS: ' , ' }))).toHaveLength(1);
     expect(configWarnings(loadConfig({ ...base, OWNER_DISCORD_IDS: '1' }))).toEqual([]);
+  });
+  it('reads OWNER_STEAM_IDS and an optional STEAM_API_KEY', () => {
+    expect(loadConfig(base)).toMatchObject({ ownerSteamIds: new Set(), steamApiKey: null });
+    expect(loadConfig({ ...base, OWNER_STEAM_IDS: '1, 2', STEAM_API_KEY: ' k ' })).toMatchObject({ ownerSteamIds: new Set(['1', '2']), steamApiKey: 'k' });
   });
   it('applies defaults', () => {
     const c = loadConfig(base);
     expect(c).toMatchObject({ port: 3000, trustProxy: false, cookieSecure: true, logLevel: 'info', webDir: './dist/web' });
+  });
+  it('CLIENT_IP_HEADER is lower-cased, off by default and warned about without TRUST_PROXY', () => {
+    expect(loadConfig(base).clientIpHeader).toBe(false);
+    expect(loadConfig({ ...base, CLIENT_IP_HEADER: ' ' }).clientIpHeader).toBe(false);
+    const c = loadConfig({ ...base, OWNER_DISCORD_IDS: '1', CLIENT_IP_HEADER: 'CF-Connecting-IP' });
+    expect(c.clientIpHeader).toBe('cf-connecting-ip');
+    expect(configWarnings(c)).toEqual([expect.stringContaining('CLIENT_IP_HEADER')]);
+    expect(configWarnings({ ...c, trustProxy: '10.0.0.1' })).toEqual([]);
   });
   it('COOKIE_SECURE=false disables secure cookies', () => {
     expect(loadConfig({ ...base, COOKIE_SECURE: 'false' }).cookieSecure).toBe(false);

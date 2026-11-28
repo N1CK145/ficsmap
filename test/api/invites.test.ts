@@ -144,7 +144,7 @@ describe('invite API', () => {
     const body = res.json() as { url: string; expiresAt: number };
     expect(body.url.startsWith('https://ficsmap.test/invite/')).toBe(true);
     expect(typeof body.expiresAt).toBe('number');
-    const invite = findInvite(deps.db, body.url.split('/invite/')[1]!, Date.now(), deps.config.ownerDiscordIds);
+    const invite = findInvite(deps.db, body.url.split('/invite/')[1]!, Date.now(), deps.config);
     expect(invite?.worldId).toBe(world.id);
     expect((deps.db.prepare('SELECT rev FROM worlds WHERE id = ?').get(world.id) as { rev: number }).rev).toBe(rev);
     expect(n(deps.db, 'invites')).toBe(1);
@@ -273,7 +273,7 @@ describe('login with invite', () => {
     expect(failed.headers.location).toBe(`/invite/${t}`);
     expect(failed.cookies.find(c => c.name === 'sid')).toBeUndefined();
     expect([n(deps.db, 'invites'), n(deps.db, 'users'), n(deps.db, 'sessions')]).toEqual([1, 1, 0]);
-    expect(findInvite(deps.db, t, Date.now(), deps.config.ownerDiscordIds)).not.toBeNull();
+    expect(findInvite(deps.db, t, Date.now(), deps.config)).not.toBeNull();
   });
   it('a cancelled callback with a tampered oauth_tx stays on the login page', async () => {
     const { app, token } = await setup();
@@ -356,7 +356,7 @@ describe('general invites', () => {
     expect(res.headers['cache-control']).toBe('no-store');
     const body = res.json() as { url: string; expiresAt: number };
     expect(body.url.startsWith('https://ficsmap.test/invite/')).toBe(true);
-    expect(findInvite(deps.db, body.url.split('/invite/')[1]!, Date.now(), deps.config.ownerDiscordIds)).toMatchObject({ worldId: null });
+    expect(findInvite(deps.db, body.url.split('/invite/')[1]!, Date.now(), deps.config)).toMatchObject({ worldId: null });
     expect(n(deps.db, 'invites')).toBe(1);
     createUser('guest');
     expect((await app.inject({ url: '/api/invite-link', headers: { cookie: await login('guest') } })).statusCode).toBe(403);

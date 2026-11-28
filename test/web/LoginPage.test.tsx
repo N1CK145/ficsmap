@@ -19,6 +19,12 @@ describe('LoginPage', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('offers Steam with the same returnTo', () => {
+    renderAt(`/login?returnTo=${encodeURIComponent('/w/abc')}`);
+    expect(screen.getByRole('link', { name: 'Sign in with Steam' }))
+      .toHaveAttribute('href', `/auth/steam/login?returnTo=${encodeURIComponent('/w/abc')}`);
+  });
+
   it('falls back to / for a returnTo that is not a local path', () => {
     renderAt(`/login?returnTo=${encodeURIComponent('//evil.example')}`);
     expect(screen.getByRole('link', { name: 'Sign in with Discord' }))

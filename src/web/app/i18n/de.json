@@ -26,6 +26,7 @@
     "inviteOnly": "Nur mit Einladung: Du brauchst einen Einladungslink von jemandem mit einer eigenen Welt, oder du betreibst dein eigenes ficsmap.",
     "tagline": "Erfasse deine Satisfactory-Sammelobjekte gemeinsam mit deinen Freunden.",
     "signIn": "Mit Discord anmelden",
+    "signInSteam": "Mit Steam anmelden",
     "error": {
       "invite_only": "ficsmap ist nur mit Einladung nutzbar. Bitte einen Freund um einen Einladungslink.",
       "cancelled": "Die Anmeldung wurde abgebrochen. Du kannst es jederzeit erneut versuchen.",
@@ -69,6 +70,25 @@
       "title": "Zu ficsmap einladen",
       "linkLabel": "Allgemeiner Einladungslink",
       "hint": "Damit kann eine Person ein Konto anlegen, ohne einer Welt beizutreten. Nur Server-Owner sehen das."
+    },
+    "signIn": {
+      "title": "Anmeldung",
+      "hint": "Melde dich mit Discord oder Steam an. Verknüpfe beide, um beide zu nutzen; deine Welten bleiben dieselben.",
+      "notLinked": "Nicht verknüpft",
+      "link": "Mit {provider} verknüpfen",
+      "unlink": "Entfernen",
+      "unlinkNamed": "Anmeldung mit {provider} entfernen",
+      "unlinkConfirm": "Anmeldung mit {provider} entfernen? Du kannst sie später wieder verknüpfen.",
+      "unlinked": "Anmeldung mit {provider} entfernt",
+      "unlinkFailed": "Die Anmeldung konnte nicht entfernt werden. Bitte versuche es erneut.",
+      "linked": "{provider} ist jetzt mit deinem Konto verknüpft.",
+      "error": {
+        "taken": "Mit diesem Konto meldet sich schon ein anderes ficsmap-Konto an.",
+        "provider_taken": "Dein Konto hat schon ein anderes Konto dieses Anbieters. Entferne es zuerst.",
+        "cancelled": "Verknüpfen abgebrochen.",
+        "expired": "Das Verknüpfen hat zu lange gedauert. Bitte versuche es erneut.",
+        "failed": "Das Verknüpfen hat nicht geklappt. Bitte versuche es erneut."
+      }
     }
   },
   "worlds": {
@@ -117,7 +137,8 @@
   "live": {
     "live": "Live",
     "connecting": "Verbinde…",
-    "offline": "Offline"
+    "offline": "Offline",
+    "alsoHere": "Auch gerade da: {names}"
   },
   "biomes": {
     "title": "Biome",
@@ -579,7 +600,15 @@
       "confirmLabel": "Zur Bestätigung den Namen der Welt eingeben",
       "delete": "Welt löschen",
       "deleted": "Welt gelöscht",
-      "failed": "Die Welt konnte nicht gelöscht werden. Bitte versuche es erneut."
+      "failed": "Die Welt konnte nicht gelöscht werden. Bitte versuche es erneut.",
+      "transferHint": "Übergib die Welt an ein anderes Mitglied. Du bleibst als Admin dabei.",
+      "transferLabel": "Neuer Besitzer",
+      "transferChoose": "Mitglied wählen",
+      "transfer": "Übergeben",
+      "transferConfirm": "{name} zum Besitzer von {world} machen? Du wirst Admin; nur {name} kann die Welt dann löschen oder zurückgeben.",
+      "transferAction": "Zum Besitzer machen",
+      "transferred": "{name} besitzt jetzt {world}",
+      "transferFailed": "Die Welt konnte nicht übergeben werden. Bitte versuche es erneut."
     }
   },
   "list": {
@@ -2012,5 +2041,28 @@
     "more": "+{count, number} weitere",
     "empty": "Leer",
     "showOnMap": "Auf der Karte"
+  },
+  "activity": {
+    "title": "Aktivität",
+    "hereNow": "Gerade da: {names}",
+    "alone": "Sonst ist gerade niemand da.",
+    "recent": "Letzte Änderungen",
+    "empty": "Noch ist nichts passiert.",
+    "loadFailed": "Die Aktivität konnte nicht geladen werden.",
+    "someone": "Jemand",
+    "kind": {
+      "marks": "{name} hat {count, plural, one {# Häkchen} other {# Häkchen}} geändert",
+      "import": "{name} hat {count, plural, one {einen Spielstand} other {# Spielstände}} importiert",
+      "snapshots": "{name} hat {count, plural, one {einen Spielstand} other {# Spielstände}} zum Fabrikplan hinzugefügt",
+      "routes": "{name} hat Routen bearbeitet",
+      "rename": "{name} hat die Welt in {detail} umbenannt",
+      "join": "{name} ist beigetreten",
+      "leave": "{name} hat die Welt verlassen",
+      "remove": "{name} hat {target} entfernt",
+      "roleAdmin": "{name} hat {target} zum Admin gemacht",
+      "roleMember": "{name} hat {target} die Admin-Rechte entzogen",
+      "stepDown": "{name} hat die Admin-Rechte abgegeben",
+      "owner": "{name} hat die Welt an {target} übergeben"
+    }
   }
 }

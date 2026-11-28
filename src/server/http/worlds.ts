@@ -4,6 +4,7 @@ import type { WorldDto, WorldRole, WorldSummaryDto } from '../../shared/api.js';
 import type { AppDeps } from '../app.js';
 import { makeWorldGuards, requireUser } from '../auth/guards.js';
 import type { Db } from '../db/db.js';
+import { recordActivity } from '../domain/activity.js';
 import { createWorld, deleteWorld, getWorld, listMembers, listWorlds, renameWorld, type WorldRow } from '../domain/worlds.js';
 
 const NameBody = z.object({ name: z.string().trim().min(1).max(80) });
@@ -50,6 +51,7 @@ export function registerWorldRoutes(app: FastifyInstance, deps: AppDeps): void {
   app.patch('/api/worlds/:id', { preHandler: requireAdmin }, async (req): Promise<WorldDto> => {
     const { name } = NameBody.parse(req.body);
     const rev = renameWorld(db, req.world!.id, name);
+    recordActivity(db, req.world!.id, { kind: 'rename', userId: req.user!.id, detail: name }, now());
     deps.hub!.broadcast(req.world!.id, { type: 'world', name, rev });
     return worldDto(db, getWorld(db, req.world!.id)!, req.role!);
   });

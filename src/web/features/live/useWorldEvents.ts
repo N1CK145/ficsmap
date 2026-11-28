@@ -4,6 +4,7 @@ import type { SseEvent } from '../../../shared/sse.js';
 import { collect, dispatchSse, type WorldCtx } from '../../app/feature.js';
 import { useFeatures } from '../../app/FeaturesContext.js';
 import { queryKeys } from '../../app/queryKeys.js';
+import { usePresence } from './presence.js';
 
 export type LiveStatus = 'live' | 'connecting' | 'offline';
 
@@ -14,7 +15,7 @@ export const useLiveStatus = create<{ status: LiveStatus; setStatus(s: LiveStatu
 }));
 
 const EVENT_TYPES = Object.keys({
-  mark: true, 'marks-bulk': true, import: true, world: true, members: true, removed: true, deleted: true, routes: true, snapshots: true,
+  mark: true, 'marks-bulk': true, import: true, world: true, members: true, removed: true, deleted: true, routes: true, snapshots: true, presence: true,
 } satisfies Record<SseEvent['type'], true>);
 
 const RECONNECT_MIN_MS = 2000;
@@ -56,12 +57,13 @@ export function useWorldEvents(worldId: string, ctx: WorldCtx): LiveStatus {
       es.onopen = () => {
         delay = RECONNECT_MIN_MS;
         setStatus('live');
-        for (const queryKey of [queryKeys.world(worldId), queryKeys.marks(worldId), queryKeys.routes(worldId), queryKeys.snapshots(worldId)]) {
+        for (const queryKey of [queryKeys.world(worldId), queryKeys.marks(worldId), queryKeys.routes(worldId), queryKeys.snapshots(worldId), queryKeys.activity(worldId)]) {
           void queryClient.invalidateQueries({ queryKey });
         }
       };
       es.onerror = () => {
         setStatus('offline');
+        usePresence.getState().clear();
         // While CONNECTING the browser retries by itself. An answer that is not a stream closes it for
         // good: a proxy 502 during a restart, or a 401/404 when the session ended or the world is gone.
         // Refetching me and the world lets those surface (login redirect, "World not found"); this
@@ -81,6 +83,7 @@ export function useWorldEvents(worldId: string, ctx: WorldCtx): LiveStatus {
       clearTimeout(timer);
       source?.close();
       setStatus('connecting');
+      usePresence.getState().clear();
     };
   }, [worldId, queryClient, features]);
 

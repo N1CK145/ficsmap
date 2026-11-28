@@ -1,10 +1,13 @@
 /**
  * A user's role in one world: the owner (exactly one, `worlds.owner_id`), admins (named by the owner) and members.
- * Admins may do everything the owner may, except deleting the world, changing roles and removing other admins.
+ * Admins may do everything the owner may, except deleting the world, handing it over, changing roles and removing other admins.
  */
 export type WorldRole = 'owner' | 'admin' | 'member';
 
-/** The role a member can be given (`PUT /api/worlds/:id/members/:userId/role`); ownership is never handed over. */
+/**
+ * The role a member can be given (`PUT /api/worlds/:id/members/:userId/role`). Ownership moves only by a transfer
+ * (`PUT /api/worlds/:id/owner`), which leaves the former owner an admin.
+ */
 export type MemberRole = Exclude<WorldRole, 'owner'>;
 
 const RANK: Record<WorldRole, number> = { member: 0, admin: 1, owner: 2 };

@@ -4,6 +4,7 @@ import type { SnapshotSummary } from '../../shared/factory/snapshot.js';
 import { MAX_SNAPSHOT_GZIP_BYTES } from '../../shared/factory/storage.js';
 import { makeWorldGuards } from '../auth/guards.js';
 import { HttpError } from '../errors.js';
+import { recordActivity } from '../domain/activity.js';
 import {
   decodeStored, decodeUpload, deleteSnapshot, encodeSnapshot, listSnapshots, parseSnapshot, snapshotData, snapshotDelta, storeSnapshot,
 } from '../domain/snapshots.js';
@@ -59,6 +60,7 @@ export function registerSnapshotRoutes(app: FastifyInstance, deps: AppDeps): voi
       const snapshot = parseSnapshot(req.body);
       const gz = await encodeSnapshot(snapshot);
       const { summary, rev } = storeSnapshot(db, req.world!.id, snapshot, gz, req.user!.id, now());
+      recordActivity(db, req.world!.id, { kind: 'snapshots', userId: req.user!.id }, now());
       hub!.broadcast(req.world!.id, { type: 'snapshots', rev });
       return reply.code(201).send(summary);
     });
