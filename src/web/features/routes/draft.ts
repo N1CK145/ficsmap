@@ -2,6 +2,7 @@ import type { RouteDto } from '../../../shared/api.js';
 import type { DatasetIndex, Item } from '../../../shared/dataset.js';
 import { distance3d, UNITS_PER_METER } from '../../../shared/geo.js';
 import { MAX_ROUTE_STOPS, optimizeRoute, pathLength } from '../../../shared/route.js';
+import { placeOf, type StopCave } from './routeCaves.js';
 import type { Vec3 } from '../../../shared/types.js';
 
 /** A route being looked at or edited (spec §10.6). `id` is null until the route is saved. */
@@ -91,14 +92,18 @@ export function dropUnknown(d: RouteDraft, index: DatasetIndex): { draft: RouteD
   return { draft: { ...d, start: startKnown ? d.start : null, stops }, dropped };
 }
 
-const point = (i: Item) => ({ id: i.name, x: i.x, y: i.y, z: i.z });
+/** Per item its cave (`stopCaves`), or null: the planner then measures straight lines. */
+type Caves = ReadonlyMap<string, StopCave> | null;
 
-/** The draft in optimised order; all its actors must be on the map (see `dropUnknown`). */
-export function optimizeDraft(d: RouteDraft, index: DatasetIndex): RouteDraft {
+/**
+ * The draft in optimised order; all its actors must be on the map (see `dropUnknown`). With `caves`, stops in a cave
+ * are reached through its entrances (`leg`).
+ */
+export function optimizeDraft(d: RouteDraft, index: DatasetIndex, caves: Caves = null): RouteDraft {
   const start = d.start === null ? undefined : index.byName.get(d.start);
   if (!start || d.stops.length === 0) return d;
   const stops = d.stops.flatMap(s => index.byName.get(s) ?? []);
-  return draftReducer(d, { type: 'optimize', order: optimizeRoute(start, stops.map(point)) }).draft;
+  return draftReducer(d, { type: 'optimize', order: optimizeRoute(placeOf(start, caves), stops.map(s => placeOf(s, caves))) }).draft;
 }
 
 /** Up to `limit` names of uncollected `items` nearest to `from` (straight line), without `exclude`. */
@@ -112,22 +117,23 @@ export function nearestUncollected(from: Vec3, items: Item[], isDone: (n: string
 }
 
 /** Done stops first in their current order, then the rest optimised from the last done stop (or the start). */
-export function replan(start: Item, stops: Item[], isDone: (n: string) => boolean): string[] {
+export function replan(start: Item, stops: Item[], isDone: (n: string) => boolean, caves: Caves = null): string[] {
   const done = stops.filter(s => isDone(s.name));
   const undone = stops.filter(s => !isDone(s.name));
-  return [...done.map(s => s.name), ...optimizeRoute(done.at(-1) ?? start, undone.map(point))];
+  return [...done.map(s => s.name), ...optimizeRoute(placeOf(done.at(-1) ?? start, caves), undone.map(s => placeOf(s, caves)))];
 }
 
 /**
  * Metres of the whole path, and of what is left: from the last done stop (or the start) through the
- * undone stops in route order.
+ * undone stops in route order (through cave entrances with `caves`).
  */
-export function routeStats(start: Item, stops: Item[], isDone: (n: string) => boolean): { totalM: number; leftM: number; done: number; count: number } {
+export function routeStats(start: Item, stops: Item[], isDone: (n: string) => boolean, caves: Caves = null): { totalM: number; leftM: number; done: number; count: number } {
   const undone = stops.filter(s => !isDone(s.name));
   const lastDone = stops.findLast(s => isDone(s.name)) ?? start;
+  const place = (i: Item) => placeOf(i, caves);
   return {
-    totalM: pathLength(start, stops) / UNITS_PER_METER,
-    leftM: pathLength(lastDone, undone) / UNITS_PER_METER,
+    totalM: pathLength(place(start), stops.map(place)) / UNITS_PER_METER,
+    leftM: pathLength(place(lastDone), undone.map(place)) / UNITS_PER_METER,
     done: stops.length - undone.length,
     count: stops.length,
   };

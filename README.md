@@ -279,7 +279,7 @@ The app shows "ficsmap vX.Y.Z" with a link to the GitHub release. `GET /api/vers
 - Self-hosting needs your own Discord application.
 - The map dataset is not included and has to be built from your own game install. Crash-site data are not published yet.
 - The data is from game version 1.2.5.0.
-- Route distances are straight lines; terrain is not taken into account.
+- Route distances are straight lines; terrain is not taken into account. A stop in a cave is reached through the cave's entrance that makes the leg shortest (with cave data in the dataset); from the entrance to the stop, and between stops of one cave, the leg is again a straight line, since the tunnels' real paths are not known.
 - Berries, nuts and mushrooms are not tracked.
 - One instance per database: live sync and rate limits are held in memory, and SQLite has a single writer. ficsmap does not scale out to several containers.
 

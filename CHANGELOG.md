@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Route planner: stops in a cave are reached through the cave's entrance that makes the way shortest (with cave data in the dataset): distances, the optimised order and re-planning use these legs, stops of one cave stay together without a detour outside, the route line on the map bends at the entrance, and the stop list names the cave and the entrance ("Höhle 32 · Eingang 2"). From the entrance to the stop the leg is a straight line. Without cave data the planner measures straight lines as before.
 - Crash sites: threats, notes and location hints show in German in the German UI (dataset `crash-sites.json`: `threats[].de`, `notesDe`, `items[].whereDe`; older datasets stay English). Creatures among the threats carry the game's own names; German threat and item names are found in the search. Needs the updated maintainer data and a new `crash-sites` dataset part.
 
 - Dataset pipeline: the extractor patch writes the game's string tables in English and German (`--string-tables-out`), and `scripts/creature-names.ts` writes the creature names of the map from them (`--check` compares only), so they can be regenerated after a game update.
