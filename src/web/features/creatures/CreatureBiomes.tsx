@@ -25,11 +25,17 @@ export function CreatureBiomes({ version, data, hidden }: { version: string; dat
   const shapes = useBiomeCollection(version);
   const ds = useDatasetQuery(version).data?.ds;
   const scope = useUiStore(s => s.biomeScope);
-  const rows = useMemo(() => {
+  // The biome of each spawner once per dataset (about 0.1 s); stepping through the saves only recounts.
+  const biomes = useMemo(() => {
     if (!shapes) return null;
+    const at = biomeLocator(shapes, SNAP_UNITS);
+    return new Map(data.spawners.map(s => [s.name, at(s.x, s.y)]));
+  }, [shapes, data.spawners]);
+  const rows = useMemo(() => {
+    if (!biomes) return null;
     const shown = data.spawners.filter(s => !hidden.includes(s.family));
-    return creaturesByBiome(shown, data.kills, biomeLocator(shapes, SNAP_UNITS));
-  }, [shapes, data, hidden]);
+    return creaturesByBiome(shown, data.kills, s => biomes.get(s.name) ?? -1);
+  }, [biomes, data, hidden]);
   if (!rows || !ds) return null;
   const open = rows.filter(r => r.biome >= 0 && r.open > 0).length;
   const pick = (biome: number) => {

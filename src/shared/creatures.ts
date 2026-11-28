@@ -83,16 +83,16 @@ export function buildCreatures(raw: unknown, version: string): CreaturesFile {
 export interface BiomeCreatures { biome: number; open: number; total: number }
 
 /**
- * Per biome (`biomeOf`, -1 outside every biome), how many of `spawners` still have living creatures: every spawner not
+ * Per biome (`biomeOf` of each spawner, -1 outside every biome), how many of `spawners` still have living creatures: every spawner not
  * `dead` right now (`killState`; back again or never killed), of all. Most open first, then by biome; biomes without a
  * spawner are left out, cleared ones (0 open) stay.
  */
 export function creaturesByBiome(
-  spawners: readonly CreatureSpawner[], kills: ReadonlyMap<string, SpawnerKills>, biomeOf: (x: number, y: number) => number,
+  spawners: readonly CreatureSpawner[], kills: ReadonlyMap<string, SpawnerKills>, biomeOf: (s: CreatureSpawner) => number,
 ): BiomeCreatures[] {
   const by = new Map<number, BiomeCreatures>();
   for (const s of spawners) {
-    const biome = biomeOf(s.x, s.y);
+    const biome = biomeOf(s);
     let row = by.get(biome);
     if (!row) by.set(biome, (row = { biome, open: 0, total: 0 }));
     row.total++;

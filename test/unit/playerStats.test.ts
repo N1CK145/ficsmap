@@ -170,7 +170,7 @@ describe('creatures', () => {
     ] });
     // A and D dead now, B killed before and back, the rest never killed.
     const kills = killsByName([['A', 2, 1], ['B', 1, 0], ['D', 1, 1]]);
-    const biomeOf = (x: number) => (x < 50 ? 0 : x < 500 ? 1 : -1);
+    const biomeOf = ({ x }: { x: number }) => (x < 50 ? 0 : x < 500 ? 1 : -1);
     expect(creaturesByBiome(spawners, kills, biomeOf)).toEqual([
       { biome: 0, open: 2, total: 3 },
       { biome: 1, open: 1, total: 2 },

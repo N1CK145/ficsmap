@@ -73,5 +73,20 @@ export function biomeLocator(fc: BiomeCollection, snapUnits: number): (x: number
     while (shapes.length <= idx) shapes.push({ id: '', name: '', rings: [] });
     for (const poly of polygonsOf(f.geometry ?? null)) shapes[idx]!.rings.push(...poly);
   }
-  return (x, y) => assignBiome(x, y, shapes, snapUnits);
+  // Bounding boxes, grown by the snap distance: a point outside one can be neither in that biome nor near enough.
+  const boxes = shapes.map(b => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const ring of b.rings) for (const [px, py] of ring) {
+      minX = Math.min(minX, px!); minY = Math.min(minY, py!); maxX = Math.max(maxX, px!); maxY = Math.max(maxY, py!);
+    }
+    return { minX: minX - snapUnits, minY: minY - snapUnits, maxX: maxX + snapUnits, maxY: maxY + snapUnits };
+  });
+  const empty: BiomeShape = { id: '', name: '', rings: [] };
+  return (x, y) => {
+    const near = shapes.map((b, i) => {
+      const box = boxes[i]!;
+      return x >= box.minX && x <= box.maxX && y >= box.minY && y <= box.maxY ? b : empty;
+    });
+    return assignBiome(x, y, near, snapUnits);
+  };
 }
