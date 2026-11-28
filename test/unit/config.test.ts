@@ -20,9 +20,14 @@ describe('loadConfig', () => {
     expect(c.ownerDiscordIds).toEqual(new Set(['1', '2']));
   });
   it('warns at startup when OWNER_DISCORD_IDS is empty (nobody could log in without an invite)', () => {
-    expect(configWarnings(loadConfig(base))).toEqual([expect.stringContaining('OWNER_DISCORD_IDS is empty')]);
+    expect(configWarnings(loadConfig(base))).toEqual([expect.stringContaining('OWNER_DISCORD_IDS and OWNER_STEAM_IDS are empty')]);
+    expect(configWarnings(loadConfig({ ...base, OWNER_STEAM_IDS: '76561197960287930' }))).toEqual([]);
     expect(configWarnings(loadConfig({ ...base, OWNER_DISCORD_IDS: ' , ' }))).toHaveLength(1);
     expect(configWarnings(loadConfig({ ...base, OWNER_DISCORD_IDS: '1' }))).toEqual([]);
+  });
+  it('reads OWNER_STEAM_IDS and an optional STEAM_API_KEY', () => {
+    expect(loadConfig(base)).toMatchObject({ ownerSteamIds: new Set(), steamApiKey: null });
+    expect(loadConfig({ ...base, OWNER_STEAM_IDS: '1, 2', STEAM_API_KEY: ' k ' })).toMatchObject({ ownerSteamIds: new Set(['1', '2']), steamApiKey: 'k' });
   });
   it('applies defaults', () => {
     const c = loadConfig(base);

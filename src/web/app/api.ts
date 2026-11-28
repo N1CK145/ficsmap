@@ -13,7 +13,7 @@ export class ApiClientError extends Error {
 
 const KNOWN_CODES: ReadonlySet<string> = new Set(Object.keys({
   unauthorized: true, forbidden: true, not_found: true, invalid_body: true,
-  invalid_origin: true, rate_limited: true, invite_invalid: true, limit_reached: true, session_mismatch: true, busy: true, maintenance: true,
+  invalid_origin: true, rate_limited: true, invite_invalid: true, limit_reached: true, session_mismatch: true, busy: true, maintenance: true, last_identity: true,
   internal: true,
 } satisfies Record<ApiErrorCode, true>));
 

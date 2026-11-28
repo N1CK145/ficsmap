@@ -8,6 +8,10 @@ export interface Config {
   discordClientId: string;
   discordClientSecret: string;
   ownerDiscordIds: Set<string>;
+  /** SteamID64s that may sign in with Steam without an invite (server owners, like OWNER_DISCORD_IDS). */
+  ownerSteamIds: Set<string>;
+  /** Steam Web API key for names and avatars of Steam accounts; null shows the SteamID instead. */
+  steamApiKey: string | null;
   sessionSecret: string;
   trustProxy: string | false;
   /**
@@ -29,6 +33,8 @@ const schema = z.object({
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_CLIENT_SECRET: z.string().min(1),
   OWNER_DISCORD_IDS: z.string().default(''),
+  OWNER_STEAM_IDS: z.string().default(''),
+  STEAM_API_KEY: z.string().optional(),
   SESSION_SECRET: z.string().min(32),
   TRUST_PROXY: z.string().optional(),
   CLIENT_IP_HEADER: z.string().optional(),
@@ -82,6 +88,8 @@ export function latestDatasetVersion(dir: string): string {
   return versions[versions.length - 1]!;
 }
 
+const idSet = (list: string): Set<string> => new Set(list.split(',').map(s => s.trim()).filter(Boolean));
+
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
   const e = schema.parse(env);
   return {
@@ -89,7 +97,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     port: e.PORT,
     discordClientId: e.DISCORD_CLIENT_ID,
     discordClientSecret: e.DISCORD_CLIENT_SECRET,
-    ownerDiscordIds: new Set(e.OWNER_DISCORD_IDS.split(',').map(s => s.trim()).filter(Boolean)),
+    ownerDiscordIds: idSet(e.OWNER_DISCORD_IDS),
+    ownerSteamIds: idSet(e.OWNER_STEAM_IDS),
+    steamApiKey: e.STEAM_API_KEY?.trim() || null,
     sessionSecret: e.SESSION_SECRET,
     trustProxy: e.TRUST_PROXY ? e.TRUST_PROXY : false,
     clientIpHeader: e.CLIENT_IP_HEADER?.trim() ? e.CLIENT_IP_HEADER.trim().toLowerCase() : false,
@@ -105,8 +115,8 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
 /** Valid but suspicious settings, logged as warnings at startup. */
 export function configWarnings(c: Config): string[] {
   const out: string[] = [];
-  if (c.ownerDiscordIds.size === 0) {
-    out.push('OWNER_DISCORD_IDS is empty: only existing accounts and invited users can log in');
+  if (c.ownerDiscordIds.size === 0 && c.ownerSteamIds.size === 0) {
+    out.push('OWNER_DISCORD_IDS and OWNER_STEAM_IDS are empty: only existing accounts and invited users can log in');
   }
   if (c.clientIpHeader && !c.trustProxy) {
     out.push('CLIENT_IP_HEADER is set but TRUST_PROXY is empty: the header is ignored');

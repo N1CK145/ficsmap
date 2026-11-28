@@ -7,6 +7,7 @@ import type { ApiError, ApiErrorCode } from '../shared/api.js';
 import type { Config } from './config.js';
 import type { Db } from './db/db.js';
 import type { DiscordClient } from './auth/discord.js';
+import type { SteamClient } from './auth/steam.js';
 import { HttpError } from './errors.js';
 import { registerSessionLoader } from './auth/guards.js';
 import { registerAuthRoutes } from './http/auth.js';
@@ -34,6 +35,8 @@ export interface AppDeps {
   db: Db;
   dataset: DatasetIndex;
   discord: DiscordClient;
+  /** Sign-in with Steam; default the real OpenID client (tests pass a fake). */
+  steam?: SteamClient;
   now?: () => number;
   hub?: SseHub;
   /** Parses saves uploaded by the save watcher; default a worker pool on the dataset (tests pass a fake). */

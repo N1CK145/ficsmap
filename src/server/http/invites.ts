@@ -24,7 +24,7 @@ export function registerInviteRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   // A general invite (no world): only server owners (OWNER_DISCORD_IDS) may hand them out.
   app.get('/api/invite-link', { preHandler: requireUser }, async (req, reply) => {
-    if (!isServerOwner(db, config.ownerDiscordIds, req.user!.id)) {
+    if (!isServerOwner(db, config, req.user!.id)) {
       throw new HttpError(403, 'forbidden', 'Only server owners can create general invites');
     }
     const { token, expiresAt } = createInvite(db, { worldId: null, createdBy: req.user!.id, now: now() });
@@ -50,7 +50,7 @@ export function registerInviteRoutes(app: FastifyInstance, deps: AppDeps): void 
     const html = (page: InvitePage) => reply.type('text/html; charset=utf-8').send(renderInvitePage(page, locale));
     const token = (req.params as { token: string }).token;
 
-    const invite = findInvite(db, token, now(), config.ownerDiscordIds);
+    const invite = findInvite(db, token, now(), config);
     // Visitors learn nothing; a logged-in user is told the invite is no longer valid (spec §8).
     if (!invite) return html({ kind: req.user ? 'no_longer_valid' : 'invalid' });
 
@@ -76,7 +76,7 @@ export function registerInviteRoutes(app: FastifyInstance, deps: AppDeps): void 
     const userId = req.user.id;
     // Looked up again inside the transaction, so two tabs cannot both use the link.
     const result = db.transaction(() => {
-      const current = findInvite(db, token, now(), config.ownerDiscordIds);
+      const current = findInvite(db, token, now(), config);
       return current ? acceptInvite(db, userId, current, now()) : { kind: 'invalid' as const };
     })();
     if (result.kind === 'invalid') return html({ kind: 'no_longer_valid' });

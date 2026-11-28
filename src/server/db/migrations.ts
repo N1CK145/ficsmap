@@ -116,6 +116,11 @@ CREATE TABLE invites(token_hash BLOB PRIMARY KEY,
 CREATE INDEX invites_world ON invites(world_id);
 CREATE INDEX invites_expires ON invites(expires_at);
 `,
+  // 9: sign-in with Steam next to Discord (src/server/auth/steam.ts). An account has at most one identity per provider;
+  // a second one is linked from the profile (src/server/domain/users.ts, linkIdentity).
+  `
+CREATE UNIQUE INDEX identities_user_provider ON identities(user_id, provider);
+`,
 ];
 
 export function migrate(db: Db): void {
