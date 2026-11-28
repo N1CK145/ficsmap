@@ -58,6 +58,14 @@
     "saved": "Saved",
     "saveFailed": "Not saved. The setting applies on this device for now.",
     "languageHint": "Remembered on this device.",
+    "theme": {
+      "title": "Appearance",
+      "label": "Colours",
+      "dark": "Dark",
+      "light": "Light",
+      "system": "Like the system",
+      "hint": "The map stays dark in both. Saved to your account."
+    },
     "dateFormat": {
       "title": "Date and time",
       "label": "Format",
@@ -132,7 +140,7 @@
     "hideSidebar": "Hide sidebar",
     "showSidebar": "Show sidebar",
     "resizeSidebar": "Resize sidebar",
-    "resizeSidebarHint": "Drag or use the arrow keys; double-click to fit the content"
+    "resizeSidebarHint": "Drag or use the arrow keys; double-click for the default width"
   },
   "live": {
     "live": "Live",
@@ -623,7 +631,8 @@
     "changedBy": "Last changed by",
     "showOnMap": "Show on map",
     "empty": "No items match the current filters.",
-    "none": "—"
+    "none": "—",
+    "inCave": "In a cave"
   },
   "mobile": {
     "sheet": {

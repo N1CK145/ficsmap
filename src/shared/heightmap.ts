@@ -31,6 +31,33 @@ export interface HeightmapMeta {
 
 export const NO_HEIGHT = -32768;
 
+/** The open sea: ground below this height (cm) that is connected to the edge of the height grid (`openSea`). */
+export const SEA_LEVEL = -1500;
+
+/**
+ * The open sea of a `w × h` grid: every cell where `low(k)` holds (ground at or below SEA_LEVEL) that is connected
+ * to the grid's edge over such cells (4-neighbours, breadth-first from the edge); 1 = sea. Low ground inland stays
+ * land however deep it is (Blue Crater, the Grass Fields crater, much of the south lies below -15 m), as its rim cuts
+ * it off from the sea. `low` must be false for cells without a surface (the void off the map's south and east
+ * edges), else the sea would run from the void into the low ground of the south.
+ */
+export function openSea(w: number, h: number, low: (k: number) => boolean): Uint8Array {
+  const sea = new Uint8Array(w * h);
+  const queue = new Int32Array(w * h);
+  let head = 0, tail = 0;
+  const push = (k: number) => { if (!sea[k] && low(k)) { sea[k] = 1; queue[tail++] = k; } };
+  for (let i = 0; i < w; i++) { push(i); push((h - 1) * w + i); }
+  for (let j = 0; j < h; j++) { push(j * w); push(j * w + w - 1); }
+  while (head < tail) {
+    const k = queue[head++]!, i = k % w, j = (k - i) / w;
+    if (i > 0) push(k - 1);
+    if (i < w - 1) push(k + 1);
+    if (j > 0) push(k - w);
+    if (j < h - 1) push(k + w);
+  }
+  return sea;
+}
+
 /** Heights (cm, NaN = none) of one tile, row-major, to the stored form. */
 export function encodeHeightTile(heights: ArrayLike<number>, step: number): Int16Array {
   const out = new Int16Array(heights.length);
@@ -75,6 +102,19 @@ export function overviewCell(meta: HeightmapMeta, x: number, y: number): number 
   const i = Math.floor((x - meta.minX) / size), j = Math.floor((y - meta.minY) / size);
   if (i < 0 || j < 0 || i >= meta.overview.width || j >= meta.overview.height) return null;
   return j * meta.overview.width + i;
+}
+
+/**
+ * The height layer leaves out open sea below this (cm): the sea floor is a few flat landscape pieces (-45 to -80 m)
+ * whose straight edges stood out over the water. Lower than SEA_LEVEL, so the beaches and the shallow water along the
+ * coast (much of it -15 to -25 m) keep their colour and the coastline is not cut back to the 8 m overview cells.
+ */
+export const HEIGHT_SEA_FLOOR = -2500;
+
+/** The open sea on the decoded overview grid (`openSea` below HEIGHT_SEA_FLOOR; 1 = sea), for the height layer. */
+export function overviewSea(meta: HeightmapMeta, overview: Int16Array): Uint8Array {
+  const { width: w, height: h } = meta.overview;
+  return openSea(w, h, k => overview[k] !== NO_HEIGHT && overview[k]! * meta.step <= HEIGHT_SEA_FLOOR);
 }
 
 export const OVERVIEW_FILE = 'overview.bin.gz';

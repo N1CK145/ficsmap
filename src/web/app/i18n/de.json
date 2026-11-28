@@ -58,6 +58,14 @@
     "saved": "Gespeichert",
     "saveFailed": "Nicht gespeichert. Die Einstellung gilt vorerst nur auf diesem Gerät.",
     "languageHint": "Wird auf diesem Gerät gespeichert.",
+    "theme": {
+      "title": "Darstellung",
+      "label": "Farben",
+      "dark": "Dunkel",
+      "light": "Hell",
+      "system": "Wie das System",
+      "hint": "Die Karte bleibt in beiden dunkel. Wird in deinem Konto gespeichert."
+    },
     "dateFormat": {
       "title": "Datum und Uhrzeit",
       "label": "Format",
@@ -132,7 +140,7 @@
     "hideSidebar": "Seitenleiste ausblenden",
     "showSidebar": "Seitenleiste einblenden",
     "resizeSidebar": "Seitenleiste in der Breite ändern",
-    "resizeSidebarHint": "Ziehen oder Pfeiltasten; Doppelklick passt die Breite an den Inhalt an"
+    "resizeSidebarHint": "Ziehen oder Pfeiltasten; Doppelklick stellt die Standardbreite her"
   },
   "live": {
     "live": "Live",
@@ -623,7 +631,8 @@
     "changedBy": "Zuletzt geändert von",
     "showOnMap": "Auf der Karte zeigen",
     "empty": "Keine Objekte passen zu den aktuellen Filtern.",
-    "none": "—"
+    "none": "—",
+    "inCave": "In einer Höhle"
   },
   "mobile": {
     "sheet": {

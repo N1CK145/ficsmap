@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { CircleMarker, Pane, Polygon } from 'react-leaflet';
 import type { WorldCtx } from '../../app/feature.js';
 import { useCaveLayer, useCaves } from './useCaves.js';
+import { mapStyle } from '../map/mapStyle.js';
 
 /** Above the tiles (200), below the biome outlines (overlay pane, 400) and the marker canvas (450). */
 const AREA_PANE_Z = 350;
@@ -11,7 +12,7 @@ const AREA_OPACITY = 0.35;
 const ENTRANCE_RADIUS = 5;
 
 function readColors() {
-  const style = getComputedStyle(document.documentElement);
+  const style = mapStyle();
   const token = (name: string) => style.getPropertyValue(name).trim() || 'currentColor';
   return { cave: token('--color-cave'), bg: token('--color-bg') };
 }

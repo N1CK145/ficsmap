@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { create } from 'zustand';
-import { decodeHeightTile, heightCell, heightTileName, heightValue, OVERVIEW_FILE, type HeightmapMeta } from '../../../shared/heightmap.js';
+import { decodeHeightTile, heightCell, heightTileName, heightValue, OVERVIEW_FILE, overviewSea, type HeightmapMeta } from '../../../shared/heightmap.js';
 import { api, ApiClientError } from '../../app/api.js';
 import { queryKeys } from '../../app/queryKeys.js';
 
@@ -39,6 +39,13 @@ export class HeightSource {
 
   tile(ti: number, tj: number) { return this.load(heightTileName(ti, tj)); }
   overview() { return this.load(OVERVIEW_FILE); }
+
+  private sea: Promise<Uint8Array | null> | undefined;
+  /** The open sea on the overview grid (`overviewSea`, 1 = sea), worked out once; null without an overview. */
+  seaMask(): Promise<Uint8Array | null> {
+    this.sea ??= Promise.resolve(this.overview()).then(g => (g ? overviewSea(this.meta, g) : null));
+    return this.sea;
+  }
 
   /** Height (cm) of the highest surface at a world point; null for none, undefined while its tile loads. */
   heightAt(x: number, y: number): number | null | undefined {

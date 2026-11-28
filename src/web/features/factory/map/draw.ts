@@ -3,6 +3,7 @@ import { REASON_PATHS } from '../icons.js';
 import type { SplitterSide } from '../../../../shared/factory/splitter.js';
 import type { LineKind, MapKind } from './style.js';
 import { BAND_TOKEN, KIND_TOKEN, LINE_TOKEN, MAP_KINDS } from './style.js';
+import { mapStyle } from '../../map/mapStyle.js';
 
 /** The colours the factory canvas uses, read from the theme tokens once the stylesheet is applied. */
 export interface FactoryPalette {
@@ -18,7 +19,7 @@ export interface FactoryPalette {
 }
 
 export function readFactoryPalette(): FactoryPalette | null {
-  const style = getComputedStyle(document.documentElement);
+  const style = mapStyle();
   const token = (name: string) => style.getPropertyValue(`--color-${name}`).trim();
   const p: FactoryPalette = {
     bg: token('bg'), panel: token('panel'), edge: token('edge'), fg: token('fg'), muted: token('muted'), accent: token('accent'),

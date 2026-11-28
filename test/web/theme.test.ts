@@ -1,7 +1,9 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { COLLECTIBLE_TYPES } from '../../src/shared/collectibleTypes.js';
 import { luminance } from '../../src/web/features/resourceNodes/drawNode.js';
+import { mapStyle } from '../../src/web/features/map/mapStyle.js';
+import { deltaE, minDeltaE, simulate } from './colorDistance.js';
 import { PURITY_TOKENS, RESOURCE_TOKENS } from '../../src/web/features/resourceNodes/resourceStyle.js';
 
 // Vitest stubs CSS imports (also `?raw`), so the file is read directly (tests run from the repo root).
@@ -55,6 +57,10 @@ describe('theme.css', () => {
     }
   });
 
+  it('keeps the impure purity red clearly apart from the conflict red, also for protan and deutan viewers', () => {
+    expect(minDeltaE(color('purity-impure')!, color('conflict')!)).toBeGreaterThanOrEqual(10);
+  });
+
   it('defines the Power Shard colour the resource node layer reads', () => {
     expect(css).toMatch(/--color-shard:\s*#[0-9A-Fa-f]{6};/);
   });
@@ -70,5 +76,70 @@ describe('fonts', () => {
     for (const w of [500, 600, 700]) expect(main).toContain(`import '@fontsource/barlow-condensed/${w}.css';`);
     expect(css).toMatch(/--font-sans:\s*"Barlow",/);
     expect(css).toMatch(/--font-display:\s*"Barlow Condensed",/);
+  });
+});
+
+describe('light theme', () => {
+  /** The `--color-*` declarations of the first rule with this exact selector. */
+  const block = (selector: string) => {
+    const start = css.indexOf(`${selector} {`);
+    expect(start, selector).toBeGreaterThan(-1);
+    const body = css.slice(start, css.indexOf('}', start));
+    return new Map([...body.matchAll(/--color-([a-z0-9-]+):\s*(#[0-9A-Fa-f]{6});/g)].map(m => [m[1]!, m[2]!]));
+  };
+  const light = block(':root[data-theme="light"]');
+  const mapDark = block(':root[data-theme="light"] [data-theme="dark"]');
+  const l = (token: string) => light.get(token) ?? color(token)!;
+
+  it('only changes tokens the dark theme defines, and the map block puts back exactly their dark values', () => {
+    for (const t of light.keys()) expect(color(t), t).toBeDefined();
+    expect([...mapDark.keys()]).toEqual([...light.keys()]);
+    for (const [t, v] of mapDark) expect(v, t).toBe(color(t));
+  });
+
+  it('keeps every text colour at 4.5:1 on all three surfaces, text on the accent and the unlock badges too, form edges at 3:1', () => {
+    const surfaces = ['bg', 'panel', 'raised'];
+    const texts = ['fg', 'muted', 'accent', 'conflict', 'free', 'power', 'shard', 'sloop', ...Object.values(PURITY_TOKENS),
+      'cat-production', 'cat-extraction', 'cat-power', 'cat-logistics', 'cat-special', 'cat-vehicles', 'unlock-mam', 'unlock-shop'];
+    for (const text of texts) {
+      for (const s of surfaces) expect(ratio(l(text), l(s)), `${text} on ${s}`).toBeGreaterThanOrEqual(4.5);
+    }
+    for (const fill of ['accent', 'accent-hi', 'accent-lo', 'conflict']) {
+      expect(ratio(l('on-accent'), l(fill)), `on-accent on ${fill}`).toBeGreaterThanOrEqual(4.5);
+    }
+    // The unlock badges write the page colour on their fill.
+    for (const fill of ['unlock-mam', 'unlock-shop']) expect(ratio(l('bg'), l(fill)), `bg on ${fill}`).toBeGreaterThanOrEqual(4.5);
+    for (const s of ['bg', 'panel']) expect(ratio(l('edge'), l(s)), `edge on ${s}`).toBeGreaterThanOrEqual(3);
+  });
+
+  it('keeps the impure red apart from the conflict red here too', () => {
+    expect(minDeltaE(l('purity-impure'), l('conflict'))).toBeGreaterThanOrEqual(10);
+  });
+
+  it('leaves the map dark: map drawing reads its colours through mapStyle, never from <html>', () => {
+    const files = (dir: string): string[] => readdirSync(dir, { withFileTypes: true })
+      .flatMap(e => (e.isDirectory() ? files(join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [join(dir, e.name)] : []));
+    const offenders = files(resolve(process.cwd(), 'src/web/features'))
+      .filter(f => readFileSync(f, 'utf8').includes('getComputedStyle(document.documentElement)'));
+    expect(offenders).toEqual([]);
+    const probe = mapStyle();
+    expect(probe).toBeDefined();
+    expect(document.querySelector('[data-theme="dark"][hidden]')).not.toBeNull();
+  });
+
+  it('is light: the page is lighter than its text', () => {
+    expect(luminance(l('bg'))).toBeGreaterThan(luminance(l('fg')));
+    expect(css).toMatch(/:root\[data-theme="light"\] \{\s*color-scheme: light;/);
+  });
+});
+
+describe('colour distance helper', () => {
+  it('measures ΔE00 and simulates protan and deutan vision', () => {
+    expect(deltaE('#FF5C5C', '#FF5C5C')).toBe(0);
+    // Reference values from an independent implementation.
+    expect(deltaE('#FF5C5C', '#F7666B')).toBeCloseTo(3.3, 1);
+    expect(deltaE('#FF5C5C', '#FFA94D')).toBeCloseTo(29.4, 1);
+    expect(simulate('#FFFFFF', 'protan')).toBe('#ffffff');
+    expect(minDeltaE('#FF5C5C', '#FFA94D')).toBeCloseTo(11.5, 1);
   });
 });

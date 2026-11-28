@@ -24,7 +24,9 @@
   --color-accent-hi: #FFB062;
   --color-accent-lo: #D9822A;
   --color-on-accent: #141416;
-  --color-conflict: #F7666B;
+  /* Errors, danger and save conflicts: a raspberry red, kept apart from the purity red of impure nodes (ΔE00 ≥ 10,
+     also for protan and deutan viewers; test/web/theme.test.ts). */
+  --color-conflict: #FF4D8B;
   /* Drop-pod badges on the map: opened with power (bolt), needs nothing (dot). */
   --color-power: #FFD23F;
   --color-free: #3DDC84;
@@ -123,6 +125,73 @@
      controls and windows are cut instead (`chamfer`, `chamfer-window` below) where the browser can. */
   --radius-*: initial;
   --radius: 3px;
+}
+
+/* The light theme (`data-theme="light"` on <html>, app/theme.ts): the tokens text and controls use, darker so they
+   keep 4.5:1 on the light surfaces (test/web/theme.test.ts); surfaces darkest last here: page, panels lighter, hover
+   rows a step darker. Pictures, the map's swatches and the factory map's colours stay as they are. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #EEEDEA;
+  --color-panel: #F8F7F5;
+  --color-raised: #E8E6E2;
+  --color-line: #D2CFC9;
+  --color-edge: #7D828A;
+  --color-fg: #1C1D20;
+  --color-muted: #585D64;
+  --color-accent: #A04F00;
+  --color-accent-hi: #8E4600;
+  --color-accent-lo: #7C3D00;
+  --color-on-accent: #FFFFFF;
+  --color-conflict: #B8155A;
+  --color-power: #7F5E00;
+  --color-free: #17723A;
+  --color-purity-impure: #BD2323;
+  --color-purity-normal: #984D00;
+  --color-purity-pure: #17723A;
+  --color-shard: #0A6A92;
+  --color-sloop: #0A7068;
+  --color-cat-production: #A04D0A;
+  --color-cat-extraction: #0A7068;
+  --color-cat-power: #7F5E00;
+  --color-cat-logistics: #1F62C0;
+  --color-cat-special: #AD2588;
+  --color-cat-vehicles: #17723A;
+  --color-unlock-mam: #7440C4;
+  --color-unlock-shop: #7F5E00;
+}
+
+/* The map (MapView marks its root `data-theme="dark"`) stays dark in the light theme: the game's map is dark, and the
+   markers, rings and lines drawn on it were picked against it. Same tokens as above with their dark values. */
+:root[data-theme="light"] [data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #131416;
+  --color-panel: #1C1D20;
+  --color-raised: #26282B;
+  --color-line: #383B40;
+  --color-edge: #6B7077;
+  --color-fg: #EEEBE6;
+  --color-muted: #A6AAB0;
+  --color-accent: #F59B3D;
+  --color-accent-hi: #FFB062;
+  --color-accent-lo: #D9822A;
+  --color-on-accent: #141416;
+  --color-conflict: #FF4D8B;
+  --color-power: #FFD23F;
+  --color-free: #3DDC84;
+  --color-purity-impure: #FF5C5C;
+  --color-purity-normal: #FFA94D;
+  --color-purity-pure: #4ADE80;
+  --color-shard: #7FD4FF;
+  --color-sloop: #2EC4B6;
+  --color-cat-production: #F28C28;
+  --color-cat-extraction: #2EC4B6;
+  --color-cat-power: #FFD23F;
+  --color-cat-logistics: #4DA3FF;
+  --color-cat-special: #F062C0;
+  --color-cat-vehicles: #3DDC84;
+  --color-unlock-mam: #B084F5;
+  --color-unlock-shop: #E8B931;
 }
 
 /* Visible keyboard focus for every interactive primitive. */

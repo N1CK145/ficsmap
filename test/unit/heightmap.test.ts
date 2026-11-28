@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { afterAll, describe, expect, it } from 'vitest';
 import { readHeightGrid, writeHeightTiles } from '../../scripts/heightmap.js';
-import { decodeHeightTile, encodeHeightTile, heightCell, heightValue, NO_HEIGHT, overviewCell, type HeightmapMeta } from '../../src/shared/heightmap.js';
+import { decodeHeightTile, encodeHeightTile, heightCell, heightValue, NO_HEIGHT, openSea, overviewCell, overviewSea, type HeightmapMeta } from '../../src/shared/heightmap.js';
 
 describe('height tiles', () => {
   it('round-trips heights in steps, gaps and jumps across the whole int16 range', () => {
@@ -51,5 +51,43 @@ describe('height tiles', () => {
     expect(Array.from(ov)).toEqual([1235]);
     expect(meta.range).toEqual([-17000, 47000]);
     expect(readHeightGrid(join(dir, 'none'))).toBeNull();
+  });
+});
+
+describe('openSea', () => {
+  it('marks the low cells connected to the grid edge, not low ground inland behind a rim, nor cells without a surface', () => {
+    // L = low, H = high, - = no surface. The inland basin (centre) and the void do not count as sea.
+    const rows = [
+      'LLLLL-',
+      'LHHHL-',
+      'LHLHL-',
+      'LHHHH-',
+      'LLH---',
+    ];
+    const w = 6, h = rows.length;
+    const cells = rows.join('');
+    const sea = openSea(w, h, k => cells[k] === 'L');
+    const marked = [...sea].map((s, k) => (s ? 'S' : cells[k])).join('');
+    expect(marked.match(/.{6}/g)).toEqual([
+      'SSSSS-',
+      'SHHHS-',
+      'SHLHS-',
+      'SHHHH-',
+      'SSH---',
+    ]);
+  });
+});
+
+describe('overviewSea', () => {
+  it('finds the open sea on the overview grid: low (at or below -25 m) and connected to its edge', () => {
+    const meta = { cell: 100, minX: 0, minY: 0, width: 6, height: 6, tile: 3, step: 10, id: 'x', overview: { factor: 2, width: 3, height: 3 }, range: [0, 1] } satisfies HeightmapMeta;
+    // In step units (10 cm): -250 = -25 m is sea at the edge, -249 is not low, -400 inland behind a rim stays land,
+    // NO_HEIGHT is never sea.
+    const grid = new Int16Array([
+      -250, 500, NO_HEIGHT,
+      500, -400, 500,
+      -300, 500, -249,
+    ]);
+    expect([...overviewSea(meta, grid)]).toEqual([1, 0, 0, 0, 0, 0, 1, 0, 0]);
   });
 });

@@ -23,7 +23,7 @@ import { SettingsPage } from '../sharing/SettingsPage.js';
 import { ItemPanel } from '../itemPanel/ItemPanel.js';
 import { MapView } from '../map/MapView.js';
 import { useDatasetQuery } from '../map/useDataset.js';
-import { SIDEBAR, useSidebarWidth } from './useSidebarWidth.js';
+import { useSidebarWidth } from './useSidebarWidth.js';
 import { useMarks, useMarksQuery } from '../marks/useMarks.js';
 import { useUndoStack } from '../marks/undo.js';
 import { useUndoShortcut } from '../marks/useUndoShortcut.js';
@@ -200,7 +200,7 @@ function WorldShell({ ctx }: { ctx: WorldCtx }) {
 function Sidebar({ id, ctx, panels }: { id: string; ctx: WorldCtx; panels: SidebarPanel[] }) {
   const { t } = useTranslation();
   const open = useUiStore(s => s.sidebarOpen);
-  const { width, fit, dragging, scrollRef, contentRef, handleProps, bounds } = useSidebarWidth();
+  const { width, dragging, scrollRef, handleProps, bounds } = useSidebarWidth();
   return (
     <aside
       id={id}
@@ -211,15 +211,9 @@ function Sidebar({ id, ctx, panels }: { id: string; ctx: WorldCtx; panels: Sideb
       className={`relative shrink-0 overflow-hidden border-line bg-panel ${dragging ? '' : 'motion-safe:transition-[width,visibility] motion-safe:duration-200'} ${open ? 'visible border-r' : 'invisible'}`}
     >
       <div ref={scrollRef} className="h-full overflow-y-auto [scrollbar-gutter:stable]" style={{ width }}>
-        <div
-          ref={contentRef}
-          data-fit={fit || undefined}
-          style={fit ? { width: 'max-content', minWidth: SIDEBAR.fitMin, maxWidth: SIDEBAR.fitMax } : undefined}
-        >
-          {panels.map(p => (
-            <SidebarPanelView key={p.id} panel={p} worldId={ctx.worldId} />
-          ))}
-        </div>
+        {panels.map(p => (
+          <SidebarPanelView key={p.id} panel={p} worldId={ctx.worldId} />
+        ))}
       </div>
       <div
         role="separator"

@@ -47,6 +47,11 @@ describe('markerVisual', () => {
     ['search match is drawn although collected ones are hidden', 'collected', { search: true, visibility: 'hide' }, { draw: true, badge: 'check' }],
     ['search match is drawn with only conflicts on', 'uncollected', { search: true, onlyConflicts: true }, { draw: true }],
     ['search non-match keeps the filters', 'uncollected', { search: false, typeEnabled: false }, { draw: false }],
+    ['recede (kill filter on) multiplies by 0.4', 'uncollected', { recede: true }, { draw: true, opacity: 0.4 }],
+    ['recede + dim collected is 0.14', 'collected', { recede: true, visibility: 'dim' }, { opacity: 0.35 * 0.4 }],
+    ['recede keeps conflicts drawn', 'conflict', { recede: true }, { draw: true, opacity: 0.4, badge: 'conflict' }],
+    ['recede leaves a search match full', 'uncollected', { recede: true, search: true }, { opacity: 1 }],
+    ['recede leaves the selected marker full', 'uncollected', { recede: true, selected: true }, { opacity: 1 }],
   ];
 
   it.each(rows)('%s', (_name, state, opts, expected) => {

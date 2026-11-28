@@ -13,6 +13,7 @@ import { loadView, saveView } from '../../src/web/app/persist.js';
 import { receivePrefs, usePrefsStore } from '../../src/web/app/prefs.js';
 import { queryKeys } from '../../src/web/app/queryKeys.js';
 import { useUiStore } from '../../src/web/app/store.js';
+import { useCreatureLayer } from '../../src/web/features/creatures/useCreatures.js';
 import { markerClickClaims } from '../../src/web/features/map/clickClaims.js';
 import { MapView } from '../../src/web/features/map/MapView.js';
 import { MarkerLayer, type DrawMarker } from '../../src/web/features/map/MarkerLayer.js';
@@ -53,13 +54,13 @@ const probeFeature: FeatureModule = {
   ],
 };
 
-function renderMap(worldId = WORLD) {
+function renderMap(worldId = WORLD, ds: Dataset = dataset) {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
   const marks: MarksCache = { rev: 0, baseRev: 0, marks: new Map(), revs: new Map(), pending: new Map() };
   client.setQueryData(queryKeys.marks(worldId), marks);
   const me: MeDto = { id: 1, displayName: 'Anna', avatarUrl: null, email: null, datasetVersion: 'test' };
   const ctx: WorldCtx = {
-    worldId, world: {} as WorldDto, me, index: indexDataset(dataset), queryClient: client,
+    worldId, world: {} as WorldDto, me, index: indexDataset(ds), queryClient: client,
     navigate: () => {}, toast: { show: () => {} },
   };
   return render(
@@ -76,6 +77,12 @@ describe('MapView', () => {
   it('renders map layers inside the map, where they can use useMap()', () => {
     renderMap();
     expect(screen.getByTestId('probe-layer')).toHaveTextContent('has map');
+  });
+
+  it('keeps the map, its layers and its controls dark in the light theme (data-theme="dark" on its root)', () => {
+    renderMap();
+    expect(screen.getByRole('button', { name: 'Probe control' }).closest('[data-theme]')).toHaveAttribute('data-theme', 'dark');
+    expect(screen.getByTestId('probe-layer').closest('[data-theme]')).toHaveAttribute('data-theme', 'dark');
   });
 
   it('renders the map controls', () => {
@@ -204,6 +211,32 @@ describe('MapView clicks', () => {
     act(() => { useUiStore.getState().setSearchHighlight(null); });
   });
 
+  it('marks the markers of items in a cave (the dataset flag), and only those', () => {
+    const caveSet: Dataset = { ...dataset, items: [['S1', 'somersloop', 50, 50, 0, 0, 1, { cave: true }], ['S2', 'somersloop', 60, 60, 0, 0, 2]] };
+    renderMap(WORLD, caveSet);
+    let layer: MarkerLayer | undefined;
+    probedMap!.eachLayer(l => { if (l instanceof MarkerLayer) layer = l; });
+    const drawn = (layer as unknown as { getMarkers(): readonly DrawMarker[] }).getMarkers();
+    expect(drawn.find(m => m.id === 'S1')!.visual.cave).toBe(true);
+    expect(drawn.find(m => m.id === 'S2')!.visual.cave).toBeFalsy();
+  });
+
+  it('fades the markers while the creature layer filters by kill state', () => {
+    renderMap();
+    let layer: MarkerLayer | undefined;
+    probedMap!.eachLayer(l => { if (l instanceof MarkerLayer) layer = l; });
+    const drawn = () => (layer as unknown as { getMarkers(): readonly DrawMarker[] }).getMarkers();
+    expect(drawn()[0]!.visual.opacity).toBe(1);
+    // The filter alone, with the layer off, changes nothing.
+    act(() => { useCreatureLayer.setState({ visible: false, kill: 'dead' }); });
+    expect(drawn()[0]!.visual.opacity).toBe(1);
+    act(() => { useCreatureLayer.setState({ visible: true, kill: 'dead' }); });
+    expect(drawn()[0]!.visual.opacity).toBeCloseTo(0.4, 10);
+    act(() => { useCreatureLayer.setState({ kill: 'all' }); });
+    expect(drawn()[0]!.visual.opacity).toBe(1);
+    act(() => { useCreatureLayer.setState({ visible: false }); });
+  });
+
   it('leaves a click to a layer above the markers that claims it, while just looking around', () => {
     renderMap();
     const map = probedMap!;
@@ -254,6 +287,39 @@ describe('MapView clicks', () => {
     act(() => { map.setZoom(3); });
     clickAt(map, 256, 256);
     expect(useUiStore.getState().selectedActor).toBeNull();
+  });
+});
+
+describe('MapView first visit', () => {
+  beforeAll(() => { initI18n(['en']); });
+  beforeEach(() => {
+    localStorage.clear();
+    useUiStore.getState().enterWorld(WORLD);
+    probedMap = null;
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it.each([
+    // 1000 px: zoom 2 (1024 px) nearly fits, so the map is not shrunk to a 512 px square at zoom 1.
+    [1000, 1000, 2],
+    [512, 512, 1],
+    [700, 1400, 1],
+    [300, 300, 0],
+  ])('shows the whole map at the nearest whole zoom for a %i × %i map: zoom %i', (w, h, zoom) => {
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(w);
+    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(h);
+    renderMap();
+    expect(probedMap!.getZoom()).toBe(zoom);
+    const c = probedMap!.getCenter();
+    expect([c.lat, c.lng]).toEqual([-128, 128]);
+  });
+
+  it('keeps a saved view', () => {
+    saveView(WORLD, { center: [-100, 100], zoom: 4, typeFilter: [], visibility: 'dim', biomeScope: null });
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(1000);
+    renderMap();
+    expect(probedMap!.getZoom()).toBe(4);
   });
 });
 

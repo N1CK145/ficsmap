@@ -190,4 +190,10 @@ describe('Header', () => {
     // The language switch lives in the account menu now, not in the bar.
     expect(screen.queryByRole('radiogroup', { name: 'Language' })).toBeNull();
   });
+
+  it('shows the wordmark only from 1440 px, so the world items fit beside the search at 1280 px without overlapping it', () => {
+    render(<MemoryRouter><Header center={<input aria-label="Search" />}><h1>World</h1></Header></MemoryRouter>);
+    const wordmark = within(screen.getByRole('link', { name: 'ficsmap' })).getByText('ficsmap');
+    expect(classes(wordmark)).toContain('max-[1439px]:sr-only');
+  });
 });

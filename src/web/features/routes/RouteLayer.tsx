@@ -7,10 +7,11 @@ import { useIsMobile } from '../../app/useMediaQuery.js';
 import { centreBesidePanel, FOCUS_ZOOM } from '../itemPanel/SelectionPan.js';
 import { flyToOrSet } from '../map/motion.js';
 import { useRouteDraft, useShownRoute } from './useRoutes.js';
+import { mapStyle } from '../map/mapStyle.js';
 
 /** The accent colour, read once from the CSS token so no colour is written down here. */
 function readAccent(): string {
-  return getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim() || 'currentColor';
+  return mapStyle().getPropertyValue('--color-accent').trim() || 'currentColor';
 }
 
 /**

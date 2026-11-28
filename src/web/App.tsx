@@ -6,6 +6,7 @@ import { FeaturesProvider } from './app/FeaturesContext.js';
 import { ToastProvider } from './components/Toast.js';
 import { FEATURES } from './features/index.js';
 import { MaintenanceBanner } from './app/MaintenanceBanner.js';
+import { useApplyTheme } from './app/theme.js';
 import { createAppRouter } from './router.js';
 
 function createQueryClient(): QueryClient {
@@ -22,6 +23,7 @@ function createQueryClient(): QueryClient {
 export function App() {
   const [queryClient] = useState(createQueryClient);
   const [router] = useState(() => createAppRouter(FEATURES));
+  useApplyTheme();
   return (
     <QueryClientProvider client={queryClient}>
       <FeaturesProvider features={FEATURES}>

@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Header: the other members who have the world open right now, as avatars next to the live dot (up to three, then "+n"; names in the tooltip). The event stream sends a `presence` event whenever someone comes or goes.
 - World settings: the owner can hand the world over to another member (danger zone "Gefahrenzone": "Neuer Besitzer", "Übergeben", `PUT /api/worlds/:id/owner`); the former owner stays as an admin and keeps their upload keys.
 - `CLIENT_IP_HEADER` (e.g. `CF-Connecting-IP`): behind Cloudflare's proxy the rate limits count the real client IP from that header instead of the Cloudflare address. The header is only believed on requests from a `TRUST_PROXY` address; see "Behind Cloudflare" in the README.
+- Light theme: the profile page ("Darstellung") switches between dark (default), light and like the system; saved to the account and applied before the page paints. The map stays dark in both.
+- Map: collectibles inside a cave carry a cave badge (bottom left of the marker, in the cave layer's colour, from zoom 2); the list view says "In einer Höhle" under the item.
+- Map: single creature spawners can be reached by keyboard. Tab visits every spawner in view (row by row, left to right), focus shows its box, Enter pins it, Escape lets go.
 
 ### Changed
 
@@ -35,6 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dataset: `recipes.json` is the one source of recipes. `machines.json` no longer has its own copy; each production building lists the ids of its recipes (`recipes`), and the machine wiki reads the recipes from `recipes.json` (loaded when an entry with recipes or a clock speed opens). A `machines.json` built before still works: the wiki reads its own recipe list as before. Rebuild with `--only machines` to drop the copy.
 - Planner: "Show on map" at a raw resource also fits the map to that resource's nodes of the step's purity (the world's nodes, as its last save import has them), instead of leaving the view where it was.
 - Machine wiki and vehicle calculator: the Truck Station's "up to 120 stacks per minute" is marked as left over from before 1.2. A note under its description and the hint of the load and unload time say that one fixed cycle moves the whole load and that the calculator counts with that.
+- Sidebar: starts at a fixed 360 px instead of following its content, so it no longer jumps while the panels load or fold. A dragged width is kept as before; double-click on the edge goes back to 360 px.
+- Map: while the creature layer filters by kill state ("Gerade tot", "Wieder da", "Nie getötet"), the collectible markers step back (40 %), so the spawners stand out; search matches and the selected item stay full.
+- The conflict and error colour is now a raspberry red, so it no longer looks like the red of impure resource nodes (also for red-green colour blindness).
+
+### Fixed
+
+- Header at 1280 px: the settings button no longer overlaps the search field inside a world; the "FICSMAP" wordmark shows there only from 1440 px (the mark stays).
+- Map, first visit of a world: the whole map shows at the nearest whole zoom instead of the next lower one (on a 1920 × 1080 screen a 1024 px map instead of a 512 px square).
+- Height map ("Höhenkarte"): the open sea floor (below -25 m, connected to the map edge) is no longer coloured, so its flat pieces no longer show straight edges over the water.
 
 ## [0.2.4] - 2026-11-21
 

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { LOGIN_PROVIDERS, type LoginProvider, type MeDto } from '../../shared/api.js';
-import { DATE_FORMATS, isWheelSpeed, roundWheelSpeed, WHEEL_SPEED, type UserPrefs } from '../../shared/prefs.js';
+import { DATE_FORMATS, isWheelSpeed, roundWheelSpeed, THEMES, WHEEL_SPEED, type UserPrefs } from '../../shared/prefs.js';
 import type { AppDeps } from '../app.js';
 import { requireUser } from '../auth/guards.js';
 import { getPrefs, isServerOwner, listIdentities, unlinkIdentity, updatePrefs } from '../domain/users.js';
@@ -12,6 +12,7 @@ const PrefsPatch = z.object({
   wheelSpeed: z.number().min(WHEEL_SPEED.min).max(WHEEL_SPEED.max)
     .refine(isWheelSpeed, `Steps of ${WHEEL_SPEED.step}`).transform(roundWheelSpeed),
   dateFormat: z.enum(DATE_FORMATS),
+  theme: z.enum(THEMES),
 }).partial().strict();
 
 export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
