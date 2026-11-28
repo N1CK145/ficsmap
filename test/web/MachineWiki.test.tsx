@@ -12,6 +12,7 @@ import type { ItemIcons } from '../../src/web/features/machineWiki/icons.js';
 import { getI18n } from 'react-i18next';
 import { useMachineWiki } from '../../src/web/features/machineWiki/useMachineWiki.js';
 import { NARROW_QUERY } from '../../src/web/features/machineWiki/MachineWiki.js';
+import type { RecipeData } from '../../src/shared/recipes.js';
 import { RECIPE_DATA } from '../fixtures/recipeData.js';
 import { stubFetch } from './fetchStub.js';
 import { stubMatchMedia } from './matchMedia.js';
@@ -93,11 +94,14 @@ const ICONS = {
   icons: [...Object.keys(DATA.items).filter(i => i !== 'Desc_Coal_C'), ...DATA.machines.map(m => m.id.replace(/^Build_/, 'Desc_'))].sort(),
 };
 
-function setup(data: 'present' | 'missing', icons: 'present' | 'missing' = 'present', url = `/w/${W}`, { recipes = false } = {}) {
+function setup(
+  data: 'present' | 'missing', icons: 'present' | 'missing' = 'present', url = `/w/${W}`,
+  { recipes = false, machines = DATA, recipeData = RECIPE_DATA }: { recipes?: boolean; machines?: MachineData; recipeData?: RecipeData } = {},
+) {
   const { calls } = stubFetch({
-    ...(data === 'present' && { 'GET /data/test/machines.json': { body: DATA } }),
+    ...(data === 'present' && { 'GET /data/test/machines.json': { body: machines } }),
     ...(icons === 'present' && { 'GET /data/test/icons/items/index.json': { body: ICONS } }),
-    ...(recipes && { 'GET /data/test/recipes.json': { body: RECIPE_DATA } }),
+    ...(recipes && { 'GET /data/test/recipes.json': { body: recipeData } }),
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ctx: WorldCtx = { worldId: W, world: WORLD, me: ME, index: indexDataset(DS), queryClient: client, navigate: () => {}, toast: { show: () => {} } };
@@ -221,6 +225,22 @@ describe('machine wiki', () => {
     expect(link).toHaveAttribute('href', 'https://satisfactory.wiki.gg/wiki/Constructor');
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('reads the recipes an entry refers to from recipes.json (datasets built since machines.json keeps only their ids)', async () => {
+    const plate = DATA.recipes![0]!;
+    const machines: MachineData = {
+      ...DATA, recipes: undefined,
+      machines: DATA.machines.map(m => (m.id === plate.machine ? { ...m, recipes: [plate.id] } : m)),
+    };
+    const { calls } = setup('present', 'present', `/w/${W}`, { recipes: true, machines, recipeData: { ...RECIPE_DATA, recipes: [...RECIPE_DATA.recipes, plate] } });
+    const page = await open();
+    await user().click(await within(page).findByRole('button', { name: 'Constructor' }));
+    const article = within(page).getByRole('article', { name: 'Constructor' });
+    expect(await within(article).findByText('1 recipe')).toBeInTheDocument();
+    const recipe = within(article).getAllByRole('listitem').find(li => li.textContent?.startsWith('Iron Plate'));
+    expect(recipe).toHaveTextContent('Iron Plate30/min Iron Ingot→makes20/min Iron Plate6 s per cycle');
+    expect(calls.map(c => c.path)).toContain('/data/test/recipes.json');
   });
 
   it('gives the clock speed with Power Shards from the recipe data, loaded for an entry that has one', async () => {

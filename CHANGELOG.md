@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependencies: TypeScript 5.9 → 7.0, the native compiler (development dependency only; replaces Dependabot PR #8). Type checking is several times faster; the server build is byte for byte the same.
 - Dependencies: react-router 7 → 8 (replaces Dependabot PR #9); the router provider now comes from `react-router/dom`.
 - The web app is built as one script per library family (React, Leaflet, other libraries) and per feature instead of one 1.5 MB script, so an update only reloads what changed; no chunk is over 500 kB any more.
+- Dataset: `recipes.json` is the one source of recipes. `machines.json` no longer has its own copy; each production building lists the ids of its recipes (`recipes`), and the machine wiki reads the recipes from `recipes.json` (loaded when an entry with recipes or a clock speed opens). A `machines.json` built before still works: the wiki reads its own recipe list as before. Rebuild with `--only machines` to drop the copy.
 
 ## [0.2.4] - 2026-11-21
 
