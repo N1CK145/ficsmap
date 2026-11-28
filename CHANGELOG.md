@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `CLIENT_IP_HEADER` (e.g. `CF-Connecting-IP`): behind Cloudflare's proxy the rate limits count the real client IP from that header instead of the Cloudflare address. The header is only believed on requests from a `TRUST_PROXY` address; see "Behind Cloudflare" in the README.
+
 ## [0.2.4] - 2026-11-21
 
 ### Added

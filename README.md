@@ -125,7 +125,8 @@ Copy [`.env.example`](.env.example) to `.env`, fill it in and run `chmod 600 .en
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | From your Discord application. |
 | `OWNER_DISCORD_IDS` | Comma-separated Discord user IDs that may sign in without an invite. Owners can create general invite links (profile page) and confirm a rollback in the browser. |
 | `SESSION_SECRET` | A random secret, at least 32 characters. Generate with `openssl rand -base64 48`. (`INVITE_JWT_SECRET` is no longer used and can be removed.) |
-| `TRUST_PROXY` | IP address of your reverse proxy, whose `X-Forwarded-*` headers are trusted. Empty without a proxy. |
+| `TRUST_PROXY` | IP address of your reverse proxy, whose `X-Forwarded-*` headers are trusted. Empty without a proxy. Several addresses or CIDR ranges are separated by commas. |
+| `CLIENT_IP_HEADER` | Optional. A header with the real client IP set by a CDN in front of your proxy, e.g. `CF-Connecting-IP` behind Cloudflare. Only believed on requests from a `TRUST_PROXY` address; see [Behind Cloudflare](#behind-cloudflare). |
 | `COOKIE_SECURE` | `true` for HTTPS. Set to `false` only for plain-HTTP testing. |
 | `LOG_LEVEL` | `fatal`, `error`, `warn`, `info`, `debug` or `trace`. |
 | `FICSMAP_PORT` | Host port for Compose (default `3000`). Not read by the app. |
@@ -170,6 +171,12 @@ ficsmap.example.com {
 ```
 
 Set `TRUST_PROXY` to the IP address the proxy connects from.
+
+#### Behind Cloudflare
+
+With Cloudflare's proxy in front of your reverse proxy, every request arrives from a Cloudflare address, so the rate limits would count all users together. Set `CLIENT_IP_HEADER=CF-Connecting-IP`: on requests from a `TRUST_PROXY` address, ficsmap then takes the client IP from that header (when it holds a valid IP; otherwise the forwarded address).
+
+The header is only as trustworthy as the path to your proxy. If the proxy can also be reached directly, bypassing Cloudflare, a client can set the header itself and pick its own rate-limit bucket. Either let the proxy accept that host only from [Cloudflare's addresses](https://www.cloudflare.com/ips/) (and strip the header otherwise), or leave `CLIENT_IP_HEADER` empty and add Cloudflare's ranges to `TRUST_PROXY` instead (`TRUST_PROXY=<proxy IP>,<Cloudflare ranges>`), which walks `X-Forwarded-For` past the Cloudflare hop and cannot be spoofed.
 
 ### Dataset
 

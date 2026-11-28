@@ -28,6 +28,14 @@ describe('loadConfig', () => {
     const c = loadConfig(base);
     expect(c).toMatchObject({ port: 3000, trustProxy: false, cookieSecure: true, logLevel: 'info', webDir: './dist/web' });
   });
+  it('CLIENT_IP_HEADER is lower-cased, off by default and warned about without TRUST_PROXY', () => {
+    expect(loadConfig(base).clientIpHeader).toBe(false);
+    expect(loadConfig({ ...base, CLIENT_IP_HEADER: ' ' }).clientIpHeader).toBe(false);
+    const c = loadConfig({ ...base, OWNER_DISCORD_IDS: '1', CLIENT_IP_HEADER: 'CF-Connecting-IP' });
+    expect(c.clientIpHeader).toBe('cf-connecting-ip');
+    expect(configWarnings(c)).toEqual([expect.stringContaining('CLIENT_IP_HEADER')]);
+    expect(configWarnings({ ...c, trustProxy: '10.0.0.1' })).toEqual([]);
+  });
   it('COOKIE_SECURE=false disables secure cookies', () => {
     expect(loadConfig({ ...base, COOKIE_SECURE: 'false' }).cookieSecure).toBe(false);
   });

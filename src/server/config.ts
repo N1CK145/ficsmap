@@ -10,6 +10,11 @@ export interface Config {
   ownerDiscordIds: Set<string>;
   sessionSecret: string;
   trustProxy: string | false;
+  /**
+   * Lower-case header that carries the client IP set by an edge proxy (e.g. `cf-connecting-ip` behind Cloudflare),
+   * trusted only on requests whose direct peer matches `trustProxy`; `false` = off.
+   */
+  clientIpHeader: string | false;
   dbPath: string;
   datasetDir: string;
   datasetVersion: string;
@@ -26,6 +31,7 @@ const schema = z.object({
   OWNER_DISCORD_IDS: z.string().default(''),
   SESSION_SECRET: z.string().min(32),
   TRUST_PROXY: z.string().optional(),
+  CLIENT_IP_HEADER: z.string().optional(),
   DB_PATH: z.string().min(1).default('./data-local/app.db'),
   DATASET_DIR: z.string().min(1).default('./data'),
   DATASET_VERSION: z.string().min(1).default('latest'),
@@ -86,6 +92,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     ownerDiscordIds: new Set(e.OWNER_DISCORD_IDS.split(',').map(s => s.trim()).filter(Boolean)),
     sessionSecret: e.SESSION_SECRET,
     trustProxy: e.TRUST_PROXY ? e.TRUST_PROXY : false,
+    clientIpHeader: e.CLIENT_IP_HEADER?.trim() ? e.CLIENT_IP_HEADER.trim().toLowerCase() : false,
     dbPath: e.DB_PATH,
     datasetDir: e.DATASET_DIR,
     datasetVersion: e.DATASET_VERSION === 'latest' ? latestDatasetVersion(e.DATASET_DIR) : e.DATASET_VERSION,
@@ -100,6 +107,9 @@ export function configWarnings(c: Config): string[] {
   const out: string[] = [];
   if (c.ownerDiscordIds.size === 0) {
     out.push('OWNER_DISCORD_IDS is empty: only existing accounts and invited users can log in');
+  }
+  if (c.clientIpHeader && !c.trustProxy) {
+    out.push('CLIENT_IP_HEADER is set but TRUST_PROXY is empty: the header is ignored');
   }
   return out;
 }

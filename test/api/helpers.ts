@@ -23,6 +23,7 @@ export const testConfig: Config = {
   ownerDiscordIds: new Set(['owner-1']),
   sessionSecret: 's'.repeat(32),
   trustProxy: false,
+  clientIpHeader: false,
   dbPath: ':memory:',
   datasetDir: './data',
   datasetVersion: 'test',

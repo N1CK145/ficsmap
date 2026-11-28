@@ -25,6 +25,7 @@ import { registerInviteRoutes } from './http/invites.js';
 import { registerSpa } from './http/spa.js';
 import { appVersion } from './version/appVersion.js';
 import { redactUrl } from './redact.js';
+import { registerClientIpHeader } from './clientIp.js';
 import { SseHub } from './sse/hub.js';
 import { createParsePool, type SaveParser } from './parse/pool.js';
 
@@ -78,6 +79,7 @@ export async function buildApp(input: AppDeps): Promise<FastifyInstance> {
   const allowedOrigin = new URL(config.publicUrl).origin;
 
   await app.register(cookie, { secret: config.sessionSecret });
+  registerClientIpHeader(app, config);
   // Static GETs (tiles, assets, dataset, SPA shell) are exempt: zooming the map alone fetches
   // hundreds of tiles and would otherwise lock the API (incl. mark writes) for that IP.
   await app.register(rateLimit, { global: true, max: 300, timeWindow: '1 minute', allowList: isStaticGet });
