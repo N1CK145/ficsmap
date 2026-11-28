@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useId, useMemo, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  descriptorClass, entryTierKeys, groupByCategory, matchesQuery, matchesTiers, perMinute, selectedUpTo, statRows, tierOf,
+  descriptorClass, entryRecipes, entryTierKeys, groupByCategory, matchesQuery, matchesTiers, perMinute, selectedUpTo, statRows, tierOf,
   tierOptions, toggleTier, upToTier, wikiUrl,
   type ItemAmount, type Lang, type MachineCategory, type MachineData, type MachineEntry, type StatRow as WikiStatRow, type TierKey, type WikiRecipe,
 } from '../../../shared/machines.js';
@@ -80,9 +80,11 @@ function TierBadge({ tier, id, hidden = false }: { tier: TierKey; id?: string; h
  * so the focus stays on the chosen card. `shardStep` is what one Power Shard adds to the clock speed (from the recipe
  * data, 0.5): with it the clock speed row gives the range with shards.
  */
-export function MachineWiki({ data, selected, query, tiers = [], onSelect, onQuery, onTiers = () => {}, shardStep }: {
+export function MachineWiki({ data, selected, query, tiers = [], onSelect, onQuery, onTiers = () => {}, shardStep, recipes }: {
   data: MachineData; selected: string | null; query: string; tiers?: TierKey[];
   onSelect(id: string | null): void; onQuery(q: string): void; onTiers?(tiers: TierKey[]): void; shardStep?: number;
+  /** The dataset's recipes by id (`recipes.json`), which the entries' recipe ids refer to; undefined while loading. */
+  recipes?: ReadonlyMap<string, WikiRecipe> | null;
 }) {
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === 'de' ? 'de' : 'en';
@@ -124,7 +126,7 @@ export function MachineWiki({ data, selected, query, tiers = [], onSelect, onQue
           className={entry ? 'max-sm:hidden sm:overflow-y-auto sm:pr-1' : ''} />
         {entry && (
           <div ref={detailRef} className="min-w-0 sm:overflow-y-auto sm:pr-1">
-            <EntryDetail data={data} entry={entry} lang={lang} shardStep={shardStep} onClose={narrow ? undefined : () => onSelect(null)} />
+            <EntryDetail data={data} entry={entry} lang={lang} shardStep={shardStep} recipes={recipes} onClose={narrow ? undefined : () => onSelect(null)} />
           </div>
         )}
       </div>
@@ -263,13 +265,13 @@ const percent = (clock: number) => Math.round(clock * 10_000) / 100;
  * name in the other language and its category, the tier badges and (on wider screens) ×; then its stats, fuels, the
  * game's description, build cost, unlocks, recipes (folded) and the wiki link.
  */
-export function EntryDetail({ data, entry, lang, shardStep, onClose }: {
-  data: MachineData; entry: MachineEntry; lang: Lang; shardStep?: number; onClose?: () => void;
+export function EntryDetail({ data, entry, lang, shardStep, recipes: byId, onClose }: {
+  data: MachineData; entry: MachineEntry; lang: Lang; shardStep?: number; recipes?: ReadonlyMap<string, WikiRecipe> | null; onClose?: () => void;
 }) {
   const { t } = useTranslation();
   const amount = useAmount(data, lang);
   const rows = statRows(entry, data.items, lang);
-  const recipes = useMemo(() => data.recipes.filter(r => r.machine === entry.id), [data.recipes, entry.id]);
+  const recipes = useMemo(() => entryRecipes(data, entry, byId), [data, entry, byId]);
   const fuels = entry.stats.fuels ?? [];
   const other: Lang = lang === 'de' ? 'en' : 'de';
   const c = CATEGORY[entry.category];

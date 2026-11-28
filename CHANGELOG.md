@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Dataset: `recipes.json` is the one source of recipes. `machines.json` no longer has its own copy; each production building lists the ids of its recipes (`recipes`), and the machine wiki reads the recipes from `recipes.json` (loaded when an entry with recipes or a clock speed opens). A `machines.json` built before still works: the wiki reads its own recipe list as before. Rebuild with `--only machines` to drop the copy.
+
 ## [0.2.4] - 2026-11-21
 
 ### Added

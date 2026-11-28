@@ -6,14 +6,14 @@ import { readDocsFile, type DocsClass } from './game-docs.js';
 import {
   descriptorClass, MACHINE_CATEGORIES, round, wikiTitle,
   type BuildCost, type BuildPlace, type FuelUse, type ItemAmount, type ItemForm, type MachineCategory, type MachineData,
-  type MachineEntry, type MachineStats, type Names, type Unlock, type UnlockKind, type WikiItem, type WikiRecipe,
+  type MachineEntry, type MachineStats, type Names, type Unlock, type UnlockKind, type WikiItem,
 } from '../src/shared/machines.js';
 
 /**
  * Builds `machines.json` (see src/shared/machines.ts) for the in-app machine and vehicle wiki from the
  * game's own class dump, `<install>/CommunityResources/Docs/en-US.json` and `de.json`: names and
- * descriptions, power, clock speed, extraction rates, fuels, inventories, build costs, unlocks and the
- * recipes that run in each production building. Only fields of the game data are used; nothing is
+ * descriptions, power, clock speed, extraction rates, fuels, inventories, build costs, unlocks and the ids of
+ * the recipes that run in each production building (the recipes themselves are in `recipes.json`). Only fields of the game data are used; nothing is
  * filled in by hand. See data-src/extractor/README.md, "Machine and vehicle wiki".
  */
 
@@ -170,29 +170,21 @@ export function buildMachineData(en: readonly DocsClass[], de: readonly DocsClas
     }
   }
 
-  // Recipes that run in a production building (same rules as the production planner's recipes.json)
+  // Recipes that run in a production building (same rules as the production planner's recipes.json, which holds
+  // them): only their ids per building, plus their items, so the wiki can name what the recipes use and make.
   const production = new Map(entries.filter(e => PRODUCTION.has(nativeName(e.c))).map(e => [e.c.ClassName, e.c]));
-  const recipes: WikiRecipe[] = [];
+  const recipesOf = new Map<string, string[]>();
+  let recipeCount = 0;
   for (const r of recipeClasses) {
     const machinesOf = classNames(str(r, 'mProducedIn')).filter(m => production.has(m));
     if (machinesOf.length === 0) continue;
     if (machinesOf.length > 1) { problems.push(`${r.ClassName} is made in more than one building: ${machinesOf.join(', ')}`); continue; }
     const machine = machinesOf[0]!;
-    const duration = num(r, 'mManufactoringDuration') ?? 0;
-    if (!(duration > 0)) problems.push(`${r.ClassName}: duration ${str(r, 'mManufactoringDuration')}`);
-    const name = named(r);
-    const recipe: WikiRecipe = {
-      id: r.ClassName, name, alternate: name.en.startsWith('Alternate:'), machine, duration,
-      ingredients: amounts(str(r, 'mIngredients')).map(a => scaled(a, r.ClassName)),
-      products: amounts(str(r, 'mProduct')).map(a => scaled(a, r.ClassName)),
-    };
-    if (recipe.products.length === 0) problems.push(`${r.ClassName} has no products`);
-    if (nativeName(production.get(machine)!) === 'FGBuildableManufacturerVariablePower') {
-      const constant = num(r, 'mVariablePowerConsumptionConstant') ?? 0;
-      const factor = num(r, 'mVariablePowerConsumptionFactor') ?? 0;
-      recipe.power = { min: constant, max: constant + factor };
-    }
-    recipes.push(recipe);
+    const products = amounts(str(r, 'mProduct'));
+    if (products.length === 0) problems.push(`${r.ClassName} has no products`);
+    for (const a of [...amounts(str(r, 'mIngredients')), ...products]) useItem(a.item, r.ClassName);
+    recipesOf.set(machine, [...(recipesOf.get(machine) ?? []), r.ClassName]);
+    recipeCount++;
   }
 
   const fuelsOf = (c: DocsClass, power: number | undefined): FuelUse[] | undefined => {
@@ -308,6 +300,8 @@ export function buildMachineData(en: readonly DocsClass[], de: readonly DocsClas
       stats: statsOf(c, category), unlockedBy: [],
       priority: num(byName.get(descriptor) ?? c, 'mMenuPriority') ?? 0,
     };
+    const recipeIds = recipesOf.get(c.ClassName);
+    if (recipeIds) entry.recipes = recipeIds;
     const build = buildRecipes.get(descriptor);
     if (build) {
       const cost: BuildCost = { place: build.place, ingredients: amounts(str(build.recipe, 'mIngredients')).map(a => scaled(a, build.recipe.ClassName)) };
@@ -325,7 +319,7 @@ export function buildMachineData(en: readonly DocsClass[], de: readonly DocsClas
   for (const category of MACHINE_CATEGORIES) {
     if (!machines.some(m => m.category === category)) problems.push(`no ${category} entries found`);
   }
-  if (recipes.length === 0) problems.push('no recipes found');
+  if (recipeCount === 0) problems.push('no recipes found');
   if (problems.length > 0) throw new MachineBuildError(problems);
 
   // Within a category in game progress order: tier of the first unlock (shop and other unlocks last), then build menu order
@@ -337,7 +331,7 @@ export function buildMachineData(en: readonly DocsClass[], de: readonly DocsClas
     .filter(m => m.category === category)
     .sort((a, b) => progress(a) - progress(b) || a.priority - b.priority || a.name.en.localeCompare(b.name.en))
     .map(({ priority: _priority, ...m }) => m));
-  return { format: 1, source, items, machines: sorted, recipes };
+  return { format: 1, source, items, machines: sorted };
 }
 
 /** Reads `en-US.json` and `de.json` from the Docs folder and builds the machine data. */
@@ -349,7 +343,8 @@ export function buildMachinesFromDocs(docsDir: string): MachineData {
 /** One line for the build log. */
 export function machineSummary(d: MachineData): string {
   const per = MACHINE_CATEGORIES.map(c => `${d.machines.filter(m => m.category === c).length} ${c}`).join(', ');
-  return `${d.machines.length} entries (${per}), ${d.recipes.length} recipes, ${Object.keys(d.items).length} items`;
+  const recipes = d.machines.reduce((sum, m) => sum + (m.recipes?.length ?? 0), 0);
+  return `${d.machines.length} entries (${per}), ${recipes} recipes, ${Object.keys(d.items).length} items`;
 }
 
 export function writeMachines(docsDir: string, outDir: string, data: MachineData = buildMachinesFromDocs(docsDir)): MachineData {
