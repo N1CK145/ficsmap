@@ -6,7 +6,7 @@ import { COLLECTIBLE_TYPES, classify, typeById } from '../src/shared/collectible
 import { assignBiome, loadEditorBiomes, type BiomeShape } from '../src/shared/biomes.js';
 import { cavesToGeojson, type RawCaves } from '../src/shared/caves.js';
 import { buildCreatures } from '../src/shared/creatures.js';
-import { sampleCaves } from './cave-geometry.js';
+import { applyEntranceOverrides, cavesWithoutEntrance, entranceCapProblem, readEntranceOverrides, sampleCaves } from './cave-geometry.js';
 import { readHeightGrid, writeHeightTiles } from './heightmap.js';
 import { AREA_SNAP, biomesFromAreas, landTest, readMapAreas } from './map-areas.js';
 import { readDocsFile } from './game-docs.js';
@@ -347,7 +347,7 @@ export function missingParts(parts: ReadonlySet<DatasetPart>, inputs: Record<Dat
   return [...parts].filter(p => !inputs[p].ok).map(p => `${p}: ${inputs[p].what}`);
 }
 
-const USAGE = 'usage: npm run dataset -- --extractor <dir> --out <dir> [--only <part,...>] [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--default-world <default-world.json>] [--docs <dir>] [--transport <file>] [--icons <dir>] [--buildings-raw <file>] [--snap-m 100] [--build N]'
+const USAGE = 'usage: npm run dataset -- --extractor <dir> --out <dir> [--only <part,...>] [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--cave-entrances <file>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--default-world <default-world.json>] [--docs <dir>] [--transport <file>] [--icons <dir>] [--buildings-raw <file>] [--snap-m 100] [--build N]'
   + `\nparts: ${Object.keys(DATASET_PARTS).join(', ')} (default: all)`;
 
 function main(): void {
@@ -369,6 +369,9 @@ function main(): void {
       // default: inside --extractor.
       caves: { type: 'string' },
       'cave-geometry': { type: 'string' },
+      // Cave entrances the sampling does not find, kept by hand (maintainer data); default:
+      // <data-src>/caves/entrances.json. With it, the build fails when too many caves stay without an entrance.
+      'cave-entrances': { type: 'string' },
       // The extractor's height grid (`--heightmap-out`); default: inside --extractor.
       heightmap: { type: 'string' },
       // The game's map areas (`--map-areas-out`); default: inside --extractor. They tell land from sea for the
@@ -404,6 +407,7 @@ function main(): void {
   const crashSitesPath = resolve(v['crash-sites'] ?? join(src, 'crash-sites', 'crash-sites.json'));
   const cavesPath = resolve(v.caves ?? join(ext, 'caves.json'));
   const geometryDir = resolve(v['cave-geometry'] ?? join(ext, 'cave-geometry'));
+  const caveEntrancesPath = resolve(v['cave-entrances'] ?? join(src, 'caves', 'entrances.json'));
   const heightDir = resolve(v.heightmap ?? join(ext, 'heightmap'));
   const defaultWorldPath = resolve(v['default-world'] ?? join(ext, 'default-world.json'));
   const docsDir = resolve(v.docs ?? join(ext, 'docs'));
@@ -510,9 +514,21 @@ function main(): void {
     done('biomes', `${biomeSummary}; items per biome: ${ds.biomes.map((b, i) => `${b.name.en} ${perBiome.get(i) ?? 0}`).join(', ')}`);
   }
   if (parts.has('caves') && caveLayer) {
+    // Entrances the sampling misses (shafts, tunnels beyond the sampled box, steps at the mouth), kept by hand.
+    let fromOverrides = '';
+    if (existsSync(caveEntrancesPath)) {
+      const { added, problems } = applyEntranceOverrides(caveLayer.caves, readEntranceOverrides(readJson(caveEntrancesPath)));
+      const cap = entranceCapProblem(caveLayer.caves);
+      if (cap) problems.push(cap);
+      if (problems.length) { console.error(new BuildError(problems).message); process.exit(1); }
+      fromOverrides = ` (${added} from ${caveEntrancesPath})`;
+    } else {
+      fromOverrides = ` (no ${caveEntrancesPath})`;
+    }
     writeFileSync(join(out, 'caves.geojson'), JSON.stringify(cavesToGeojson(caveLayer.caves)));
     const entrances = caveLayer.caves.reduce((sum, c) => sum + c.entrances.length, 0);
-    done('caves', `${caveLayer.caves.length} caves, ${entrances} entrances`);
+    const without = cavesWithoutEntrance(caveLayer.caves);
+    done('caves', `${caveLayer.caves.length} caves, ${entrances} entrances${fromOverrides}, ${without.length} without an entrance${without.length ? ` (${without.join(', ')})` : ''}`);
   }
   if (parts.has('heights') && heightGrid) {
     const { meta, bytes } = writeHeightTiles(heightGrid, join(out, 'height'));

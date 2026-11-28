@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Cave layer: entrances for the 15 caves whose entrance the sampling of the game geometry does not find (shafts, tunnels beyond the sampled area, steps and low lips at the mouth), kept by hand in the maintainer data (`caves/entrances.json`, `--cave-entrances`); the dataset build fails when more than one cave stays without an entrance. Needs a new `caves` dataset part.
+
 ### Changed
 
 - Crash sites: threats, notes and location hints show in German in the German UI (dataset `crash-sites.json`: `threats[].de`, `notesDe`, `items[].whereDe`; older datasets stay English). Creatures among the threats carry the game's own names; German threat and item names are found in the search. Needs the updated maintainer data and a new `crash-sites` dataset part.

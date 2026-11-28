@@ -2,7 +2,10 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { caveArea, classify, fillEmptyVolumes, isUnderground, keepZonesWith, readGlb, sampleCaves, sampleColumns, traceRings, volumeBand } from '../../scripts/cave-geometry.js';
+import {
+  applyEntranceOverrides, caveArea, cavesWithoutEntrance, classify, entranceCapProblem, fillEmptyVolumes, isUnderground, keepZonesWith,
+  MAX_CAVES_WITHOUT_ENTRANCE, readEntranceOverrides, readGlb, sampleCaves, sampleColumns, traceRings, volumeBand, type SampledCave,
+} from '../../scripts/cave-geometry.js';
 import type { RawCaves } from '../../src/shared/caves.js';
 
 /** A horizontal rectangle in UE cm, facing up or down. */
@@ -291,5 +294,37 @@ describe('halls under the landscape', () => {
     const layer = sampleCaves(hall, volumes, items, () => {}, landscape);
     expect(layer.caves.map(c => c.id)).toEqual(['cave-001']);
     expect([...layer.itemsInCaves]).toEqual(['DEEP']);
+  });
+});
+
+describe('maintained cave entrances', () => {
+  const cave = (id: string, entrances: { x: number; y: number; z: number }[]): SampledCave => ({ id, rings: [[[0, 0], [100, 0], [0, 100]]], entrances });
+
+  it('reads the override file and rejects bad entries', () => {
+    expect(readEntranceOverrides({ _source: {}, entrances: { 'cave-005': [{ x: 1, y: 2, z: 3, cause: 'step' }] } }))
+      .toEqual({ 'cave-005': [{ x: 1, y: 2, z: 3 }] });
+    expect(() => readEntranceOverrides({ entrances: { 'cave-005': [{ x: 1, y: 'a', z: 3 }] } })).toThrow(/cave-005/);
+    expect(() => readEntranceOverrides({})).toThrow(/entrances/);
+  });
+
+  it('adds override entrances to their cave unless one was found within 30 m, and fails on unknown caves', () => {
+    const caves = [cave('cave-001', [{ x: 0, y: 0, z: 0 }]), cave('cave-002', [])];
+    const r = applyEntranceOverrides(caves, {
+      'cave-001': [{ x: 2000, y: 0, z: 0 }, { x: 9000, y: 0, z: 50 }],
+      'cave-002': [{ x: 5, y: 6, z: 7 }],
+      'cave-099': [{ x: 0, y: 0, z: 0 }],
+    });
+    expect(r.added).toBe(2);
+    expect(r.problems).toEqual(['Entrance override for cave-099, which is not a cave of this dataset']);
+    expect(caves[0]!.entrances).toEqual([{ x: 0, y: 0, z: 0 }, { x: 9000, y: 0, z: 50 }]);
+    expect(caves[1]!.entrances).toEqual([{ x: 5, y: 6, z: 7 }]);
+  });
+
+  it('caps the caves without an entrance', () => {
+    const caves = [cave('cave-001', [{ x: 0, y: 0, z: 0 }]), cave('cave-072', []), cave('cave-073', [])];
+    expect(cavesWithoutEntrance(caves)).toEqual(['cave-072', 'cave-073']);
+    expect(MAX_CAVES_WITHOUT_ENTRANCE).toBe(1);
+    expect(entranceCapProblem(caves.slice(0, 2))).toBeNull();
+    expect(entranceCapProblem(caves)).toMatch(/2 caves without an entrance \(cave-072, cave-073\), at most 1/);
   });
 });

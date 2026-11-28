@@ -651,3 +651,65 @@ export function sampleCaves(
   }
   return { caves, itemsInCaves };
 }
+
+/**
+ * A cave entrance the sampling does not find, kept by hand in the maintainer data (`<data-src>/caves/entrances.json`,
+ * `{ entrances: { "<cave id>": [{ x, y, z, ... }] } }`; other fields such as the cause are notes). World cm.
+ */
+export interface EntranceOverride { x: number; y: number; z: number }
+
+/** An override within this distance (cm, 2D) of a found entrance is that entrance and is not added. */
+const OVERRIDE_SAME = 3000;
+/**
+ * At most this many caves may be without any entrance after the overrides: cave-072 (Dune Desert), a chamber under
+ * the landscape that no other map has an entrance for (data-src/extractor/README.md, "Caves").
+ */
+export const MAX_CAVES_WITHOUT_ENTRANCE = 1;
+
+/** The entrances per cave from the override file; throws on a malformed file or entry. */
+export function readEntranceOverrides(raw: unknown): Record<string, EntranceOverride[]> {
+  const entrances = (raw as { entrances?: unknown } | null)?.entrances;
+  if (!entrances || typeof entrances !== 'object' || Array.isArray(entrances)) throw new Error('Cave entrance overrides: no "entrances" object');
+  const out: Record<string, EntranceOverride[]> = {};
+  for (const [id, list] of Object.entries(entrances as Record<string, unknown>)) {
+    if (!Array.isArray(list)) throw new Error(`Cave entrance overrides: ${id} is not a list`);
+    out[id] = list.map((e: { x?: unknown; y?: unknown; z?: unknown }, n) => {
+      if (![e?.x, e?.y, e?.z].every(v => typeof v === 'number' && Number.isFinite(v))) {
+        throw new Error(`Cave entrance overrides: ${id} entry ${n} needs numeric x, y and z`);
+      }
+      return { x: e.x as number, y: e.y as number, z: e.z as number };
+    });
+  }
+  return out;
+}
+
+/** Adds the overrides to their caves (in place), skipping those at a found entrance; problems for unknown caves. */
+export function applyEntranceOverrides(caves: SampledCave[], overrides: Record<string, EntranceOverride[]>): { added: number; problems: string[] } {
+  const byId = new Map(caves.map(c => [c.id, c]));
+  const problems: string[] = [];
+  let added = 0;
+  for (const [id, list] of Object.entries(overrides)) {
+    const cave = byId.get(id);
+    if (!cave) { problems.push(`Entrance override for ${id}, which is not a cave of this dataset`); continue; }
+    const found = [...cave.entrances];
+    for (const e of list) {
+      if (found.some(f => Math.hypot(f.x - e.x, f.y - e.y) <= OVERRIDE_SAME)) continue;
+      cave.entrances.push({ x: e.x, y: e.y, z: e.z });
+      added++;
+    }
+  }
+  return { added, problems };
+}
+
+/** The ids of the caves without any entrance. */
+export function cavesWithoutEntrance(caves: readonly SampledCave[]): string[] {
+  return caves.filter(c => c.entrances.length === 0).map(c => c.id);
+}
+
+/** A build problem when more than MAX_CAVES_WITHOUT_ENTRANCE caves have no entrance, else null. */
+export function entranceCapProblem(caves: readonly SampledCave[]): string | null {
+  const ids = cavesWithoutEntrance(caves);
+  return ids.length > MAX_CAVES_WITHOUT_ENTRANCE
+    ? `${ids.length} caves without an entrance (${ids.join(', ')}), at most ${MAX_CAVES_WITHOUT_ENTRANCE}: find their entrances or add them to the cave entrance overrides`
+    : null;
+}
