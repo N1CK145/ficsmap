@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Dependencies: minor and patch updates (among others Fastify plugins, TanStack Query, better-sqlite3, i18next, zustand, Vite 8.4, Tailwind CSS 4.3.5, vitest 5.1.2) and the GitHub Actions CodeQL 4.39.3 and docker/login-action 4.8.0 (replaces Dependabot PRs #21 and #17).
+
 ## [0.2.4] - 2026-11-21
 
 ### Added
