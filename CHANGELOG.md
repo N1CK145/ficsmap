@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - README: the biomes come from the wiki biome raster (`--biome-raster`), and the limitations name the source of the crash-site data.
+- Dependencies: minor and patch updates (among others Fastify plugins, TanStack Query, better-sqlite3, i18next, zustand, Vite 8.4, Tailwind CSS 4.3.5, vitest 5.1.2) and the GitHub Actions CodeQL 4.39.3 and docker/login-action 4.8.0 (replaces Dependabot PRs #21 and #17).
 
 ## [0.2.4] - 2026-11-21
 
