@@ -81,6 +81,8 @@ jobs:
       - name: Parse the PowerShell watcher
         shell: pwsh
         run: |
+          # The template has @@NAME@@ placeholders that generate.ts fills with quoted values; parse a filled copy.
+          $source = (Get-Content -Raw src/web/features/saveWatcher/templates/ficsmap-watch.ps1) -replace '@@[A-Z_]+@@', "'x'"
           $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/src/web/features/saveWatcher/templates/ficsmap-watch.ps1", [ref]$null, [ref]$errors) | Out-Null
+          [System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$null, [ref]$errors) | Out-Null
           if ($errors) { $errors | ForEach-Object { Write-Error $_.ToString() }; exit 1 }
