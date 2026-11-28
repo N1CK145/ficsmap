@@ -6,6 +6,7 @@ import { drawMarker, NO_PULSES, type MarkerPalette, type MarkerPulses } from './
 import { DOT_ZOOM, type MarkerVisual } from './markerStyle.js';
 import { pickNearest } from './pick.js';
 import { onTypeImageLoad, typeImage } from './typeImages.js';
+import { mapStyle } from './mapStyle.js';
 
 /** One marker as the layer draws it: plain data, no React. */
 export interface DrawMarker {
@@ -27,7 +28,7 @@ const PANE_Z = '450';
 const CULL_PX = 56;
 
 function readPalette(): MarkerPalette | null {
-  const style = getComputedStyle(document.documentElement);
+  const style = mapStyle();
   const token = (name: string) => style.getPropertyValue(`--color-${name}`).trim();
   const types: Record<string, string> = {};
   for (const t of COLLECTIBLE_TYPES) types[t.colorToken] = token(t.colorToken);

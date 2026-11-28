@@ -79,6 +79,12 @@ describe('MapView', () => {
     expect(screen.getByTestId('probe-layer')).toHaveTextContent('has map');
   });
 
+  it('keeps the map, its layers and its controls dark in the light theme (data-theme="dark" on its root)', () => {
+    renderMap();
+    expect(screen.getByRole('button', { name: 'Probe control' }).closest('[data-theme]')).toHaveAttribute('data-theme', 'dark');
+    expect(screen.getByTestId('probe-layer').closest('[data-theme]')).toHaveAttribute('data-theme', 'dark');
+  });
+
   it('renders the map controls', () => {
     renderMap();
     expect(screen.getByRole('button', { name: 'Probe control' })).toBeInTheDocument();

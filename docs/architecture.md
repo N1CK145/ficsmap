@@ -199,7 +199,7 @@ Results show their label and a `detail` line where it helps (a type's count, a c
 
 The look follows the game's FICSIT interface without copying its textures, logos or fonts: neutral gunmetal panels on a near-black base, off-white text, one orange accent for what is active or primary, condensed capitals for titles, thin rules, cut corners and a few hazard stripes. From Factorio: dense, but grouped, and every group has a heading.
 
-**Tokens** (`app/theme.css`, the only place colours are defined; `test/web/theme.test.ts` checks them):
+**Tokens** (`app/theme.css`, the only place colours are defined; `test/web/theme.test.ts` checks them). The light theme (`:root[data-theme="light"]`) overrides the tokens text and controls use with darker values (same contrast rules on its light surfaces); the map (`MapView` root `data-theme="dark"`) stays dark, and map drawing reads its colours through `features/map/mapStyle.ts`, never from `<html>`:
 
 | Token | Use |
 |---|---|

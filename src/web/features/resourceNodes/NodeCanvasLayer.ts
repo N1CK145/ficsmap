@@ -3,6 +3,7 @@ import { PURITIES } from '../../../shared/resourceNodes.js';
 import { drawNode, nodeRadius, nodeSize, type DrawNode, type NodePalette } from './drawNode.js';
 import { nodeImage, onNodeImageLoad } from './nodeImages.js';
 import { PURITY_TOKENS, RESOURCE_TOKENS } from './resourceStyle.js';
+import { mapStyle } from '../map/mapStyle.js';
 
 export const NODE_PANE = 'ficsmap-resource-nodes';
 /**
@@ -15,7 +16,7 @@ const CULL_PX = 24;
 const PICK_SLACK = 6;
 
 function readPalette(): NodePalette | null {
-  const style = getComputedStyle(document.documentElement);
+  const style = mapStyle();
   const token = (name: string) => style.getPropertyValue(`--color-${name}`).trim();
   const resources: Record<string, string> = {};
   for (const t of RESOURCE_TOKENS) resources[t] = token(t);

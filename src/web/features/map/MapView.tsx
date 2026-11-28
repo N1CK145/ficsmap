@@ -66,7 +66,8 @@ export function MapView({ ctx }: { ctx: WorldCtx }) {
   const [overlay, setOverlay] = useState<HTMLDivElement | null>(null);
 
   return (
-    <div className={`ficsmap-map-root absolute inset-0 ${Banner ? 'ficsmap-banner-on' : ''} ${activeMode?.onMapClick ? 'ficsmap-map-pick' : ''}`}>
+    // The map and everything over it stay dark in the light theme (theme.css).
+    <div data-theme="dark" className={`ficsmap-map-root absolute inset-0 ${Banner ? 'ficsmap-banner-on' : ''} ${activeMode?.onMapClick ? 'ficsmap-map-pick' : ''}`}>
       <MapContainer
         {...initial}
         crs={L.CRS.Simple}

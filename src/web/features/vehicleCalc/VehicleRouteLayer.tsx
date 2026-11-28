@@ -8,6 +8,7 @@ import type { VehicleRoute, WorldPoint } from '../../../shared/vehicleRoute.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { useUiStore } from '../../app/store.js';
 import { PICK_MODE, useVehicleCalc, useVehicleCalcWorld } from './useVehicleCalc.js';
+import { mapStyle } from '../map/mapStyle.js';
 
 /**
  * The line's own pane: above the collectible markers' canvas (450) and the resource nodes (455), so it stays visible in
@@ -19,7 +20,7 @@ export const ROUTE_PANE_Z = 460;
 
 /** The vehicles' colour (as in the machine wiki) and the background for the line's casing, read from the CSS tokens. */
 function readColours(): { line: string; casing: string } {
-  const style = getComputedStyle(document.documentElement);
+  const style = mapStyle();
   const token = (name: string) => style.getPropertyValue(name).trim() || 'currentColor';
   return { line: token('--color-cat-vehicles'), casing: token('--color-bg') };
 }
