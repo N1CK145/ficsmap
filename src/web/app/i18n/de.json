@@ -117,7 +117,8 @@
   "live": {
     "live": "Live",
     "connecting": "Verbinde…",
-    "offline": "Offline"
+    "offline": "Offline",
+    "alsoHere": "Auch gerade da: {names}"
   },
   "biomes": {
     "title": "Biome",

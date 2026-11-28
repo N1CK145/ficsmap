@@ -8,7 +8,9 @@ export type SseEvent =
   | { type: 'deleted' }
   | { type: 'routes'; rev: number }
   /** A factory snapshot was added, replaced or deleted (the timeline list changed). */
-  | { type: 'snapshots'; rev: number };
+  | { type: 'snapshots'; rev: number }
+  /** The members with the world open right now (an open event stream), ascending; sent whenever that changes. */
+  | { type: 'presence'; userIds: number[] };
 
 export function encodeSse(e: SseEvent): string {
   return `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`;

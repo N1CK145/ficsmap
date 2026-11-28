@@ -7,6 +7,7 @@ import type { WorldCtx } from '../../src/web/app/feature.js';
 import { FeaturesProvider } from '../../src/web/app/FeaturesContext.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { queryKeys } from '../../src/web/app/queryKeys.js';
+import { usePresence } from '../../src/web/features/live/presence.js';
 import { useRemotePulse } from '../../src/web/features/live/pulse.js';
 import { useLiveStatus, useWorldEvents } from '../../src/web/features/live/useWorldEvents.js';
 import { FEATURES } from '../../src/web/features/index.js';
@@ -66,6 +67,21 @@ describe('useWorldEvents', () => {
     act(() => es.open());
     const keys = invalidate.mock.calls.map(([f]) => f?.queryKey);
     expect(keys).toEqual(expect.arrayContaining([queryKeys.world(W), queryKeys.marks(W), queryKeys.routes(W)]));
+  });
+
+  it('keeps who is in the world from `presence` events and forgets it when the stream drops or closes', () => {
+    const ctx = makeCtx();
+    const { unmount } = events(ctx);
+    const es = FakeEventSource.last();
+    act(() => es.open());
+    act(() => es.emit({ type: 'presence', userIds: [1, 2] }));
+    expect(usePresence.getState()).toMatchObject({ worldId: W, userIds: [1, 2] });
+    act(() => es.fail(FakeEventSource.CONNECTING));
+    expect(usePresence.getState().userIds).toEqual([]);
+    act(() => es.emit({ type: 'presence', userIds: [1, 3] }));
+    expect(usePresence.getState().userIds).toEqual([1, 3]);
+    unmount();
+    expect(usePresence.getState().userIds).toEqual([]);
   });
 
   it('applies a remote mark event and pulses the actor', () => {

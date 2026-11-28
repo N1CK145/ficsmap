@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Header: the other members who have the world open right now, as avatars next to the live dot (up to three, then "+n"; names in the tooltip). The event stream sends a `presence` event whenever someone comes or goes.
 - World settings: the owner can hand the world over to another member (danger zone "Gefahrenzone": "Neuer Besitzer", "Übergeben", `PUT /api/worlds/:id/owner`); the former owner stays as an admin and keeps their upload keys.
 - `CLIENT_IP_HEADER` (e.g. `CF-Connecting-IP`): behind Cloudflare's proxy the rate limits count the real client IP from that header instead of the Cloudflare address. The header is only believed on requests from a `TRUST_PROXY` address; see "Behind Cloudflare" in the README.
 

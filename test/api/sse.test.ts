@@ -127,6 +127,29 @@ describe('sse', () => {
     expect(t.deps.hub!.size(w2.id)).toBe(0);
   });
 
+  it('tells members who is in the world as streams open and close', async () => {
+    const t = await makeTestApp({ hub: new SseHub() });
+    closeApp = t.app;
+    const owner = await t.login('owner-1');
+    const world = (await t.app.inject({ method: 'POST', url: '/api/worlds', headers: { ...json, cookie: owner }, payload: { name: 'W' } })).json();
+    const ownerId = world.owner.id as number;
+    const otherId = t.createUser('other');
+    addMember(t.deps.db, world.id, otherId);
+    const other = await t.login('other');
+    const base = await t.app.listen({ port: 0, host: '127.0.0.1' });
+    const url = `${base}/api/worlds/${world.id}/events`;
+    const ra = reader(await fetch(url, { headers: { cookie: owner } }));
+    await ra.until(`"userIds":[${ownerId}]`);
+    const ac = new AbortController();
+    const rb = reader(await fetch(url, { headers: { cookie: other }, signal: ac.signal }));
+    const both = `"userIds":[${[ownerId, otherId].sort((a, b) => a - b).join(',')}]`;
+    await rb.until(both);
+    await ra.until(both);
+    ac.abort();
+    // The owner's stream got [owner], then both, then [owner] again once the other one left.
+    await ra.until(`${both}}\n\nevent: presence\ndata: {"type":"presence","userIds":[${ownerId}]}`);
+  });
+
   it('client abort drops the subscription', async () => {
     const t = await makeTestApp({ hub: new SseHub() });
     closeApp = t.app;

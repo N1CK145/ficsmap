@@ -102,6 +102,7 @@ describe('routes api', () => {
     const { owner, world, send, deps } = await setup();
     const chunks: string[] = [];
     deps.hub!.add(world.id, 1, c => chunks.push(c), () => undefined);
+    chunks.length = 0; // the stream's own presence event
     const base = `/api/worlds/${world.id}/routes`;
     const dto = (await send('POST', base, owner, body)).json();
     await send('PUT', `${base}/${dto.id}`, owner, body);
