@@ -63,7 +63,7 @@ export function StepPanel({ step, index, lang, minerId, limits, onClose, closeLa
       bodyClassName="flex flex-col gap-4 overflow-y-auto p-3"
     >
       <Section title={t('planner.panel.recipe')}>
-        <ChoiceSelect step={step} index={index} lang={lang} minerId={minerId} />
+        <ChoiceSelect item={step.item} choice={step.choice} index={index} lang={lang} minerId={minerId} />
       </Section>
 
       {!external && !covered && <Production step={step} index={index} lang={lang} />}

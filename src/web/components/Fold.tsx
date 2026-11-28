@@ -16,15 +16,17 @@ export interface FoldProps {
   summaryClassName?: string;
   /** Padding and layout of the content. */
   bodyClassName?: string;
+  /** Render the content only while open (for a long list), instead of keeping it in the document while folded. */
+  lazy?: boolean;
 }
 
 /**
  * A block folded away until asked, for settings that are rarely changed: a native `<details>` whose summary looks like
  * a section heading (`▍ TITLE  values in effect  ⌄`, the marker grey while folded) and works with the keyboard as a
  * button (an inset focus ring, so a window's frame does not cut it off). The content stays in the document while
- * folded.
+ * folded, unless `lazy`.
  */
-export function Fold({ title, summary, defaultOpen = false, children, className = '', summaryClassName = 'py-2', bodyClassName = '' }: FoldProps) {
+export function Fold({ title, summary, defaultOpen = false, children, className = '', summaryClassName = 'py-2', bodyClassName = '', lazy = false }: FoldProps) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <details open={open} onToggle={e => setOpen(e.currentTarget.open)} className={className}>
@@ -38,7 +40,7 @@ export function Fold({ title, summary, defaultOpen = false, children, className 
         </span>
         <ChevronDownIcon size={14} className={`text-muted group-hover:text-fg motion-safe:transition-transform ${open ? '' : '-rotate-90'}`} />
       </summary>
-      <div className={bodyClassName}>{children}</div>
+      {(open || !lazy) && <div className={bodyClassName}>{children}</div>}
     </details>
   );
 }

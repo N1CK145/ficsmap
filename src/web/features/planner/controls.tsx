@@ -33,26 +33,31 @@ export function useChoiceLabel(index: RecipeIndex, lang: Lang, item: string) {
  * that follows the miner setting shows that miner; picking the default (the setting's miner for a solid resource)
  * drops the choice, so the step follows the setting again.
  */
-export function ChoiceSelect({ step, index, lang, minerId, className = '' }: { step: PlanStep; index: RecipeIndex; lang: Lang; minerId: string; className?: string }) {
+export function ChoiceSelect({ item, choice, index, lang, minerId, label: name, className = '' }: {
+  item: string; choice: Choice; index: RecipeIndex; lang: Lang; minerId: string;
+  /** Accessible name instead of the visible "Made by" (for a list of items). */
+  label?: string;
+  className?: string;
+}) {
   const { t } = useTranslation();
   const setChoice = usePlanner(s => s.setChoice);
   const id = useId();
-  const label = useChoiceLabel(index, lang, step.item);
+  const label = useChoiceLabel(index, lang, item);
   const settings = { miner: minerId };
-  const current = choiceKey(offeredChoice(index, step.item, step.choice, settings));
-  const offered = choiceOptions(index, step.item);
-  const options = offered.some(o => choiceKey(o) === current) ? offered : [step.choice, ...offered];
+  const current = choiceKey(offeredChoice(index, item, choice, settings));
+  const offered = choiceOptions(index, item);
+  const options = offered.some(o => choiceKey(o) === current) ? offered : [choice, ...offered];
 
   function onChoose(key: string) {
     const c = parseChoiceKey(key);
     if (!c) return;
-    const isDefault = choiceKey(c) === choiceKey(offeredChoice(index, step.item, defaultChoice(index, step.item), settings));
-    setChoice(step.item, isDefault ? null : c);
+    const isDefault = choiceKey(c) === choiceKey(offeredChoice(index, item, defaultChoice(index, item), settings));
+    setChoice(item, isDefault ? null : c);
   }
 
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className}`}>
-      <label htmlFor={id} className={FIELD_LABEL}>{t('planner.howMade')}</label>
+      <label htmlFor={id} className={name ? 'sr-only' : FIELD_LABEL}>{name ?? t('planner.howMade')}</label>
       <select id={id} value={current} onChange={e => onChoose(e.target.value)} className={fieldClass({}, 'min-w-0 max-w-full flex-1 basis-48 text-sm')}>
         {options.map(o => <option key={choiceKey(o)} value={choiceKey(o)}>{label(o)}</option>)}
       </select>

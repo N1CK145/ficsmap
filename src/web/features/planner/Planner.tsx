@@ -19,6 +19,7 @@ import { Window } from '../../components/Window.js';
 import { GameIcon, IconsContext, useItemIcons } from '../machineWiki/icons.js';
 import { prefersReducedMotion } from '../map/motion.js';
 import { useNodeLayer, useResourceNodeFile } from '../resourceNodes/useResourceNodes.js';
+import { AlternateRecipes } from './AlternateRecipes.js';
 import { powerValue, usePurityOptions } from './controls.js';
 import { DirectionSwitch, useDiagramDirection } from './direction.js';
 import { formatNumber, formatRate, itemName, langOf, type Lang } from './format.js';
@@ -101,7 +102,10 @@ function PlannerBody({ index, lang, toast, ...world }: { index: RecipeIndex; lan
     <div className="relative flex flex-col gap-4">
       <PlanStatus result={shown} lang={lang} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start 2xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
-        <Targets index={index} lang={lang} minerId={minerId} miners={miners.map(m => ({ value: m.id, label: m.name[lang] }))} limits={limits} toast={toast} />
+        <Targets
+          index={index} lang={lang} minerId={minerId} miners={miners.map(m => ({ value: m.id, label: m.name[lang] }))} limits={limits} toast={toast}
+          planItems={shown?.steps.map(st => st.item) ?? []}
+        />
         <div className="flex min-w-0 flex-col gap-3">
           {failed && <PlanError result={failed} index={index} lang={lang} limits={limits} />}
           {stale && <p className="text-sm text-muted">{t('planner.lastWorking')}</p>}
@@ -220,8 +224,10 @@ function StepEditor({ id, item, name, onClose, children }: { id: string; item: s
  * entered, "Start over" in the title bar clears the plan; its toast takes the focus to its Undo (so the keyboard and
  * screen readers reach it), and Undo puts the plan back and the focus on the first item.
  */
-function Targets({ index, lang, minerId, miners, limits, toast }: {
+function Targets({ index, lang, minerId, miners, limits, toast, planItems }: {
   index: RecipeIndex; lang: Lang; minerId: string; miners: { value: string; label: string }[]; limits: ClockLimits; toast: ToastApi;
+  /** The items of the plan on screen, listed first among the alternate recipes. */
+  planItems: readonly string[];
 }) {
   const { t } = useTranslation();
   const targets = usePlanner(s => s.targets);
@@ -280,6 +286,7 @@ function Targets({ index, lang, minerId, miners, limits, toast }: {
       </ul>
       <Button size="sm" onClick={addTarget} className="self-start">{t('planner.add')}</Button>
       <ExtractorSettings minerId={minerId} miners={miners} limits={limits} />
+      <AlternateRecipes index={index} lang={lang} minerId={minerId} planItems={planItems} className="-mx-3 -mb-3 border-t border-line" />
     </Window>
   );
 }
@@ -294,7 +301,7 @@ function ExtractorSettings({ minerId, miners, limits }: { minerId: string; miner
   const purity = t(`planner.purityOption.${settings.purity}`);
   const summary = [miner, purity, `${settings.clock.trim() || '–'} %`].filter(Boolean).join(' · ');
   return (
-    <Fold title={t('planner.extractors')} summary={summary} className="-mx-3 -mb-3 border-t border-line" summaryClassName="px-3 py-1" bodyClassName="flex flex-col gap-3 px-3 pt-1 pb-3">
+    <Fold title={t('planner.extractors')} summary={summary} className="-mx-3 border-t border-line" summaryClassName="px-3 py-1" bodyClassName="flex flex-col gap-3 px-3 pt-1 pb-3">
       {miners.length > 0 && (
         <div className="flex flex-col items-start gap-1">
           <span className={FIELD_LABEL}>{t('planner.miner')}</span>

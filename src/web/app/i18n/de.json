@@ -854,6 +854,19 @@
     "list": {
       "item": "Gegenstand",
       "rate": "Pro Minute"
+    },
+    "alternates": {
+      "title": "Alternativrezepte",
+      "available": "{count, number} verfügbar",
+      "chosen": "{count, plural, one {# gewählt} other {# gewählt}}",
+      "hint": "Alle Alternativrezepte der Spieldaten, nach dem Gegenstand, den sie herstellen. Die Wahl gilt überall, wo der Gegenstand im Plan vorkommt, wie bei „Hergestellt mit“ eines Schritts, und bleibt auf diesem Gerät gespeichert.",
+      "filter": "Alternativrezepte filtern",
+      "filterPlaceholder": "Gegenstand oder Rezept…",
+      "inPlan": "In diesem Plan",
+      "others": "Weitere Gegenstände",
+      "all": "Alle Gegenstände",
+      "noMatch": "Kein passendes Alternativrezept",
+      "recipeFor": "Rezept für {item}"
     }
   },
   "vehicleCalc": {

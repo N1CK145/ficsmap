@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Planner: "Alternate recipes" ("Alternativrezepte") under "What do you need?", folded away under how many are chosen: every alternate recipe in the game data by the item it makes, the items of the current plan first, each with the recipe picker of the step panel ("Made by"), and a filter by item or recipe name in English or German. A choice applies wherever the item is in the plan, also for items that are not in it yet, and is remembered on the device.
+
 ## [0.2.4] - 2026-11-21
 
 ### Added

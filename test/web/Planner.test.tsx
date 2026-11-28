@@ -268,6 +268,37 @@ describe('production planner', () => {
     expect(usePlanner.getState().choices).toEqual({});
   });
 
+  it('lists every alternate recipe, the plan\'s items first; a choice there changes the plan and is remembered', async () => {
+    setup();
+    await openAndPick('plate');
+    const fold = screen.getByText('Alternate recipes', { selector: 'summary *' }).closest('details')!;
+    expect(fold).not.toHaveAttribute('open');
+    // The fixture has 5 alternates.
+    expect(fold.querySelector('summary')).toHaveTextContent('Alternate recipes5 available');
+    await userEvent.click(screen.getByText('Alternate recipes', { selector: 'summary *' }));
+    const inPlan = within(fold).getByRole('heading', { name: 'In this plan' }).closest('section')!;
+    expect(within(inPlan).getAllByRole<HTMLSelectElement>('combobox').map(c => c.labels?.[0]?.textContent)).toEqual(['Recipe for plate']);
+    const others = within(fold).getByRole('heading', { name: 'Other items' }).closest('section')!;
+    expect(within(others).getAllByRole<HTMLSelectElement>('combobox').map(c => c.labels?.[0]?.textContent)).toEqual([
+      'Recipe for fuel', 'Recipe for plastic', 'Recipe for residue', 'Recipe for rubber',
+    ]);
+
+    await userEvent.selectOptions(within(fold).getByLabelText('Recipe for plate'), 'R_PlateAlt (Assembler)');
+    expect(built('plate').getByText('4× Assembler')).toBeInTheDocument();
+    expect(fold.querySelector('summary')).toHaveTextContent('Alternate recipes1 chosen');
+    expect(within(inPlan).getByText('Alternate')).toBeInTheDocument();
+    // An item not in the plan yet keeps its choice for later.
+    await userEvent.selectOptions(within(fold).getByLabelText('Recipe for fuel'), 'R_ResFuel (Refinery)');
+    expect(JSON.parse(localStorage.getItem('ficsmap:planner')!).choices).toEqual({ plate: 'recipe:R_PlateAlt', fuel: 'recipe:R_ResFuel' });
+    expect(loadPlanner()?.choices).toEqual({ plate: { kind: 'recipe', recipe: 'R_PlateAlt' }, fuel: { kind: 'recipe', recipe: 'R_ResFuel' } });
+
+    // The filter finds items and recipes in either language.
+    await userEvent.type(within(fold).getByRole('searchbox', { name: 'Filter alternate recipes' }), 'recrub');
+    expect(within(fold).getAllByRole<HTMLSelectElement>('combobox').map(c => c.labels?.[0]?.textContent)).toEqual(['Recipe for rubber']);
+    await userEvent.type(within(fold).getByRole('searchbox', { name: 'Filter alternate recipes' }), 'xyz');
+    expect(within(fold).getByText('No matching alternate recipe')).toBeInTheDocument();
+  });
+
   it('applies extractor clock speed and purity, per step too, and reports invalid clock speeds', async () => {
     setup();
     await openAndPick('ore');
