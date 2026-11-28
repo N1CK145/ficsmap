@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `.env.development.example` with localhost values, as README and CONTRIBUTING describe.
+- CI checks the save watcher scripts: shellcheck for the Bash watcher, a parse check for the PowerShell watcher.
+
+### Changed
+
+- README: the biomes come from the wiki biome raster (`--biome-raster`), and the limitations name the source of the crash-site data.
+
 ## [0.2.4] - 2026-11-21
 
 ### Added
