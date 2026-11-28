@@ -54,6 +54,8 @@ for arg in "$@"; do
   esac
 done
 
+# The quoted tildes match a literal ~ typed into the config; expanding it is the point here.
+# shellcheck disable=SC2088
 case $SAVE_DIR in
   '~') SAVE_DIR=$HOME ;;
   '~/'*) SAVE_DIR=$HOME/${SAVE_DIR#'~/'} ;;
@@ -63,9 +65,12 @@ esac
 [[ $SERVER_URL =~ ^https?://[^[:space:]/]+(/[^[:space:]]*)?$ ]] || die "SERVER_URL is not an http(s) URL: $SERVER_URL"
 [[ $WORLD_ID =~ ^[0-9a-fA-F-]{36}$ ]] || die "WORLD_ID is not a world id: $WORLD_ID"
 [[ $UPLOAD_TOKEN =~ ^fsm_[0-9]+_[A-Za-z0-9_-]{43}$ ]] || die "UPLOAD_TOKEN is not a ficsmap upload token"
-[[ $POLL_SECONDS =~ ^[0-9]+$ ]] && ((POLL_SECONDS >= 5)) || die "POLL_SECONDS must be a whole number of at least 5"
-[[ $UPLOAD_INTERVAL_MINUTES =~ ^[0-9]{1,4}$ ]] && ((10#$UPLOAD_INTERVAL_MINUTES <= 1440)) ||
+if ! [[ $POLL_SECONDS =~ ^[0-9]+$ ]] || ((POLL_SECONDS < 5)); then
+  die "POLL_SECONDS must be a whole number of at least 5"
+fi
+if ! [[ $UPLOAD_INTERVAL_MINUTES =~ ^[0-9]{1,4}$ ]] || ((10#$UPLOAD_INTERVAL_MINUTES > 1440)); then
   die "UPLOAD_INTERVAL_MINUTES must be a whole number from 0 to 1440"
+fi
 UPLOAD_INTERVAL_MINUTES=$((10#$UPLOAD_INTERVAL_MINUTES))
 INTERVAL_SECONDS=$((UPLOAD_INTERVAL_MINUTES * 60))
 [[ $UPLOAD_MODE == newest || $UPLOAD_MODE == all ]] || die "UPLOAD_MODE must be newest or all"
