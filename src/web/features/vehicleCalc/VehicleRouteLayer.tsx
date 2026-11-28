@@ -32,7 +32,7 @@ function pin(letter: 'A' | 'B'): L.DivIcon {
 /**
  * The vehicle calculator's route on the map: the start (A) and the destination (B) with the straight line between
  * them, shown while they are set (the calculator is a page of its own), above the collectible markers (`ROUTE_PANE`).
- * A and B can be dragged; the calculator follows. The route is this world's (`useVehicleCalcWorld`).
+ * A and B can be dragged; the calculator follows, and a point dropped near a resource node shown on the map snaps onto it. The route is this world's (`useVehicleCalcWorld`).
  * While points are picked (PICK_MODE) only the start picked so far is shown.
  */
 export function VehicleRouteLayer({ ctx }: { ctx: WorldCtx }) {
@@ -47,11 +47,18 @@ export function VehicleRouteLayer({ ctx }: { ctx: WorldCtx }) {
   const at = (p: WorldPoint): LatLngTuple => worldToLatLng(p.x, p.y, bounds);
   // Stable, so react-leaflet does not rebind them on every render of a drag.
   const handlers = useMemo(() => {
-    const moved = (which: keyof VehicleRoute) => (e: LeafletEvent) => {
-      const p = (e.target as L.Marker).getLatLng();
-      useVehicleCalc.getState().moveRoutePoint(which, latLngToWorld(p.lat, p.lng, bounds));
+    // While dragging the point follows the pointer; where it is dropped it snaps onto a resource node near it.
+    const moved = (which: keyof VehicleRoute, drop: boolean) => (e: LeafletEvent) => {
+      const marker = e.target as L.Marker;
+      const p = marker.getLatLng();
+      const s = useVehicleCalc.getState();
+      const point = latLngToWorld(p.lat, p.lng, bounds);
+      const at = drop ? s.snap(point) : point;
+      s.moveRoutePoint(which, at);
+      // The pin is where Leaflet dropped it, and React's position did not change when the route already had that point.
+      if (at !== point) marker.setLatLng(worldToLatLng(at.x, at.y, bounds));
     };
-    return { start: { drag: moved('start'), dragend: moved('start') }, end: { drag: moved('end'), dragend: moved('end') } };
+    return { start: { drag: moved('start', false), dragend: moved('start', true) }, end: { drag: moved('end', false), dragend: moved('end', true) } };
   }, [bounds]);
 
   if (picking) {

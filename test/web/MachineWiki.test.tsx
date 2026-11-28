@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
-import type { MachineData } from '../../src/shared/machines.js';
+import type { MachineData, MachineEntry } from '../../src/shared/machines.js';
 import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
 import { machineWikiFeature, machineWikiTool } from '../../src/web/features/machineWiki/index.js';
@@ -295,6 +295,20 @@ describe('machine wiki', () => {
     expect(hasStat(within(page).getByRole('article'), 'Clock speed') || hasStat(within(page).getByRole('article'), 'Power exponent (clock speed)')).toBe(false);
     await user().click(within(page).getByRole('button', { name: 'Resource Well Extractor' }));
     expect(value('Extraction rate')).toHaveTextContent('60 m³/min (normal node)');
+  });
+
+  it('notes under the Truck Station\'s description that its "120 stacks per minute" is not what the game does', async () => {
+    const station: MachineEntry = {
+      id: 'Build_TruckStation_C', category: 'logistics', name: { en: 'Truck Station', de: 'Lkw-Station' },
+      description: { en: 'Transfers up to 120 stacks per minute to/from docked vehicles.', de: 'Überträgt bis zu 120 Stapel pro Minute.' },
+      wikiPage: 'Truck_Station', stats: { powerUse: 20, inventorySlots: 48, fuelSlots: 1 }, unlockedBy: [],
+    };
+    setup('present', 'present', `/w/${W}/wiki/Build_TruckStation_C`, { machines: { ...DATA, machines: [...DATA.machines, station] } });
+    const article = await screen.findByRole('article', { name: 'Truck Station' });
+    expect(within(article).getByText(/still says “up to 120 stacks per minute”/)).toHaveTextContent(
+      'The description still says “up to 120 stacks per minute”. Since game version 1.2 a Truck Station loads or unloads a docked vehicle in one fixed cycle, whatever it carries; the vehicle calculator counts with that.');
+    await user().click(within(screen.getByRole('main')).getByRole('button', { name: 'Drone Port' }));
+    expect(within(screen.getByRole('article')).queryByText(/120 stacks/)).toBeNull();
   });
 
   it('goes back to the list from an entry with the window\'s ×', async () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
-import { loadEditorBiomes, assignBiome, type BiomeShape } from '../../src/shared/biomes.js';
+import { loadEditorBiomes, assignBiome, biomeLocator, type BiomeShape } from '../../src/shared/biomes.js';
 
 const c = { imageSize: 1000, world: { minX: 0, minY: 0, maxX: 1000, maxY: 1000 } };
 const poly = (x: number, y: number, s = 10) => ({
@@ -68,5 +68,23 @@ describe('assignBiome', () => {
   });
   it('ties go to lower index', () => {
     expect(assignBiome(15, 5, biomes, 5)).toBe(0);
+  });
+});
+
+describe('biomeLocator', () => {
+  // As in biomes.geojson: one Polygon per biome, `idx` as in Dataset.biomes, world coordinates.
+  const fc = { type: 'FeatureCollection', features: [
+    { type: 'Feature', properties: { idx: 1, id: 'b', name: 'B' }, geometry: poly(100, 0, 50) },
+    { type: 'Feature', properties: { idx: 0, id: 'a', name: 'A' }, geometry: poly(0, 0, 50) },
+  ] };
+  it('gives the idx of the biome a point lies in, or of the nearest within the snap distance, else -1', () => {
+    const at = biomeLocator(fc, 20);
+    expect(at(10, 10)).toBe(0);
+    expect(at(120, 10)).toBe(1);
+    expect(at(160, 10)).toBe(1);
+    expect(at(400, 400)).toBe(-1);
+  });
+  it('copes with an empty collection', () => {
+    expect(biomeLocator({ features: [] }, 20)(0, 0)).toBe(-1);
   });
 });

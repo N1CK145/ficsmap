@@ -351,7 +351,10 @@
     },
     "coords": "X {x} · Y {y} · Z {z}",
     "copyId": "Copy ID",
-    "copied": "Copied"
+    "copied": "Copied",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied",
+    "linkNotFound": "The linked object is not on this map."
   },
   "import": {
     "privacy": "Your save is read in your browser. Only this is sent to the server: the list of collected items; the save’s name, date and game build; for resource nodes the resource or purity your save sets and which extractor stands on which node (building, clock speed, Power Shards); for the factory plan what is built where (buildings with their productivity, belts, pipes, power lines, roads, stations, vehicles, map markers, sign texts and the explored area); the players’ names and where their characters stand; the game’s statistics (creatures killed, consumed, built, crafted and picked up, per player where the game counts it); which creature spawn points were killed; and the death crates.",
@@ -689,6 +692,9 @@
     "atFullClock": "Per minute at 100 % clock speed.",
     "description": "In the game",
     "noDescription": "The game has no description.",
+    "descriptionNote": {
+      "truckStation": "The description still says “up to 120 stacks per minute”. Since game version 1.2 a Truck Station loads or unloads a docked vehicle in one fixed cycle, whatever it carries; the vehicle calculator counts with that."
+    },
     "buildCost": "{place, select, workshop {Crafted in the Equipment Workshop from} other {Build cost}}",
     "unlockedBy": "Unlocked by",
     "unlock": "{kind, select, milestone {Tier {tier, number}: {name}} tutorial {Tier 0: {name}} mam {MAM research: {name}} alternate {Alternate recipe: {name}} hardDrive {Hard drive: {name}} shop {AWESOME Shop: {name}} other {{name}}}",
@@ -912,7 +918,7 @@
     "route": "Route length (one way)",
     "pick": {
       "button": "Pick on the map",
-      "hint": "Choose the start (A) and the destination (B) on the map, or type the length.",
+      "hint": "Choose the start (A) and the destination (B) on the map, or type the length. A point near a resource node shown on the map snaps onto it.",
       "again": "Pick again",
       "clear": "Clear points",
       "start": "Vehicle calculator: choose the start on the map",
@@ -966,7 +972,7 @@
     "speedMissing": "Not in the game data: enter the average speed you see in the game.",
     "stop": "Load and unload time",
     "stopSource": {
-      "truckStation": "Both ends together. Game value: one Truck Station cycle at each end.",
+      "truckStation": "Both ends together. Game value: one Truck Station cycle at each end. Its description says “up to 120 stacks per minute”, but since game version 1.2 one cycle moves the whole load, so that is not used.",
       "fluidTruckStation": "Both ends together. Game value: one Fluid Truck Station cycle at each end.",
       "freightPlatform": "Both ends together. Game value: a Freight Platform's load and unload time.",
       "dronePort": "Both ends together. Game value: docking and take-off at both Drone Ports."
@@ -1894,6 +1900,14 @@
       "stinger": "Stingers",
       "hatcher": "Crab hatchers",
       "wildlife": "Wildlife"
+    },
+    "biomes": {
+      "title": "Where creatures still live",
+      "summary": "{count, plural, =0 {every biome cleared} one {# biome not cleared} other {# biomes not cleared}}",
+      "count": "{open} of {total}",
+      "cleared": "cleared",
+      "outside": "Outside the biomes",
+      "hint": "Spawn points of the kinds shown whose creatures are not dead right now, of all, from the save the timeline shows. A click shows the biome on the map."
     },
     "legend": "From zoom 5 the creature’s picture, below that a diamond. Filled: killed before, hollow: never killed, struck out in red: dead right now. Number on the picture: times killed.",
     "source": "{kills, number} kills at {spawners, number} spawn points · save of {date}",

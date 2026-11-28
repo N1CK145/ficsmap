@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useId, useMemo, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  descriptorClass, entryRecipes, entryTierKeys, groupByCategory, matchesQuery, matchesTiers, perMinute, selectedUpTo, statRows, tierOf,
+  descriptionNote, descriptorClass, entryRecipes, entryTierKeys, groupByCategory, matchesQuery, matchesTiers, perMinute, selectedUpTo, statRows, tierOf,
   tierOptions, toggleTier, upToTier, wikiUrl,
   type ItemAmount, type Lang, type MachineCategory, type MachineData, type MachineEntry, type StatRow as WikiStatRow, type TierKey, type WikiRecipe,
 } from '../../../shared/machines.js';
@@ -346,6 +346,7 @@ export function EntryDetail({ data, entry, lang, shardStep, recipes: byId, onClo
 
       <Section title={t('machineWiki.description')}>
         <blockquote lang={lang} className={`border-l-2 pl-3 whitespace-pre-line ${c.border}`}>{entry.description[lang] || t('machineWiki.noDescription')}</blockquote>
+        {descriptionNote(entry.id) && <p className={NOTE}>{t(`machineWiki.descriptionNote.${descriptionNote(entry.id)}`)}</p>}
       </Section>
 
       {entry.build && (

@@ -1,4 +1,4 @@
-import { routeGeometry, routeLengthInput } from '../../src/shared/vehicleRoute.js';
+import { routeGeometry, routeLengthInput, snapToNode } from '../../src/shared/vehicleRoute.js';
 
 describe('vehicle route geometry', () => {
   it('measures the straight line on the map in metres (100 world units = 1 m)', () => {
@@ -28,5 +28,18 @@ describe('vehicle route geometry', () => {
   it('fills the route length with whole metres', () => {
     expect(routeLengthInput({ start: { x: 0, y: 0 }, end: { x: 123_456, y: 0 } })).toBe('1235');
     expect(routeLengthInput({ start: { x: 0, y: 0 }, end: { x: 0, y: 0 } })).toBe('0');
+  });
+});
+
+describe('snapToNode', () => {
+  const nodes = [{ x: 10_000, y: 0 }, { x: 12_000, y: 0 }, { x: 0, y: 50_000 }];
+  it('moves a point onto the nearest node within the radius', () => {
+    expect(snapToNode({ x: 11_200, y: 300 }, nodes, 2_000)).toEqual({ x: 12_000, y: 0 });
+    expect(snapToNode({ x: 10_500, y: 0 }, nodes, 2_000)).toEqual({ x: 10_000, y: 0 });
+  });
+  it('keeps a point farther away from every node, and with no nodes', () => {
+    expect(snapToNode({ x: 0, y: 20_000 }, nodes, 2_000)).toEqual({ x: 0, y: 20_000 });
+    expect(snapToNode({ x: 10_000, y: 0 }, [], 2_000)).toEqual({ x: 10_000, y: 0 });
+    expect(snapToNode({ x: 10_100, y: 0 }, nodes, 0)).toEqual({ x: 10_100, y: 0 });
   });
 });

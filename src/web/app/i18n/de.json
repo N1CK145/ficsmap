@@ -351,7 +351,10 @@
     },
     "coords": "X {x} · Y {y} · Z {z}",
     "copyId": "ID kopieren",
-    "copied": "Kopiert"
+    "copied": "Kopiert",
+    "copyLink": "Link kopieren",
+    "linkCopied": "Link kopiert",
+    "linkNotFound": "Das verlinkte Objekt gibt es auf dieser Karte nicht."
   },
   "import": {
     "privacy": "Dein Spielstand wird in deinem Browser gelesen. An den Server geht nur: die Liste der gesammelten Objekte; Name, Datum und Build des Spielstands; zu den Rohstoffvorkommen die Ressource oder Reinheit, die dein Spielstand festlegt, sowie welcher Extraktor auf welchem Vorkommen steht (Gebäude, Taktrate, Energiefragmente); für den Fabrikplan, was wo gebaut ist (Gebäude mit ihrer Produktivität, Förderbänder, Rohrleitungen, Stromleitungen, Wege, Stationen, Fahrzeuge, Kartenmarkierungen, Schildertexte und die erkundete Fläche); die Namen der Spieler und wo ihre Spielfiguren stehen; die Statistik des Spiels (getötete Kreaturen, Verbrauch, Gebautes, Gefertigtes und Aufgehobenes, je Spieler, wo das Spiel es zählt); welche Kreaturen-Spawnpunkte getötet wurden; und die Todeskisten.",
@@ -689,6 +692,9 @@
     "atFullClock": "Pro Minute bei 100 % Taktrate.",
     "description": "Im Spiel",
     "noDescription": "Das Spiel hat keine Beschreibung.",
+    "descriptionNote": {
+      "truckStation": "Die Beschreibung nennt noch „bis zu 120 Stapel pro Minute“. Seit Spielversion 1.2 belädt oder entlädt eine Lkw-Station ein angedocktes Fahrzeug in einem festen Zyklus, egal was es geladen hat; der Fahrzeugrechner rechnet damit."
+    },
     "buildCost": "{place, select, workshop {Hergestellt in der Ausrüstungs-Werkstatt aus} other {Baukosten}}",
     "unlockedBy": "Freigeschaltet durch",
     "unlock": "{kind, select, milestone {Stufe {tier, number}: {name}} tutorial {Stufe 0: {name}} mam {MAM-Forschung: {name}} alternate {Alternatives Rezept: {name}} hardDrive {Festplatte: {name}} shop {AWESOME-Shop: {name}} other {{name}}}",
@@ -912,7 +918,7 @@
     "route": "Streckenlänge (einfach)",
     "pick": {
       "button": "Auf der Karte wählen",
-      "hint": "Start (A) und Ziel (B) auf der Karte wählen oder die Länge eintippen.",
+      "hint": "Start (A) und Ziel (B) auf der Karte wählen oder die Länge eintippen. Ein Punkt nahe einem angezeigten Rohstoffvorkommen rastet darauf ein.",
       "again": "Neu wählen",
       "clear": "Punkte entfernen",
       "start": "Fahrzeug-Rechner: Start auf der Karte wählen",
@@ -966,7 +972,7 @@
     "speedMissing": "Nicht in den Spieldaten: trag die Durchschnittsgeschwindigkeit ein, die du im Spiel siehst.",
     "stop": "Lade- und Entladezeit",
     "stopSource": {
-      "truckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Lkw-Station an jedem Ende.",
+      "truckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Lkw-Station an jedem Ende. Ihre Beschreibung nennt „bis zu 120 Stapel pro Minute“, seit Spielversion 1.2 bewegt aber ein Zyklus die ganze Ladung; das wird daher nicht verwendet.",
       "fluidTruckStation": "Beide Enden zusammen. Spielwert: ein Zyklus der Tanklaster-Station an jedem Ende.",
       "freightPlatform": "Beide Enden zusammen. Spielwert: Lade- und Entladezeit der Frachtplattform.",
       "dronePort": "Beide Enden zusammen. Spielwert: Andocken und Abheben an beiden Drohnenlandeplätzen."
@@ -1894,6 +1900,14 @@
       "stinger": "Stecher",
       "hatcher": "Krabbenbrüter",
       "wildlife": "Wildtiere"
+    },
+    "biomes": {
+      "title": "Wo noch Kreaturen leben",
+      "summary": "{count, plural, =0 {alle Biome geräumt} one {# Biom nicht geräumt} other {# Biome nicht geräumt}}",
+      "count": "{open} von {total}",
+      "cleared": "geräumt",
+      "outside": "Außerhalb der Biome",
+      "hint": "Spawnpunkte der angezeigten Arten, deren Kreaturen gerade nicht tot sind, von allen, laut dem Spielstand der Zeitleiste. Ein Klick zeigt das Biom auf der Karte."
     },
     "legend": "Ab Zoom 5 das Bild der Kreatur, darunter eine Raute. Gefüllt: schon getötet, hohl: nie getötet, rot durchgestrichen: gerade tot. Zahl am Bild: so oft getötet.",
     "source": "{kills, number} Kills an {spawners, number} Spawnpunkten · Spielstand vom {date}",

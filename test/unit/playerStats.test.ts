@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCreatures, creatureFamily, killsByName, killState, killSummary } from '../../src/shared/creatures.js';
+import { buildCreatures, creatureFamily, creaturesByBiome, killsByName, killState, killSummary, readCreatures } from '../../src/shared/creatures.js';
 import { readPlayers, readSpawner, readStats, UNASSIGNED_PLAYER } from '../../src/shared/factory/stats.js';
 import { statsViews } from '../../src/shared/factory/statsView.js';
 import { countDeaths, deathCrateHistory, deathCrates } from '../../src/shared/factory/storage.js';
@@ -162,5 +162,25 @@ describe('creatures', () => {
     const k = killsByName([['A', 3, 1], ['B', 1, 0]]);
     expect(killSummary(k, 6)).toEqual({ kills: 4, spawners: 2, dead: 1, total: 6, withoutSpawner: 2 });
     expect(killSummary(k, null).withoutSpawner).toBe(0);
+  });
+  it('counts per biome the spawners whose creatures live (not dead right now), most first; outside every biome is -1', () => {
+    const spawners = readCreatures({ version: 't', spawners: [
+      ['A', 'Char_Hog_C', 0, 0, 0], ['B', 'Char_Hog_C', 10, 0, 0], ['C', 'Char_Stinger_C', 20, 0, 0],
+      ['D', 'Char_Spitter_C', 100, 0, 0], ['E', 'Char_Spitter_C', 110, 0, 0], ['F', 'Char_Hog_C', 999, 0, 0],
+    ] });
+    // A and D dead now, B killed before and back, the rest never killed.
+    const kills = killsByName([['A', 2, 1], ['B', 1, 0], ['D', 1, 1]]);
+    const biomeOf = ({ x }: { x: number }) => (x < 50 ? 0 : x < 500 ? 1 : -1);
+    expect(creaturesByBiome(spawners, kills, biomeOf)).toEqual([
+      { biome: 0, open: 2, total: 3 },
+      { biome: 1, open: 1, total: 2 },
+      { biome: -1, open: 1, total: 1 },
+    ]);
+    // A cleared biome stays in the list with 0 open, after the others.
+    const cleared = killsByName([['A', 1, 1], ['B', 1, 1], ['C', 1, 1]]);
+    expect(creaturesByBiome(spawners.slice(0, 4), cleared, biomeOf)).toEqual([
+      { biome: 1, open: 1, total: 1 },
+      { biome: 0, open: 0, total: 3 },
+    ]);
   });
 });
