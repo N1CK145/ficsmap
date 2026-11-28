@@ -112,7 +112,7 @@
     "hideSidebar": "Hide sidebar",
     "showSidebar": "Show sidebar",
     "resizeSidebar": "Resize sidebar",
-    "resizeSidebarHint": "Drag or use the arrow keys; double-click to fit the content"
+    "resizeSidebarHint": "Drag or use the arrow keys; double-click for the default width"
   },
   "live": {
     "live": "Live",

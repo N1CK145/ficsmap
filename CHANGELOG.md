@@ -13,8 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Sidebar: starts at a fixed 360 px instead of following its content, so it no longer jumps while the panels load or fold. A dragged width is kept as before; double-click on the edge goes back to 360 px.
 - Map: while the creature layer filters by kill state ("Gerade tot", "Wieder da", "Nie getötet"), the collectible markers step back (40 %), so the spawners stand out; search matches and the selected item stay full.
 - The conflict and error colour is now a raspberry red, so it no longer looks like the red of impure resource nodes (also for red-green colour blindness).
+
+### Fixed
+
+- Header at 1280 px: the settings button no longer overlaps the search field inside a world; the "FICSMAP" wordmark shows there only from 1440 px (the mark stays).
 
 ## [0.2.4] - 2026-11-21
 
