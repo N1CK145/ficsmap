@@ -873,7 +873,7 @@
     "route": "Route length (one way)",
     "pick": {
       "button": "Pick on the map",
-      "hint": "Choose the start (A) and the destination (B) on the map, or type the length.",
+      "hint": "Choose the start (A) and the destination (B) on the map, or type the length. A point near a resource node shown on the map snaps onto it.",
       "again": "Pick again",
       "clear": "Clear points",
       "start": "Vehicle calculator: choose the start on the map",

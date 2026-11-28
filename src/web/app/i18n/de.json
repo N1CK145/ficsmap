@@ -873,7 +873,7 @@
     "route": "Streckenlänge (einfach)",
     "pick": {
       "button": "Auf der Karte wählen",
-      "hint": "Start (A) und Ziel (B) auf der Karte wählen oder die Länge eintippen.",
+      "hint": "Start (A) und Ziel (B) auf der Karte wählen oder die Länge eintippen. Ein Punkt nahe einem angezeigten Rohstoffvorkommen rastet darauf ein.",
       "again": "Neu wählen",
       "clear": "Punkte entfernen",
       "start": "Fahrzeug-Rechner: Start auf der Karte wählen",

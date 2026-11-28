@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Vehicle calculator: a route point picked or dropped near a resource node shown on the map (node layer on, with its filters) snaps onto the node, within 20 px at the map's zoom.
 - Factory page and map: the estimated flows of the production lines follow the sort rules of smart and programmable splitters. An item goes only to the outputs that take it (named, "Any", or "Any Undefined" when no rule names it), Overflow outputs get what those do not take, and "None" or an output without a rule gets nothing.
 
 ### Changed

@@ -1,5 +1,5 @@
 import { gzipSync } from 'node:zlib';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import L from 'leaflet';
@@ -8,6 +8,7 @@ import type { MeDto, WorldDto } from '../../src/shared/api.js';
 import { indexDataset, type Dataset } from '../../src/shared/dataset.js';
 import { worldToLatLng } from '../../src/shared/geo.js';
 import { encodeHeightTile, type HeightmapMeta } from '../../src/shared/heightmap.js';
+import type { ResourceNodesFile } from '../../src/shared/resourceNodes.js';
 import type { TransportData } from '../../src/shared/transport.js';
 import type { WorldCtx } from '../../src/web/app/feature.js';
 import { initI18n } from '../../src/web/app/i18n/index.js';
@@ -18,6 +19,8 @@ import { loadVehicleCalc } from '../../src/web/app/persist.js';
 import { cardValue, durationParts, formatFuel } from '../../src/web/features/vehicleCalc/format.js';
 import { EMPTY_FORM, useVehicleCalc } from '../../src/web/features/vehicleCalc/useVehicleCalc.js';
 import { ROUTE_PANE, VehicleRouteLayer } from '../../src/web/features/vehicleCalc/VehicleRouteLayer.js';
+import { RouteSnap, SNAP_PX } from '../../src/web/features/vehicleCalc/RouteSnap.js';
+import { useNodeLayer } from '../../src/web/features/resourceNodes/useResourceNodes.js';
 import { MarkerLayer } from '../../src/web/features/map/MarkerLayer.js';
 import { findItem, pinSelected, VEHICLE_PICTURES, type FuelRow } from '../../src/web/features/vehicleCalc/VehicleCalculator.js';
 import { stubFetch } from './fetchStub.js';
@@ -513,14 +516,33 @@ describe('vehicle calculator: route on the map', () => {
     expect(vehicleCalcFeature.mapModes).toEqual([pickRouteMode]);
     expect(pickRouteMode.id).toBe('vehicle-route');
     expect(pickRouteMode.onMapClick).toBeTypeOf('function');
-    expect(vehicleCalcFeature.mapLayers?.map(l => l.id)).toEqual(['vehicle-route', 'vehicle-pick-return']);
+    expect(vehicleCalcFeature.mapLayers?.map(l => l.id)).toEqual(['vehicle-route', 'vehicle-pick-return', 'vehicle-route-snap']);
+  });
+
+  it('snaps a point clicked near a resource node shown on the map onto it; a marker click keeps the marker\'s position', () => {
+    const { clickMap, clickMarker } = setupPicking();
+    act(() => {
+      useVehicleCalc.getState().setSnap([{ x: 50_000, y: 50_000 }, { x: 20_000, y: 20_000 }], 1_000);
+      useVehicleCalc.getState().startPicking();
+    });
+    clickMap(50_600, 49_500);
+    expect(useVehicleCalc.getState().pickedStart).toEqual({ x: 50_000, y: 50_000 });
+    // Farther than the radius: the point stays where it was clicked.
+    clickMap(22_000, 20_000);
+    expect(useVehicleCalc.getState().route).toEqual({ start: { x: 50_000, y: 50_000 }, end: { x: 22_000, y: 20_000 } });
+    act(() => useVehicleCalc.getState().startPicking());
+    // The somersloop S1 lies at 30 000 / 10 000.
+    act(() => useVehicleCalc.getState().setSnap([{ x: 30_010, y: 10_000 }], 1_000));
+    clickMarker('S1');
+    expect(useVehicleCalc.getState().pickedStart).toEqual({ x: 30_000, y: 10_000 });
+    act(() => useVehicleCalc.getState().setSnap([], 0));
   });
 
   it('picks start and destination on the map, then goes back to the calculator with the route and one truck on it', async () => {
     const { clickMap, clickMarker, router } = setupPicking(true);
     useUiStore.getState().setMainView('list');
     const page = await openDe();
-    expect(within(page).getByText('Start (A) und Ziel (B) auf der Karte wählen oder die Länge eintippen.')).toBeInTheDocument();
+    expect(within(page).getByText('Start (A) und Ziel (B) auf der Karte wählen oder die Länge eintippen. Ein Punkt nahe einem angezeigten Rohstoffvorkommen rastet darauf ein.')).toBeInTheDocument();
     await user().click(within(page).getByRole('button', { name: 'Auf der Karte wählen' }));
 
     // The page gives way to the map (also from the list view); the banner says what to pick.
@@ -782,6 +804,26 @@ describe('vehicle route layer', () => {
     expect(useVehicleCalc.getState().form.route).toBe('1000');
   });
 
+  it('snaps a pin dropped near a resource node onto it; while dragging it follows the pointer', () => {
+    const { markers } = renderLayer();
+    act(() => {
+      useVehicleCalc.setState({ route: { start: { x: 0, y: 0 }, end: { x: 30_000, y: 40_000 } }, lengthFromRoute: true, form: { ...EMPTY_FORM, route: '500' } });
+      useVehicleCalc.getState().setSnap([{ x: 60_000, y: 80_000 }], 1_000);
+    });
+    const b = markers().find(m => m.options.title === 'Ziel')!;
+    act(() => {
+      b.setLatLng(worldToLatLng(60_500, 80_300, DS.bounds));
+      b.fire('drag');
+    });
+    expect(useVehicleCalc.getState().route?.end.x).toBeCloseTo(60_500);
+    act(() => { b.fire('dragend'); });
+    expect(useVehicleCalc.getState().route?.end).toEqual({ x: 60_000, y: 80_000 });
+    expect(useVehicleCalc.getState().form.route).toBe('1000');
+    const at = b.getLatLng(), want = worldToLatLng(60_000, 80_000, DS.bounds);
+    expect([at.lat, at.lng]).toEqual([want[0], want[1]]);
+    act(() => useVehicleCalc.getState().setSnap([], 0));
+  });
+
   it('shows only the start picked so far while picking', () => {
     const { container, pins } = renderLayer();
     act(() => {
@@ -808,5 +850,62 @@ describe('vehicle route layer', () => {
     expect(z(ROUTE_PANE)).toBeLessThan(600);
     expect(line.style.pointerEvents).toBe('none');
     expect(container.querySelector('.leaflet-marker-pane .ficsmap-vroute-pin')).not.toBeNull();
+  });
+});
+
+describe('route snap', () => {
+  const NODES: ResourceNodesFile = {
+    version: 'test',
+    resources: [{ id: 'Desc_OreIron_C', name: 'Iron Ore' }, { id: 'Desc_Coal_C', name: 'Coal' }],
+    nodes: [
+      ['N1', 'node', 'Desc_OreIron_C', 'pure', 50_000, 50_000, 0],
+      ['N2', 'node', 'Desc_Coal_C', 'normal', 20_000, 20_000, 0],
+    ],
+  };
+  beforeEach(() => {
+    localStorage.clear();
+    useVehicleCalc.getState().setSnap([], 0);
+    stubFetch({
+      'GET /data/test/resource-nodes.json': { body: NODES },
+      [`GET /api/worlds/${W}/resource-nodes`]: { body: { overrides: [], settings: null, extractors: [] } },
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  function renderSnap() {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const ctx: WorldCtx = { worldId: W, world: WORLD, me: ME, index: indexDataset(DS), queryClient: client, navigate: () => {}, toast: { show: () => {} } };
+    let map: L.Map | undefined;
+    const Grab = () => { map = useMap(); return null; };
+    const view = render(
+      <QueryClientProvider client={client}>
+        <MapContainer crs={L.CRS.Simple} center={[-128, 128]} zoom={1} style={{ width: 400, height: 400 }}>
+          <Grab />
+          <RouteSnap ctx={ctx} />
+        </MapContainer>
+      </QueryClientProvider>,
+    );
+    return { ...view, map: () => map! };
+  }
+
+  it('snaps to the resource nodes the node layer shows, within a few pixels at the zoom', async () => {
+    useNodeLayer.setState({ visible: true, hiddenResources: ['Desc_Coal_C'], purities: ['impure', 'normal', 'pure'], occupancy: 'all' });
+    const { map } = renderSnap();
+    await waitFor(() => expect(useVehicleCalc.getState().snapTargets).toEqual([{ x: 50_000, y: 50_000 }]));
+    // At zoom 1 one pixel is 100 000 / 512 world units (the map is 256 units wide at zoom 0).
+    const radius = useVehicleCalc.getState().snapRadius;
+    expect(radius).toBeCloseTo(SNAP_PX * 100_000 / 512, 0);
+    act(() => { map().setZoom(3, { animate: false }); });
+    await waitFor(() => expect(useVehicleCalc.getState().snapRadius).toBeCloseTo(radius / 4, 0));
+  });
+
+  it('does not snap while the node layer is off, nor once it is gone from the map', async () => {
+    useNodeLayer.setState({ visible: false, hiddenResources: [], purities: ['impure', 'normal', 'pure'], occupancy: 'all' });
+    const { unmount } = renderSnap();
+    expect(useVehicleCalc.getState().snapTargets).toEqual([]);
+    act(() => useNodeLayer.setState({ visible: true }));
+    await waitFor(() => expect(useVehicleCalc.getState().snapTargets).toHaveLength(2));
+    unmount();
+    expect(useVehicleCalc.getState().snapTargets).toEqual([]);
   });
 });

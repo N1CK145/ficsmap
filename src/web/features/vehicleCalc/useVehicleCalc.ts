@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useLayoutEffect } from 'react';
 import { create } from 'zustand';
 import { DEFAULT_FUEL, type TransportData, type VehicleId } from '../../../shared/transport.js';
-import { routeLengthInput, type VehicleRoute, type WorldPoint } from '../../../shared/vehicleRoute.js';
+import { routeLengthInput, snapToNode, type VehicleRoute, type WorldPoint } from '../../../shared/vehicleRoute.js';
 import { api, ApiClientError } from '../../app/api.js';
 import { worldPath } from '../../app/pages.js';
 import { loadVehicleCalc, saveVehicleCalc } from '../../app/persist.js';
@@ -76,6 +76,12 @@ interface VehicleCalcState {
    * and clears it. Not set when another map mode takes over.
    */
   returnRequest: boolean;
+  /**
+   * Where route points snap to (`snap`): the resource nodes shown on the map, and the radius in world units (a few
+   * pixels at the map's zoom). Set by `RouteSnap` on the map; empty without the node layer.
+   */
+  snapTargets: readonly WorldPoint[];
+  snapRadius: number;
   /** Switches to a world's calculator as this device last left it (form, route), or an empty one. */
   enterWorld(worldId: string): void;
   /** The form; a route length (m) set from elsewhere (e.g. a route planner) replaces the typed one: `setForm({ route })`. */
@@ -95,6 +101,9 @@ interface VehicleCalcState {
   applyRouteLength(): void;
   /** Forgets the points; the route length stays as it is. */
   clearRoute(): void;
+  setSnap(targets: readonly WorldPoint[], radius: number): void;
+  /** A point placed on the map, moved onto a resource node shown near it (`snapTargets`, `snapRadius`). */
+  snap(point: WorldPoint): WorldPoint;
 }
 
 function leavePickMode(): void {
@@ -114,6 +123,8 @@ export const useVehicleCalc = create<VehicleCalcState>()((set, get) => ({
   pickedStart: null,
   lengthFromRoute: false,
   returnRequest: false,
+  snapTargets: [],
+  snapRadius: 0,
   enterWorld: worldId => {
     if (get().worldId === worldId) return;
     const saved = loadVehicleCalc(worldId);
@@ -154,6 +165,8 @@ export const useVehicleCalc = create<VehicleCalcState>()((set, get) => ({
   }),
   applyRouteLength: () => set(s => (s.route ? { form: { ...s.form, route: routeLengthInput(s.route) }, lengthFromRoute: true } : {})),
   clearRoute: () => set({ route: null, lengthFromRoute: false }),
+  setSnap: (snapTargets, snapRadius) => set({ snapTargets, snapRadius }),
+  snap: point => snapToNode(point, get().snapTargets, get().snapRadius),
 }));
 
 // Remembers every change of the form or the route for the world it belongs to (entering a world only loads).
