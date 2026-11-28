@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Map: while the creature layer filters by kill state ("Gerade tot", "Wieder da", "Nie getötet"), the collectible markers step back (40 %), so the spawners stand out; search matches and the selected item stay full.
 - The conflict and error colour is now a raspberry red, so it no longer looks like the red of impure resource nodes (also for red-green colour blindness).
 
 ## [0.2.4] - 2026-11-21

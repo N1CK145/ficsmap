@@ -14,6 +14,7 @@ import { useFeatures } from '../../app/FeaturesContext.js';
 import { loadView, saveView, type PersistedView } from '../../app/persist.js';
 import { getWheelSpeed } from '../../app/prefs.js';
 import { useUiStore, type UiState } from '../../app/store.js';
+import { useCreatureLayer } from '../creatures/useCreatures.js';
 import { useRemotePulse } from '../live/pulse.js';
 import { hasMismatch, isCollected, useMarks, type MarksCache } from '../marks/useMarks.js';
 import { useRouteIndex } from '../routes/useRoutes.js';
@@ -150,6 +151,8 @@ interface BaseMarker { item: Item; lat: number; lng: number; type: CollectibleTy
 type MarkerFilters = Pick<UiState, 'typeFilter' | 'visibility' | 'biomeScope' | 'onlyConflicts' | 'selectedActor' | 'searchHighlight'> & {
   /** A mode that takes points anywhere is on: the markers fade like non-matches of a search, so its points stand out. */
   picking: boolean;
+  /** The creature layer filters by kill state: the markers step back, so the spawners stand out. */
+  recede: boolean;
 };
 
 /** Draw order: uncollected, collected, conflicts, search matches, then the selected marker on top. */
@@ -181,6 +184,7 @@ function buildMarkers(
       onlyConflicts: f.onlyConflicts,
       routeIndex: routeIndex.get(item.name) ?? null,
       search: f.searchHighlight === null ? (f.picking ? false : null) : f.searchHighlight.has(item.name),
+      recede: f.recede,
     });
     const pod = podBadge(item.extra?.pod);
     const m: DrawMarker = { id: item.name, lat, lng, type, visual: pod ? { ...visual, pod } : visual };
@@ -204,10 +208,11 @@ function baseMarkers(index: DatasetIndex): BaseMarker[] {
 function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
   const map = useMap();
   const marks = useMarks(ctx.worldId);
-  const filters = useUiStore(useShallow((s): MarkerFilters => ({
+  const filters = useUiStore(useShallow((s): Omit<MarkerFilters, 'recede'> => ({
     typeFilter: s.typeFilter, visibility: s.visibility, biomeScope: s.biomeScope, onlyConflicts: s.onlyConflicts, selectedActor: s.selectedActor,
     searchHighlight: s.searchHighlight, picking: modes.some(m => m.id === s.interactionMode && m.onMapClick !== undefined),
   })));
+  const recede = useCreatureLayer(s => s.visible && s.kill !== 'all');
   const pulse = useRemotePulse(s => s.pulse);
   const routeIndex = useRouteIndex(ctx.worldId);
   const [reducedMotion] = useState(prefersReducedMotion);
@@ -216,8 +221,8 @@ function Markers({ ctx, modes }: { ctx: WorldCtx; modes: readonly MapMode[] }) {
   const base = useMemo(() => baseMarkers(ctx.index), [ctx.index]);
   const conflictPulse = useConflictPulse(base, marks, reducedMotion);
   const markers = useMemo(
-    () => buildMarkers(base, marks, filters, zoom, reducedMotion ? null : { remote: pulse, conflict: conflictPulse }, routeIndex),
-    [base, marks, filters, zoom, reducedMotion, pulse, conflictPulse, routeIndex],
+    () => buildMarkers(base, marks, { ...filters, recede }, zoom, reducedMotion ? null : { remote: pulse, conflict: conflictPulse }, routeIndex),
+    [base, marks, filters, recede, zoom, reducedMotion, pulse, conflictPulse, routeIndex],
   );
 
   const markersRef = useRef(markers);

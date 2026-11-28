@@ -13,6 +13,7 @@ import { loadView, saveView } from '../../src/web/app/persist.js';
 import { receivePrefs, usePrefsStore } from '../../src/web/app/prefs.js';
 import { queryKeys } from '../../src/web/app/queryKeys.js';
 import { useUiStore } from '../../src/web/app/store.js';
+import { useCreatureLayer } from '../../src/web/features/creatures/useCreatures.js';
 import { markerClickClaims } from '../../src/web/features/map/clickClaims.js';
 import { MapView } from '../../src/web/features/map/MapView.js';
 import { MarkerLayer, type DrawMarker } from '../../src/web/features/map/MarkerLayer.js';
@@ -202,6 +203,22 @@ describe('MapView clicks', () => {
     act(() => { useUiStore.getState().setMode('vehicle-route'); useUiStore.getState().setSearchHighlight(new Set(['S1'])); });
     expect(drawn()[0]!.visual).toMatchObject({ opacity: 1, highlight: true });
     act(() => { useUiStore.getState().setSearchHighlight(null); });
+  });
+
+  it('fades the markers while the creature layer filters by kill state', () => {
+    renderMap();
+    let layer: MarkerLayer | undefined;
+    probedMap!.eachLayer(l => { if (l instanceof MarkerLayer) layer = l; });
+    const drawn = () => (layer as unknown as { getMarkers(): readonly DrawMarker[] }).getMarkers();
+    expect(drawn()[0]!.visual.opacity).toBe(1);
+    // The filter alone, with the layer off, changes nothing.
+    act(() => { useCreatureLayer.setState({ visible: false, kill: 'dead' }); });
+    expect(drawn()[0]!.visual.opacity).toBe(1);
+    act(() => { useCreatureLayer.setState({ visible: true, kill: 'dead' }); });
+    expect(drawn()[0]!.visual.opacity).toBeCloseTo(0.4, 10);
+    act(() => { useCreatureLayer.setState({ kill: 'all' }); });
+    expect(drawn()[0]!.visual.opacity).toBe(1);
+    act(() => { useCreatureLayer.setState({ visible: false }); });
   });
 
   it('leaves a click to a layer above the markers that claims it, while just looking around', () => {
