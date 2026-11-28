@@ -576,7 +576,15 @@
       "confirmLabel": "Zur Bestätigung den Namen der Welt eingeben",
       "delete": "Welt löschen",
       "deleted": "Welt gelöscht",
-      "failed": "Die Welt konnte nicht gelöscht werden. Bitte versuche es erneut."
+      "failed": "Die Welt konnte nicht gelöscht werden. Bitte versuche es erneut.",
+      "transferHint": "Übergib die Welt an ein anderes Mitglied. Du bleibst als Admin dabei.",
+      "transferLabel": "Neuer Besitzer",
+      "transferChoose": "Mitglied wählen",
+      "transfer": "Übergeben",
+      "transferConfirm": "{name} zum Besitzer von {world} machen? Du wirst Admin; nur {name} kann die Welt dann löschen oder zurückgeben.",
+      "transferAction": "Zum Besitzer machen",
+      "transferred": "{name} besitzt jetzt {world}",
+      "transferFailed": "Die Welt konnte nicht übergeben werden. Bitte versuche es erneut."
     }
   },
   "list": {

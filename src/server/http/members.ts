@@ -4,10 +4,11 @@ import type { AppDeps } from '../app.js';
 import { makeWorldGuards } from '../auth/guards.js';
 import { HttpError } from '../errors.js';
 import { revokeUploadTokensBy } from '../domain/uploadTokens.js';
-import { removeMember, roleOf, setMemberRole } from '../domain/worlds.js';
+import { removeMember, roleOf, setMemberRole, transferOwnership } from '../domain/worlds.js';
 
 const USER_ID = /^[1-9][0-9]{0,15}$/;
 const RoleBody = z.object({ role: z.enum(['admin', 'member']) });
+const OwnerBody = z.object({ userId: z.number().int().positive() });
 
 /**
  * Members of a world (src/shared/roles.ts):
@@ -15,6 +16,8 @@ const RoleBody = z.object({ role: z.enum(['admin', 'member']) });
  *   admin only plain members. The owner cannot be removed. 204.
  * - `PUT /api/worlds/:id/members/:userId/role` `{role: 'admin' | 'member'}`: owner only; an admin may set themselves
  *   back to `member`. The owner's role never changes. 204.
+ * - `PUT /api/worlds/:id/owner` `{userId}`: owner only; hands the world to another member, the former owner becomes
+ *   an admin (and keeps their upload tokens). 204.
  * Losing a member or an admin revokes the upload tokens they created. Both broadcast `members`, so every client
  * refetches the world (and with it its own role).
  */
@@ -65,6 +68,15 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
       })();
       deps.hub!.broadcast(world.id, { type: 'members' });
     }
+    return reply.code(204).send();
+  });
+
+  app.put('/api/worlds/:id/owner', { preHandler: requireMember }, async (req, reply) => {
+    const world = req.world!;
+    const { userId } = OwnerBody.parse(req.body);
+    if (req.role !== 'owner') throw new HttpError(403, 'forbidden', 'Only the owner can hand over the world');
+    transferOwnership(db, world.id, userId);
+    deps.hub!.broadcast(world.id, { type: 'members' });
     return reply.code(204).send();
   });
 }

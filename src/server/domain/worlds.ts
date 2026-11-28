@@ -65,6 +65,21 @@ export function setMemberRole(db: Db, worldId: string, userId: number, role: Mem
   db.prepare('UPDATE world_members SET role = ? WHERE world_id = ? AND user_id = ?').run(role, worldId, userId);
 }
 
+/**
+ * Hands the world to `newOwnerId`, who must be a member other than the owner; the former owner stays as an admin.
+ * Like a role change it leaves `rev` alone (clients refetch on `members`). The caller checks that the owner asks.
+ */
+export function transferOwnership(db: Db, worldId: string, newOwnerId: number): void {
+  db.transaction((): void => {
+    const w = getWorld(db, worldId);
+    if (!w) throw new HttpError(404, 'not_found', 'Not found');
+    if (w.owner_id === newOwnerId) throw new HttpError(400, 'invalid_body', 'Already the owner');
+    if (!roleOf(db, worldId, newOwnerId)) throw new HttpError(404, 'not_found', 'Not found');
+    db.prepare("UPDATE world_members SET role = 'admin' WHERE world_id = ? AND user_id = ?").run(worldId, w.owner_id);
+    db.prepare('UPDATE worlds SET owner_id = ? WHERE id = ?').run(newOwnerId, worldId);
+  })();
+}
+
 export function bumpRev(db: Db, worldId: string): number {
   const r = db.prepare('UPDATE worlds SET rev = rev + 1 WHERE id = ? RETURNING rev').get(worldId) as
     { rev: number } | undefined;

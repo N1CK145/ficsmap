@@ -576,7 +576,15 @@
       "confirmLabel": "Type the world name to confirm",
       "delete": "Delete world",
       "deleted": "World deleted",
-      "failed": "Couldn't delete the world. Please try again."
+      "failed": "Couldn't delete the world. Please try again.",
+      "transferHint": "Hand the world over to another member. You stay as an admin.",
+      "transferLabel": "New owner",
+      "transferChoose": "Choose a member",
+      "transfer": "Hand over",
+      "transferConfirm": "Make {name} the owner of {world}? You become an admin; only {name} can delete the world or hand it back.",
+      "transferAction": "Make owner",
+      "transferred": "{name} now owns {world}",
+      "transferFailed": "Couldn't hand over the world. Please try again."
     }
   },
   "list": {

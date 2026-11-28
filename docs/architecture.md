@@ -168,9 +168,10 @@ Results show their label and a `detail` line where it helps (a type's count, a c
 | `GET`/`POST /upload-tokens`, `DELETE /upload-tokens/:tid` | yes | yes | no |
 | `DELETE /members/:userId` | anyone but themselves | plain members, and themselves | themselves |
 | `PUT /members/:userId/role` | members and admins | themselves to `member` | no |
+| `PUT /owner` (hand over) | yes | no | no |
 | `DELETE /api/worlds/:id` | yes | no | no |
 
-`PUT /api/worlds/:id/members/:userId/role` takes `{role: 'admin' | 'member'}` and answers 204; the owner's role never changes (403), a non-member target is 404. Role changes and removals broadcast `members`, so every client refetches the world and with it its own role. Losing admin rights, leaving or being removed revokes the upload tokens that user created. The save watcher's upload is the one route without a session: its upload token stands for the user who created it (imports run under their name). Imports and snapshots also record who made them.
+`PUT /api/worlds/:id/members/:userId/role` takes `{role: 'admin' | 'member'}` and answers 204; the owner's role never changes (403), a non-member target is 404. `PUT /api/worlds/:id/owner` takes `{userId}` (another member; the owner themselves 400, a non-member 404) and answers 204: `transferOwnership` sets `worlds.owner_id` and makes the former owner an admin, who keeps their upload tokens. The UI is in the danger zone of the world settings (`DangerZone.tsx`, a member select and a confirm). Role changes, hand-overs and removals broadcast `members`, so every client refetches the world and with it its own role. Losing admin rights, leaving or being removed revokes the upload tokens that user created. The save watcher's upload is the one route without a session: its upload token stands for the user who created it (imports run under their name). Imports and snapshots also record who made them.
 
 **SSE.** `GET /api/worlds/:id/events` keeps a `text/event-stream` open with a heartbeat. The hub keeps a `Map<worldId, Set<client>>` in memory and broadcasts events (`mark`, `marks-bulk`, `import`, `world`, `members`, `removed`, `deleted`, `routes`, `snapshots`). There is no replay: on (re)connect the client refetches and ignores events whose `rev` is not newer than what it loaded.
 

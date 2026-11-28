@@ -100,6 +100,7 @@ const ROUTES: { name: string; min: 'member' | 'admin' | 'owner'; allowed: number
     },
   },
   { name: 'PUT member role (grant)', min: 'owner', allowed: 204, call: (c, k) => c.setRole(k, c.ids.member2, 'admin') },
+  { name: 'PUT owner (transfer)', min: 'owner', allowed: 204, call: (c, k) => c.req(k, 'PUT', '/owner', { userId: c.ids.member2 }) },
   { name: 'DELETE world', min: 'owner', allowed: 204, call: (c, k) => c.req(k, 'DELETE', '') },
 ];
 
@@ -194,6 +195,38 @@ describe('world admins: roles', () => {
     await c.req(c.cookies.admin2, 'POST', '/upload-tokens', { label: 'Admin2 PC' });
     await c.remove(c.cookies.owner, c.ids.admin2);
     expect(await labels()).toEqual(['Owner PC']);
+  });
+});
+
+describe('world ownership transfer', () => {
+  const transfer = (c: Ctx, cookie: string, userId: unknown) => c.req(cookie, 'PUT', '/owner', { userId });
+
+  it('the owner hands the world to a member, becomes an admin and keeps their upload keys', async () => {
+    const c = await setup();
+    await c.req(c.cookies.owner, 'POST', '/upload-tokens', { label: 'Owner PC' });
+    expect((await transfer(c, c.cookies.owner, c.ids.member)).statusCode).toBe(204);
+    expect(c.events).toContainEqual([c.world.id, { type: 'members' }]);
+    const world = (await c.req(c.cookies.member, 'GET', '')).json();
+    expect(world.role).toBe('owner');
+    expect(world.owner.id).toBe(c.ids.member);
+    expect((await c.req(c.cookies.owner, 'GET', '')).json().role).toBe('admin');
+    const labels = (await c.req(c.cookies.member, 'GET', '/upload-tokens')).json().map((t: { label: string }) => t.label);
+    expect(labels).toEqual(['Owner PC']);
+    // The former owner is an admin now: no more owner-only actions; the new owner has them.
+    expect((await transfer(c, c.cookies.owner, c.ids.owner)).statusCode).toBe(403);
+    expect((await c.setRole(c.cookies.member, c.ids.owner, 'member')).statusCode).toBe(204);
+    const list = (await c.app.inject({ url: '/api/worlds', headers: { cookie: c.cookies.member } })).json();
+    expect(list[0].role).toBe('owner');
+  });
+
+  it('rejects the owner themselves, strangers, unknown ids and bad bodies', async () => {
+    const c = await setup();
+    expect((await transfer(c, c.cookies.owner, c.ids.owner)).statusCode).toBe(400);
+    expect((await transfer(c, c.cookies.owner, c.ids.stranger)).statusCode).toBe(404);
+    expect((await transfer(c, c.cookies.owner, 999_999)).statusCode).toBe(404);
+    expect((await transfer(c, c.cookies.owner, 'x')).statusCode).toBe(400);
+    expect((await transfer(c, c.cookies.owner, -1)).statusCode).toBe(400);
+    expect((await c.req(c.cookies.owner, 'GET', '')).json().role).toBe('owner');
   });
 });
 
