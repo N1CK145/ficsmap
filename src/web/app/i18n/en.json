@@ -1985,5 +1985,28 @@
     "more": "+{count, number} more",
     "empty": "Empty",
     "showOnMap": "On the map"
+  },
+  "activity": {
+    "title": "Activity",
+    "hereNow": "Here now: {names}",
+    "alone": "Nobody else is here right now.",
+    "recent": "Recent changes",
+    "empty": "Nothing has happened yet.",
+    "loadFailed": "The activity couldn't be loaded.",
+    "someone": "Someone",
+    "kind": {
+      "marks": "{name} changed {count, plural, one {# check} other {# checks}}",
+      "import": "{name} imported {count, plural, one {a save} other {# saves}}",
+      "snapshots": "{name} added {count, plural, one {a save} other {# saves}} to the factory plan",
+      "routes": "{name} edited routes",
+      "rename": "{name} renamed the world to {detail}",
+      "join": "{name} joined",
+      "leave": "{name} left",
+      "remove": "{name} removed {target}",
+      "roleAdmin": "{name} made {target} an admin",
+      "roleMember": "{name} took admin rights from {target}",
+      "stepDown": "{name} gave up admin rights",
+      "owner": "{name} handed the world to {target}"
+    }
   }
 }

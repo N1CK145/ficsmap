@@ -57,7 +57,7 @@ export function useWorldEvents(worldId: string, ctx: WorldCtx): LiveStatus {
       es.onopen = () => {
         delay = RECONNECT_MIN_MS;
         setStatus('live');
-        for (const queryKey of [queryKeys.world(worldId), queryKeys.marks(worldId), queryKeys.routes(worldId), queryKeys.snapshots(worldId)]) {
+        for (const queryKey of [queryKeys.world(worldId), queryKeys.marks(worldId), queryKeys.routes(worldId), queryKeys.snapshots(worldId), queryKeys.activity(worldId)]) {
           void queryClient.invalidateQueries({ queryKey });
         }
       };

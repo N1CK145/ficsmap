@@ -1985,5 +1985,28 @@
     "more": "+{count, number} weitere",
     "empty": "Leer",
     "showOnMap": "Auf der Karte"
+  },
+  "activity": {
+    "title": "Aktivität",
+    "hereNow": "Gerade da: {names}",
+    "alone": "Sonst ist gerade niemand da.",
+    "recent": "Letzte Änderungen",
+    "empty": "Noch ist nichts passiert.",
+    "loadFailed": "Die Aktivität konnte nicht geladen werden.",
+    "someone": "Jemand",
+    "kind": {
+      "marks": "{name} hat {count, plural, one {# Häkchen} other {# Häkchen}} geändert",
+      "import": "{name} hat {count, plural, one {einen Spielstand} other {# Spielstände}} importiert",
+      "snapshots": "{name} hat {count, plural, one {einen Spielstand} other {# Spielstände}} zum Fabrikplan hinzugefügt",
+      "routes": "{name} hat Routen bearbeitet",
+      "rename": "{name} hat die Welt in {detail} umbenannt",
+      "join": "{name} ist beigetreten",
+      "leave": "{name} hat die Welt verlassen",
+      "remove": "{name} hat {target} entfernt",
+      "roleAdmin": "{name} hat {target} zum Admin gemacht",
+      "roleMember": "{name} hat {target} die Admin-Rechte entzogen",
+      "stepDown": "{name} hat die Admin-Rechte abgegeben",
+      "owner": "{name} hat die Welt an {target} übergeben"
+    }
   }
 }
