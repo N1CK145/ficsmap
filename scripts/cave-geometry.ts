@@ -612,7 +612,17 @@ export function traceRings(sample: CaveSample): number[][][] {
 
 export interface CaveGeometryIndex { caves: { id: string; file: string; min: number[]; max: number[]; volumes: string[] }[] }
 export interface SampledCave { id: string; rings: number[][][]; entrances: { x: number; y: number; z: number }[] }
-export interface CaveLayer { caves: SampledCave[]; itemsInCaves: Set<string> }
+export interface CaveLayer {
+  caves: SampledCave[];
+  itemsInCaves: Set<string>;
+  /** Items more than UNDERGROUND under the landscape (`isUnderground`; empty without the landscape). */
+  underground: Set<string>;
+  /** Per probe point (`sampleCaves` `probes`): the height (cm) of the walkable floor there, null where none is near. */
+  probeZ: (number | null)[];
+}
+
+/** How far (cells, 2D) from a probe point a floor still gives its height. */
+const PROBE_REACH = 20;
 
 /**
  * Samples every cave of the extractor's cave geometry (`<dir>/index.json` and one GLB per cave) and tests the
@@ -621,13 +631,15 @@ export interface CaveLayer { caves: SampledCave[]; itemsInCaves: Set<string> }
  */
 export function sampleCaves(
   dir: string, volumes: RawCaves, points: readonly { name: string; x: number; y: number; z: number }[],
-  log: (line: string) => void = () => {}, landscape?: HeightGrid | null,
+  log: (line: string) => void = () => {}, landscape?: HeightGrid | null, probes: readonly { x: number; y: number; z?: number }[] = [],
 ): CaveLayer {
   const index = JSON.parse(readFileSync(`${dir}/index.json`, 'utf8')) as CaveGeometryIndex;
   const byName = new Map(volumes.volumes.map(v => [v.name, v]));
   const caves: SampledCave[] = [];
   const itemsInCaves = new Set<string>();
   const underground = new Set(landscape ? points.filter(p => isUnderground(landscape, p.x, p.y, p.z)).map(p => p.name) : []);
+  // Best floor per probe over all boxes (see probeFloor).
+  const probeBest = probes.map(() => ({ rank: Infinity, z: null as number | null }));
   for (const entry of index.caves) {
     const elements = entry.volumes.flatMap(n => cleanElements(byName.get(n)?.elements ?? []));
     if (elements.length === 0) continue;
@@ -646,70 +658,60 @@ export function sampleCaves(
     if (rings.length === 0) continue;
     caves.push({ id: entry.id, rings, entrances: sample.entrances.map(({ x, y, z }) => ({ x, y, z })) });
     for (const p of inBox) if (inCaveAt(cols, sample, p.x, p.y, p.z, underground.has(p.name))) itemsInCaves.add(p.name);
+    probes.forEach((q, n) => {
+      const found = probeFloor(cols, sample, q.x, q.y, q.z);
+      if (found && found.rank < probeBest[n]!.rank) probeBest[n] = found;
+    });
     const notes = [missed ? 'landscape as ceiling in volumes with items outside the cave' : '', filled ? `${filled} volume cluster(s) without cave floor drawn whole` : ''].filter(Boolean);
     log(`  ${entry.id}: ${rings.length} outline rings, ${sample.entrances.length} entrances${notes.length ? ` (${notes.join('; ')})` : ''}`);
   }
-  return { caves, itemsInCaves };
+  return { caves, itemsInCaves, underground, probeZ: probeBest.map(b => b.z) };
 }
 
 /**
- * A cave entrance the sampling does not find, kept by hand in the maintainer data (`<data-src>/caves/entrances.json`,
- * `{ entrances: { "<cave id>": [{ x, y, z, ... }] } }`; other fields such as the cause are notes). World cm.
+ * The height of an entrance: of the cave floor (kind 1) and the open floor reached from outside (kind 3) within
+ * PROBE_REACH cells, the one nearest in height to `hint` (an entrance height drawn by hand), else the nearest cave
+ * floor (the mouth's floor), else the nearest open floor. Open floor alone is often the cliff top above a mouth:
+ * against the 53 hand-drawn heights of 1.2.5.0, the nearest cave floor was off by 1.5 m (median), the nearest open
+ * floor by 37 m, the floor nearest the hint by 0 m (41 within 5 m). `rank` orders the candidates (lower is better,
+ * comparable between boxes). Null outside the sampled box or with no such floor near.
  */
-export interface EntranceOverride { x: number; y: number; z: number }
+export function probeFloor(cols: Columns, sample: CaveSample, x: number, y: number, hint?: number): { rank: number; z: number } | null {
+  const ci = Math.floor((x - cols.x0) / CELL), cj = Math.floor((y - cols.y0) / CELL);
+  if (ci < 0 || cj < 0 || ci >= cols.w || cj >= cols.h) return null;
+  let best: { rank: number; z: number } | null = null;
+  for (let dj = -PROBE_REACH; dj <= PROBE_REACH; dj++) {
+    for (let di = -PROBE_REACH; di <= PROBE_REACH; di++) {
+      const i = ci + di, j = cj + dj;
+      const d = Math.hypot(di, dj);
+      if (i < 0 || j < 0 || i >= cols.w || j >= cols.h || d > PROBE_REACH) continue;
+      const k = j * cols.w + i;
+      for (let t = cols.start[k]!; t < cols.start[k + 1]!; t++) {
+        const kind = sample.kind[t];
+        if (kind !== 3 && kind !== 1) continue;
+        const rank = hint !== undefined ? Math.abs(cols.z[t]! - hint) + d : (kind === 1 ? 0 : 1000) + d;
+        if (!best || rank < best.rank) best = { rank, z: cols.z[t]! };
+      }
+    }
+  }
+  return best;
+}
 
-/** An override within this distance (cm, 2D) of a found entrance is that entrance and is not added. */
-const OVERRIDE_SAME = 3000;
 /**
- * At most this many caves may be without any entrance after the overrides: cave-072 (Dune Desert), a chamber under
- * the landscape that no other map has an entrance for (data-src/extractor/README.md, "Caves").
+ * At most this many caves may be without any entrance when the outlines are used: cave-072 (Dune Desert), a chamber
+ * under the landscape that no other map has (data-src/extractor/README.md, "Caves").
  */
 export const MAX_CAVES_WITHOUT_ENTRANCE = 1;
 
-/** The entrances per cave from the override file; throws on a malformed file or entry. */
-export function readEntranceOverrides(raw: unknown): Record<string, EntranceOverride[]> {
-  const entrances = (raw as { entrances?: unknown } | null)?.entrances;
-  if (!entrances || typeof entrances !== 'object' || Array.isArray(entrances)) throw new Error('Cave entrance overrides: no "entrances" object');
-  const out: Record<string, EntranceOverride[]> = {};
-  for (const [id, list] of Object.entries(entrances as Record<string, unknown>)) {
-    if (!Array.isArray(list)) throw new Error(`Cave entrance overrides: ${id} is not a list`);
-    out[id] = list.map((e: { x?: unknown; y?: unknown; z?: unknown }, n) => {
-      if (![e?.x, e?.y, e?.z].every(v => typeof v === 'number' && Number.isFinite(v))) {
-        throw new Error(`Cave entrance overrides: ${id} entry ${n} needs numeric x, y and z`);
-      }
-      return { x: e.x as number, y: e.y as number, z: e.z as number };
-    });
-  }
-  return out;
-}
-
-/** Adds the overrides to their caves (in place), skipping those at a found entrance; problems for unknown caves. */
-export function applyEntranceOverrides(caves: SampledCave[], overrides: Record<string, EntranceOverride[]>): { added: number; problems: string[] } {
-  const byId = new Map(caves.map(c => [c.id, c]));
-  const problems: string[] = [];
-  let added = 0;
-  for (const [id, list] of Object.entries(overrides)) {
-    const cave = byId.get(id);
-    if (!cave) { problems.push(`Entrance override for ${id}, which is not a cave of this dataset`); continue; }
-    const found = [...cave.entrances];
-    for (const e of list) {
-      if (found.some(f => Math.hypot(f.x - e.x, f.y - e.y) <= OVERRIDE_SAME)) continue;
-      cave.entrances.push({ x: e.x, y: e.y, z: e.z });
-      added++;
-    }
-  }
-  return { added, problems };
-}
-
 /** The ids of the caves without any entrance. */
-export function cavesWithoutEntrance(caves: readonly SampledCave[]): string[] {
+export function cavesWithoutEntrance(caves: readonly { id: string; entrances: readonly unknown[] }[]): string[] {
   return caves.filter(c => c.entrances.length === 0).map(c => c.id);
 }
 
 /** A build problem when more than MAX_CAVES_WITHOUT_ENTRANCE caves have no entrance, else null. */
-export function entranceCapProblem(caves: readonly SampledCave[]): string | null {
+export function entranceCapProblem(caves: readonly { id: string; entrances: readonly unknown[] }[]): string | null {
   const ids = cavesWithoutEntrance(caves);
   return ids.length > MAX_CAVES_WITHOUT_ENTRANCE
-    ? `${ids.length} caves without an entrance (${ids.join(', ')}), at most ${MAX_CAVES_WITHOUT_ENTRANCE}: find their entrances or add them to the cave entrance overrides`
+    ? `${ids.length} caves without an entrance (${ids.join(', ')}), at most ${MAX_CAVES_WITHOUT_ENTRANCE}: find their entrances or add them to the cave outlines`
     : null;
 }

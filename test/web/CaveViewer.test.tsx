@@ -108,6 +108,25 @@ describe('cave helpers', () => {
 });
 
 describe('cave box and 3D view', () => {
+  it('names a cave by its map number and opens the 3D model of the geometry cave it lies in', async () => {
+    const { ctx, wrap } = setup();
+    const geojson = {
+      ...GEOJSON,
+      features: [
+        { type: 'Feature', properties: { kind: 'cave', id: 'sc-007', n: 7, model: 'cave-001' }, geometry: GEOJSON.features[0]!.geometry },
+        { type: 'Feature', properties: { kind: 'entrance', cave: 'sc-007', z: 5 }, geometry: { type: 'Point', coordinates: [1000, 0] } },
+      ],
+    };
+    stubFetch({ 'GET /data/test/caves.geojson': { body: geojson }, 'GET /data/test/cave-models/index.json': { body: MODELS } });
+    useCaveViewer.setState({ popup: { id: 'sc-007', lat: -2, lng: 2 } });
+    wrap(inMap(<CaveInfo ctx={ctx} />));
+    const box = await screen.findByRole('region', { name: 'Cave 7' });
+    await waitFor(() => expect(box).toHaveTextContent('1 item · 1 entrance'));
+    await userEvent.click(await screen.findByRole('button', { name: '3D view' }));
+    await screen.findByRole('dialog', { name: 'Cave 7 in 3D' });
+    expect(await screen.findByTestId('stub-viewer')).toHaveAttribute('data-url', '/data/test/cave-models/cave-001.glb?v=abc123');
+  });
+
   it('opens the box of the cave clicked on the layer and closes it on a click outside every cave', async () => {
     const { ctx, wrap } = setup();
     const { container } = wrap(inMap(<CaveLayer ctx={ctx} />));

@@ -5,7 +5,7 @@ import { caveModelUrl } from '../../../shared/caveModels.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { Button } from '../../components/Button.js';
 import { Dialog } from '../../components/Dialog.js';
-import { caveContents, caveNumber, useCaveModels, useCaveViewer, type ViewerMarker } from './caveModels.js';
+import { caveContents, caveLabelNumber, caveModelId, useCaveModels, useCaveViewer, type ViewerMarker } from './caveModels.js';
 import type { CaveViewer3dProps, ViewerStatus } from './CaveViewer3d.js';
 import { useCaves } from './useCaves.js';
 
@@ -31,7 +31,7 @@ export function CaveViewerDialog({ ctx }: { ctx: WorldCtx }) {
   const version = ctx.me.datasetVersion;
   const models = useCaveModels(version, viewing !== null);
   const shapes = useCaves(version, ctx.index.ds.bounds, viewing !== null);
-  const entry = viewing === null ? undefined : models?.get(viewing);
+  const entry = viewing === null || !shapes ? undefined : models?.get(caveModelId(viewing, shapes));
   const [cut, setCut] = useState(1);
   const [surface, setSurface] = useState(true);
   const [resetKey, setResetKey] = useState(0);
@@ -63,7 +63,7 @@ export function CaveViewerDialog({ ctx }: { ctx: WorldCtx }) {
     setSurface(true);
     setStatus({ kind: 'loading', progress: null });
   };
-  const missing = models === null || (models !== undefined && viewing !== null && entry === undefined);
+  const missing = models === null || (models !== undefined && shapes !== undefined && viewing !== null && entry === undefined);
   const message = missing ? t('caves.viewer.missing')
     : status.kind === 'error' ? t(status.reason === 'webgl' ? 'caves.viewer.noWebgl' : 'caves.viewer.loadFailed')
       : status.kind === 'loading' || !entry
@@ -74,7 +74,7 @@ export function CaveViewerDialog({ ctx }: { ctx: WorldCtx }) {
     <Dialog
       open={viewing !== null}
       onClose={onClose}
-      title={viewing ? t('caves.viewer.title', { n: caveNumber(viewing) }) : ''}
+      title={viewing ? t('caves.viewer.title', { n: caveLabelNumber(viewing, shapes) }) : ''}
       widthClass="max-w-5xl"
     >
       <div className="relative -mx-4 -mt-4 h-[min(52dvh,640px)] min-h-56 sm:h-[min(62dvh,640px)] overflow-hidden bg-bg">

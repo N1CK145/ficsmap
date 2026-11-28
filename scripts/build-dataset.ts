@@ -4,9 +4,10 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { COLLECTIBLE_TYPES, classify, typeById } from '../src/shared/collectibleTypes.js';
 import { assignBiome, loadEditorBiomes, type BiomeShape } from '../src/shared/biomes.js';
-import { cavesToGeojson, type RawCaves } from '../src/shared/caves.js';
+import { cavesToGeojson, type CaveShape, type RawCaves } from '../src/shared/caves.js';
 import { buildCreatures } from '../src/shared/creatures.js';
-import { applyEntranceOverrides, cavesWithoutEntrance, entranceCapProblem, readEntranceOverrides, sampleCaves } from './cave-geometry.js';
+import { cavesWithoutEntrance, entranceCapProblem, sampleCaves } from './cave-geometry.js';
+import { mergeOutlineCaves, outlineEntrancePoints, readGeometryCaves, readOutlineCaves } from './outline-caves.js';
 import { caveModelSummary, writeCaveModels } from './cave-models.js';
 import { readHeightGrid, writeHeightTiles } from './heightmap.js';
 import { AREA_SNAP, biomesFromAreas, landTest, readMapAreas } from './map-areas.js';
@@ -349,7 +350,7 @@ export function missingParts(parts: ReadonlySet<DatasetPart>, inputs: Record<Dat
   return [...parts].filter(p => !inputs[p].ok).map(p => `${p}: ${inputs[p].what}`);
 }
 
-const USAGE = 'usage: npm run dataset -- --extractor <dir> --out <dir> [--only <part,...>] [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--cave-entrances <file>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--default-world <default-world.json>] [--docs <dir>] [--transport <file>] [--icons <dir>] [--buildings-raw <file>] [--snap-m 100] [--build N]'
+const USAGE = 'usage: npm run dataset -- --extractor <dir> --out <dir> [--only <part,...>] [--data-src <dir>] [--caves <caves.json>] [--cave-geometry <dir>] [--cave-outlines <file>] [--heightmap <dir>] [--map-areas <dir>] [--biome-raster <dir>] [--default-world <default-world.json>] [--docs <dir>] [--transport <file>] [--icons <dir>] [--buildings-raw <file>] [--snap-m 100] [--build N]'
   + `\nparts: ${Object.keys(DATASET_PARTS).join(', ')} (default: all)`;
 
 async function main(): Promise<void> {
@@ -371,9 +372,9 @@ async function main(): Promise<void> {
       // default: inside --extractor.
       caves: { type: 'string' },
       'cave-geometry': { type: 'string' },
-      // Cave entrances the sampling does not find, kept by hand (maintainer data); default:
-      // <data-src>/caves/entrances.json. With it, the build fails when too many caves stay without an entrance.
-      'cave-entrances': { type: 'string' },
+      // Hand-drawn cave outlines and entrances (maintainer data, from satisfactory-calculator.com); default:
+      // <data-src>/caves/scim-caves.json. Without it the outlines and entrances come from the sampling alone.
+      'cave-outlines': { type: 'string' },
       // The extractor's height grid (`--heightmap-out`); default: inside --extractor.
       heightmap: { type: 'string' },
       // The game's map areas (`--map-areas-out`); default: inside --extractor. They tell land from sea for the
@@ -409,7 +410,7 @@ async function main(): Promise<void> {
   const crashSitesPath = resolve(v['crash-sites'] ?? join(src, 'crash-sites', 'crash-sites.json'));
   const cavesPath = resolve(v.caves ?? join(ext, 'caves.json'));
   const geometryDir = resolve(v['cave-geometry'] ?? join(ext, 'cave-geometry'));
-  const caveEntrancesPath = resolve(v['cave-entrances'] ?? join(src, 'caves', 'entrances.json'));
+  const caveOutlinesPath = resolve(v['cave-outlines'] ?? join(src, 'caves', 'scim-caves.json'));
   const heightDir = resolve(v.heightmap ?? join(ext, 'heightmap'));
   const defaultWorldPath = resolve(v['default-world'] ?? join(ext, 'default-world.json'));
   const docsDir = resolve(v.docs ?? join(ext, 'docs'));
@@ -476,15 +477,36 @@ async function main(): Promise<void> {
     }
   }
   // The cave sampling gives the cave layer and the items' cave flags, so the collectibles need it too.
-  let caveLayer: ReturnType<typeof sampleCaves> | undefined;
+  let caveLayer: { caves: CaveShape[]; summary: string; problem: string | null } | undefined;
   if (hasCaves && want('caves', 'collectibles')) {
     console.log('Sampling caves ...');
     const coll = input.collectibles as { pickups: RawEntry[]; dropPods: RawEntry[] };
     const points = [...coll.pickups, ...coll.dropPods].map(e => ({ name: e.name, x: e.location[0], y: e.location[1], z: e.location[2] }));
     // The landscape alone (`landscape.f32` next to the height grid): items far under it lie in a cave.
     const landscape = readHeightGrid(heightDir, 'landscape.f32');
-    caveLayer = sampleCaves(geometryDir, readJson(cavesPath) as RawCaves, points, line => console.log(line), landscape);
-    input.itemsInCaves = caveLayer.itemsInCaves;
+    const volumes = readJson(cavesPath) as RawCaves;
+    const outlines = existsSync(caveOutlinesPath) ? readOutlineCaves(readJson(caveOutlinesPath)) : null;
+    const sampled = sampleCaves(geometryDir, volumes, points, line => console.log(line), landscape, outlines ? outlineEntrancePoints(outlines) : []);
+    const sampledLine = `sampling: ${sampled.caves.length} caves, ${sampled.caves.reduce((n, c) => n + c.entrances.length, 0)} entrances, ${sampled.itemsInCaves.size} items in caves`;
+    if (outlines) {
+      const landscapeZ = (x: number, y: number) => {
+        if (!landscape) return null;
+        const g = landscape.meta, i = Math.floor((x - g.minX) / g.cell), j = Math.floor((y - g.minY) / g.cell);
+        const z = i >= 0 && j >= 0 && i < g.width && j < g.height ? landscape.top[j * g.width + i]! : Number.NaN;
+        return Number.isFinite(z) ? z : null;
+      };
+      const merged = mergeOutlineCaves({ outlines, sampled, geometry: readGeometryCaves(geometryDir, volumes), items: points, landscapeZ });
+      input.itemsInCaves = merged.itemsInCaves;
+      caveLayer = {
+        caves: merged.caves,
+        problem: entranceCapProblem(merged.caves),
+        summary: `${outlines.length} from ${caveOutlinesPath}, ${merged.geometryOnly.length} only in the game geometry (${merged.geometryOnly.join(', ') || 'none'}), `
+          + `${merged.caves.filter(c => !c.model).length} without a 3D model; ${merged.itemsInCaves.size} items in caves (${sampledLine})`,
+      };
+    } else {
+      input.itemsInCaves = sampled.itemsInCaves;
+      caveLayer = { caves: sampled.caves, problem: null, summary: `from the sampling alone, no ${caveOutlinesPath}; ${sampled.itemsInCaves.size} items in caves` };
+    }
   }
   let ds: Dataset;
   try { ds = buildDataset(input); } catch (e) {
@@ -517,21 +539,12 @@ async function main(): Promise<void> {
     done('biomes', `${biomeSummary}; items per biome: ${ds.biomes.map((b, i) => `${b.name.en} ${perBiome.get(i) ?? 0}`).join(', ')}`);
   }
   if (parts.has('caves') && caveLayer) {
-    // Entrances the sampling misses (shafts, tunnels beyond the sampled box, steps at the mouth), kept by hand.
-    let fromOverrides = '';
-    if (existsSync(caveEntrancesPath)) {
-      const { added, problems } = applyEntranceOverrides(caveLayer.caves, readEntranceOverrides(readJson(caveEntrancesPath)));
-      const cap = entranceCapProblem(caveLayer.caves);
-      if (cap) problems.push(cap);
-      if (problems.length) { console.error(new BuildError(problems).message); process.exit(1); }
-      fromOverrides = ` (${added} from ${caveEntrancesPath})`;
-    } else {
-      fromOverrides = ` (no ${caveEntrancesPath})`;
-    }
+    // With the outlines every cave but the few only the geometry has must have an entrance.
+    if (caveLayer.problem) { console.error(new BuildError([caveLayer.problem]).message); process.exit(1); }
     writeFileSync(join(out, 'caves.geojson'), JSON.stringify(cavesToGeojson(caveLayer.caves)));
     const entrances = caveLayer.caves.reduce((sum, c) => sum + c.entrances.length, 0);
     const without = cavesWithoutEntrance(caveLayer.caves);
-    done('caves', `${caveLayer.caves.length} caves, ${entrances} entrances${fromOverrides}, ${without.length} without an entrance${without.length ? ` (${without.join(', ')})` : ''}`);
+    done('caves', `${caveLayer.caves.length} caves, ${entrances} entrances, ${without.length} without an entrance${without.length ? ` (${without.join(', ')})` : ''}; ${caveLayer.summary}`);
   }
   if (parts.has('cave-models')) {
     console.log('Simplifying cave models ...');

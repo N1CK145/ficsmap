@@ -5,12 +5,20 @@ import type { DatasetIndex, Item } from '../../../shared/dataset.js';
 import { pointInRings, worldToLatLng } from '../../../shared/geo.js';
 import { api, ApiClientError } from '../../app/api.js';
 import { queryKeys } from '../../app/queryKeys.js';
-import type { CaveEntrancePoint, CaveShapes } from './useCaves.js';
+import { caveNumber, type CaveEntrancePoint, type CaveShapes } from './useCaves.js';
 
-/** The cave's number from its id (`cave-012` → 12); caves are numbered by the dataset build. */
-export function caveNumber(id: string, fallback = 0): number {
-  const n = Number(/\d+/.exec(id)?.[0]);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
+export { caveNumber };
+
+/** The number the map shows for a cave (`n` in caves.geojson; while the caves load, the number in its id). */
+export function caveLabelNumber(id: string, shapes: CaveShapes | null | undefined): number {
+  const k = shapes ? shapes.ids.indexOf(id) : -1;
+  return k >= 0 ? shapes!.numbers[k]! : caveNumber(id);
+}
+
+/** The id of the 3D model a cave is shown with (several caves can share one: they lie in one geometry cave). */
+export function caveModelId(id: string, shapes: CaveShapes | null | undefined): string {
+  const k = shapes ? shapes.ids.indexOf(id) : -1;
+  return k >= 0 ? shapes!.models[k]! : id;
 }
 
 /** The id of the cave whose outline holds this map point, or null. */

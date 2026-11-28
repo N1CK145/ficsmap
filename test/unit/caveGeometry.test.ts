@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
-  applyEntranceOverrides, caveArea, cavesWithoutEntrance, classify, entranceCapProblem, fillEmptyVolumes, isUnderground, keepZonesWith,
-  MAX_CAVES_WITHOUT_ENTRANCE, readEntranceOverrides, readGlb, sampleCaves, sampleColumns, traceRings, volumeBand, type SampledCave,
+  caveArea, cavesWithoutEntrance, classify, entranceCapProblem, fillEmptyVolumes, isUnderground, keepZonesWith,
+  MAX_CAVES_WITHOUT_ENTRANCE, readGlb, sampleCaves, sampleColumns, traceRings, volumeBand, type SampledCave,
 } from '../../scripts/cave-geometry.js';
 import type { RawCaves } from '../../src/shared/caves.js';
 import { writeGlb, type Quad } from '../fixtures/caveGlb.js';
@@ -76,6 +76,13 @@ describe('cave geometry sampling', () => {
     expect(layer.caves.map(c => c.id)).toEqual(['cave-001']);
     expect(layer.caves[0]!.entrances).toHaveLength(1);
     expect([...layer.itemsInCaves]).toEqual(['IN']);
+  });
+
+  it('gives probe points the height of the cave floor at the mouth, or of the floor nearest a drawn height', () => {
+    const layer = sampleCaves(dir, VOLUMES, [], () => {}, null, [{ x: 2400, y: 0 }, { x: 2400, y: 0, z: 30 }, { x: 99_999, y: 0 }]);
+    expect(layer.probeZ[0]).toBeCloseTo(-1000);
+    expect(layer.probeZ[1]).toBeCloseTo(0); // the landscape over the cave, nearest the drawn height
+    expect(layer.probeZ[2]).toBeNull();
   });
 });
 
@@ -249,28 +256,8 @@ describe('halls under the landscape', () => {
   });
 });
 
-describe('maintained cave entrances', () => {
+describe('caves without an entrance', () => {
   const cave = (id: string, entrances: { x: number; y: number; z: number }[]): SampledCave => ({ id, rings: [[[0, 0], [100, 0], [0, 100]]], entrances });
-
-  it('reads the override file and rejects bad entries', () => {
-    expect(readEntranceOverrides({ _source: {}, entrances: { 'cave-005': [{ x: 1, y: 2, z: 3, cause: 'step' }] } }))
-      .toEqual({ 'cave-005': [{ x: 1, y: 2, z: 3 }] });
-    expect(() => readEntranceOverrides({ entrances: { 'cave-005': [{ x: 1, y: 'a', z: 3 }] } })).toThrow(/cave-005/);
-    expect(() => readEntranceOverrides({})).toThrow(/entrances/);
-  });
-
-  it('adds override entrances to their cave unless one was found within 30 m, and fails on unknown caves', () => {
-    const caves = [cave('cave-001', [{ x: 0, y: 0, z: 0 }]), cave('cave-002', [])];
-    const r = applyEntranceOverrides(caves, {
-      'cave-001': [{ x: 2000, y: 0, z: 0 }, { x: 9000, y: 0, z: 50 }],
-      'cave-002': [{ x: 5, y: 6, z: 7 }],
-      'cave-099': [{ x: 0, y: 0, z: 0 }],
-    });
-    expect(r.added).toBe(2);
-    expect(r.problems).toEqual(['Entrance override for cave-099, which is not a cave of this dataset']);
-    expect(caves[0]!.entrances).toEqual([{ x: 0, y: 0, z: 0 }, { x: 9000, y: 0, z: 50 }]);
-    expect(caves[1]!.entrances).toEqual([{ x: 5, y: 6, z: 7 }]);
-  });
 
   it('caps the caves without an entrance', () => {
     const caves = [cave('cave-001', [{ x: 0, y: 0, z: 0 }]), cave('cave-072', []), cave('cave-073', [])];

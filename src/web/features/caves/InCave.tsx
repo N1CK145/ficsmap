@@ -5,7 +5,7 @@ import { UNITS_PER_METER, worldToLatLng } from '../../../shared/geo.js';
 import type { WorldCtx } from '../../app/feature.js';
 import { Button } from '../../components/Button.js';
 import { Panel } from '../../components/Panel.js';
-import { caveAt, useCaveModels, useCaveViewer } from './caveModels.js';
+import { caveAt, caveModelId, useCaveModels, useCaveViewer } from './caveModels.js';
 import { nearestEntrance, useCaves } from './useCaves.js';
 
 /**
@@ -23,7 +23,7 @@ export function InCave({ item, ctx }: { item: Item; ctx: WorldCtx }) {
     <Panel title={t('caves.item.title')}>
       <p>{t('caves.item.inCave')}</p>
       {d !== null && <p className="text-muted">{t('caves.item.nearestEntrance', { distance: Math.round(d / UNITS_PER_METER) })}</p>}
-      {cave && models?.has(cave) && (
+      {cave && models?.has(caveModelId(cave, caves)) && (
         <Button size="sm" className="mt-2" onClick={() => view(cave)}>{t('caves.item.view3d')}</Button>
       )}
     </Panel>

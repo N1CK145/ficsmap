@@ -5,7 +5,6 @@ import type { DatasetIndex } from '../../../shared/dataset.js';
 import { pointInRings, worldToLatLng } from '../../../shared/geo.js';
 import type { SearchEntry, SearchProvider, WorldCtx } from '../../app/feature.js';
 import { boundsOf, useMapFit } from '../search/fit.js';
-import { caveNumber } from './caveModels.js';
 import { hasCaves, useCaveLayer, useCaves, type CaveShapes } from './useCaves.js';
 
 /** The biome most of the items inside lie in, else the biome of the item nearest to the cave. */
@@ -40,7 +39,7 @@ export function caveEntries(index: DatasetIndex, shapes: CaveShapes, i18n: I18n)
     const bounds = boundsOf(rings);
     if (!bounds) return [];
     const id = shapes.ids[k] ?? `cave-${k + 1}`;
-    const n = caveNumber(id, k + 1);
+    const n = shapes.numbers[k] ?? k + 1;
     const inside = inCave.filter(({ at }) => pointInRings(at[0], at[1], rings)).map(({ item }) => item);
     const centre: [number, number] = [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2];
     const biome = caveBiome(index, inside.map(i => i.biome), centre);

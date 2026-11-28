@@ -29,11 +29,15 @@ export function cleanElements(elements: readonly RawCaveElement[]): RawCaveEleme
   return elements.filter((_, i) => sizes[i]! <= OUTLIER_FACTOR * median || sizes[i]! <= BROKEN_SIZE);
 }
 
-/** A cave's outline rings (world cm, filled even-odd: outer rings and holes) and its entrances. */
-export interface CaveShape { id: string; rings: number[][][]; entrances: { x: number; y: number; z: number }[] }
+/**
+ * A cave's outline rings (world cm, filled even-odd: outer rings and holes) and its entrances. `n` is the number the
+ * map shows (default: the number in the id), `model` the cave of the extractor's geometry it lies in, whose 3D model
+ * shows it (default: the id; absent with outlines that lie in no geometry cave).
+ */
+export interface CaveShape { id: string; n?: number; model?: string; rings: number[][][]; entrances: { x: number; y: number; z: number }[] }
 
 /**
- * `caves.geojson`, world coordinates: per cave one `kind: "cave"` feature whose polygon holds all its rings
+ * `caves.geojson`, world coordinates: per cave one `kind: "cave"` feature (`id`, and `n`, `model` where known) whose polygon holds all its rings
  * (even-odd fill, so holes need no special order), and per entrance one `kind: "entrance"` point with its
  * height in `z` (cm).
  */
@@ -44,7 +48,7 @@ export function cavesToGeojson(caves: readonly CaveShape[]) {
     features: [
       ...caves.map(c => ({
         type: 'Feature',
-        properties: { kind: 'cave', id: c.id },
+        properties: { kind: 'cave', id: c.id, ...(c.n !== undefined ? { n: c.n } : {}), ...(c.model !== undefined ? { model: c.model } : {}) },
         geometry: { type: 'Polygon', coordinates: c.rings.map(r => [...r.map(round), round(r[0]!)]) },
       })),
       ...caves.flatMap(c => c.entrances.map(e => ({

@@ -4,7 +4,7 @@ import { useMap } from 'react-leaflet';
 import type { WorldCtx } from '../../app/feature.js';
 import { Button } from '../../components/Button.js';
 import { WINDOW_FRAME, WindowTitleBar } from '../../components/Window.js';
-import { caveContents, caveNumber, useCaveModels, useCaveViewer } from './caveModels.js';
+import { caveContents, caveLabelNumber, caveModelId, useCaveModels, useCaveViewer } from './caveModels.js';
 import { CaveViewerDialog } from './CaveViewerDialog.js';
 import { useCaveLayer, useCaves } from './useCaves.js';
 
@@ -56,7 +56,7 @@ function CaveBox({ ctx, id, lat, lng }: { ctx: WorldCtx; id: string; lat: number
   const fitsRight = p.x + BOX_OFFSET + BOX_WIDTH <= size.x - 8;
   const left = Math.max(8, fitsRight ? p.x + BOX_OFFSET : Math.min(p.x - BOX_OFFSET - BOX_WIDTH, size.x - BOX_WIDTH - 8));
   const top = Math.max(8, Math.min(p.y - 20, size.y - 160));
-  const title = t('caves.popup.title', { n: caveNumber(id) });
+  const title = t('caves.popup.title', { n: caveLabelNumber(id, shapes) });
   return (
     <section
       aria-label={title}
@@ -70,7 +70,7 @@ function CaveBox({ ctx, id, lat, lng }: { ctx: WorldCtx; id: string; lat: number
         subtitle={contents ? t('caves.popup.contents', { items: contents.items.length, entrances: contents.entrances.length }) : undefined}
         onClose={closePopup}
       />
-      {models?.has(id) && (
+      {shapes && models?.has(caveModelId(id, shapes)) && (
         <div className="p-2">
           <Button variant="primary" size="sm" className="w-full" onClick={() => view(id)}>{t('caves.popup.view3d')}</Button>
         </div>
