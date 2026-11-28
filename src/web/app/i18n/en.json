@@ -26,6 +26,7 @@
     "inviteOnly": "Invite-only: you need an invite link from someone who owns a world, or run your own ficsmap.",
     "tagline": "Track your Satisfactory collectibles together with your friends.",
     "signIn": "Sign in with Discord",
+    "signInSteam": "Sign in with Steam",
     "error": {
       "invite_only": "ficsmap is invite-only. Ask a friend for an invite link.",
       "cancelled": "Sign-in was cancelled. You can try again at any time.",
@@ -69,6 +70,25 @@
       "title": "Invite to ficsmap",
       "linkLabel": "General invite link",
       "hint": "Lets one person create an account without joining a world. Only server owners see this."
+    },
+    "signIn": {
+      "title": "Sign-in",
+      "hint": "Sign in with Discord or Steam. Link both to use either; your worlds stay the same.",
+      "notLinked": "Not linked",
+      "link": "Link {provider}",
+      "unlink": "Remove",
+      "unlinkNamed": "Remove {provider} sign-in",
+      "unlinkConfirm": "Remove sign-in with {provider}? You can link it again later.",
+      "unlinked": "{provider} sign-in removed",
+      "unlinkFailed": "The sign-in couldn't be removed. Please try again.",
+      "linked": "{provider} is linked to your account now.",
+      "error": {
+        "taken": "That account already signs in to another ficsmap account.",
+        "provider_taken": "Your account already has another account of that provider. Remove it first.",
+        "cancelled": "Linking was cancelled.",
+        "expired": "Linking took too long. Please try again.",
+        "failed": "Linking didn't work. Please try again."
+      }
     }
   },
   "worlds": {

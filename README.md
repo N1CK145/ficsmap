@@ -21,7 +21,7 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 ## Features
 
 - **Interactive map** with the game's own icons for Blue, Yellow and Purple Power Slugs, Somersloops, Mercer Spheres and drop pods (hard drives).
-- **Discord login.** No passwords to manage.
+- **Discord or Steam login.** No passwords to manage. Link both to one account in the profile settings.
 - **Worlds.** Track a world alone or share it with co-op friends. Invite links work once and are valid for 7 days. Server owners can also hand out general invite links (profile page) that create an account without joining a world. The owner can revoke all open links and make members admins, who may then import saves, invite, manage upload keys, rename the world and remove members (only the owner can delete the world or change roles). The owner can hand the world over to another member in the world settings and stays an admin.
 - **Live sync.** When a member ticks something off, everyone else sees it at once (Server-Sent Events).
 - **Save import.** Read a save file to mark everything you have already collected. The save is parsed in your browser.
@@ -44,8 +44,8 @@ ficsmap is a self-hosted web app. You run your own instance. The author runs an 
 
 ## How it works and privacy
 
-- You sign in with Discord. ficsmap reads your Discord ID, name and avatar. The Discord access token is used once and never stored.
-- Accounts are invite-only. A new account is created only for a Discord ID listed in `OWNER_DISCORD_IDS` or for someone who opens a valid invite link (a world invite, or a general invite of a server owner).
+- You sign in with Discord or Steam. With Discord, ficsmap reads your Discord ID, name and avatar; the Discord access token is used once and never stored. With Steam, ficsmap only learns your SteamID; your Steam name and avatar are read from the Steam Web API if the server has a `STEAM_API_KEY`, otherwise the SteamID is shown as your name.
+- Accounts are invite-only. A new account is created only for a Discord ID in `OWNER_DISCORD_IDS`, a SteamID in `OWNER_STEAM_IDS`, or for someone who opens a valid invite link (a world invite, or a general invite of a server owner).
 - **With the normal import your save file never leaves your browser.** It is parsed locally in a Web Worker. Only the list of collected item names (for example `BP_Crystal_mk29`) is sent to the server, together with the file name and the session name, save time and game build from the save header, and for resource nodes: the resource or purity the save sets per node (randomised worlds), the node randomisation settings, and which extractor stands on which node (building type, node name, clock speed, number of Power Shards).
 - The **automatic upload** is the exception you opt into: its script sends the whole save file to your ficsmap server, which parses it there (the same extraction as in the browser) and keeps only what an import keeps. The save itself is not stored.
 - Ticks, routes and members are stored in a SQLite database on the server you run.
@@ -124,6 +124,8 @@ Copy [`.env.example`](.env.example) to `.env`, fill it in and run `chmod 600 .en
 | `PUBLIC_URL` | The URL users open, for example `https://ficsmap.example.com`. Used for the Discord redirect, invite links and the origin check. |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | From your Discord application. |
 | `OWNER_DISCORD_IDS` | Comma-separated Discord user IDs that may sign in without an invite. Owners can create general invite links (profile page) and confirm a rollback in the browser. |
+| `OWNER_STEAM_IDS` | Optional. Comma-separated SteamID64s (17 digits) that may sign in with Steam without an invite; server owners like `OWNER_DISCORD_IDS`, except that the rollback page asks for Discord. |
+| `STEAM_API_KEY` | Optional. A [Steam Web API key](https://steamcommunity.com/dev/apikey) to show Steam users' names and avatars. Without it, Steam accounts are shown by their SteamID. |
 | `SESSION_SECRET` | A random secret, at least 32 characters. Generate with `openssl rand -base64 48`. (`INVITE_JWT_SECRET` is no longer used and can be removed.) |
 | `TRUST_PROXY` | IP address of your reverse proxy, whose `X-Forwarded-*` headers are trusted. Empty without a proxy. Several addresses or CIDR ranges are separated by commas. |
 | `CLIENT_IP_HEADER` | Optional. A header with the real client IP set by a CDN in front of your proxy, e.g. `CF-Connecting-IP` behind Cloudflare. Only believed on requests from a `TRUST_PROXY` address; see [Behind Cloudflare](#behind-cloudflare). |
@@ -141,6 +143,12 @@ To find your Discord user ID: Discord settings, Advanced, turn on Developer Mode
 3. Copy the client ID and client secret into `.env`.
 
 ficsmap requests the `identify` scope. No bot is needed.
+
+### Sign-in with Steam
+
+Steam sign-in (OpenID 2.0) needs no registration and is always offered next to Discord. Steam sends the browser back to `<PUBLIC_URL>/auth/steam/callback`; ficsmap checks the answer with Steam itself before it trusts the SteamID. Accounts stay invite-only: a Steam user needs an invite link, or their SteamID64 in `OWNER_STEAM_IDS` (shown under "Account details" in Steam, and in the profile URL unless it has a custom one).
+
+One account can sign in with both. A signed-in user opens the profile settings, "Sign-in", and chooses "Link Steam" (or "Link Discord"); after signing in there, both lead to the same account and its worlds. A Steam or Discord account that already belongs to another ficsmap account cannot be linked, and the last sign-in of an account cannot be removed. Name and avatar follow the provider used last (Steam only with `STEAM_API_KEY`).
 
 ### Reverse proxy
 
@@ -283,7 +291,7 @@ The app shows "ficsmap vX.Y.Z" with a link to the GitHub release. `GET /api/vers
 ## Limitations
 
 - Accounts are invite-only. There is no open sign-up.
-- Self-hosting needs your own Discord application.
+- Self-hosting needs your own Discord application (Steam sign-in alone is not enough: the rollback confirmation in the browser uses Discord).
 - The map dataset is not included and has to be built from your own game install. Crash-site data are not published yet.
 - The data is from game version 1.2.5.0.
 - Route distances are straight lines; terrain is not taken into account.

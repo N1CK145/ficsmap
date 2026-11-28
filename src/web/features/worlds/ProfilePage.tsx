@@ -14,12 +14,13 @@ import { SectionMarker } from '../../components/SectionHeading.js';
 import { Window } from '../../components/Window.js';
 import { AccountMenu } from './AccountMenu.js';
 import { GeneralInvite } from './GeneralInvite.js';
+import { SignInMethods } from './SignInMethods.js';
 import { useMe } from './queries.js';
 
 /**
  * `/profile`: the signed-in user's own settings, outside any world (reached from the account menu). The mouse wheel
  * speed and the date format are stored on the account (app/prefs.ts); the language stays a setting of this device.
- * Server owners also get a general invite link here.
+ * The account's sign-ins (Discord, Steam) are linked and removed here; server owners also get a general invite link.
  */
 export function ProfilePage() {
   const { t } = useTranslation();
@@ -59,6 +60,9 @@ export function ProfilePage() {
             </Window>
             <Window title={t('profile.dateFormat.title')} bodyClassName="p-4">
               <DateFormatSetting onChange={() => setChanged('date')} status={changed === 'date'} />
+            </Window>
+            <Window title={t('profile.signIn.title')} bodyClassName="p-4">
+              <SignInMethods me={me.data} />
             </Window>
             {me.data.serverOwner && (
               <Window title={t('profile.invite.title')} bodyClassName="p-4">

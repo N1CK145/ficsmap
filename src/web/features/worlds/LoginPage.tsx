@@ -24,7 +24,7 @@ export function LoginPage() {
   const { t } = useTranslation();
   const [params] = useSearchParams();
   const error = loginError(params.get('error'));
-  const href = `/auth/login?returnTo=${encodeURIComponent(safeReturnTo(params.get('returnTo')))}`;
+  const query = `?returnTo=${encodeURIComponent(safeReturnTo(params.get('returnTo')))}`;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -35,7 +35,8 @@ export function LoginPage() {
             <h1 className="font-display text-4xl font-bold tracking-wider uppercase">{t('app.name')}</h1>
             <p className="text-muted">{t('login.tagline')}</p>
             {error && <p role="alert" className="chamfer border border-conflict bg-conflict/10 px-3 py-2 text-sm">{t(`login.error.${error}`)}</p>}
-            <a href={href} className={buttonClass({ variant: 'primary', size: 'touch' }, 'w-full')}>{t('login.signIn')}</a>
+            <a href={`/auth/login${query}`} className={buttonClass({ variant: 'primary', size: 'touch' }, 'w-full')}>{t('login.signIn')}</a>
+            <a href={`/auth/steam/login${query}`} className={buttonClass({ size: 'touch' }, 'w-full')}>{t('login.signInSteam')}</a>
             <p className="text-sm text-muted">{t('login.inviteOnly')}</p>
           </div>
           <div aria-hidden="true" className="h-1.5 hazard" />
