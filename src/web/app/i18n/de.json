@@ -892,6 +892,10 @@
       "limiting": "Engpass, voll genutzt",
       "share": "{value} % genutzt",
       "usedOf": "{used} von {available}"
+    },
+    "transport": {
+      "lines": "{count}× {tier}",
+      "needs": "Braucht {tier}"
     }
   },
   "vehicleCalc": {

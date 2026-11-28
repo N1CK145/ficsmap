@@ -8,6 +8,7 @@ import { FlowDiagram, type FlowMarker } from './FlowDiagram.js';
 import { formatRate, type Lang } from './format.js';
 import { StepBadges, StepPicture, USE_STRIP, UseMark, UseStrip } from './pictures.js';
 import { stepText, type StepText, type StepUse } from './stepText.js';
+import { TransportMark, useTransportText } from './transport.js';
 
 type EdgeStyle = 'input' | 'byproduct' | 'loop';
 const EDGE_STYLES: readonly EdgeStyle[] = ['input', 'byproduct', 'loop'];
@@ -63,7 +64,9 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, onDismiss,
     return steps.map(s => ({ id: s.item, row: rowOf.get(s.item)! }));
   }, [steps]);
   const links = useMemo(() => diagramLinks(steps), [steps]);
-  const options = useMemo(() => ({ direction }), [direction]);
+  // Wider labels than the default: the rate and the belt or pipeline tier it needs.
+  const options = useMemo(() => ({ direction, labelWidth: 150 }), [direction]);
+  const transport = useTransportText(index, lang);
   const texts = new Map(steps.map(s => [s.item, stepText(s, index, lang, t, defaultPurity)]));
   return (
     <FlowDiagram
@@ -110,6 +113,7 @@ export function PlanDiagram({ steps, index, lang, selected, onSelect, onDismiss,
           <>
             <GameIcon cls={item} px={16} />
             {formatRate(index, item, e.rate, lang, t)}
+            <TransportMark text={transport(item, e.rate)} />
           </>
         );
       }}

@@ -627,6 +627,38 @@ describe('production planner diagram', () => {
     expect(screen.getByRole('region', { name: 'Totals' })).toBeInTheDocument();
   });
 
+  it('marks every flow with the belt or pipeline tier it needs: on the edges, in the list and in the step panel', async () => {
+    const n = (en: string, de: string) => ({ en, de });
+    const withBelts = {
+      ...RECIPE_DATA,
+      belts: [
+        { id: 'Build_ConveyorBeltMk1_C', name: n('Conveyor Belt Mk.1', 'Förderband Mk.1'), kind: 'belt' as const, rate: 60 },
+        { id: 'Build_ConveyorBeltMk2_C', name: n('Conveyor Belt Mk.2', 'Förderband Mk.2'), kind: 'belt' as const, rate: 120 },
+      ],
+      pipes: [{ id: 'Build_Pipeline_C', name: n('Pipeline Mk.1', 'Pipeline Mk.1'), rate: 300 }],
+    };
+    setup('present', undefined, { 'GET /data/test/recipes.json': { body: withBelts } });
+    await openAndPick('plate');
+    // 90 ingot and 90 ore per minute: Mk.2 on both edges.
+    const label = diagram().querySelector('[data-label-to="plate"]')!;
+    expect(label).toHaveTextContent('90/minMk.2');
+    expect(within(label as HTMLElement).getByTitle('Needs Conveyor Belt Mk.2')).toBeInTheDocument();
+    expect(diagram().querySelector('[data-label-to="ingot"]')).toHaveTextContent('Mk.2');
+
+    // 240 plate per minute leave the step on two Mk.2 belts.
+    await userEvent.clear(screen.getByRole('spinbutton', { name: 'Per minute of plate' }));
+    await userEvent.type(screen.getByRole('spinbutton', { name: 'Per minute of plate' }), '240');
+    await userEvent.click(node('plate'));
+    const output = screen.getByText('Output').closest('div')!;
+    expect(slots(output)[0]).toContain('Needs 2× Conveyor Belt Mk.2');
+
+    // The list's input chips; fluids on pipelines.
+    await userEvent.click(screen.getByRole('radio', { name: 'List' }));
+    expect(within(within(stepOf('plate')).getByRole('list', { name: 'Input' })).getByTitle('Needs 3× Conveyor Belt Mk.2')).toBeInTheDocument();
+    usePlanner.getState().setChoice('plate', { kind: 'recipe', recipe: 'R_PlateAlt' });
+    expect(await within(within(stepOf('plate')).getByRole('list', { name: 'Input' })).findByTitle('Needs Pipeline Mk.1')).toBeInTheDocument();
+  });
+
   it('highlights the edges of the hovered and the selected step and fades the others', async () => {
     setup();
     await openAndPick('plate');
