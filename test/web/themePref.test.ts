@@ -21,7 +21,7 @@ describe('theme preference', () => {
 
 describe('theme before the app loads (index.html)', () => {
   const html = readFileSync(resolve(process.cwd(), 'src/web/index.html'), 'utf8');
-  const script = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1];
+  const script = /<script\b[^>]*>([\s\S]*?)<\/script\s*>/i.exec(html)?.[1];
   const run = (stored: string | null, prefersLight = false) => {
     document.documentElement.removeAttribute('data-theme');
     if (stored === null) localStorage.removeItem('ficsmap:prefs');

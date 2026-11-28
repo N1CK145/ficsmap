@@ -51,29 +51,31 @@ export function steamAuthorizeUrl(returnTo: string, realm: string): string {
 export async function verifySteamAssertion(
   query: Record<string, unknown>, expectedReturnTo: string, fetchFn: typeof fetch = fetch, now = Date.now(),
 ): Promise<string> {
-  const openid: Record<string, string> = {};
+  // A Map, not an object: the field names come from the request (no prototype keys like __proto__).
+  const fields = new Map<string, string>();
   for (const [k, v] of Object.entries(query)) {
     if (!k.startsWith('openid.')) continue;
     if (typeof v !== 'string') throw new SteamAuthError(`repeated or invalid ${k}`);
-    openid[k.slice('openid.'.length)] = v;
+    fields.set(k.slice('openid.'.length), v);
   }
+  const field = (name: string): string | undefined => fields.get(name);
   const fail = (why: string): never => { throw new SteamAuthError(why); };
-  if (openid.ns !== OPENID_NS) fail('not OpenID 2.0');
-  if (openid.mode !== 'id_res') fail(`mode ${openid.mode ?? 'missing'}`);
-  if (openid.op_endpoint !== STEAM_OPENID) fail('not Steam');
-  if (openid.return_to !== expectedReturnTo) fail('return_to does not match');
-  const m = CLAIMED_ID.exec(openid.claimed_id ?? '');
+  if (field('ns') !== OPENID_NS) fail('not OpenID 2.0');
+  if (field('mode') !== 'id_res') fail(`mode ${field('mode') ?? 'missing'}`);
+  if (field('op_endpoint') !== STEAM_OPENID) fail('not Steam');
+  if (field('return_to') !== expectedReturnTo) fail('return_to does not match');
+  const m = CLAIMED_ID.exec(field('claimed_id') ?? '');
   if (!m) fail('claimed_id is not a Steam id');
-  if (openid.identity !== openid.claimed_id) fail('identity differs from claimed_id');
-  if (!openid.sig) fail('no signature');
-  const signed = new Set((openid.signed ?? '').split(','));
+  if (field('identity') !== field('claimed_id')) fail('identity differs from claimed_id');
+  if (!field('sig')) fail('no signature');
+  const signed = new Set((field('signed') ?? '').split(','));
   if (!MUST_SIGN.every(f => signed.has(f))) fail('assertion does not sign its fields');
-  const issued = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)/.exec(openid.response_nonce ?? '');
+  const issued = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)/.exec(field('response_nonce') ?? '');
   const at = issued ? Date.parse(issued[1]!) : NaN;
   if (!Number.isFinite(at) || Math.abs(now - at) > NONCE_MAX_AGE_MS) fail('stale or malformed nonce');
 
   const body = new URLSearchParams();
-  for (const [k, v] of Object.entries(openid)) body.set(`openid.${k}`, k === 'mode' ? 'check_authentication' : v);
+  for (const [k, v] of fields) body.set(`openid.${k}`, k === 'mode' ? 'check_authentication' : v);
   const res = await fetchFn(STEAM_OPENID, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },

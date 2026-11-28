@@ -70,7 +70,8 @@ function triangles(indices: ArrayLike<number>): string[] {
 
 const OPTS = { maxError: 0.3, maxTriangles: 400_000, budgetError: 2 };
 
-beforeAll(() => meshoptReady());
+// The decoder loads its WebAssembly asynchronously too; under load it is not ready without waiting.
+beforeAll(() => Promise.all([meshoptReady(), MeshoptDecoder.ready]));
 
 describe('weld', () => {
   it('shares vertices between corners at the same position', () => {
